@@ -1,0 +1,19 @@
+# build.yml - UNVERIFIED: not run on a hosted runner yet. If the first run fails, check the log for the failing step.
+# The hosted runner may not have Visual Studio 2026 (toolset v145) or Windows SDK 10.0.26100.0, so CI overrides both; the pinned values in
+# DualLayer.vcxproj stay the truth for the two development machines.
+name: build
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v3
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Logic tests
+        shell: pwsh
+        run: ./tests/run_tests.ps1
+      - name: Build Release
+        run: msbuild DualLayer.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0

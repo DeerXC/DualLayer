@@ -1,0 +1,21 @@
+# Visual Studio / build output
+.vs/
+build/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.obj
+*.pdb
+*.ilk
+*.ipdb
+*.iobj
+*.tlog
+*.log
+# runtime output
+logs/
+# local only
+assets_src/
+*.zip
+config/local.ini
