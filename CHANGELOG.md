@@ -11,8 +11,6 @@
 
 - Made: repository files, hand-written VS 2026 project (SDK pinned), Log / Assert / Config with tests, window with DPI awareness, D3D11 device with adapter list and debug layer, GPU names and events, flip-model swap chain with an sRGB view, test triangle.
 - Next: first build and run on the laptop (docs/BUILD.md checks), fill in the M0 understanding note.
-- Risk: CI is unverified (see KI-05).
-
 ## Known issues
 
 | ID | Symptom | Reproduce | Cause (if known) | Impact | Plan |
@@ -21,5 +19,4 @@
 | KI-02 | A lost device ends the program | unplug/disable the GPU while running | recovery not written yet | exit | later milestone |
 | KI-03 | The Release build treats warnings as errors; the M1 files have not been compiled with MSVC yet | build `Release \| x64` | `DualLayer.vcxproj` (Release: `TreatWarningAsError`) | a warning that Debug does not show stops the Release build | read the first warning and fix it; if it is not worth it, note it here |
 | KI-04 | Reverse-Z is undecided: depth is the plain `D32_FLOAT`, LESS, clear 1.0 | - | not tested yet | far objects can z-fight at long distance | test it and record the decision |
-| KI-05 | The build workflow has not run on a hosted runner yet | run the workflow manually | the hosted runner may not have Visual Studio 2026 | CI result unknown | run it once and record the result |
-| KI-06 | The GPU used by default on the dual-GPU laptop is not confirmed | read the adapter list in `logs/dual.log` | Windows may default new programs to the integrated GPU | performance numbers could come from the wrong GPU | enumerate the adapters with DXGI and confirm |
+| KI-05 | The GPU used by default on the dual-GPU laptop is not confirmed | read the adapter list in `logs/dual.log` | Windows may default new programs to the integrated GPU | performance numbers could come from the wrong GPU | enumerate the adapters with DXGI and confirm |
