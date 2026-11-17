@@ -1,20 +1,40 @@
 # DualLayer (working title)
 
-> 日本語：赤と青、二つの現実を切り替えながら進む3Dアクションパズル（制作中・M1）
+> 日本語：赤と青、二つの現実を切り替えながら進む3Dアクションパズル（制作中・M2）
 >
-> English: a 3D action-puzzle about two overlapping realities, red and blue (work in progress, milestone M1).
+> English: a 3D action-puzzle about two overlapping realities, red and blue (work in progress, milestone M2).
 
 Self-made engine layer on C++20 / Direct3D 11. No game engine.
 
-Status: M1 in progress (depth buffer, four 3D models, one light).
+Status: milestone M2 in progress. The acceptance checks of M0, M1 and the first M2 step pass on Windows (see [CHANGELOG.md](CHANGELOG.md)).
+
+## Highlights
+
+- Direct3D 11 renderer written directly against the API: device and adapter choice, depth buffer, constant buffers, HLSL shaders compiled at run time.
+- Shapes (cube, sphere, cylinder, torus) generated in code, with unit tests that check every triangle's winding and normal.
+- Two layers, A and B, in one scene: each object carries a layer mask, and each layer has its own light, sky and background. `Tab` fades between them.
+- Recovery from a lost graphics device: all GPU objects are rebuilt while the camera and the layer state stay as they were.
+- Looks and speeds are read from `config/default.ini` and reloaded with F5, without recompiling.
+
+## Demo
+
+A demo video has not been recorded yet.
+
+## Role
+
+Single developer: design, code, documentation and tests.
+
+## Build and run
+
+Open `DualLayer.slnx` in Visual Studio 2026, choose `Debug | x64` and press F5. Details: [docs/BUILD.md](docs/BUILD.md).
 
 ## Documents
 
 | Document | Contents |
 |---|---|
 | [docs/BUILD.md](docs/BUILD.md) | Requirements, build and run, keys, acceptance checks |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | One frame step by step, modules and their dependencies, debugging facilities |
-| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, naming |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | One frame step by step, layers, modules and their dependencies, debugging facilities |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, layers, naming |
 | [CHANGELOG.md](CHANGELOG.md) | Milestone records and known issues |
 | [docs/understanding](docs/understanding) | Notes written after reading the code and stepping through it in the debugger |
 

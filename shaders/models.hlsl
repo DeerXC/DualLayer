@@ -2,7 +2,9 @@
 // Slots:   b0 Frame (the camera and the light, once per frame), b1 Object (once per draw call). No textures, no samplers.
 // Light:   everything is worked out in LINEAR space (common.hlsli): the colours that arrive are linear, this shader returns linear colour and the
 //          back buffer is written through an sRGB view. Do not apply a gamma curve here.
-// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 112 and 160 bytes).
+//          Since M2 the light colour, the light direction and the sky colours come from the theme of the visible layer (mixed during the fade).
+// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 144 and 160 bytes).
+
 #include "common.hlsli"
 
 cbuffer Frame : register(b0)
@@ -10,10 +12,14 @@ cbuffer Frame : register(b0)
     float4x4 viewProjection; // View * Projection
     float3 eye;              // the camera, in the world
     float pad0;
-    float3 toLight;          // the direction FROM a surface TO the light (unit length)
-    float ambient;           // 1 = the sky light written below
+    float3 toLight; // the direction FROM a surface TO the light (unit length)
+    float ambient;  // 1 = the sky light as the theme says
     float3 lightColor;
     float pad1;
+    float3 skyUp; // the sky light on a surface that looks up
+    float pad2;
+    float3 skyDown; // the ground light on a surface that looks down
+    float pad3;
 };
 
 cbuffer Object : register(b1)
@@ -69,10 +75,9 @@ float4 PSMain(VSOut input) : SV_Target
     }
 
     // a sky above and a ground below: a surface that looks up gets more light than one that looks down, and a face turned away from the light is dark but not black
-    const float3 skyLight = lerp(float3(0.035, 0.035, 0.045), float3(0.11, 0.13, 0.19), n.y * 0.5 + 0.5) * ambient;
+    const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
     const float diffuse = saturate(dot(n, l));
     const float shine = pow(saturate(dot(n, h)), max(params.z, 1.0)) * params.y * step(0.0001, diffuse);
-
     const float3 result = albedo * skyLight + albedo * lightColor * diffuse + lightColor * shine;
     return float4(result, 1.0);
 }

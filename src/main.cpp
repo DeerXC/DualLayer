@@ -3,7 +3,12 @@
 //         (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
 // Keys:   W A S D move, Q / E down / up, arrow keys turn, R puts the camera back, F5 reloads config/default.ini, Esc quits
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
+//         Tab switches the layer (A <-> B)
+//         F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds them again: the test of the recovery
+// Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin and the
+//         camera stay as they were. After kMaxRecoveries tries the program says so and ends.
 // Args:   --adapter N   choose the N-th adapter listed in the log (overrides [render] adapter)
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -23,11 +28,22 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
+
+// WHY these two exported variables: on a laptop with two GPUs they ask the NVIDIA / AMD driver to run this program on the fast GPU.
+// Device::Init also chooses the adapter itself (the log lists them); this is a second safety. They must be real globals with exactly these names.
+extern "C"
+{
+__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
 
 namespace
 {
+
 constexpr char kConfigPath[] = "config/default.ini";
+constexpr int kMaxRecoveries = 5; // after this many lost devices in one run the program gives up
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -102,6 +118,42 @@ dl::CameraInput ReadCameraKeys()
     return input;
 }
 
+/// Everything that lives on the GPU. A lost device takes all of it, so all of it is made again together (Recover).
+struct Gpu
+{
+    std::unique_ptr<dl::Device> device = std::make_unique<dl::Device>();
+    dl::Triangle triangle;
+    dl::Models models;
+
+    bool Init(const dl::Window& window, const dl::Config& config, int adapter)
+    {
+        if (!device->Init(window.Handle(), window.Width(), window.Height(), adapter, config.GetBool("render", "vsync", true)) ||
+            !triangle.Init(device->GetDevice()) || !models.Init(device->GetDevice(), config.GetInt("models", "segments", 32)))
+        {
+            return false;
+        }
+        models.LoadThemes(config); // the looks of the layers: built in, [layer_a] / [layer_b] in the config change them
+        return true;
+    }
+
+    /// WHY this order: every object must be released before Device::Shutdown reports leaks.
+    void Shutdown()
+    {
+        models.Shutdown();
+        triangle.Shutdown();
+        device->Shutdown();
+    }
+
+    /// A new device, made from nothing. What the models remember (layer, fade, spin, wireframe) is kept; the level of
+    /// detail goes back to [models] segments.
+    bool Recover(const dl::Window& window, const dl::Config& config, int adapter)
+    {
+        Shutdown();
+        device = std::make_unique<dl::Device>(); // a new object: a Device that was lost is never reused
+        return Init(window, config, adapter);
+    }
+};
+
 int RunApp(HINSTANCE instance, int argc, char** argv)
 {
     CreateDirectoryA("logs", nullptr);
@@ -125,16 +177,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         adapter = adapterArg;
     }
 
-    dl::Device device;
-    dl::Triangle triangle;
-    dl::Models models;
-    if (!device.Init(window.Handle(), window.Width(), window.Height(), adapter, config.GetBool("render", "vsync", true)) ||
-        !triangle.Init(device.GetDevice()) || !models.Init(device.GetDevice(), config.GetInt("models", "segments", 32)))
+    Gpu gpu;
+    if (!gpu.Init(window, config, adapter))
     {
         MessageBoxA(window.Handle(), "Initialisation failed. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
-        models.Shutdown(); // WHY: every object must be released before Device::Shutdown reports leaks
-        triangle.Shutdown();
-        device.Shutdown();
+        gpu.Shutdown();
         return 1;
     }
 
@@ -149,17 +196,42 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     bool wireKeyWasDown = false;
     bool detailKeyWasDown = false;
     bool spinKeyWasDown = false;
+    bool layerKeyWasDown = false;
+    bool resetTestKeyWasDown = false;
+    int recoveries = 0;
 
-    while (window.PumpMessages() && !device.Lost())
+    while (window.PumpMessages())
     {
+        // keys count only while OUR window is in front (typing in another window must not move the camera)
+        const bool focused = GetForegroundWindow() == window.Handle();
+
+        // ---- a lost device (or the F9 test) is handled first: nothing else may touch the old objects
+        const bool resetTest = config.GetBool("debug", "device_reset_key", false) && PressedOnce(VK_F9, resetTestKeyWasDown, focused);
+        if (gpu.device->Lost() || resetTest)
+        {
+            DL_LOG_WARN("Main", "%s", resetTest ? "F9: the GPU objects are made again (test)" : "the device is lost: making it again");
+            ++recoveries;
+            if (recoveries > kMaxRecoveries || !gpu.Recover(window, config, adapter))
+            {
+                DL_LOG_ERROR("Main", "the device could not be made again (%d tries)", recoveries);
+                MessageBoxA(window.Handle(), "The graphics device was lost and could not be recovered. See logs/dual.log", "DualLayer",
+                            MB_OK | MB_ICONERROR);
+                break;
+            }
+            DL_LOG_INFO("Main", "recovered (%d of at most %d)", recoveries, kMaxRecoveries);
+            QueryPerformanceCounter(&last); // the time spent here must not become one huge frame
+            continue;
+        }
+
         if (window.ConsumeReloadKey())
         {
             LoadConfig(config, camera);
-            device.SetVsync(config.GetBool("render", "vsync", true));
+            gpu.models.LoadThemes(config);
+            gpu.device->SetVsync(config.GetBool("render", "vsync", true));
         }
         if (window.ConsumeResized())
         {
-            device.Resize(window.Width(), window.Height());
+            gpu.device->Resize(window.Width(), window.Height());
         }
         if (window.IsMinimized())
         {
@@ -173,8 +245,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         last = now;
         angle += DirectX::XMConvertToRadians(config.GetFloat("test_triangle", "spin_deg_per_sec", 0.0f)) * static_cast<float>(dt);
 
-        // ---- camera: keys count only while OUR window is in front (typing in another window must not move it)
-        const bool focused = GetForegroundWindow() == window.Handle();
+        // ---- camera
         camera.Update(focused ? ReadCameraKeys() : dl::CameraInput{}, static_cast<float>(dt));
         const bool resetKeyDown = focused && IsDown('R');
         if (resetKeyDown && !resetKeyWasDown)
@@ -184,17 +255,23 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         resetKeyWasDown = resetKeyDown;
         if (PressedOnce('Z', wireKeyWasDown, focused))
         {
-            models.ToggleWireframe();
+            gpu.models.ToggleWireframe();
         }
         if (PressedOnce('X', detailKeyWasDown, focused))
         {
-            models.CycleDetail();
+            gpu.models.CycleDetail();
         }
         if (PressedOnce('C', spinKeyWasDown, focused))
         {
-            models.ToggleSpin();
+            gpu.models.ToggleSpin();
         }
-        models.Update(static_cast<float>(dt));
+        // WHY not while Alt is down: Alt + Tab switches windows and must not also switch the layer
+        if (PressedOnce(VK_TAB, layerKeyWasDown, focused && !IsDown(VK_MENU)))
+        {
+            gpu.models.ToggleLayer();
+        }
+        gpu.models.Update(static_cast<float>(dt));
+
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
         // The VIEW matrix: "look from here, in this direction, with +Y as up". Moving the camera = moving the whole world the other way.
@@ -204,23 +281,25 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                                                   DirectX::XMVectorSet(dir.x, dir.y, dir.z, 0.0f),
                                                                   DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
 
-        const float clear[4] = {config.GetFloat("render", "clear_r", 0.01f), config.GetFloat("render", "clear_g", 0.015f),
-                                config.GetFloat("render", "clear_b", 0.04f), 1.0f};
+        // the background belongs to the layer (M2): the models know the two colours and mix them during the fade
+        float clear[4] = {};
+        gpu.models.ClearColor(clear);
+
         {
-            dl::GpuEvent frame(device.GetAnnotation(), L"Frame");
-            device.BeginFrame(clear);
-            const float aspect = static_cast<float>(device.Width()) / static_cast<float>(device.Height());
+            dl::GpuEvent frame(gpu.device->GetAnnotation(), L"Frame");
+            gpu.device->BeginFrame(clear);
+            const float aspect = static_cast<float>(gpu.device->Width()) / static_cast<float>(gpu.device->Height());
             {
-                dl::GpuEvent pass(device.GetAnnotation(), L"Opaque.Models");
-                models.Draw(device.GetContext(), view, dl::MakeProjection(aspect), DirectX::XMFLOAT3(pos.x, pos.y, pos.z));
+                dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Opaque.Models");
+                gpu.models.Draw(gpu.device->GetContext(), view, dl::MakeProjection(aspect), DirectX::XMFLOAT3(pos.x, pos.y, pos.z));
             }
             if (showTriangle)
             {
-                dl::GpuEvent pass(device.GetAnnotation(), L"Opaque.TestTriangle");
-                triangle.Draw(device.GetContext(), aspect, angle, view);
+                dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Opaque.TestTriangle");
+                gpu.triangle.Draw(gpu.device->GetContext(), aspect, angle, view);
             }
         }
-        device.EndFrame();
+        gpu.device->EndFrame();
 
         fpsTimer += dt;
         ++fpsFrames;
@@ -228,8 +307,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             wchar_t title[256];
             swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s",
-                       device.AdapterName().c_str(), device.Width(), device.Height(), fpsFrames / fpsTimer,
-                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, models.StatusLine().c_str());
+                       gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer,
+                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str());
             window.SetTitle(title);
             fpsTimer = 0.0;
             fpsFrames = 0;
@@ -237,16 +316,14 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     }
 
     DL_LOG_INFO("Main", "shutdown");
-    models.Shutdown(); // WHY: before Device::Shutdown, which reports whatever is still alive as a leak
-    triangle.Shutdown();
-    device.Shutdown();
+    gpu.Shutdown(); // models, triangle, then the device (which reports whatever is still alive as a leak)
     dl::log::Close();
     return 0;
 }
+
 } // namespace
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
     return RunApp(instance, __argc, __argv);
 }
-

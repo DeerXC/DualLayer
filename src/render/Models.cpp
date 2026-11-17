@@ -7,6 +7,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+
 #include <d3dcompiler.h>
 
 #include <algorithm>
@@ -21,8 +22,10 @@ using namespace DirectX;
 
 namespace dl
 {
+
 namespace
 {
+
 constexpr char kShaderPath[] = "shaders/models.hlsl";
 constexpr int kDetailLevels[] = {8, 16, 32, 64};
 
@@ -36,7 +39,12 @@ struct FrameConstants
     float ambient;
     XMFLOAT3 lightColor; // linear
     float pad1;
+    XMFLOAT3 skyUp; // linear: the sky light on a surface that looks up
+    float pad2;
+    XMFLOAT3 skyDown; // linear: the ground light on a surface that looks down
+    float pad3;
 };
+
 struct ObjectConstants
 {
     XMFLOAT4X4 world;
@@ -44,11 +52,12 @@ struct ObjectConstants
     XMFLOAT4 color;          // linear albedo
     XMFLOAT4 params;         // x: checkered floor, y: shine strength, z: shininess
 };
-static_assert(sizeof(FrameConstants) == 112, "cbuffer Frame is 7 registers of 16 bytes");
+
+static_assert(sizeof(FrameConstants) == 144, "cbuffer Frame is 9 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 
 // ---- the scene
-// --------------------------------------------------------------------------------------------------------- The floor
+// ---------------------------------------------------------------------------------------------------------- The floor
 // is a cube squashed flat: its TOP is at y = kFloorY. Every object stands on it.
 constexpr float kFloorY = -1.0f;
 // The camera starts at (0, 0, -3) looking along +Z (scene/Camera.h): the row of shapes is 6 metres in front of it.
@@ -56,10 +65,30 @@ constexpr float kRowZ = 3.0f;
 constexpr float kTorusMajor = 0.8f; // UNITS: metres, the middle of the tube
 constexpr float kTorusMinor = 0.3f; // UNITS: metres, the radius of the tube
 
-// the light: a unit vector from the surface TO the light (above, to the left of and behind the camera, which looks
-// along +Z)
-const XMFLOAT3 kToLight(-0.45f, 0.80f, -0.55f);
-const XMFLOAT3 kLightColor(1.15f, 1.10f, 1.00f); // linear, a little warm (a lit face is about 0.7 of white)
+// ---- the layers (M2). A layer is a LABEL on an object, a bit of a mask: A = bit 0, B = bit 1, both = 3.
+constexpr unsigned kLayerA = 1u << 0;
+constexpr unsigned kLayerB = 1u << 1;
+constexpr unsigned kLayerBoth = kLayerA | kLayerB;
+
+// ---- the look of the layers (M2). The built-in values; [layer_a] / [layer_b] in config/default.ini change them.
+// A is a warm world (a low red sun), B is a cool world (a blue moon from the other side). All colours are linear.
+constexpr float kDefaultFadeSeconds = 0.35f; // UNITS: seconds
+constexpr float kSkyDownScale = 0.28f;       // the ground light is this part of the sky light (the same ratio as in M1)
+
+std::array<Models::Theme, 2> DefaultThemes()
+{
+    Models::Theme a;
+    a.toLight = XMFLOAT3(-0.45f, 0.80f, -0.55f); // above, left of and behind the camera (the light of M1)
+    a.lightColor = XMFLOAT3(1.25f, 1.02f, 0.78f);
+    a.sky = XMFLOAT3(0.19f, 0.12f, 0.09f);
+    a.clear = XMFLOAT3(0.035f, 0.012f, 0.008f);
+    Models::Theme b;
+    b.toLight = XMFLOAT3(0.55f, 0.65f, -0.45f); // above, right of and behind the camera: the shadows turn round
+    b.lightColor = XMFLOAT3(0.78f, 0.95f, 1.25f);
+    b.sky = XMFLOAT3(0.08f, 0.13f, 0.25f);
+    b.clear = XMFLOAT3(0.006f, 0.014f, 0.040f);
+    return {{a, b}};
+}
 
 struct SceneObject
 {
@@ -72,13 +101,15 @@ struct SceneObject
     float checker; // 1 = the checkered floor
     float shineStrength;
     float shininess;
+    unsigned layerMask = kLayerBoth; // which layers show this object (not written = both)
 };
 
 // THE SCENE. Edit it to move or to change something. Every object stands on the floor: y = kFloorY + half of its height
 // after the scale (the torus: half of its tilted extent, 0.8 * sin(tilt) + 0.3).
+// A members must be written in the order of the struct (C++20 designated initialisers): layerMask comes last.
 using Shape = Models::Shape;
 const SceneObject kScene[] = {
-    // the floor: a cube of 24 x 0.2 x 24 metres, its top at y = -1
+    // the floor: a cube of 24 x 0.2 x 24 metres, its top at y = -1; it is in both layers
     {.shape = Shape::Cube,
      .position = {0.0f, kFloorY - 0.1f, kRowZ},
      .scale = {24.0f, 0.2f, 24.0f},
@@ -87,8 +118,9 @@ const SceneObject kScene[] = {
      .colorSrgb = {0.30f, 0.33f, 0.40f},
      .checker = 1.0f,
      .shineStrength = 0.04f,
-     .shininess = 16.0f},
-    // the cube: 1.6 metres, red (the first of the two realities)
+     .shininess = 16.0f,
+     .layerMask = kLayerBoth},
+    // the cube: 1.6 metres, red, layer A
     {.shape = Shape::Cube,
      .position = {-3.3f, kFloorY + 0.8f, kRowZ},
      .scale = {1.6f, 1.6f, 1.6f},
@@ -97,8 +129,9 @@ const SceneObject kScene[] = {
      .colorSrgb = {0.86f, 0.24f, 0.22f},
      .checker = 0.0f,
      .shineStrength = 0.18f,
-     .shininess = 32.0f},
-    // the sphere: 1.8 metres across, blue (the second)
+     .shininess = 32.0f,
+     .layerMask = kLayerA},
+    // the sphere: 1.8 metres across, blue, layer B
     {.shape = Shape::Sphere,
      .position = {-1.1f, kFloorY + 0.9f, kRowZ},
      .scale = {1.8f, 1.8f, 1.8f},
@@ -107,8 +140,9 @@ const SceneObject kScene[] = {
      .colorSrgb = {0.20f, 0.46f, 0.92f},
      .checker = 0.0f,
      .shineStrength = 0.45f,
-     .shininess = 64.0f},
-    // the cylinder: 1.3 metres across, 1.8 high, light grey
+     .shininess = 64.0f,
+     .layerMask = kLayerB},
+    // the cylinder: 1.3 metres across, 1.8 high, light grey, layer A
     {.shape = Shape::Cylinder,
      .position = {1.1f, kFloorY + 0.9f, kRowZ},
      .scale = {1.3f, 1.8f, 1.3f},
@@ -117,8 +151,9 @@ const SceneObject kScene[] = {
      .colorSrgb = {0.82f, 0.83f, 0.86f},
      .checker = 0.0f,
      .shineStrength = 0.30f,
-     .shininess = 48.0f},
-    // the torus: a ring of 0.8 metres (to the middle of the tube) and a tube of 0.3, tilted so that the hole shows
+     .shininess = 48.0f,
+     .layerMask = kLayerA},
+    // the torus: a ring of 0.8 metres (to the middle of the tube) and a tube of 0.3, tilted so that the hole shows; layer B
     {.shape = Shape::Torus,
      .position = {3.3f, kFloorY + 0.75f, kRowZ},
      .scale = {1.0f, 1.0f, 1.0f},
@@ -127,7 +162,8 @@ const SceneObject kScene[] = {
      .colorSrgb = {0.96f, 0.76f, 0.24f},
      .checker = 0.0f,
      .shineStrength = 0.55f,
-     .shininess = 80.0f},
+     .shininess = 80.0f,
+     .layerMask = kLayerB},
 };
 constexpr int kSceneCount = static_cast<int>(sizeof(kScene) / sizeof(kScene[0]));
 
@@ -245,11 +281,13 @@ class StateGuard
     ID3D11Buffer* m_vsConstants[2] = {};
     ID3D11Buffer* m_psConstants[2] = {};
 };
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------------------------------------------------
+
 bool Models::Init(ID3D11Device* device, int segments)
 {
     DL_ASSERT(device != nullptr, "Models::Init needs a device");
@@ -260,7 +298,8 @@ bool Models::Init(ID3D11Device* device, int segments)
     }
     m_device = device;
     m_segments = std::clamp(segments, 6, 128);
-
+    m_themes = DefaultThemes(); // LoadThemes may change them from the config afterwards
+    m_fadeSeconds = kDefaultFadeSeconds;
     ComPtr<ID3DBlob> vsBlob;
     ComPtr<ID3DBlob> psBlob;
     if (!CompileShader("VSMain", "vs_5_0", vsBlob) || !CompileShader("PSMain", "ps_5_0", psBlob))
@@ -295,7 +334,6 @@ bool Models::Init(ID3D11Device* device, int segments)
         Shutdown();
         return false;
     }
-
     // the two constant buffers are written every frame (DYNAMIC + WRITE_DISCARD)
     D3D11_BUFFER_DESC cb{};
     cb.Usage = D3D11_USAGE_DYNAMIC;
@@ -319,7 +357,6 @@ bool Models::Init(ID3D11Device* device, int segments)
     SetDebugName(m_inputLayout.Get(), "Models.InputLayout");
     SetDebugName(m_frameBuffer.Get(), "Models.FrameCB");
     SetDebugName(m_objectBuffer.Get(), "Models.ObjectCB");
-
     if (!CreateStates() || !CreateMeshes(m_segments))
     {
         Shutdown();
@@ -441,8 +478,73 @@ bool Models::CreateGpuMesh(Shape shape, const MeshData& data)
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// the look of the layers
+// ---------------------------------------------------------------------------------------------------------------------
+
+void Models::LoadThemes(const Config& config)
+{
+    static const char* const kSections[2] = {"layer_a", "layer_b"};
+    const std::array<Theme, 2> defaults = DefaultThemes();
+    for (std::size_t i = 0; i < 2; ++i)
+    {
+        const char* s = kSections[i];
+        const Theme& d = defaults[i];
+        Theme& t = m_themes[i];
+        t.toLight = XMFLOAT3(config.GetFloat(s, "light_x", d.toLight.x), config.GetFloat(s, "light_y", d.toLight.y),
+                             config.GetFloat(s, "light_z", d.toLight.z));
+        t.lightColor = XMFLOAT3(config.GetFloat(s, "light_r", d.lightColor.x),
+                                config.GetFloat(s, "light_g", d.lightColor.y),
+                                config.GetFloat(s, "light_b", d.lightColor.z));
+        t.sky = XMFLOAT3(config.GetFloat(s, "sky_r", d.sky.x), config.GetFloat(s, "sky_g", d.sky.y),
+                         config.GetFloat(s, "sky_b", d.sky.z));
+        t.clear = XMFLOAT3(config.GetFloat(s, "clear_r", d.clear.x), config.GetFloat(s, "clear_g", d.clear.y),
+                           config.GetFloat(s, "clear_b", d.clear.z));
+        // a light with no direction cannot be normalised: keep the built-in one
+        const float length2 = t.toLight.x * t.toLight.x + t.toLight.y * t.toLight.y + t.toLight.z * t.toLight.z;
+        if (!(length2 > 1.0e-6f))
+        {
+            DL_LOG_WARN("Models", "[%s] light_x/y/z is a zero vector: using the built-in direction", s);
+            t.toLight = d.toLight;
+        }
+    }
+    m_fadeSeconds = std::clamp(config.GetFloat("layers", "fade_seconds", kDefaultFadeSeconds), 0.0f, 5.0f);
+    DL_LOG_INFO("Models", "layer themes loaded, fade %.2f s", m_fadeSeconds);
+}
+
+Models::Theme Models::BlendedTheme() const
+{
+    // smoothstep: the fade starts and ends gently (a straight line would look like a mechanical wipe)
+    const float b = m_layerBlend;
+    const float t = b * b * (3.0f - 2.0f * b);
+    const auto mix = [t](const XMFLOAT3& a, const XMFLOAT3& c)
+    { return XMFLOAT3(a.x + (c.x - a.x) * t, a.y + (c.y - a.y) * t, a.z + (c.z - a.z) * t); };
+    Theme result;
+    result.toLight = mix(m_themes[0].toLight, m_themes[1].toLight);
+    result.lightColor = mix(m_themes[0].lightColor, m_themes[1].lightColor);
+    result.sky = mix(m_themes[0].sky, m_themes[1].sky);
+    result.clear = mix(m_themes[0].clear, m_themes[1].clear);
+    return result;
+}
+
+unsigned Models::VisibleLayer() const
+{
+    // the objects swap when the fade is half way: the picture is then in between the two colours
+    return m_layerBlend >= 0.5f ? 1u : 0u;
+}
+
+void Models::ClearColor(float out[4]) const
+{
+    const Theme theme = BlendedTheme();
+    out[0] = theme.clear.x;
+    out[1] = theme.clear.y;
+    out[2] = theme.clear.z;
+    out[3] = 1.0f;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // the keys and the clock
 // ---------------------------------------------------------------------------------------------------------------------
+
 void Models::ToggleWireframe()
 {
     m_wireframe = !m_wireframe;
@@ -451,6 +553,12 @@ void Models::ToggleWireframe()
 void Models::ToggleSpin()
 {
     m_spinning = !m_spinning;
+}
+
+void Models::ToggleLayer()
+{
+    m_layer = 1u - m_layer; // 0 <-> 1
+    DL_LOG_INFO("Models", "layer: going to %s", m_layer == 0 ? "A" : "B");
 }
 
 void Models::CycleDetail()
@@ -481,15 +589,29 @@ void Models::CycleDetail()
 
 void Models::Update(float deltaSeconds)
 {
+    const float dt = std::clamp(deltaSeconds, 0.0f, 0.1f);
     if (m_spinning)
     {
-        m_spin += std::clamp(deltaSeconds, 0.0f, 0.1f);
+        m_spin += dt;
+    }
+    // the fade runs even while the shapes are stopped: the layer must still change
+    const float target = m_layer == 0 ? 0.0f : 1.0f;
+    if (m_fadeSeconds <= 0.0f)
+    {
+        m_layerBlend = target;
+    }
+    else
+    {
+        const float step = dt / m_fadeSeconds;
+        const float direction = m_layer == 0 ? -1.0f : 1.0f;
+        m_layerBlend = std::clamp(m_layerBlend + direction * step, 0.0f, 1.0f);
     }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Draw
 // ---------------------------------------------------------------------------------------------------------------------
+
 void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMATRIX& projection, const XMFLOAT3& eye)
 {
     DL_ASSERT(context != nullptr, "Models::Draw needs a context");
@@ -500,14 +622,16 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
     const StateGuard guard(context);
 
     // ---- the frame: the camera and the light. View * Projection is worked out once (docs/CONVENTIONS.md: row vectors,
-    // no transpose)
+    // no transpose). The light and the sky are the mix of the two layer themes.
+    const Theme theme = BlendedTheme();
     FrameConstants frame{};
     XMStoreFloat4x4(&frame.viewProjection, view * projection);
     frame.eye = eye;
-    XMStoreFloat3(&frame.toLight, XMVector3Normalize(XMLoadFloat3(&kToLight)));
+    XMStoreFloat3(&frame.toLight, XMVector3Normalize(XMLoadFloat3(&theme.toLight)));
     frame.ambient = 1.0f;
-    frame.lightColor = kLightColor;
-
+    frame.lightColor = theme.lightColor;
+    frame.skyUp = theme.sky;
+    frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale, theme.sky.y * kSkyDownScale, theme.sky.z * kSkyDownScale);
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (FAILED(context->Map(m_frameBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
     {
@@ -528,9 +652,14 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
     context->VSSetConstantBuffers(0, 2, constants);
     context->PSSetConstantBuffers(0, 2, constants);
 
-    // ---- one draw call per object
+    // ---- one draw call per object: only the objects of the visible layer
+    const unsigned visibleBit = 1u << VisibleLayer();
     for (const SceneObject& object : kScene)
     {
+        if ((object.layerMask & visibleBit) == 0)
+        {
+            continue; // not on the layer we are looking at
+        }
         const GpuMesh& mesh = m_meshes[static_cast<std::size_t>(object.shape)];
         if (!mesh.vertexBuffer || !mesh.indexBuffer)
         {
@@ -556,7 +685,6 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
         }
         std::memcpy(mapped.pData, &data, sizeof(data));
         context->Unmap(m_objectBuffer.Get(), 0);
-
         ID3D11Buffer* vertexBuffer = mesh.vertexBuffer.Get();
         const UINT stride = sizeof(MeshVertex);
         const UINT offset = 0;
@@ -568,19 +696,39 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
 
 int Models::TriangleTotal() const
 {
+    const unsigned visibleBit = 1u << VisibleLayer();
     int total = 0;
     for (const SceneObject& object : kScene)
     {
-        total += static_cast<int>(m_meshes[static_cast<std::size_t>(object.shape)].indexCount / 3);
+        if ((object.layerMask & visibleBit) != 0)
+        {
+            total += static_cast<int>(m_meshes[static_cast<std::size_t>(object.shape)].indexCount / 3);
+        }
     }
     return total;
 }
 
+int Models::VisibleModelCount() const
+{
+    const unsigned visibleBit = 1u << VisibleLayer();
+    int count = 0;
+    for (const SceneObject& object : kScene)
+    {
+        if ((object.layerMask & visibleBit) != 0 && object.checker < 0.5f) // (the floor is not a "model")
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
 std::wstring Models::StatusLine() const
 {
-    wchar_t text[128];
-    swprintf_s(text, L"%d models | %d segments | %d triangles | %s%s", kSceneCount - 1, m_segments, TriangleTotal(),
-               m_wireframe ? L"wireframe" : L"solid", m_spinning ? L"" : L" | stopped"); // (the floor is not a "model")
+    wchar_t text[160];
+    swprintf_s(text, L"%d models | %d segments | %d triangles | %s%s | layer %s", VisibleModelCount(), m_segments,
+               TriangleTotal(), m_wireframe ? L"wireframe" : L"solid", m_spinning ? L"" : L" | stopped",
+               m_layer == 0 ? L"A" : L"B");
     return text;
 }
+
 } // namespace dl
