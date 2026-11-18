@@ -1,10 +1,13 @@
 // main.cpp - entry point and the frame loop.
-// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models) > Render [GPU event "Frame" > "Opaque.Models"
-//         (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
+// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, collision) > Render
+//         [GPU event "Frame" > "Opaque.Models" (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
 // Keys:   W A S D move, Q / E down / up, arrow keys turn, R puts the camera back, F5 reloads config/default.ini, Esc quits
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
 //         Tab switches the layer (A <-> B)
+//         N collision on / off (off = fly through everything)
 //         F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds them again: the test of the recovery
+// Collision: the camera is a ball ([collision] radius). After the camera has moved, the ball is pushed out of the solid
+//         objects of the layer that the screen is going to show (scene/Collision.h); the camera keeps its direction.
 // Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin and the
 //         camera stay as they were. After kMaxRecoveries tries the program says so and ends.
 // Args:   --adapter N   choose the N-th adapter listed in the log (overrides [render] adapter)
@@ -22,9 +25,11 @@
 #include "render/Projection.h"
 #include "render/Triangle.h"
 #include "scene/Camera.h"
+#include "scene/Collision.h"
 
 #include <DirectXMath.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -44,6 +49,7 @@ namespace
 
 constexpr char kConfigPath[] = "config/default.ini";
 constexpr int kMaxRecoveries = 5; // after this many lost devices in one run the program gives up
+constexpr float kDefaultBodyRadius = 0.35f; // UNITS: metres, the ball of the camera. TUNE: [collision] radius, 0.05 .. 1
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -144,7 +150,7 @@ struct Gpu
         device->Shutdown();
     }
 
-    /// A new device, made from nothing. What the models remember (layer, fade, spin, wireframe) is kept; the level of
+    /// A new device, made from nothing. What the models remember (layer, ripple, spin, wireframe) is kept; the level of
     /// detail goes back to [models] segments.
     bool Recover(const dl::Window& window, const dl::Config& config, int adapter)
     {
@@ -197,7 +203,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     bool detailKeyWasDown = false;
     bool spinKeyWasDown = false;
     bool layerKeyWasDown = false;
+    bool collideKeyWasDown = false;
     bool resetTestKeyWasDown = false;
+    bool collide = config.GetBool("collision", "enabled", true); // N switches it; F5 sets it from the config again
     int recoveries = 0;
 
     while (window.PumpMessages())
@@ -228,6 +236,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             LoadConfig(config, camera);
             gpu.models.LoadThemes(config);
             gpu.device->SetVsync(config.GetBool("render", "vsync", true));
+            collide = config.GetBool("collision", "enabled", true);
         }
         if (window.ConsumeResized())
         {
@@ -270,7 +279,25 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             gpu.models.ToggleLayer();
         }
+        if (PressedOnce('N', collideKeyWasDown, focused))
+        {
+            collide = !collide;
+            DL_LOG_INFO("Main", "collision %s", collide ? "on" : "off");
+        }
         gpu.models.Update(static_cast<float>(dt));
+
+        // ---- collision: after the camera and the shapes have moved, push the ball out of what is solid in the layer
+        // that the screen is going to show. The same spin time as the renderer, so the solid is where the picture is.
+        if (collide)
+        {
+            const float radius = std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f);
+            const dl::CollisionResult body =
+                dl::ResolveSphere(camera.Position(), radius, gpu.models.CollisionLayer(), gpu.models.SpinSeconds());
+            if (body.pushed)
+            {
+                camera.SetPose(body.position, camera.Yaw(), camera.Pitch()); // only the place changes, not where it looks
+            }
+        }
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
@@ -281,7 +308,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                                                   DirectX::XMVectorSet(dir.x, dir.y, dir.z, 0.0f),
                                                                   DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
 
-        // the background belongs to the layer (M2): the models know the two colours and mix them during the fade
+        // the background belongs to the layer on the screen (M2): the models know the colours
         float clear[4] = {};
         gpu.models.ClearColor(clear);
 
@@ -306,9 +333,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (fpsTimer >= 0.5)
         {
             wchar_t title[256];
-            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s",
+            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s",
                        gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer,
-                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str());
+                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(),
+                       collide ? L"collide" : L"noclip");
             window.SetTitle(title);
             fpsTimer = 0.0;
             fpsFrames = 0;

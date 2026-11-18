@@ -14,6 +14,7 @@
 //            new layer inside and the old one outside.
 // Targets:   the two off-screen pictures are made the first time a ripple needs them and again when the window size
 //            changes; they live until Shutdown.
+// Scene:     the table of objects is scene/SceneData.h (shared with the collision, scene/Collision.h).
 // Keys:      main.cpp reads the keyboard (focus rules live there) and calls ToggleWireframe / CycleDetail / ToggleSpin /
 //            ToggleLayer.
 // Threading: main thread only.
@@ -22,6 +23,7 @@
 #include "core/Config.h"
 #include "render/LayerRipple.h"
 #include "render/MeshData.h"
+#include "scene/SceneData.h"
 
 #include <DirectXMath.h>
 #include <d3d11_1.h>
@@ -36,14 +38,8 @@ namespace dl
 class Models
 {
   public:
-    enum class Shape
-    {
-        Cube,
-        Sphere,
-        Cylinder,
-        Torus,
-        Count
-    };
+    /// The kinds of shape of the scene (scene/SceneData.h: the table that the collision reads too).
+    using Shape = scene::ShapeKind;
 
     /// The look of one layer. All colours are LINEAR (docs/CONVENTIONS.md).
     struct Theme
@@ -83,6 +79,20 @@ class Models
     /// the camera position in the world.
     void Draw(ID3D11DeviceContext* context, const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& projection,
               const DirectX::XMFLOAT3& eye);
+
+    /// The time that the turning shapes use (seconds; it stops while the shapes are stopped). The collision needs the
+    /// same time, or what is solid and what is drawn drift apart.
+    float SpinSeconds() const
+    {
+        return m_spin;
+    }
+
+    /// The layer whose objects are solid: the one the screen is going to show (0 = A, 1 = B). During a ripple that is
+    /// the NEW layer, so the world that is opening up is solid at once.
+    int CollisionLayer() const
+    {
+        return m_ripple.Target();
+    }
 
     /// For the title bar: "2 models | 32 segments | 1,234 triangles | solid | layer A". The layer is the one the screen
     /// is going to show.

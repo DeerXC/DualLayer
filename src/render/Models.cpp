@@ -3,6 +3,7 @@
 #include "core/Assert.h"
 #include "core/Log.h"
 #include "render/GpuDebug.h"
+#include "scene/SceneData.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -71,19 +72,12 @@ static_assert(sizeof(FrameConstants) == 144, "cbuffer Frame is 9 registers of 16
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
 
-// ---- the scene
-// ---------------------------------------------------------------------------------------------------------- The floor
-// is a cube squashed flat: its TOP is at y = kFloorY. Every object stands on it.
-constexpr float kFloorY = -1.0f;
-// The camera starts at (0, 0, -3) looking along +Z (scene/Camera.h): the row of shapes is 6 metres in front of it.
-constexpr float kRowZ = 3.0f;
-constexpr float kTorusMajor = 0.8f; // UNITS: metres, the middle of the tube
-constexpr float kTorusMinor = 0.3f; // UNITS: metres, the radius of the tube
-
-// ---- the layers (M2). A layer is a LABEL on an object, a bit of a mask: A = bit 0, B = bit 1, both = 3.
-constexpr unsigned kLayerA = 1u << 0;
-constexpr unsigned kLayerB = 1u << 1;
-constexpr unsigned kLayerBoth = kLayerA | kLayerB;
+// ---- the scene (what is in it, where, in which layer): scene/SceneData.h. The collision reads the same table.
+using scene::kScene;
+using scene::kSceneCount;
+using scene::kTorusMajor;
+using scene::kTorusMinor;
+using scene::SceneObject;
 
 // ---- the look of the layers (M2). The built-in values; [layer_a] / [layer_b] in config/default.ini change them.
 // A is a warm world (a low red sun), B is a cool world (a blue moon from the other side). All colours are linear.
@@ -110,83 +104,6 @@ std::array<Models::Theme, 2> DefaultThemes()
     b.clear = XMFLOAT3(0.006f, 0.014f, 0.040f);
     return {{a, b}};
 }
-
-struct SceneObject
-{
-    Models::Shape shape;
-    float position[3]; // UNITS: metres, the centre of the object
-    float scale[3];    // UNITS: metres: a shape is 1 metre big (a sphere: across), this stretches it
-    float tilt;        // radians, round X, before the turn
-    float spinSpeed;   // radians per second, round Y (negative: the other way)
-    float colorSrgb[3];
-    float checker; // 1 = the checkered floor
-    float shineStrength;
-    float shininess;
-    unsigned layerMask = kLayerBoth; // which layers show this object (not written = both)
-};
-
-// THE SCENE. Edit it to move or to change something. Every object stands on the floor: y = kFloorY + half of its height
-// after the scale (the torus: half of its tilted extent, 0.8 * sin(tilt) + 0.3).
-// A members must be written in the order of the struct (C++20 designated initialisers): layerMask comes last.
-using Shape = Models::Shape;
-const SceneObject kScene[] = {
-    // the floor: a cube of 24 x 0.2 x 24 metres, its top at y = -1; it is in both layers
-    {.shape = Shape::Cube,
-     .position = {0.0f, kFloorY - 0.1f, kRowZ},
-     .scale = {24.0f, 0.2f, 24.0f},
-     .tilt = 0.0f,
-     .spinSpeed = 0.0f,
-     .colorSrgb = {0.30f, 0.33f, 0.40f},
-     .checker = 1.0f,
-     .shineStrength = 0.04f,
-     .shininess = 16.0f,
-     .layerMask = kLayerBoth},
-    // the cube: 1.6 metres, red, layer A
-    {.shape = Shape::Cube,
-     .position = {-3.3f, kFloorY + 0.8f, kRowZ},
-     .scale = {1.6f, 1.6f, 1.6f},
-     .tilt = 0.0f,
-     .spinSpeed = 0.55f,
-     .colorSrgb = {0.86f, 0.24f, 0.22f},
-     .checker = 0.0f,
-     .shineStrength = 0.18f,
-     .shininess = 32.0f,
-     .layerMask = kLayerA},
-    // the sphere: 1.8 metres across, blue, layer B
-    {.shape = Shape::Sphere,
-     .position = {-1.1f, kFloorY + 0.9f, kRowZ},
-     .scale = {1.8f, 1.8f, 1.8f},
-     .tilt = 0.0f,
-     .spinSpeed = 0.80f,
-     .colorSrgb = {0.20f, 0.46f, 0.92f},
-     .checker = 0.0f,
-     .shineStrength = 0.45f,
-     .shininess = 64.0f,
-     .layerMask = kLayerB},
-    // the cylinder: 1.3 metres across, 1.8 high, light grey, layer A
-    {.shape = Shape::Cylinder,
-     .position = {1.1f, kFloorY + 0.9f, kRowZ},
-     .scale = {1.3f, 1.8f, 1.3f},
-     .tilt = 0.0f,
-     .spinSpeed = -0.65f,
-     .colorSrgb = {0.82f, 0.83f, 0.86f},
-     .checker = 0.0f,
-     .shineStrength = 0.30f,
-     .shininess = 48.0f,
-     .layerMask = kLayerA},
-    // the torus: a ring of 0.8 metres (to the middle of the tube) and a tube of 0.3, tilted so that the hole shows; layer B
-    {.shape = Shape::Torus,
-     .position = {3.3f, kFloorY + 0.75f, kRowZ},
-     .scale = {1.0f, 1.0f, 1.0f},
-     .tilt = 0.6f,
-     .spinSpeed = 0.90f,
-     .colorSrgb = {0.96f, 0.76f, 0.24f},
-     .checker = 0.0f,
-     .shineStrength = 0.55f,
-     .shininess = 80.0f,
-     .layerMask = kLayerB},
-};
-constexpr int kSceneCount = static_cast<int>(sizeof(kScene) / sizeof(kScene[0]));
 
 // the colours of the scene are written as the eye knows them (sRGB); the light works in linear space
 float SrgbToLinear(float c)

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- DualLayer.vcxproj - written by hand for Visual Studio 2026 (toolset v145). The Windows SDK version is PINNED so that both machines build the same thing
-     (docs/ENVIRONMENT.md). If a machine has a different SDK, install this one; do not "retarget". -->
+     (docs/BUILD.md). If a machine has a different SDK, install this one; do not "retarget". -->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -101,18 +101,23 @@
     <ClInclude Include="src\core\Window.h" />
     <ClInclude Include="src\render\Device.h" />
     <ClInclude Include="src\render\GpuDebug.h" />
+    <ClInclude Include="src\render\LayerRipple.h" />
     <ClInclude Include="src\render\MeshData.h" />
     <ClInclude Include="src\render\Models.h" />
     <ClInclude Include="src\render\Projection.h" />
     <ClInclude Include="src\render\Triangle.h" />
     <ClInclude Include="src\scene\Camera.h" />
+    <ClInclude Include="src\scene\Collision.h" />
+    <ClInclude Include="src\scene\SceneData.h" />
   </ItemGroup>
   <ItemGroup>
     <!-- shaders are compiled at run time by the game (hot reload comes later): VS must NOT compile them -->
     <None Include="shaders\common.hlsli" />
     <None Include="shaders\models.hlsl" />
+    <None Include="shaders\ripple.hlsl" />
     <None Include="shaders\test_triangle.hlsl" />
     <None Include="config\default.ini" />
+    <None Include="tools\check.ps1" />
     <None Include=".editorconfig" />
     <None Include=".clang-format" />
   </ItemGroup>

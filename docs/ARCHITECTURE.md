@@ -1,6 +1,6 @@
 # Architecture
 
-Covers milestones M0, M1 and M2 so far.
+Covers milestones M0, M1 and M2 so far (layers, ripple, collision).
 
 ## One frame
 
@@ -20,7 +20,8 @@ WinMain
          3. F5      → reload config.ini, Models.LoadThemes, apply vsync
          4. resized → Device.Resize     (release view → ResizeBuffers → create view)
          5. minimised → sleep, skip
-         6. Update  → time step, spin angle, camera, keys Z X C Tab (wireframe, detail, spin, layer), Models.Update (spin, ripple clock)
+         6. Update  → time step, spin angle, camera, keys Z X C Tab N (wireframe, detail, spin, layer, collision), Models.Update (spin, ripple clock),
+                      then ResolveSphere: the camera ball is pushed out of the solid objects of the layer the screen is going to show
          7. Render  → Models.ClearColor (the background of the layer on the screen), GpuEvent "Frame"
                          Device.BeginFrame     bind RTV + DEPTH, viewport, clear colour (linear, written as sRGB) and depth (1.0)
                          GpuEvent "Opaque.Models"
@@ -50,17 +51,30 @@ While the circle is closed (idle) the layer is drawn straight to the back buffer
 
 The two pictures are made the first time they are needed and made again when the window size changes. If they cannot be made, the layer is shown without a ripple and the log says why. `StateGuard` puts back the render target, the viewport and every other state that the ripple changes.
 
+## Collision (M2)
+
+The player's body is a ball (the camera, radius 0.35 m by default). `main.cpp` lets the camera move first, then `ResolveSphere` (`scene/Collision.h`) moves only its place out of everything that is solid in the layer the screen is going to show. The direction the camera looks is not touched, and there is no speed or physics: one frame, one correction.
+
+The solids are the objects of the scene table `scene/SceneData.h`. The renderer (`Models.cpp`) reads the same table, so what is drawn and what is solid cannot disagree. An object is solid only in the layers of its mask, so the red cube and the grey cylinder exist for the ball only in A, the blue sphere and the yellow torus only in B, and the floor in both.
+
+Every shape is exact: a box that can be stretched and turned, a ball, a cylinder with flat ends, and a torus (a tube bent into a ring, so that the hole can be flown through). For each solid the ball centre is moved into the local space of the object (the inverse of the world matrix of the renderer), pushed out along the shortest way, and moved back. The shapes turn with time, so the collision takes `Models::SpinSeconds()`, the same time that the renderer uses. Up to 16 rounds settle a ball that sits between two solids.
+
+During a ripple the NEW layer is already the solid one (`Models::CollisionLayer()`). A ball that is inside an object of the new layer when `Tab` is pressed is pushed to its surface.
+
+Not in this step: gravity, walking, jumping and sliding along the ground. The ball is still a free-fly camera; a walking player will use the same `ResolveSphere`.
+
 ## Modules and the allowed direction of dependencies
 
 ```
 main
- ├─ render   (Device, Triangle, Models, MeshData, LayerRipple, Projection, GpuDebug)   → core
+ ├─ render   (Device, Triangle, Models, MeshData, LayerRipple, Projection, GpuDebug)   → core, scene (SceneData only)
+ ├─ scene    (Camera, SceneData, Collision)                                           → standard library only
  └─ core     (Log, Assert, Config, Window)  → standard library and Windows only
 ```
 
 `core` must never include `render` or anything above it. `render` is the only place that talks to Direct3D. New layers (`scene`, `physics`, `game`, `audio`, `ui`) are added by the milestone that needs them, always on top.
 
-Pure-logic code (`Config`, `Log`, `Assert`, `Camera`, `MeshData`, `LayerRipple`) has no Windows or Direct3D dependency and can be tested without a window.
+Pure-logic code (`Config`, `Log`, `Assert`, `Camera`, `MeshData`, `LayerRipple`, `SceneData`, `Collision`) has no Windows or Direct3D dependency and can be tested without a window.
 
 `MeshData` makes the shapes on the CPU; `Models` only copies them to the GPU and draws them. `Projection.h` is the one lens that every pass uses.
 
