@@ -6,13 +6,14 @@
 
 Self-made engine layer on C++20 / Direct3D 11. No game engine.
 
-Status: milestone M2 in progress. The acceptance checks of M0, M1 and the first M2 step pass on Windows (see [CHANGELOG.md](CHANGELOG.md)).
+Status: milestone M2 in progress. Builds and runs on Windows; the two layers and the ripple that switches between them work.
 
 ## Highlights
 
-- Direct3D 11 renderer written directly against the API: device and adapter choice, depth buffer, constant buffers, HLSL shaders compiled at run time.
+- Direct3D 11 renderer written directly against the API: device and adapter choice, depth buffer, constant buffers, off-screen render targets, HLSL shaders compiled at run time.
 - Shapes (cube, sphere, cylinder, torus) generated in code, with unit tests that check every triangle's winding and normal.
-- Two layers, A and B, in one scene: each object carries a layer mask, and each layer has its own light, sky and background. `Tab` fades between them.
+- Two layers, A and B, in one scene: each object carries a layer mask, and each layer has its own light, sky and background.
+- `Tab` opens a ripple from the centre of the screen: both layers are drawn into their own pictures and a circle shows the new layer inside and the old one outside. Pressed again during the ripple, the circle turns round without a jump.
 - Recovery from a lost graphics device: all GPU objects are rebuilt while the camera and the layer state stay as they were.
 - Looks and speeds are read from `config/default.ini` and reloaded with F5, without recompiling.
 
@@ -32,11 +33,10 @@ Open `DualLayer.slnx` in Visual Studio 2026, choose `Debug | x64` and press F5. 
 
 | Document | Contents |
 |---|---|
-| [docs/BUILD.md](docs/BUILD.md) | Requirements, build and run, keys, acceptance checks |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | One frame step by step, layers, modules and their dependencies, debugging facilities |
+| [docs/BUILD.md](docs/BUILD.md) | Requirements, build and run, keys, quick check |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | One frame step by step, layers and the ripple, modules and their dependencies, debugging facilities |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, layers, naming |
 | [CHANGELOG.md](CHANGELOG.md) | Milestone records and known issues |
-| [docs/understanding](docs/understanding) | Notes written after reading the code and stepping through it in the debugger |
 
 ## Tested on
 

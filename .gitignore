@@ -19,3 +19,6 @@ logs/
 assets_src/
 *.zip
 config/local.ini
+
+# personal study notes, kept outside version control
+docs/understanding/
