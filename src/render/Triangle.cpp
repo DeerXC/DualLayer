@@ -4,12 +4,7 @@
 #include "core/Log.h"
 #include "render/GpuDebug.h"
 #include "render/Projection.h"
-
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-
-#include <d3dcompiler.h>
+#include "render/ShaderCompiler.h"
 
 #include <cstddef>
 #include <cstring>
@@ -19,8 +14,10 @@ using namespace DirectX;
 
 namespace dl
 {
+
 namespace
 {
+
 struct Vertex
 {
     XMFLOAT3 position; // UNITS: metres, world space (left-handed, Y up)
@@ -32,49 +29,24 @@ struct PerObject
 {
     XMFLOAT4X4 worldViewProj; // row-major, row vectors: v' = v * M
 };
+
 static_assert(sizeof(PerObject) % 16 == 0, "constant buffers must be a multiple of 16 bytes");
 static_assert(sizeof(PerObject) == 64, "one float4x4");
 
 constexpr char kShaderPath[] = "shaders/test_triangle.hlsl";
 
-/// Compiles one entry point; logs the compiler's message on failure.
-bool CompileShader(const char* entry, const char* target, ComPtr<ID3DBlob>& out)
-{
-    UINT flags = D3DCOMPILE_PACK_MATRIX_ROW_MAJOR | D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(_DEBUG)
-    flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-    flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
-#endif
-    wchar_t widePath[MAX_PATH];
-    MultiByteToWideChar(CP_UTF8, 0, kShaderPath, -1, widePath, MAX_PATH);
-    ComPtr<ID3DBlob> errors;
-    const HRESULT hr = D3DCompileFromFile(widePath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, target, flags, 0, &out, &errors);
-    if (FAILED(hr))
-    {
-        if (errors != nullptr)
-        {
-            DL_LOG_ERROR("Triangle", "shader %s (%s) failed:\n%s", entry, target, static_cast<const char*>(errors->GetBufferPointer()));
-        }
-        else
-        {
-            DL_LOG_ERROR("Triangle", "cannot read %s (0x%08X): is the working directory the project folder?", kShaderPath,
-                         static_cast<unsigned>(hr));
-        }
-        return false;
-    }
-    return true;
-}
 } // namespace
 
 bool Triangle::Init(ID3D11Device* device)
 {
     ComPtr<ID3DBlob> vsBlob;
     ComPtr<ID3DBlob> psBlob;
-    if (!CompileShader("VSMain", "vs_5_0", vsBlob) || !CompileShader("PSMain", "ps_5_0", psBlob))
+    if (!CompileShader(kShaderPath, "VSMain", "vs_5_0", vsBlob, "Triangle") ||
+        !CompileShader(kShaderPath, "PSMain", "ps_5_0", psBlob, "Triangle"))
     {
         return false;
     }
+
     HRESULT hr = device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader);
     if (SUCCEEDED(hr))
     {
@@ -85,6 +57,7 @@ bool Triangle::Init(ID3D11Device* device)
         DL_LOG_ERROR("Triangle", "creating the shader objects failed (0x%08X)", static_cast<unsigned>(hr));
         return false;
     }
+
     const D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -151,13 +124,12 @@ void Triangle::Draw(ID3D11DeviceContext* context, float aspect, float angleRadia
     DL_ASSERT(aspect > 0.0f, "aspect ratio must be positive");
 
     // World * View * Projection, left-handed, row vectors (docs/CONVENTIONS.md). No transpose anywhere.
-    // The VIEW matrix now comes from the camera (scene/Camera.h); before this step it was a fixed camera at (0, 0, -3).
+    // The VIEW matrix comes from the camera (scene/Camera.h).
     const XMMATRIX world = XMMatrixRotationY(angleRadians);
     const XMMATRIX projection = MakeProjection(aspect); // the same lens as Models (render/Projection.h)
 
     PerObject data{};
     XMStoreFloat4x4(&data.worldViewProj, world * view * projection);
-
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (SUCCEEDED(context->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
     {
@@ -177,5 +149,5 @@ void Triangle::Draw(ID3D11DeviceContext* context, float aspect, float angleRadia
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     context->Draw(3, 0);
 }
-} // namespace dl
 
+} // namespace dl

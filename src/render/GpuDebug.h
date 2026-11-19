@@ -1,6 +1,6 @@
 // GpuDebug.h - names for GPU objects and RAII event markers, so RenderDoc / PIX / VS Graphics Debugger show readable captures.
 // Naming rule: "<System>.<Resource>", e.g. "Frame.BackBufferRTV", "TestTriangle.VertexBuffer".
-// Event rule:  one GpuEvent per render pass; the names match the SHOWCASE ids (Frame > Opaque.TestTriangle ...).
+// Event rule:  one GpuEvent per render pass; named "<Group>.<Pass>" (Frame > Opaque.Models > ...).
 #pragma once
 
 #include <d3d11_1.h>

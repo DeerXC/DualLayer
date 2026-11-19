@@ -190,7 +190,7 @@ bool Device::CreateDepthBuffer(int width, int height)
 {
     // WHY: without a depth buffer the triangles are drawn in the order of the draw calls: a sphere drawn after the floor is ALWAYS on top of it,
     // even where it is behind. With one, every pixel remembers how far away the nearest thing drawn so far is, and only a nearer thing replaces it.
-    // D32_FLOAT: 32 bits of float depth (a float has more precision close to 0; Reverse-Z uses that, and is tested later, docs/CONVENTIONS.md).
+    // D32_FLOAT: 32 bits of float depth (Reverse-Z, which would use the extra float precision close to 0, was not adopted: docs/CONVENTIONS.md, "Depth").
     D3D11_TEXTURE2D_DESC desc{};
     desc.Width = static_cast<UINT>(width);
     desc.Height = static_cast<UINT>(height);
@@ -283,7 +283,7 @@ void Device::EndFrame()
     {
         DL_LOG_ERROR("Device", "device lost (Present 0x%08X, reason 0x%08X)", static_cast<unsigned>(hr),
                      static_cast<unsigned>(m_device->GetDeviceRemovedReason()));
-        m_lost = true; // M0 stops here; recovery is a later milestone
+        m_lost = true; // main.cpp sees Lost() and makes a new Device (Gpu::Recover); this object is not used again
     }
 }
 

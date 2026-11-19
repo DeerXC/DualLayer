@@ -2,7 +2,7 @@
 // Slots:   b0 Frame (the camera and the light, once per frame), b1 Object (once per draw call). No textures, no samplers.
 // Light:   everything is worked out in LINEAR space (common.hlsli): the colours that arrive are linear, this shader returns linear colour and the
 //          back buffer is written through an sRGB view. Do not apply a gamma curve here.
-//          Since M2 the light colour, the light direction and the sky colours come from the theme of the visible layer (mixed during the fade).
+//          Since M2 the light colour, the light direction and the sky colours come from the theme of the layer being drawn (themes are never mixed).
 // KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 144 and 160 bytes).
 
 #include "common.hlsli"

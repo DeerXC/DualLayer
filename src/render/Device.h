@@ -5,9 +5,9 @@
 // Adapters:  listed in "high performance first" order (IDXGIFactory6). On a laptop with two GPUs the first hardware adapter is the
 //            discrete one. Choose another with --adapter N or [render] adapter = N.
 // Depth:     (M1) a D32_FLOAT depth buffer the size of the back buffer, cleared to 1.0 (far) every frame. The nearer surface wins the depth test
-//            (comparison LESS). It is made again with the back buffer on every resize. The decision "Reverse-Z or not" is still open
-//            (docs/CONVENTIONS.md): the clear value and the comparison are in ONE place (BeginFrame, Models::CreateStates) so that it can change later.
-// Threading: render thread = main thread (M0).
+//            (comparison LESS). It is made again with the back buffer on every resize. Reverse-Z was considered and not adopted
+//            (docs/CONVENTIONS.md, "Depth"); the clear value and the comparison are kept in ONE place (BeginFrame, Models::CreateStates).
+// Threading: main thread only (it is also the render thread).
 #pragma once
 
 #define WIN32_LEAN_AND_MEAN
@@ -39,7 +39,7 @@ public:
 
     /// Binds the back buffer AND the depth buffer, sets the viewport and clears both. `linearClear` is linear RGBA. Depth is cleared to 1.0 (far).
     void BeginFrame(const float linearClear[4]);
-    /// Presents. Detects a removed device (M0: logs the reason and sets Lost()).
+    /// Presents. Detects a removed device: logs the reason and sets Lost(); main.cpp then builds new GPU objects (Gpu::Recover).
     void EndFrame();
 
     void SetVsync(bool vsync) { m_vsync = vsync; }

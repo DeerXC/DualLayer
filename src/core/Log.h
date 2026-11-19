@@ -1,6 +1,6 @@
 // Log.h - leveled, module-tagged logging with a file sink, the debugger sink and a ring buffer for the in-game panel.
 // Owns:      the open log file, the ring buffer of recent lines.
-// Threading: main thread only (M0). Revisit when a worker thread logs.
+// Threading: main thread only. Revisit when a worker thread logs.
 // Format:    "[  12.345] [INFO ] [Device] message"  (seconds since the first log call)
 #pragma once
 
@@ -31,7 +31,7 @@ void Write(Level level, const char* module, const char* fmt, ...) __attribute__(
 void Write(Level level, const char* module, const char* fmt, ...);
 #endif
 
-/// The last lines written (oldest first), at most kRecentCapacity. For the debug panel (S5).
+/// The last lines written (oldest first), at most kRecentCapacity. For the in-game debug panel (planned).
 std::vector<std::string> Recent();
 constexpr std::size_t kRecentCapacity = 256;
 

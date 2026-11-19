@@ -10,7 +10,7 @@
 
 1. Open `DualLayer.slnx` (or the `.vcxproj`), choose `Debug | x64`, press **F5**. The debugger's working directory is the project folder, so `shaders/` and `config/` are found.
 2. `build\x64\<Config>\DualLayer.exe` also runs when started from Explorer: a post-build step copies `shaders\` and `config\` next to it.
-3. Logic tests: `.\tests\run_tests.ps1` in a *Developer PowerShell for VS* (Config / Log / Assert, the camera, the shapes of the models, the collision, the layer ripple, the walking body). `tools\check.ps1` runs them (see "One command" below).
+3. Logic tests: `.\tests\run_tests.ps1` in a *Developer PowerShell for VS* (Config / Log / Assert, the camera, the shapes of the models, the collision, the layer ripple, the walking body, the puzzle). `tools\check.ps1` runs them (see "One command" below).
 
 ## One command
 
@@ -96,6 +96,6 @@ Run it in Debug after a change. The long list of M0, M1 and the first M2 checks 
 | Q-20 | eye | layer A: walk up to the grey cylinder, jump onto its top (`Space` while walking toward it) and stand there; press `Tab` | the body stands on the top; at `Tab` the cylinder is gone in layer B and the body falls to the floor |
 | Q-21 | eye | layer B: walk onto the side of the blue sphere | the body slides off a slope that is too steep and stands on a gentle one near the top; a jump feels immediate and the landing is not heavy |
 
-What is left for the eye after a green `check.ps1`: the look of Q-2, Q-4 and Q-6 to Q-8, the collision and walking feel of Q-10 to Q-13, and Q-19 to Q-21 (about five minutes).
+What is left for the eye after a green `check.ps1`: the look of Q-2, Q-4 and Q-6 to Q-8, the collision and walking feel of Q-10 to Q-13, and Q-19 to Q-21 (about five minutes). The puzzle has no quick check yet: it is not in the game.
 
 Only when the device recovery has been touched: put `[debug]` `device_reset_key = 1` in the config, F5, press `F9` during a ripple. The picture goes on after a short flicker, the log says `recovered (1 of at most 5)`, and `Tab` still works.

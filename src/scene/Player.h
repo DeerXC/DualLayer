@@ -5,6 +5,8 @@
 //            eye; the feet are the point on the ground.
 // Layers:    only the objects of the given layer are solid (scene/Collision.h). The layer is a parameter of every Update, so a body
 //            standing on an object that is not in the new layer falls at once.
+// Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h). SetScene
+//            gives the body another one (a test, or the solids of a puzzle, whose block moves and whose door opens).
 // Method:    per small step: horizontal speed from the keys (no run-up: a stop is a stop), gravity, jump; move; push the three balls out
 //            of the solids (ResolveSphere). The direction of the push is the normal of what was hit: the part of the falling speed that
 //            goes into it is removed, the rest stays, so the body slides down a slope that is too steep and a floor ends a fall. Then
@@ -22,6 +24,7 @@
 
 #include "scene/Camera.h" // Vec3
 #include "scene/Collision.h"
+#include "scene/SceneData.h"
 
 #include <cmath>
 
@@ -63,6 +66,22 @@ class Player
         return m_s;
     }
 
+    /// The table of solid objects (BORROWS: it must stay alive while the body uses it). A null table or a count of 0 goes
+    /// back to the scene table of the program.
+    void SetScene(const scene::SceneObject* objects, int count)
+    {
+        if (objects != nullptr && count > 0)
+        {
+            m_objects = objects;
+            m_objectCount = count;
+        }
+        else
+        {
+            m_objects = scene::kScene;
+            m_objectCount = scene::kSceneCount;
+        }
+    }
+
     /// Where the body starts and where it goes back to after a fall (the point on the ground).
     void SetSpawn(const Vec3& feet)
     {
@@ -98,6 +117,12 @@ class Player
         return {m_feet.x, m_feet.y + m_s.eyeHeight, m_feet.z};
     }
 
+    /// The centre of ball i (0 = at the feet, 1 = halfway, 2 = at the eye).
+    Vec3 Ball(int i) const
+    {
+        return BallCentre(m_feet, i);
+    }
+
     bool Grounded() const
     {
         return m_grounded;
@@ -112,6 +137,13 @@ class Player
     float SlideSpeed() const
     {
         return std::sqrt(m_vx * m_vx + m_vz * m_vz);
+    }
+
+    /// Where the keys wanted to go in the last Update, on the ground (x, z), as a unit direction; (0, 0) when no key was held.
+    /// The puzzle reads it to know whether the body pushes against the block.
+    Vec3 WishDirection() const
+    {
+        return m_wish;
     }
 
     /// True after the Update in which the body fell too far and was put back at the spawn point.
@@ -146,6 +178,7 @@ class Player
         // ---- the wish: a speed on the ground from the keys and from where the camera looks
         float wishX = 0.0f;
         float wishZ = 0.0f;
+        m_wish = {};
         const float flat = std::sqrt(lookForward.x * lookForward.x + lookForward.z * lookForward.z);
         if (std::isfinite(flat) && flat > 1.0e-4f) // (a NaN direction gives a NaN length: false)
         {
@@ -161,8 +194,15 @@ class Player
                 forward /= length;
                 right /= length;
             }
-            wishX = (fx * forward + rx * right) * m_s.walkSpeed;
-            wishZ = (fz * forward + rz * right) * m_s.walkSpeed;
+            const float dirX = fx * forward + rx * right;
+            const float dirZ = fz * forward + rz * right;
+            const float dirLength = std::sqrt(dirX * dirX + dirZ * dirZ);
+            if (dirLength > 1.0e-4f)
+            {
+                m_wish = {dirX / dirLength, 0.0f, dirZ / dirLength};
+            }
+            wishX = dirX * m_s.walkSpeed;
+            wishZ = dirZ * m_s.walkSpeed;
         }
         if (input.jumpPressed)
         {
@@ -215,6 +255,7 @@ class Player
         m_jumpBuffer = 0.0f;
         m_jumping = false;
         m_airSeconds = 0.0f;
+        m_wish = {};
     }
 
     /// The centre of ball i (0 = feet, 2 = eye) for a body whose feet are at `feet`.
@@ -224,6 +265,11 @@ class Player
         const float high = m_s.eyeHeight;
         const float t = static_cast<float>(i) / static_cast<float>(kBalls - 1);
         return {feet.x, feet.y + low + (high - low) * t, feet.z};
+    }
+
+    CollisionResult ResolveBall(const Vec3& centre, int layer, float spinSeconds) const
+    {
+        return ResolveSphere(centre, m_s.radius, layer, spinSeconds, m_objects, m_objectCount);
     }
 
     /// Pushes the three balls out of the solids of `layer`; each push moves the whole body. A few rounds, because a push of
@@ -236,7 +282,7 @@ class Player
             for (int i = 0; i < kBalls; ++i)
             {
                 const Vec3 centre = BallCentre(m_feet, i);
-                const CollisionResult r = ResolveSphere(centre, m_s.radius, layer, spinSeconds);
+                const CollisionResult r = ResolveBall(centre, layer, spinSeconds);
                 if (r.pushed)
                 {
                     m_feet.x += r.position.x - centre.x;
@@ -258,7 +304,7 @@ class Player
         Vec3 lowered = m_feet;
         lowered.y -= kProbe;
         const Vec3 centre = BallCentre(lowered, 0);
-        const CollisionResult r = ResolveSphere(centre, m_s.radius, layer, spinSeconds);
+        const CollisionResult r = ResolveBall(centre, layer, spinSeconds);
         if (!r.pushed)
         {
             return false;
@@ -344,8 +390,11 @@ class Player
         }
     }
 
+    const scene::SceneObject* m_objects = scene::kScene;
+    int m_objectCount = scene::kSceneCount;
     Vec3 m_feet{0.0f, scene::kFloorY, -3.0f};
     Vec3 m_spawn{0.0f, scene::kFloorY, -3.0f};
+    Vec3 m_wish{};
     Settings m_s;
     float m_vx = 0.0f; // UNITS: metres per second, the slide on the ground that does not come from the keys
     float m_vy = 0.0f;

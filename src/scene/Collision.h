@@ -2,6 +2,9 @@
 // Plain maths, no Windows, no Direct3D: tested without a window (tests/test_collision.cpp).
 // Rule:      only the objects that exist in the given layer are solid. The floor is in both layers, the red cube and the
 //            grey cylinder only in A, the blue sphere and the yellow torus only in B (scene/SceneData.h).
+// Table:     the objects come from a table. The short form of ResolveSphere uses the scene table of the program
+//            (scene::kScene); the long form takes any table, so that a test or a puzzle (scene/Puzzle.h, whose block and
+//            door move and open) can bring its own.
 // Shapes:    cube = a box that can be stretched and turned; sphere; cylinder with flat ends; torus = a tube bent into a
 //            ring. All of them are exact (no bounding boxes), so the ball touches what the player sees.
 // Turning:   the shapes turn with time (spinSpeed * spinSeconds). Pass the same time that the renderer uses
@@ -235,16 +238,18 @@ inline float PushOutOf(const scene::SceneObject& o, Vec3& world, float radius, f
 
 } // namespace collision_detail
 
-/// Moves a ball (the centre `center`, radius `radius`) out of every solid of `layer` (0 = A, 1 = B).
-/// spinSeconds: the time that the renderer uses for the turning shapes (Models::SpinSeconds).
-/// A centre that is not a finite number is returned as it is (and not pushed): the caller has a bigger problem.
-inline CollisionResult ResolveSphere(const Vec3& center, float radius, int layer, float spinSeconds)
+/// Moves a ball (the centre `center`, radius `radius`) out of every solid of `layer` (0 = A, 1 = B) in the table
+/// `objects` (`objectCount` entries). spinSeconds: the time that the renderer uses for the turning shapes
+/// (Models::SpinSeconds). A centre that is not a finite number is returned as it is (and not pushed): the caller has a
+/// bigger problem. A null table or a count of 0 means nothing is solid.
+inline CollisionResult ResolveSphere(const Vec3& center, float radius, int layer, float spinSeconds,
+                                     const scene::SceneObject* objects, int objectCount)
 {
     CollisionResult result;
     result.position = center;
     const bool finite = std::isfinite(center.x) && std::isfinite(center.y) && std::isfinite(center.z) &&
                         std::isfinite(spinSeconds) && std::isfinite(radius);
-    if (!finite || radius <= 0.0f || (layer != 0 && layer != 1))
+    if (!finite || radius <= 0.0f || (layer != 0 && layer != 1) || objects == nullptr || objectCount <= 0)
     {
         return result;
     }
@@ -252,8 +257,9 @@ inline CollisionResult ResolveSphere(const Vec3& center, float radius, int layer
     for (int pass = 0; pass < collision_detail::kPasses; ++pass)
     {
         bool touched = false;
-        for (const scene::SceneObject& object : scene::kScene)
+        for (int i = 0; i < objectCount; ++i)
         {
+            const scene::SceneObject& object = objects[i];
             if ((object.layerMask & layerBit) == 0u)
             {
                 continue; // not in this layer: not solid
@@ -270,6 +276,12 @@ inline CollisionResult ResolveSphere(const Vec3& center, float radius, int layer
         }
     }
     return result;
+}
+
+/// The same, over the scene table of the program (scene/SceneData.h).
+inline CollisionResult ResolveSphere(const Vec3& center, float radius, int layer, float spinSeconds)
+{
+    return ResolveSphere(center, radius, layer, spinSeconds, scene::kScene, scene::kSceneCount);
 }
 
 } // namespace dl

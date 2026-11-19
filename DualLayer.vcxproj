@@ -91,6 +91,7 @@
     <ClCompile Include="src\render\Device.cpp" />
     <ClCompile Include="src\render\MeshData.cpp" />
     <ClCompile Include="src\render\Models.cpp" />
+    <ClCompile Include="src\render\ShaderCompiler.cpp" />
     <ClCompile Include="src\render\Triangle.cpp" />
     <ClCompile Include="src\scene\Camera.cpp" />
   </ItemGroup>
@@ -105,10 +106,12 @@
     <ClInclude Include="src\render\MeshData.h" />
     <ClInclude Include="src\render\Models.h" />
     <ClInclude Include="src\render\Projection.h" />
+    <ClInclude Include="src\render\ShaderCompiler.h" />
     <ClInclude Include="src\render\Triangle.h" />
     <ClInclude Include="src\scene\Camera.h" />
     <ClInclude Include="src\scene\Collision.h" />
     <ClInclude Include="src\scene\Player.h" />
+    <ClInclude Include="src\scene\Puzzle.h" />
     <ClInclude Include="src\scene\SceneData.h" />
   </ItemGroup>
   <ItemGroup>

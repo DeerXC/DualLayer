@@ -50,7 +50,7 @@ struct SceneObject
 
 // THE SCENE. Edit it to move or to change something. Every object stands on the floor: y = kFloorY + half of its height
 // after the scale (the torus: half of its tilted extent, 0.8 * sin(tilt) + 0.3).
-// A members must be written in the order of the struct (C++20 designated initialisers): layerMask comes last.
+// The members must be written in the order of the struct (C++20 designated initialisers): layerMask comes last.
 inline constexpr SceneObject kScene[] = {
     // the floor: a cube of 24 x 0.2 x 24 metres, its top at y = -1; it is in both layers
     {.shape = ShapeKind::Cube,

@@ -1,6 +1,6 @@
 # Architecture
 
-Covers milestones M0, M1 and M2 so far (layers, ripple, collision, walking).
+Covers milestones M0, M1 and M2 so far (layers, ripple, collision, walking, puzzle logic).
 
 ## One frame
 
@@ -11,8 +11,8 @@ WinMain
      ├─ Window.Create                            (DPI awareness first)
      ├─ Gpu.Init (main.cpp: Device, Triangle and Models together, so that they can be made again together)
      │   ├─ Device.Init  → adapter list → D3D11 device (+ debug layer) → flip swap chain → back-buffer sRGB view
-     │   ├─ Triangle.Init → compile shaders from shaders/test_triangle.hlsl → buffers
-     │   ├─ Models.Init   → compile shaders/models.hlsl and shaders/ripple.hlsl → input layout → render states → MeshData (CPU) → vertex + index buffers (GPU)
+     │   ├─ Triangle.Init → CompileShader(shaders/test_triangle.hlsl) → buffers
+     │   ├─ Models.Init   → CompileShader(shaders/models.hlsl, shaders/ripple.hlsl) → input layout → render states → MeshData (CPU) → vertex + index buffers (GPU)
      │   └─ Models.LoadThemes                    (the looks of layer A and B and the ripple settings: built in, changed by the config)
      ├─ Player.SetSettings, SetSpawn, Respawn     (the walking body: [player] and [collision] in the config)
      └─ loop, per frame:
@@ -56,13 +56,13 @@ The two pictures are made the first time they are needed and made again when the
 
 ## Collision (M2)
 
-The solid body is a ball (the camera, radius 0.35 m by default). `ResolveSphere` (`scene/Collision.h`) moves only the place of the ball out of everything that is solid in the layer the screen is going to show. There is no speed or physics inside it: one call, one correction.
+The solid body is a ball (the camera, radius 0.35 m by default). `ResolveSphere` (`scene/Collision.h`) moves only the place of the ball out of everything that is solid in the given layer. There is no speed or physics inside it: one call, one correction. The objects come from a table: the short form uses the scene table of the program, the long form takes any table (a test, or the puzzle, whose block moves and whose door opens).
 
 The solids are the objects of the scene table `scene/SceneData.h`. The renderer (`Models.cpp`) reads the same table, so what is drawn and what is solid cannot disagree. An object is solid only in the layers of its mask, so the red cube and the grey cylinder exist for the ball only in A, the blue sphere and the yellow torus only in B, and the floor in both.
 
 Every shape is exact: a box that can be stretched and turned, a ball, a cylinder with flat ends, and a torus (a tube bent into a ring, so that the hole can be flown through). For each solid the ball centre is moved into the local space of the object (the inverse of the world matrix of the renderer), pushed out along the shortest way, and moved back. The shapes turn with time, so the collision takes `Models::SpinSeconds()`, the same time that the renderer uses. Up to 16 rounds settle a ball that sits between two solids.
 
-During a ripple the NEW layer is already the solid one (`Models::CollisionLayer()`). A ball that is inside an object of the new layer when `Tab` is pressed is pushed to its surface.
+During a ripple the NEW layer is already the solid one (`Models::CollisionLayer()`). In the current game a ball that is inside an object of the new layer when `Tab` is pressed is pushed to its surface; with the puzzle in the game this case is refused instead (see "Puzzle logic").
 
 ## Walking (M2)
 
@@ -74,20 +74,29 @@ Feel: a jump still works for 0.08 s after leaving an edge (coyote time), and a j
 
 The layer is a parameter of every `Update`, so a body that stands on an object that does not exist in the new layer falls at once. The turning shapes do not carry the body along; they only push it away.
 
+## Puzzle logic (M2, not in the game yet)
+
+`scene/Puzzle.h` (header only, no Windows) holds the pieces of the stage. All of them are tied to the two layers:
+
+- **Purple block**: a 1 m cube on a 1 m grid, solid in BOTH layers. Walking straight at one of its faces for 0.2 s moves it one cell in 0.25 s. The next cell must be free in both layers, so a wall that is not even on the screen can stop it; a refused push names what was in the way and makes it flash.
+- **Plate and door**: the plate is in layer A and is pressed by the block resting on it, or by the body standing on it while the body is in A. The door is in layer B and is open while the plate is pressed. A body that switches to B leaves the plate, so it cannot hold the door open by itself: the block can.
+- **Solids**: `Puzzle::Solids(layer)` builds, every frame, the table that the collision and the walking body use: the fixed objects, the block, and the door while it is closed.
+- **Switch guard**: `Puzzle::BodyFits` tells whether the body would be free in the other layer; `LayerGuard` turns `Tab` into Switch, Refuse (the ripple opens for 0.15 s and turns back, the old layer stays solid) or Ignore. The push-out of the collision stays only as a safety net.
+
 ## Modules and the allowed direction of dependencies
 
 ```
 main
- ├─ render   (Device, Triangle, Models, MeshData, LayerRipple, Projection, GpuDebug)   → core, scene (SceneData only)
- ├─ scene    (Camera, SceneData, Collision, Player)                                   → standard library only
+ ├─ render   (Device, Triangle, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug)   → core, scene (SceneData only)
+ ├─ scene    (Camera, SceneData, Collision, Player, Puzzle)                                            → standard library only
  └─ core     (Log, Assert, Config, Window)  → standard library and Windows only
 ```
 
-`core` must never include `render` or anything above it. `render` is the only place that talks to Direct3D. New layers (`physics`, `game`, `audio`, `ui`) are added by the milestone that needs them, always on top.
+`core` must never include `render` or anything above it. `render` is the only place that talks to Direct3D. New layers (`game`, `audio`, `ui`) are added by the milestone that needs them, always on top.
 
-Pure-logic code (`Config`, `Log`, `Assert`, `Camera`, `MeshData`, `LayerRipple`, `SceneData`, `Collision`, `Player`) has no Windows or Direct3D dependency and can be tested without a window.
+Pure-logic code (`Config`, `Log`, `Assert`, `Camera`, `MeshData`, `LayerRipple`, `SceneData`, `Collision`, `Player`, `Puzzle`) has no Windows or Direct3D dependency and can be tested without a window.
 
-`MeshData` makes the shapes on the CPU; `Models` only copies them to the GPU and draws them. `Projection.h` is the one lens that every pass uses.
+`MeshData` makes the shapes on the CPU; `Models` only copies them to the GPU and draws them. `Projection.h` is the one lens that every pass uses, and `ShaderCompiler` the one place that knows the compile flags of the shaders.
 
 ## Debugging facilities that exist since M0
 

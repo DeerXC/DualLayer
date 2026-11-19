@@ -3,6 +3,7 @@
 #include "core/Assert.h"
 #include "core/Log.h"
 #include "render/GpuDebug.h"
+#include "render/ShaderCompiler.h"
 #include "scene/SceneData.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -109,38 +110,6 @@ std::array<Models::Theme, 2> DefaultThemes()
 float SrgbToLinear(float c)
 {
     return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
-}
-
-/// Compiles one entry point of a shader file; logs the compiler's message on failure.
-bool CompileShader(const char* path, const char* entry, const char* target, ComPtr<ID3DBlob>& out)
-{
-    UINT flags = D3DCOMPILE_PACK_MATRIX_ROW_MAJOR |
-                 D3DCOMPILE_ENABLE_STRICTNESS; // docs/CONVENTIONS.md: row-major, as common.hlsli
-#if defined(_DEBUG)
-    flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-    flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
-#endif
-    wchar_t widePath[MAX_PATH];
-    MultiByteToWideChar(CP_UTF8, 0, path, -1, widePath, MAX_PATH);
-    ComPtr<ID3DBlob> errors;
-    const HRESULT hr = D3DCompileFromFile(widePath, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, target, flags, 0,
-                                          &out, &errors);
-    if (FAILED(hr))
-    {
-        if (errors != nullptr)
-        {
-            DL_LOG_ERROR("Models", "shader %s (%s) failed:\n%s", entry, target,
-                         static_cast<const char*>(errors->GetBufferPointer()));
-        }
-        else
-        {
-            DL_LOG_ERROR("Models", "cannot read %s (0x%08X): is the working directory the project folder?", path,
-                         static_cast<unsigned>(hr));
-        }
-        return false;
-    }
-    return true;
 }
 
 /// Every state that Models::Draw changes is put back when this goes out of scope. WHY: Triangle does not set the

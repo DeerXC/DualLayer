@@ -3,7 +3,8 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. standing: the body rests on the floor (feet at the top of the floor, eye at the eye height) and a fall ends there
-//   2. walking: forward, back and sideways at the walking speed; two keys are not faster; looking up or down does not slow it
+//   2. walking: forward, back and sideways at the walking speed; two keys are not faster; looking up or down does not slow it;
+//      the walk direction (WishDirection) is a unit vector on the ground, and (0, 0) without keys
 //   3. jumping: the feet rise exactly the jump height, the landing is reported once, a jump pressed shortly before the landing
 //      happens at the landing (jump buffer), a jump shortly after leaving an edge still works (coyote time) and a later one does not
 //   4. layers: the red cube stops the body in A and not in B; standing on top of an object and switching to the layer in which it
@@ -121,6 +122,9 @@ void TestWalking()
         w.Run(0.5f, Keys(1.0f));
         CHECK(Near(w.player.Feet().z, -3.0f + 0.5f * speed, 0.05f) && Near(w.player.Feet().x, 0.0f, 0.01f));
         CHECK(w.player.Grounded() && Near(w.player.Feet().y, kFloor, 0.005f)); // and it stays on the floor
+        CHECK(Near(w.player.WishDirection().z, 1.0f, 1e-4f) && Near(w.player.WishDirection().x, 0.0f, 1e-4f));
+        w.Run(kDt);
+        CHECK(Near(w.player.WishDirection().x, 0.0f, 1e-6f) && Near(w.player.WishDirection().z, 0.0f, 1e-6f)); // no key, no wish
     }
     {
         World w; // back
@@ -131,16 +135,19 @@ void TestWalking()
         World w; // sideways: right of +Z is +X
         w.Run(0.5f, Keys(0.0f, 1.0f));
         CHECK(Near(w.player.Feet().x, 0.5f * speed, 0.05f) && Near(w.player.Feet().z, -3.0f, 0.01f));
+        CHECK(Near(w.player.WishDirection().x, 1.0f, 1e-4f));
         World l;
         l.Run(0.5f, Keys(0.0f, -1.0f));
         CHECK(Near(l.player.Feet().x, -0.5f * speed, 0.05f));
     }
     {
-        World w; // two keys together: the same speed, at 45 degrees
+        World w; // two keys together: the same speed, at 45 degrees; the wish is still a unit vector
         w.Run(0.5f, Keys(1.0f, 1.0f));
         const float dx = w.player.Feet().x;
         const float dz = w.player.Feet().z + 3.0f;
         CHECK(Near(std::sqrt(dx * dx + dz * dz), 0.5f * speed, 0.05f) && Near(dx, dz, 0.01f));
+        const Vec3 wish = w.player.WishDirection();
+        CHECK(Near(std::sqrt(wish.x * wish.x + wish.z * wish.z), 1.0f, 1e-4f));
     }
     {
         World w; // looking up or down does not change the speed on the ground
@@ -402,12 +409,10 @@ void TestLayers()
 /// True when none of the three balls of the body overlaps a solid of `layer` by more than a little.
 bool BodyIsClear(const Player& p, int layer, float spin)
 {
-    const Player::Settings s = p.GetSettings();
     for (int i = 0; i < 3; ++i)
     {
-        const float t = static_cast<float>(i) / 2.0f;
-        const Vec3 c{p.Feet().x, p.Feet().y + s.radius + (s.eyeHeight - s.radius) * t, p.Feet().z};
-        const dl::CollisionResult r = dl::ResolveSphere(c, s.radius, layer, spin);
+        const Vec3 c = p.Ball(i);
+        const dl::CollisionResult r = dl::ResolveSphere(c, p.GetSettings().radius, layer, spin);
         const float dx = r.position.x - c.x;
         const float dy = r.position.y - c.y;
         const float dz = r.position.z - c.z;
