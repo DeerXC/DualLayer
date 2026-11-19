@@ -1,13 +1,16 @@
 // main.cpp - entry point and the frame loop.
-// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, collision) > Render
+// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, walking or collision) > Render
 //         [GPU event "Frame" > "Opaque.Models" (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
-// Keys:   W A S D move, Q / E down / up, arrow keys turn, R puts the camera back, F5 reloads config/default.ini, Esc quits
+// Keys:   W A S D move, arrow keys turn, R puts the camera back, F5 reloads config/default.ini, Esc quits
+//         Space jumps (walking), Q / E down / up (flying)
+//         F walking / flying (walking: gravity, the body stands on the floor and on objects; flying: a free camera)
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
 //         Tab switches the layer (A <-> B)
-//         N collision on / off (off = fly through everything)
+//         N collision on / off (off = fly through everything; walking needs collision, so N off also means flying)
 //         F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds them again: the test of the recovery
-// Collision: the camera is a ball ([collision] radius). After the camera has moved, the ball is pushed out of the solid
-//         objects of the layer that the screen is going to show (scene/Collision.h); the camera keeps its direction.
+// Walking: scene/Player.h. The camera is the eye of a body of three balls; the camera only turns, the body walks, falls and jumps.
+// Flying: the camera is one ball ([collision] radius); after it has moved, the ball is pushed out of the solid objects of the layer
+//         that the screen is going to show (scene/Collision.h); the camera keeps its direction.
 // Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin and the
 //         camera stay as they were. After kMaxRecoveries tries the program says so and ends.
 // Args:   --adapter N   choose the N-th adapter listed in the log (overrides [render] adapter)
@@ -26,6 +29,8 @@
 #include "render/Triangle.h"
 #include "scene/Camera.h"
 #include "scene/Collision.h"
+#include "scene/Player.h"
+#include "scene/SceneData.h"
 
 #include <DirectXMath.h>
 
@@ -50,6 +55,7 @@ namespace
 constexpr char kConfigPath[] = "config/default.ini";
 constexpr int kMaxRecoveries = 5; // after this many lost devices in one run the program gives up
 constexpr float kDefaultBodyRadius = 0.35f; // UNITS: metres, the ball of the camera. TUNE: [collision] radius, 0.05 .. 1
+constexpr float kSpawnZ = -3.0f;            // UNITS: metres, where the walking body starts (the same place as the camera): x = 0, on the floor
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -83,6 +89,18 @@ void LoadConfig(dl::Config& config, dl::Camera& camera)
     settings.moveSpeed = config.GetFloat("camera", "move_speed", settings.moveSpeed);
     settings.turnSpeed = config.GetFloat("camera", "turn_speed", settings.turnSpeed);
     camera.SetSettings(settings);
+}
+
+/// The walking body: its numbers come from [player] and [collision]; Player pulls nonsense values into a range that works.
+void ApplyPlayerConfig(const dl::Config& config, dl::Player& player)
+{
+    dl::Player::Settings settings; // the defaults live in Player.h
+    settings.radius = config.GetFloat("collision", "radius", kDefaultBodyRadius);
+    settings.eyeHeight = config.GetFloat("player", "eye_height", settings.eyeHeight);
+    settings.walkSpeed = config.GetFloat("player", "walk_speed", settings.walkSpeed);
+    settings.gravity = config.GetFloat("player", "gravity", settings.gravity);
+    settings.jumpHeight = config.GetFloat("player", "jump_height", settings.jumpHeight);
+    player.SetSettings(settings);
 }
 
 int ParseAdapterArg(int argc, char** argv)
@@ -191,6 +209,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
 
+    dl::Player player;
+    ApplyPlayerConfig(config, player);
+    player.SetSpawn({0.0f, dl::scene::kFloorY, kSpawnZ});
+    player.Respawn();
+
     LARGE_INTEGER frequency{};
     LARGE_INTEGER last{};
     QueryPerformanceFrequency(&frequency);
@@ -204,8 +227,12 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     bool spinKeyWasDown = false;
     bool layerKeyWasDown = false;
     bool collideKeyWasDown = false;
+    bool walkKeyWasDown = false;
+    bool jumpKeyWasDown = false;
     bool resetTestKeyWasDown = false;
     bool collide = config.GetBool("collision", "enabled", true); // N switches it; F5 sets it from the config again
+    bool walk = config.GetBool("player", "walk", true);          // F switches it; F5 sets it from the config again
+    bool wasWalking = walk && collide;                           // the body starts at the spawn point, so the first frame needs no Place
     int recoveries = 0;
 
     while (window.PumpMessages())
@@ -236,7 +263,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             LoadConfig(config, camera);
             gpu.models.LoadThemes(config);
             gpu.device->SetVsync(config.GetBool("render", "vsync", true));
+            ApplyPlayerConfig(config, player);
             collide = config.GetBool("collision", "enabled", true);
+            walk = config.GetBool("player", "walk", true);
         }
         if (window.ConsumeResized())
         {
@@ -254,14 +283,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         last = now;
         angle += DirectX::XMConvertToRadians(config.GetFloat("test_triangle", "spin_deg_per_sec", 0.0f)) * static_cast<float>(dt);
 
-        // ---- camera
-        camera.Update(focused ? ReadCameraKeys() : dl::CameraInput{}, static_cast<float>(dt));
-        const bool resetKeyDown = focused && IsDown('R');
-        if (resetKeyDown && !resetKeyWasDown)
-        {
-            camera.Reset();
-        }
-        resetKeyWasDown = resetKeyDown;
+        // ---- keys
+        const dl::CameraInput keys = focused ? ReadCameraKeys() : dl::CameraInput{};
         if (PressedOnce('Z', wireKeyWasDown, focused))
         {
             gpu.models.ToggleWireframe();
@@ -284,18 +307,71 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             collide = !collide;
             DL_LOG_INFO("Main", "collision %s", collide ? "on" : "off");
         }
+        if (PressedOnce('F', walkKeyWasDown, focused))
+        {
+            walk = !walk;
+            DL_LOG_INFO("Main", "movement: %s", walk ? "walk" : "fly");
+        }
+        const bool jumpPressed = PressedOnce(VK_SPACE, jumpKeyWasDown, focused);
+
+        // ---- the camera. Walking: it only turns, the body moves. Flying: it moves itself.
+        const bool walking = walk && collide; // a body that walks needs something to stand on
+        if (walking && !wasWalking)
+        {
+            player.Place(camera.Position()); // walking starts again where the camera is: the body falls from there
+        }
+        wasWalking = walking;
+        if (walking)
+        {
+            dl::CameraInput lookOnly;
+            lookOnly.lookRight = keys.lookRight;
+            lookOnly.lookUp = keys.lookUp;
+            camera.Update(lookOnly, static_cast<float>(dt));
+        }
+        else
+        {
+            camera.Update(keys, static_cast<float>(dt));
+        }
+        const bool resetKeyDown = focused && IsDown('R');
+        if (resetKeyDown && !resetKeyWasDown)
+        {
+            camera.Reset();
+            if (walking)
+            {
+                player.Respawn();
+            }
+        }
+        resetKeyWasDown = resetKeyDown;
         gpu.models.Update(static_cast<float>(dt));
 
-        // ---- collision: after the camera and the shapes have moved, push the ball out of what is solid in the layer
-        // that the screen is going to show. The same spin time as the renderer, so the solid is where the picture is.
-        if (collide)
+        // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid in the layer that the
+        // screen is going to show. The same spin time as the renderer, so the solid is where the picture is.
+        if (walking)
+        {
+            dl::Player::Input move;
+            move.moveForward = keys.moveForward;
+            move.moveRight = keys.moveRight;
+            move.jumpPressed = jumpPressed;
+            player.Update(move, camera.Forward(), gpu.models.CollisionLayer(), gpu.models.SpinSeconds(), static_cast<float>(dt));
+            if (player.JustRespawned())
+            {
+                DL_LOG_INFO("Main", "fell off the floor: back at the start");
+            }
+            float peak = 0.0f;
+            if (player.ConsumeLanding(peak))
+            {
+                DL_LOG_INFO("Player", "jump peak %.2f m", peak);
+            }
+            camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch()); // only the place changes, not where it looks
+        }
+        else if (collide)
         {
             const float radius = std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f);
             const dl::CollisionResult body =
                 dl::ResolveSphere(camera.Position(), radius, gpu.models.CollisionLayer(), gpu.models.SpinSeconds());
             if (body.pushed)
             {
-                camera.SetPose(body.position, camera.Yaw(), camera.Pitch()); // only the place changes, not where it looks
+                camera.SetPose(body.position, camera.Yaw(), camera.Pitch());
             }
         }
 
@@ -332,11 +408,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         ++fpsFrames;
         if (fpsTimer >= 0.5)
         {
-            wchar_t title[256];
+            const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
+            wchar_t title[320];
             swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s",
                        gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer,
-                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(),
-                       collide ? L"collide" : L"noclip");
+                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode);
             window.SetTitle(title);
             fpsTimer = 0.0;
             fpsFrames = 0;

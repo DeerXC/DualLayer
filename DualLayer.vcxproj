@@ -108,6 +108,7 @@
     <ClInclude Include="src\render\Triangle.h" />
     <ClInclude Include="src\scene\Camera.h" />
     <ClInclude Include="src\scene\Collision.h" />
+    <ClInclude Include="src\scene\Player.h" />
     <ClInclude Include="src\scene\SceneData.h" />
   </ItemGroup>
   <ItemGroup>

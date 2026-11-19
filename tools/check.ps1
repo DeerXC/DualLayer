@@ -3,9 +3,9 @@
 #   .\tools\check.ps1 -Commit "feat(scene): ..."       ... and, only if everything passed: git add, git audit, git commit
 #   .\tools\check.ps1 -Commit "feat(scene): ..." -Push ... and git push
 # Run it from any PowerShell in any folder: it finds the project and the Visual Studio build tools by itself.
-# Steps:  1 build tools  2 logic tests (tests\run_tests.ps1)  3 Debug and Release build  4 the game starts, answers the keys
-#         Tab / N and closes cleanly  5 repository safety (nothing that must not be uploaded)  6 commit / push (only on request)
-# Step 4 presses keys in the game window for about 25 seconds: do not touch the keyboard or the mouse until it says it is done.
+# Steps:  1 build tools  2 logic tests (tests\run_tests.ps1)  3 Debug and Release build  4 the game starts, walks, jumps and answers
+#         the keys F / Tab / N and closes cleanly  5 repository safety (nothing that must not be uploaded)  6 commit / push (only on request)
+# Step 4 presses keys in the game window for about 35 seconds: do not touch the keyboard or the mouse until it says it is done.
 # Output:  a table at the end; the exit code is 0 only when nothing failed.
 param(
     [switch]$SkipBuild,
@@ -110,7 +110,7 @@ else
     Build-Config "Release"
 }
 
-# ---- 4. the game starts, answers Tab and N, and closes cleanly
+# ---- 4. the game starts, walks, jumps, answers F, Tab and N, and closes cleanly
 if (-not ([System.Management.Automation.PSTypeName]'DlWin32').Type)
 {
     Add-Type -TypeDefinition @"
@@ -133,10 +133,26 @@ function Press-Key([byte]$vk)
     [DlWin32]::keybd_event($vk, 0, 2, [UIntPtr]::Zero)
 }
 
+function Hold-Key([byte]$vk, [int]$milliseconds)
+{
+    [DlWin32]::keybd_event($vk, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds $milliseconds
+    [DlWin32]::keybd_event($vk, 0, 2, [UIntPtr]::Zero)
+}
+
 function Get-Title($proc)
 {
     $proc.Refresh()
     return $proc.MainWindowTitle
+}
+
+# the camera position from the title bar ("camera x y z"), or $null
+function Get-CameraPos($proc)
+{
+    $m = [regex]::Match((Get-Title $proc), 'camera (-?\d+\.\d) (-?\d+\.\d) (-?\d+\.\d)')
+    if (-not $m.Success) { return $null }
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    return @([double]::Parse($m.Groups[1].Value, $inv), [double]::Parse($m.Groups[2].Value, $inv), [double]::Parse($m.Groups[3].Value, $inv))
 }
 
 function Wait-Title($proc, [string]$text, [double]$seconds)
@@ -153,6 +169,7 @@ function Wait-Title($proc, [string]$text, [double]$seconds)
 
 Write-Host "== 4. the game (do not touch the keyboard or the mouse)" -ForegroundColor Cyan
 $exe = Join-Path $root "build\x64\Debug\DualLayer.exe"
+$jumpTried = $false
 if ($SkipSmoke) { Add-Result "game" "SKIP" "-SkipSmoke" }
 elseif (Failed) { Add-Result "game" "SKIP" "an earlier step failed" }
 elseif (-not (Test-Path $exe)) { Add-Result "game" "SKIP" "no Debug build found" }
@@ -185,10 +202,37 @@ else
         Start-Sleep -Milliseconds 400
         if ([DlWin32]::GetForegroundWindow() -ne $hwnd)
         {
-            Add-Result "keys (Q-2 .. Q-5, Q-14)" "SKIP" "the game window is not in front; run it again and do not click elsewhere"
+            Add-Result "keys (Q-2 .. Q-5, Q-14 .. Q-18)" "SKIP" "the game window is not in front; run it again and do not click elsewhere"
         }
         else
         {
+            # ---- walking (Q-15 .. Q-18): the body starts in layer A, at x = 0, z = -3, on the floor
+            $ok = (Get-Title $proc) -like "*walk*"
+            Add-Result "walking is the default (Q-15)" $(if ($ok) { "OK" } else { "FAIL" }) "the title bar says walk"
+            Start-Sleep -Milliseconds 700
+            $p0 = Get-CameraPos $proc
+            Hold-Key 0x57 1200   # W held for 1.2 s: about 4.8 m ahead, along x = 0 (free of objects in layer A)
+            Start-Sleep -Milliseconds 900
+            $p1 = Get-CameraPos $proc
+            if ($p0 -and $p1)
+            {
+                $ahead = $p1[2] - $p0[2]
+                $ok = ($ahead -gt 2.0) -and ($p1[1] -gt 0.3) -and ($p1[1] -lt 0.8)
+                Add-Result "W walks on the floor (Q-16)" $(if ($ok) { "OK" } else { "FAIL" }) ("{0:N1} m ahead, eye height {1:N1} m (about 0.5 is standing)" -f $ahead, $p1[1])
+            }
+            else { Add-Result "W walks on the floor (Q-16)" "FAIL" "no camera position in the title bar" }
+            Press-Key 0x20       # Space: a jump (the height is checked in the log below)
+            $jumpTried = $true
+            Start-Sleep -Milliseconds 1500
+            Press-Key 0x46       # F: flying
+            $ok = Wait-Title $proc "fly" 2
+            Add-Result "F -> fly (Q-18)" $(if ($ok) { "OK" } else { "FAIL" }) "the title bar says fly"
+            Press-Key 0x46       # F: walking again
+            $ok = Wait-Title $proc "walk" 2
+            Add-Result "F -> walk (Q-18)" $(if ($ok) { "OK" } else { "FAIL" }) "the title bar says walk"
+            Start-Sleep -Milliseconds 1000
+
+            # ---- layers and collision
             Press-Key 0x09   # Tab: the ripple to B
             $ok = Wait-Title $proc "layer B" 3
             Add-Result "Tab -> layer B (Q-2)" $(if ($ok) { "OK" } else { "FAIL" }) "the title bar says layer B"
@@ -220,6 +264,7 @@ else
                 Press-Key 0x4E   # N: collide again
                 $ok = Wait-Title $proc "collide" 2
                 Add-Result "N -> collide (Q-14)" $(if ($ok) { "OK" } else { "FAIL" }) "the title bar says collide"
+                Start-Sleep -Milliseconds 1500
             }
         }
         if (-not $proc.HasExited)
@@ -254,6 +299,19 @@ else
         {
             if ($warns.Count -gt 0) { Add-Result "log" "WARN" ("0 errors, {0} warning(s): read them in logs\dual.log" -f $warns.Count) }
             else { Add-Result "log" "OK" "0 errors, 0 warnings, the ripple pictures were made" }
+        }
+        if ($jumpTried)
+        {
+            # the jump height is reported by the game when the jump ends: the feet rose [jump_height] metres (2.0 by default)
+            $peaks = @($log | Where-Object { $_ -match "jump peak [0-9.]+ m" })
+            if ($peaks.Count -eq 0) { Add-Result "Space jumps (Q-17)" "FAIL" "no 'jump peak' line in logs\dual.log" }
+            else
+            {
+                $m = [regex]::Match($peaks[$peaks.Count - 1], "jump peak ([0-9.]+) m")
+                $peak = [double]::Parse($m.Groups[1].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+                $ok = ($peak -gt 1.7) -and ($peak -lt 2.3)
+                Add-Result "Space jumps (Q-17)" $(if ($ok) { "OK" } else { "FAIL" }) ("the feet rose {0:N2} m (2.0 by default)" -f $peak)
+            }
         }
     }
     else { Add-Result "log" "FAIL" "logs\dual.log was not written" }
