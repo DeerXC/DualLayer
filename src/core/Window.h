@@ -1,6 +1,10 @@
 // Window.h - one Win32 window. Declares per-monitor DPI awareness before creating it.
-// Owns:      the HWND.
+// Owns:      the HWND, and the state of the mouse capture.
 // Units:     all sizes are PHYSICAL pixels of the client area (at 150% scaling a 1600 px window is about 1067 logical px wide).
+// Mouse:     raw mouse input (WM_INPUT) is read while the mouse is captured: a click into the window captures it (the cursor is
+//            hidden and kept inside the window), Esc or leaving the window (Alt + Tab) releases it. The movement is added up
+//            in counts of the mouse, not in pixels, so it does not stop at the edge of the screen and ignores the pointer speed
+//            setting of Windows. Esc while the mouse is free closes the window.
 // Threading: main thread only (messages are pumped by PumpMessages()).
 #pragma once
 
@@ -10,6 +14,7 @@
 
 namespace dl
 {
+
 class Window
 {
 public:
@@ -20,10 +25,8 @@ public:
 
     /// Sets DPI awareness, registers the class and creates the window with the given CLIENT size.
     bool Create(HINSTANCE instance, const wchar_t* title, int clientWidth, int clientHeight);
-
     /// Dispatches pending messages. Returns false once the window was closed.
     bool PumpMessages();
-
     void SetTitle(const wchar_t* title);
 
     HWND Handle() const { return m_hwnd; }
@@ -36,16 +39,27 @@ public:
     /// True once after F5 was pressed.
     bool ConsumeReloadKey();
 
+    /// The mouse movement since the last call, in counts of the mouse (+x right, +y toward the user); 0 while not captured.
+    void ConsumeMouseDelta(long& dx, long& dy);
+    bool MouseCaptured() const { return m_captured; }
+    /// Hides the cursor and keeps it inside the window (true), or gives it back (false).
+    void SetMouseCaptured(bool captured);
+
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+    void ClipToClient();
 
     HWND m_hwnd = nullptr;
     int m_width = 0;
     int m_height = 0;
+    long m_mouseDx = 0;
+    long m_mouseDy = 0;
     bool m_minimized = false;
     bool m_resized = false;
     bool m_reloadKey = false;
     bool m_quit = false;
+    bool m_captured = false;
 };
+
 } // namespace dl

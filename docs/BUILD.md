@@ -41,6 +41,10 @@ The message must be `type(scope): subject`, at most 72 characters, without a fin
 
 The title bar ends with the movement mode: `collide | walk`, `collide | fly` or `noclip`.
 
+## Mouse and jump
+
+A click into the window captures the mouse for mouse look; `Esc` gives it back, and a second `Esc` quits. `Space` held is the full jump, a tap a small hop. New config keys: `[player]` `ground_accel`, `ground_decel`, `air_accel`, `fall_gravity_scale`, `jump_cut`; `[mouse]` `sensitivity`, `invert_y`; `[camera]` `land_dip`, `land_dip_max` (all optional).
+
 ## Optional keys in `config/default.ini`
 
 The program has built-in values for all of them, so the file may leave them out.
@@ -94,6 +98,9 @@ Run it in Debug after a change. The long list of M0, M1 and the first M2 checks 
 | Q-18 | script | `F`, `F` | the title bar says `fly`, then `walk` again |
 | Q-19 | eye | walk to the edge of the floor and over it | the body falls; after about 1.5 s it is back at the start, standing; the log has `fell off the floor` |
 | Q-20 | eye | layer A: walk up to the grey cylinder, jump onto its top (`Space` while walking toward it) and stand there; press `Tab` | the body stands on the top; at `Tab` the cylinder is gone in layer B and the body falls to the floor |
+| Q-22 | eye | click into the window, move the mouse; `Esc`, move the mouse; `Esc` | the view turns with the mouse and the cursor is hidden; after the first `Esc` the cursor is back; the second `Esc` closes the game; Alt + Tab also gives the cursor back |
+| Q-23 | eye | walk, let go; tap `Space`, then hold `Space` | the start and the stop are quick but not instant; a tap is a small hop, a held key the full jump; the fall is quicker than the rise |
+| Q-24 | eye | jump down from the top of the grey cylinder | the eye dips a little at the landing and comes back up at once; walking on the floor gives no dip |
 | Q-21 | eye | layer B: walk onto the side of the blue sphere | the body slides off a slope that is too steep and stands on a gentle one near the top; a jump feels immediate and the landing is not heavy |
 
 What is left for the eye after a green `check.ps1`: the look of Q-2, Q-4 and Q-6 to Q-8, the collision and walking feel of Q-10 to Q-13, and Q-19 to Q-21 (about five minutes). The puzzle has no quick check yet: it is not in the game.

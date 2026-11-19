@@ -221,7 +221,7 @@ else
                 Add-Result "W walks on the floor (Q-16)" $(if ($ok) { "OK" } else { "FAIL" }) ("{0:N1} m ahead, eye height {1:N1} m (about 0.5 is standing)" -f $ahead, $p1[1])
             }
             else { Add-Result "W walks on the floor (Q-16)" "FAIL" "no camera position in the title bar" }
-            Press-Key 0x20       # Space: a jump (the height is checked in the log below)
+            Hold-Key 0x20 600    # Space held for 0.6 s: the full jump (a tap is a small hop); the height is checked in the log below
             $jumpTried = $true
             Start-Sleep -Milliseconds 1500
             Press-Key 0x46       # F: flying

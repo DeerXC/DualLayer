@@ -4,13 +4,17 @@
 
 namespace dl
 {
+
 namespace
 {
 constexpr wchar_t kClassName[] = L"DualLayerWindow";
+constexpr USHORT kUsagePageGeneric = 0x01; // HID usage page "generic desktop"
+constexpr USHORT kUsageMouse = 0x02;       // HID usage "mouse"
 }
 
 Window::~Window()
 {
+    SetMouseCaptured(false);
     if (m_hwnd != nullptr)
     {
         DestroyWindow(m_hwnd);
@@ -49,6 +53,18 @@ bool Window::Create(HINSTANCE instance, const wchar_t* title, int clientWidth, i
         DL_LOG_ERROR("Window", "CreateWindowEx failed (error %lu)", GetLastError());
         return false;
     }
+
+    // raw mouse input: the movement of the mouse itself, without the pointer acceleration of Windows (mouse look)
+    RAWINPUTDEVICE mouse{};
+    mouse.usUsagePage = kUsagePageGeneric;
+    mouse.usUsage = kUsageMouse;
+    mouse.dwFlags = 0;
+    mouse.hwndTarget = m_hwnd;
+    if (RegisterRawInputDevices(&mouse, 1, sizeof(mouse)) == FALSE)
+    {
+        DL_LOG_WARN("Window", "RegisterRawInputDevices failed (error %lu): no mouse look, the arrow keys still turn", GetLastError());
+    }
+
     RECT client{};
     GetClientRect(m_hwnd, &client);
     m_width = client.right - client.left;
@@ -92,6 +108,46 @@ bool Window::ConsumeReloadKey()
     return r;
 }
 
+void Window::ConsumeMouseDelta(long& dx, long& dy)
+{
+    dx = m_mouseDx;
+    dy = m_mouseDy;
+    m_mouseDx = 0;
+    m_mouseDy = 0;
+}
+
+void Window::ClipToClient()
+{
+    RECT client{};
+    GetClientRect(m_hwnd, &client);
+    POINT corners[2] = {{client.left, client.top}, {client.right, client.bottom}};
+    MapWindowPoints(m_hwnd, nullptr, corners, 2); // client coordinates -> screen coordinates
+    const RECT screen{corners[0].x, corners[0].y, corners[1].x, corners[1].y};
+    ClipCursor(&screen);
+}
+
+void Window::SetMouseCaptured(bool captured)
+{
+    if (captured == m_captured || m_hwnd == nullptr)
+    {
+        return;
+    }
+    m_captured = captured;
+    m_mouseDx = 0;
+    m_mouseDy = 0;
+    if (captured)
+    {
+        ClipToClient();
+        ShowCursor(FALSE); // WHY once per change: ShowCursor keeps a counter, so the calls must be paired
+    }
+    else
+    {
+        ClipCursor(nullptr);
+        ShowCursor(TRUE);
+    }
+    DL_LOG_INFO("Window", "mouse %s", captured ? "captured (Esc releases it)" : "released (click to capture)");
+}
+
 LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     if (message == WM_NCCREATE)
@@ -119,6 +175,16 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
             m_height = static_cast<int>(HIWORD(lParam));
             m_resized = true;
         }
+        if (m_captured)
+        {
+            ClipToClient();
+        }
+        return 0;
+    case WM_MOVE:
+        if (m_captured)
+        {
+            ClipToClient();
+        }
         return 0;
     case WM_DPICHANGED:
     {
@@ -128,10 +194,39 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
                      suggested->bottom - suggested->top, SWP_NOZORDER | SWP_NOACTIVATE);
         return 0;
     }
+    case WM_INPUT:
+    {
+        RAWINPUT raw{};
+        UINT size = sizeof(raw);
+        if (m_captured &&
+            GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) != static_cast<UINT>(-1) &&
+            raw.header.dwType == RIM_TYPEMOUSE && (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
+        {
+            m_mouseDx += raw.data.mouse.lLastX;
+            m_mouseDy += raw.data.mouse.lLastY;
+        }
+        return DefWindowProcW(hwnd, message, wParam, lParam); // WHY: WM_INPUT must reach DefWindowProc so Windows can free its data
+    }
+    case WM_LBUTTONDOWN:
+        SetMouseCaptured(true);
+        return 0;
+    case WM_ACTIVATE:
+        if (LOWORD(wParam) == WA_INACTIVE)
+        {
+            SetMouseCaptured(false); // Alt + Tab, or another window in front: the cursor belongs to the user again
+        }
+        break; // WHY not return: DefWindowProc gives the keyboard focus to the window when it becomes active
     case WM_KEYDOWN:
         if (wParam == VK_ESCAPE)
         {
-            DestroyWindow(hwnd);
+            if (m_captured)
+            {
+                SetMouseCaptured(false); // the first Esc gives the mouse back; the second one quits
+            }
+            else
+            {
+                DestroyWindow(hwnd);
+            }
         }
         else if (wParam == VK_F5 && (lParam & (1 << 30)) == 0) // bit 30: the key was already down (auto-repeat)
         {
@@ -139,6 +234,7 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
         }
         return 0;
     case WM_DESTROY:
+        SetMouseCaptured(false);
         m_hwnd = nullptr;
         PostQuitMessage(0);
         return 0;
@@ -147,4 +243,5 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
     }
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
+
 } // namespace dl

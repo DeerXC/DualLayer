@@ -1,14 +1,16 @@
 // main.cpp - entry point and the frame loop.
 // Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, walking or collision) > Render
 //         [GPU event "Frame" > "Opaque.Models" (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
-// Keys:   W A S D move, arrow keys turn, R puts the camera back, F5 reloads config/default.ini, Esc quits
-//         Space jumps (walking), Q / E down / up (flying)
+// Keys:   W A S D move, the mouse turns (click into the window to capture it; Esc gives it back, a second Esc quits), the arrow
+//         keys turn as well, R puts the camera back, F5 reloads config/default.ini
+//         Space jumps (walking; held = the full jump, a tap = a small hop), Q / E down / up (flying)
 //         F walking / flying (walking: gravity, the body stands on the floor and on objects; flying: a free camera)
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
 //         Tab switches the layer (A <-> B)
 //         N collision on / off (off = fly through everything; walking needs collision, so N off also means flying)
 //         F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds them again: the test of the recovery
 // Walking: scene/Player.h. The camera is the eye of a body of three balls; the camera only turns, the body walks, falls and jumps.
+//         A hard landing lowers the eye for a moment ([camera] land_dip), so that a landing is felt.
 // Flying: the camera is one ball ([collision] radius); after it has moved, the ball is pushed out of the solid objects of the layer
 //         that the screen is going to show (scene/Collision.h); the camera keeps its direction.
 // Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin and the
@@ -35,6 +37,7 @@
 #include <DirectXMath.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -56,6 +59,10 @@ constexpr char kConfigPath[] = "config/default.ini";
 constexpr int kMaxRecoveries = 5; // after this many lost devices in one run the program gives up
 constexpr float kDefaultBodyRadius = 0.35f; // UNITS: metres, the ball of the camera. TUNE: [collision] radius, 0.05 .. 1
 constexpr float kSpawnZ = -3.0f;            // UNITS: metres, where the walking body starts (the same place as the camera): x = 0, on the floor
+constexpr float kDefaultMouseSensitivity = 0.0022f; // UNITS: radians per count of the mouse. TUNE: [mouse] sensitivity, 0.0002 .. 0.02
+constexpr float kDefaultLandDip = 0.012f;           // UNITS: metres of dip per m/s of landing speed. TUNE: [camera] land_dip, 0 = off
+constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepest dip. TUNE: [camera] land_dip_max
+constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -98,8 +105,13 @@ void ApplyPlayerConfig(const dl::Config& config, dl::Player& player)
     settings.radius = config.GetFloat("collision", "radius", kDefaultBodyRadius);
     settings.eyeHeight = config.GetFloat("player", "eye_height", settings.eyeHeight);
     settings.walkSpeed = config.GetFloat("player", "walk_speed", settings.walkSpeed);
+    settings.groundAccel = config.GetFloat("player", "ground_accel", settings.groundAccel);
+    settings.groundDecel = config.GetFloat("player", "ground_decel", settings.groundDecel);
+    settings.airAccel = config.GetFloat("player", "air_accel", settings.airAccel);
     settings.gravity = config.GetFloat("player", "gravity", settings.gravity);
+    settings.fallGravityScale = config.GetFloat("player", "fall_gravity_scale", settings.fallGravityScale);
     settings.jumpHeight = config.GetFloat("player", "jump_height", settings.jumpHeight);
+    settings.jumpCut = config.GetFloat("player", "jump_cut", settings.jumpCut);
     player.SetSettings(settings);
 }
 
@@ -221,6 +233,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     double fpsTimer = 0.0;
     int fpsFrames = 0;
     float angle = 0.0f;           // radians
+    float landDip = 0.0f;         // UNITS: metres the eye is lowered after a hard landing (it comes back up by itself)
     bool resetKeyWasDown = false; // WHY: R must act once per press, not on every frame it is held
     bool wireKeyWasDown = false;
     bool detailKeyWasDown = false;
@@ -281,7 +294,20 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         QueryPerformanceCounter(&now);
         const double dt = static_cast<double>(now.QuadPart - last.QuadPart) / static_cast<double>(frequency.QuadPart);
         last = now;
-        angle += DirectX::XMConvertToRadians(config.GetFloat("test_triangle", "spin_deg_per_sec", 0.0f)) * static_cast<float>(dt);
+        const float dtf = static_cast<float>(dt);
+        angle += DirectX::XMConvertToRadians(config.GetFloat("test_triangle", "spin_deg_per_sec", 0.0f)) * dtf;
+
+        // ---- the mouse turns the camera (only while it is captured: the window collects nothing otherwise)
+        long mouseDx = 0;
+        long mouseDy = 0;
+        window.ConsumeMouseDelta(mouseDx, mouseDy);
+        if (mouseDx != 0 || mouseDy != 0)
+        {
+            const float sensitivity = std::clamp(config.GetFloat("mouse", "sensitivity", kDefaultMouseSensitivity), 0.0002f, 0.02f);
+            const float invert = config.GetBool("mouse", "invert_y", false) ? -1.0f : 1.0f;
+            camera.SetPose(camera.Position(), camera.Yaw() + static_cast<float>(mouseDx) * sensitivity,
+                           camera.Pitch() - invert * static_cast<float>(mouseDy) * sensitivity);
+        }
 
         // ---- keys
         const dl::CameraInput keys = focused ? ReadCameraKeys() : dl::CameraInput{};
@@ -326,23 +352,24 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             dl::CameraInput lookOnly;
             lookOnly.lookRight = keys.lookRight;
             lookOnly.lookUp = keys.lookUp;
-            camera.Update(lookOnly, static_cast<float>(dt));
+            camera.Update(lookOnly, dtf);
         }
         else
         {
-            camera.Update(keys, static_cast<float>(dt));
+            camera.Update(keys, dtf);
         }
         const bool resetKeyDown = focused && IsDown('R');
         if (resetKeyDown && !resetKeyWasDown)
         {
             camera.Reset();
+            landDip = 0.0f;
             if (walking)
             {
                 player.Respawn();
             }
         }
         resetKeyWasDown = resetKeyDown;
-        gpu.models.Update(static_cast<float>(dt));
+        gpu.models.Update(dtf);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid in the layer that the
         // screen is going to show. The same spin time as the renderer, so the solid is where the picture is.
@@ -352,20 +379,33 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             move.moveForward = keys.moveForward;
             move.moveRight = keys.moveRight;
             move.jumpPressed = jumpPressed;
-            player.Update(move, camera.Forward(), gpu.models.CollisionLayer(), gpu.models.SpinSeconds(), static_cast<float>(dt));
+            move.jumpHeld = focused && IsDown(VK_SPACE);
+            player.Update(move, camera.Forward(), gpu.models.CollisionLayer(), gpu.models.SpinSeconds(), dtf);
             if (player.JustRespawned())
             {
                 DL_LOG_INFO("Main", "fell off the floor: back at the start");
+                landDip = 0.0f;
             }
             float peak = 0.0f;
             if (player.ConsumeLanding(peak))
             {
                 DL_LOG_INFO("Player", "jump peak %.2f m", peak);
             }
-            camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch()); // only the place changes, not where it looks
+            float impact = 0.0f;
+            if (player.ConsumeImpact(impact))
+            {
+                const float perSpeed = std::clamp(config.GetFloat("camera", "land_dip", kDefaultLandDip), 0.0f, 0.05f);
+                const float deepest = std::clamp(config.GetFloat("camera", "land_dip_max", kDefaultLandDipMax), 0.0f, 0.5f);
+                landDip = std::max(landDip, std::min(impact * perSpeed, deepest));
+            }
+            landDip *= std::exp(-kLandDipReturn * dtf); // back up, quickly at first and then softly
+            dl::Vec3 eye = player.Eye();
+            eye.y -= landDip;
+            camera.SetPose(eye, camera.Yaw(), camera.Pitch()); // only the place changes, not where it looks
         }
         else if (collide)
         {
+            landDip = 0.0f;
             const float radius = std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f);
             const dl::CollisionResult body =
                 dl::ResolveSphere(camera.Position(), radius, gpu.models.CollisionLayer(), gpu.models.SpinSeconds());
@@ -410,9 +450,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
             wchar_t title[320];
-            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s",
+            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s%s",
                        gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer,
-                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode);
+                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode,
+                       window.MouseCaptured() ? L"" : L" | click for mouse look");
             window.SetTitle(title);
             fpsTimer = 0.0;
             fpsFrames = 0;
