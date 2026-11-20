@@ -3,9 +3,9 @@
 //
 //     z7   . . . . . R .        R  red wall: solid in layer A only
 //     z6   . . B . . R .        B  blue wall: solid in layer B only
-//     z5   . . B . P R .        P  the red plate (under it, north of the red wall, the doorway of the finale)
+//     z5   . . B . P R .        P  the red plate
 //     z4   . . . . B K .        K  the purple block (solid in both layers)
-//     z3   . . . B . . .        S  where the body comes down from the entrance
+//     z3   . . . B . . .        S  below the overlook, where the body comes down
 //     z2   . . . . . . .
 //     z1   . . . . . . .
 //     z0   . . . S . . .
@@ -14,8 +14,7 @@
 // blue wall, and the block obeys both layers. The real way is ten pushes round the blue walls, and four of them are made by
 // a body standing where a blue wall is, which it can only do in layer A. A body that never switches cannot solve it in
 // either layer (tests/test_maze.cpp proves all of this with src/scene/BlockMaze.h).
-// The red wall from the plate to the north edge is the finale: with the block on the plate, the body stands on the block,
-// climbs the low red wall in A, walks along its top to the doorway and switches to B in the air, where the door is open.
+// The red wall from beside the plate to the north edge is low: it is the finale (src/scene/Stage.h).
 // The layout was chosen by tools/maze_search.cpp (seed 73): fewest walls among layouts of 9 .. 14 pushes with these proofs.
 #pragma once
 
@@ -35,8 +34,9 @@ inline constexpr const char* kRows[] = {
     "...S...",
 };
 inline constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
+inline constexpr int kWidth = 7;
 
 inline constexpr int kPushes = 10;     ///< the fewest pushes (tests/test_maze.cpp checks it)
-inline constexpr int kFinaleWallX = 5; ///< the x of the low red wall that runs from beside the plate to the north edge
+inline constexpr int kFinaleWallX = 5; ///< the column of the low red wall that runs from beside the plate to the north edge
 
 } // namespace dl::courtyard

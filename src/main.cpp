@@ -2,8 +2,10 @@
 // Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, the stage, walking or collision) > Render
 //         [GPU event "Frame" > "Opaque.Models" (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
 // Stage:  scene/Stage.h, the first stage: the fixed objects, the purple block, the plate and the door (scene/Puzzle.h). Every
-//         frame the drawn table (Stage::BuildDrawTable) goes to the renderer and the solid table of the layer of the body
-//         (Puzzle::Solids) to the body, so what is drawn and what is solid come from the same state.
+//         frame the drawn table goes to the renderer and the solid table of the layer of the body (Puzzle::Solids) to the
+//         body, so what is drawn and what is solid come from the same state. The drawn table also holds what the stage says
+//         without words (scene/StageHints.h: the outlines of the other layer, the frame of the door, the beacon over the
+//         goal and the rings of the clear) and the hidden light (scene/StageLights.h).
 // Keys:   W A S D move, the mouse turns (click into the window to capture it; Esc gives it back, a second Esc quits), the arrow
 //         keys turn as well, R goes back to the last checkpoint (and puts the block back), F5 reloads config/default.ini
 //         Space jumps (walking; held = the full jump, a tap = a small hop), Q / E down / up (flying)
@@ -198,6 +200,29 @@ struct Gpu
     }
 };
 
+/// Fills the drawn table with the stage as it is now: the stage itself, then what it says without words. Returns the count.
+int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::LightSet& lights, const dl::Config& config,
+                    float sinceClear, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
+{
+    namespace st = dl::stage;
+    const bool cleared = sinceClear >= 0.0f;
+    int count = st::BuildDrawTable(puzzle, cleared, table);
+    if (config.GetBool("hints", "ghosts", true)) // the outlines of the other layer: [hints] ghosts = false turns them off
+    {
+        count = st::AddGhosts(table, count, st::kMaxDrawObjects);
+    }
+    // the blue frame of the door, seen in A while the door is closed for a body in A: the plate shows what it does
+    count = st::AddDoorFrame(table, count, st::kMaxDrawObjects, puzzle.DoorOpen(0));
+    count = st::AddGoalBeacon(table, count, st::kMaxDrawObjects, sinceClear);
+    count = st::AddClearRings(table, count, st::kMaxDrawObjects, sinceClear);
+    count = lights.AddToDrawTable(table, count, st::kMaxDrawObjects);
+    if (lights.All())
+    {
+        st::RecolourGoal(table, count); // every hidden light taken: the goal light turns cool white
+    }
+    return count;
+}
+
 int RunApp(HINSTANCE instance, int argc, char** argv)
 {
     CreateDirectoryA("logs", nullptr);
@@ -229,7 +254,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
 
-    // ---- the stage: its puzzle, the guard of the layer switch, the checkpoint the body has reached
+    // ---- the stage: its puzzle, the guard of the layer switch, the checkpoint the body has reached, the hidden light
     dl::puzzle::Puzzle puzzle;
     if (!puzzle.Init(dl::stage::MakeStage()))
     {
@@ -239,16 +264,17 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
     dl::puzzle::LayerGuard guard;
-    dl::stage::LightSet lights; // the hidden lights: once taken, taken for the rest of the run
+    dl::stage::LightSet lights; // once taken, taken for the rest of the run
     int checkpoint = 0;
-    // WHY outside the loop: the renderer keeps a pointer to the drawn table until the next SetObjects, and the title bar and
-    // the X key read it between two frames
-    dl::scene::SceneObject drawTable[dl::stage::kMaxDrawObjects] = {};
+    // WHY static: the renderer keeps a pointer to the drawn table until the next SetObjects, and the table is too large for
+    // the stack of a function that runs for the whole program
+    static dl::scene::SceneObject drawTable[dl::stage::kMaxDrawObjects] = {};
 
     dl::Player player;
     ApplyPlayerConfig(config, player);
     player.SetSpawn(dl::stage::kCheckpoints[0].feet);
     player.Respawn();
+    camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch()); // the first frame already looks from the start
 
     LARGE_INTEGER frequency{};
     LARGE_INTEGER last{};
@@ -258,8 +284,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     int fpsFrames = 0;
     float angle = 0.0f;           // radians
     float landDip = 0.0f;         // UNITS: metres the eye is lowered after a hard landing (it comes back up by itself)
-    double stageSeconds = 0.0;    // UNITS: seconds since the start (or the last R at the first checkpoint)
+    double stageSeconds = 0.0;    // UNITS: seconds since the start
     double clearSeconds = -1.0;   // the time of the clear; negative while the goal is not reached
+    double sinceClear = -1.0;     // UNITS: seconds since the clear (the rings and the beacon use it); negative before
     int blockMoves = 0;           // for the log: a move and a refused push are written once
     float lastFlash = 0.0f;
     bool resetKeyWasDown = false; // WHY: R must act once per press, not on every frame it is held
@@ -327,6 +354,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (clearSeconds < 0.0)
         {
             stageSeconds += dt;
+        }
+        else
+        {
+            sinceClear += dt;
         }
 
         // ---- the mouse turns the camera (only while it is captured: the window collects nothing otherwise)
@@ -414,16 +445,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (resetKeyDown && !resetKeyWasDown)
         {
             landDip = 0.0f;
-            puzzle.Reset(); // R also puts the block back: a block pushed into a corner never ends the game
-            if (walking)
-            {
-                player.SetSpawn(dl::stage::kCheckpoints[checkpoint].feet);
-                player.Respawn();
-            }
-            else
-            {
-                camera.Reset();
-            }
+            puzzle.Reset(); // R also puts the block back: a block pushed into a dead end never ends the game
+            player.SetSpawn(dl::stage::kCheckpoints[checkpoint].feet);
+            player.Respawn();
+            camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch());
             DL_LOG_INFO("Main", "R: back to checkpoint %d, the block is back at its start", checkpoint);
         }
         resetKeyWasDown = resetKeyDown;
@@ -448,10 +473,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             const int taken = lights.Collect(player);
             if (taken >= 0)
             {
-                DL_LOG_INFO("Stage", "hidden light %d of %d: %s", lights.Count(), dl::stage::kHiddenLightCount, dl::stage::kHiddenLights[taken].name);
+                DL_LOG_INFO("Stage", "hidden light %d of %d: %s", lights.Count(), dl::stage::kHiddenLightCount,
+                            dl::stage::kHiddenLights[taken].name);
             }
 
-            // the checkpoint: reached by standing on the floor of a part; a fall below the stage goes back to it
+            // the checkpoint: reached by standing on something of a part; a fall below the stage goes back to it
             const int reached = dl::stage::CheckpointFor(player.Feet(), player.Grounded(), checkpoint);
             if (reached != checkpoint)
             {
@@ -465,10 +491,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 landDip = 0.0f;
                 DL_LOG_INFO("Main", "fell: back at checkpoint %d", checkpoint);
             }
-            if (clearSeconds < 0.0 && dl::stage::ReachedGoal(player.Feet(), player.Grounded()))
+            if (clearSeconds < 0.0 && dl::stage::ReachedGoal(player))
             {
                 clearSeconds = stageSeconds;
-                DL_LOG_INFO("Stage", "clear in %.1f s", clearSeconds);
+                sinceClear = 0.0;
+                DL_LOG_INFO("Stage", "clear in %.1f s, hidden lights %d of %d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount);
             }
             float peak = 0.0f;
             if (player.ConsumeLanding(peak))
@@ -512,22 +539,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         lastFlash = puzzle.BlockedFlash();
 
         // ---- what is drawn: the stage as it is now
-        // the outlines of the other layer: a hint, drawn only ([hints] ghosts = 0 turns them off)
-        int drawCount = dl::stage::BuildDrawTable(puzzle, drawTable);
-        if (config.GetBool("hints", "ghosts", true))
-        {
-            drawCount = dl::stage::AddGhosts(drawTable, drawCount, dl::stage::kMaxDrawObjects);
-        }
-        // the blue frame of the door, seen in A while the door is closed for a body in A: the plate shows what it does
-        drawCount = dl::stage::AddDoorFrame(drawTable, drawCount, dl::stage::kMaxDrawObjects, puzzle.DoorOpen(0));
-        // the beacon over the goal: seen from the start, over both walls
-        drawCount = dl::stage::AddGoalBeacon(drawTable, drawCount, dl::stage::kMaxDrawObjects);
-        drawCount = lights.AddToDrawTable(drawTable, drawCount, dl::stage::kMaxDrawObjects);
-        if (lights.All())
-        {
-            dl::stage::RecolourGoal(drawTable, drawCount); // every hidden light taken: the goal light turns cool white
-        }
-        gpu.models.SetObjects(drawTable, drawCount);
+        gpu.models.SetObjects(drawTable, BuildFrameTable(puzzle, lights, config, static_cast<float>(sinceClear), drawTable));
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
@@ -563,14 +575,15 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (fpsTimer >= 0.5)
         {
             const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
-            wchar_t stageText[64];
+            wchar_t stageText[96];
             if (clearSeconds >= 0.0)
             {
                 swprintf_s(stageText, L"CLEAR %.1f s | lights %d/%d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount);
             }
             else
             {
-                swprintf_s(stageText, L"part %d | %.0f s | lights %d/%d", checkpoint + 1, stageSeconds, lights.Count(), dl::stage::kHiddenLightCount);
+                swprintf_s(stageText, L"part %d | %.0f s | lights %d/%d", checkpoint + 1, stageSeconds, lights.Count(),
+                           dl::stage::kHiddenLightCount);
             }
             wchar_t title[384];
             swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | %s%s",

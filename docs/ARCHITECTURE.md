@@ -91,6 +91,10 @@ Hint: `scene/StageHints.h` adds to the drawn table a thin outline, in the other 
 
 Hidden lights: `scene/StageLights.h` keeps which of the three lights are taken (a ball of the body touching one) and adds the others to the drawn table; they are never solid. With all three the goal light is recoloured.
 
+## The courtyard (M2)
+
+`scene/Courtyard.h` holds the block puzzle as rows of text; `scene/BlockMaze.h` solves it (breadth-first over the cell of the block and the region the body can reach, the body passing through the union of the two layers and over the block, the block only through their intersection). `scene/Stage.h` builds the walls of the courtyard from the same rows at compile time, so the proof and the game are one source. `tests/test_maze.cpp` proves the puzzle on the grid; `tests/test_stage.cpp` plays it with the walking body in the built geometry, and tries the ways round it.
+
 ## Modules and the allowed direction of dependencies
 
 ```

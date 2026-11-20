@@ -1,20 +1,19 @@
-// test_lights.cpp - tests of the hidden lights (no window, no GPU): src/scene/StageLights.h on the stage of src/scene/Stage.h.
+// test_lights.cpp - tests of the hidden light (no window, no GPU): src/scene/StageLights.h on the stage of src/scene/Stage.h.
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_lights.cpp -o test_lights
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
 // Header-only: there is no .cpp to add to the project. What is checked:
-//   1. the logic: a light is taken when a ball of the body touches it, once; it stays taken; the count and All(); a taken
-//      light is not drawn any more; the goal light changes colour only when asked, and only the goal light
-//   2. where they are, with the numbers of the walking body (jump 2.0 m, eye 1.55 m, ball radius 0.35 m, 4 m/s, gravity 30
-//      up and 48 down): light 0 is reached by a jump in B and cannot be touched from any side of the red wall in A; light 1
-//      is out of reach of every jump from the floor and within reach of a jump from the top of the block
-// The flights are computed with the same rules as Player.h (a held jump, the walking speed at once); the full body is played
-// in tests/test_stage.cpp. Returns 1 when a check fails.
+//   1. the logic: a light is taken when a ball of the body touches it, once; it stays taken; a taken light is not drawn any
+//      more; the goal light changes colour only when asked, and only the goal light
+//   2. where it is, with the numbers of the walking body (jump 2.0 m, eye 1.55 m, ball radius 0.35 m, 4 m/s, gravity 30 up
+//      and 48 down): the light in the gate cannot be touched from any side of the gate in A, is reached by a jump in B, and
+//      is not touched by jumps along the main path
+// The flights are computed with the rules of Player.h (a held jump, the walking speed at once); the full body is played in
+// tests/test_stage.cpp. Returns 1 when a check fails.
 
 #include "scene/StageLights.h"
 
 #include <cmath>
 #include <cstdio>
-#include <initializer_list>
 
 namespace
 {
@@ -40,10 +39,9 @@ using dl::Vec3;
 using namespace dl::scene;
 namespace st = dl::stage;
 
-// the numbers of the walking body (scene/Player.h, the defaults)
 constexpr float kRadius = 0.35f;
 constexpr float kEye = 1.55f;
-constexpr float kWalk = 4.0f;
+constexpr float kWalkSpeed = 4.0f;
 constexpr float kGravityUp = 30.0f;
 constexpr float kGravityDown = 30.0f * 1.6f;
 constexpr float kJumpHeight = 2.0f;
@@ -67,17 +65,16 @@ struct FakeBody
     }
 };
 
-/// True when the ball `i` of a body with its feet at `feet` touches light `light`.
-bool Touches(const Vec3& feet, int light)
+bool Touches(const Vec3& feet)
 {
     FakeBody body{feet, {}};
     st::LightSet set;
-    return set.Collect(body) == light || set.Taken(light);
+    return set.Collect(body) == 0;
 }
 
 /// The flight of a held jump from `start` (feet), moving along (dirX, dirZ) at the walking speed, until the feet are 6 m
-/// below the start. True when a ball touches `light` on the way.
-bool JumpReaches(const Vec3& start, float dirX, float dirZ, int light)
+/// below the start. True when a ball touches the light on the way.
+bool JumpReaches(const Vec3& start, float dirX, float dirZ)
 {
     const float jumpSpeed = std::sqrt(2.0f * kGravityUp * kJumpHeight);
     Vec3 feet = start;
@@ -85,11 +82,11 @@ bool JumpReaches(const Vec3& start, float dirX, float dirZ, int light)
     const float dt = 1.0f / 600.0f;
     for (int i = 0; i < 6000 && feet.y > start.y - 6.0f; ++i)
     {
-        feet.x += dirX * kWalk * dt;
-        feet.z += dirZ * kWalk * dt;
+        feet.x += dirX * kWalkSpeed * dt;
+        feet.z += dirZ * kWalkSpeed * dt;
         feet.y += vy * dt;
         vy -= (vy > 0.0f ? kGravityUp : kGravityDown) * dt;
-        if (Touches(feet, light))
+        if (Touches(feet))
         {
             return true;
         }
@@ -100,33 +97,22 @@ bool JumpReaches(const Vec3& start, float dirX, float dirZ, int light)
 void TestLogic()
 {
     st::LightSet set;
-    CHECK(set.Count() == 0 && !set.All());
-    FakeBody far{{0.0f, kFloorY, -3.0f}, {}};
+    CHECK(set.Count() == 0 && !set.All() && st::kHiddenLightCount == 1);
+    FakeBody far{{0.0f, st::kTerraceY, -3.0f}, {}};
     CHECK(set.Collect(far) == -1);
-    // touching light 1 with the top ball
-    FakeBody at{{st::kHiddenLights[1].centre.x, st::kHiddenLights[1].centre.y - kEye, st::kHiddenLights[1].centre.z}, {}};
-    CHECK(set.Collect(at) == 1 && set.Taken(1) && set.Count() == 1);
+    SceneObject table[4] = {};
+    CHECK(set.AddToDrawTable(table, 0, 4) == 1 && table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
+    CHECK(set.AddToDrawTable(table, 4, 4) == 4 && set.AddToDrawTable(nullptr, 3, 4) == 3);
+    const Vec3 c = st::kHiddenLights[0].centre;
+    FakeBody at{{c.x, c.y - kEye, c.z}, {}};
+    CHECK(set.Collect(at) == 0 && set.Taken(0) && set.All());
     CHECK(set.Collect(at) == -1 && set.Count() == 1); // once only
-    // the drawn table: the two lights not yet taken
-    SceneObject table[8] = {};
-    CHECK(st::kHiddenLightCount == 2);
-    CHECK(set.AddToDrawTable(table, 0, 8) == 1); // the one not yet taken
-    CHECK(table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
-    CHECK(table[0].position[2] == st::kHiddenLights[0].centre.z);
-    CHECK(set.AddToDrawTable(table, 8, 8) == 8);     // only as many as there is room for
-    CHECK(set.AddToDrawTable(nullptr, 3, 8) == 3);
-    for (int i : {0})
-    {
-        FakeBody b{{st::kHiddenLights[i].centre.x, st::kHiddenLights[i].centre.y - kRadius, st::kHiddenLights[i].centre.z}, {}};
-        CHECK(set.Collect(b) == i);
-    }
-    CHECK(set.All() && set.Count() == st::kHiddenLightCount);
-    CHECK(set.AddToDrawTable(table, 0, 8) == 0); // nothing left to draw
+    CHECK(set.AddToDrawTable(table, 0, 4) == 0);      // nothing left to draw
     // the goal light changes colour; nothing else does
-    SceneObject drawn[st::kMaxDrawObjects] = {};
+    static SceneObject drawn[st::kMaxDrawObjects] = {};
     const dl::puzzle::Puzzle puzzle;
-    const int n = st::BuildDrawTable(puzzle, drawn);
-    SceneObject before[st::kMaxDrawObjects] = {};
+    const int n = st::BuildDrawTable(puzzle, false, drawn);
+    static SceneObject before[st::kMaxDrawObjects] = {};
     for (int i = 0; i < n; ++i)
     {
         before[i] = drawn[i];
@@ -145,62 +131,33 @@ void TestLogic()
     CHECK(!st::RecolourGoal(drawn, 0) && !st::RecolourGoal(nullptr, n));
 }
 
-void TestLightInTheWall()
+void TestLightInTheGate()
 {
-    const SceneObject& wall = st::kStageStatics[1];
-    const float wallFront = wall.position[2] - 0.5f * wall.scale[2];
-    const float wallBack = wall.position[2] + 0.5f * wall.scale[2];
-    const float wallTop = wall.position[1] + 0.5f * wall.scale[1];
+    const SceneObject& gate = st::kStageStatics[1];
+    CHECK(gate.layerMask == kLayerA);
+    const float front = gate.position[2] - 0.5f * gate.scale[2];
+    const float back = gate.position[2] + 0.5f * gate.scale[2];
+    const float top = gate.position[1] + 0.5f * gate.scale[1];
     const Vec3 c = st::kHiddenLights[0].centre;
-    // the light is inside the wall (so it is hidden there in A)
-    CHECK(c.z - st::kLightRadius >= wallFront - 1e-4f && c.z + st::kLightRadius <= wallBack + 1e-4f && c.y + st::kLightRadius <= wallTop);
-    // in A a ball cannot come closer than its radius to the faces: try every height in front of, behind and above the wall
+    // the light is inside the gate (so it is hidden there in A)
+    CHECK(c.z - st::kLightRadius >= front - 1e-4f && c.z + st::kLightRadius <= back + 1e-4f && c.y + st::kLightRadius <= top);
+    // in A a ball cannot come closer than its radius to the faces: try every height in front of, behind and above the gate
     bool touched = false;
-    for (float y = kFloorY; y < wallTop + 1.0f; y += 0.01f)
+    for (float y = st::kTerraceY; y < top + 1.0f; y += 0.01f)
     {
-        touched = touched || Touches({c.x, y - kRadius, wallFront - kRadius}, 0) || Touches({c.x, y - kRadius, wallBack + kRadius}, 0);
+        touched = touched || Touches({c.x, y - kRadius, front - kRadius}) || Touches({c.x, y - kRadius, back + kRadius});
     }
-    touched = touched || Touches({c.x, wallTop, c.z}, 0); // standing on the top (it cannot be reached, and still)
+    touched = touched || Touches({c.x, top, c.z}); // standing on its top (which cannot be reached anyway)
     CHECK(!touched);
-    // in B: a held jump straight up, from the red outline on the floor under it
-    CHECK(JumpReaches({c.x, kFloorY, c.z}, 0.0f, 0.0f, 0));
-    // the main path (x = 0, a jump anywhere along the corridor) never touches it
+    // in B: a held jump straight up from the red outline on the terrace
+    CHECK(JumpReaches({c.x, st::kTerraceY, c.z}, 0.0f, 0.0f));
+    // the main path (x = 0, a jump anywhere along the terrace) never touches it
     bool onPath = false;
     for (float z = 0.0f; z < 6.0f; z += 0.25f)
     {
-        onPath = onPath || JumpReaches({0.0f, kFloorY, z}, 0.0f, 1.0f, 0);
+        onPath = onPath || JumpReaches({0.0f, st::kTerraceY, z}, 0.0f, 1.0f);
     }
     CHECK(!onPath);
-}
-
-void TestLightOverTheBlock()
-{
-    const Vec3 c = st::kHiddenLights[1].centre;
-    // from the floor: no jump, in any direction and from any nearby start, reaches it
-    bool fromFloor = false;
-    for (float dx = -2.0f; dx <= 2.0f; dx += 0.25f)
-    {
-        for (float dz = -2.0f; dz <= 2.0f; dz += 0.25f)
-        {
-            fromFloor = fromFloor || JumpReaches({c.x + dx, kFloorY, c.z + dz}, 0.0f, 0.0f, 1) ||
-                        JumpReaches({c.x + dx, kFloorY, c.z + dz}, 0.7071f, 0.7071f, 1);
-        }
-    }
-    CHECK(!fromFloor);
-    // from the top of the block resting in the cell under it
-    CHECK(JumpReaches({c.x, kFloorY + 1.0f, c.z}, 0.0f, 0.0f, 1));
-    // the cell under it is a cell the block may use
-    const dl::puzzle::StageDesc d = st::MakeStage();
-    const int cx = static_cast<int>(std::lround(c.x));
-    const int cz = static_cast<int>(std::lround(c.z));
-    CHECK(cx >= d.minCell.x && cx <= d.maxCell.x && cz >= d.minCell.z && cz <= d.maxCell.z);
-    // from the blue ledge (the highest place of the main path): out of reach
-    bool fromLedge = false;
-    for (float x = 0.5f; x <= 2.0f; x += 0.25f)
-    {
-        fromLedge = fromLedge || JumpReaches({x, st::kDoorwayLow, 19.9f}, -0.55f, -0.83f, 1);
-    }
-    CHECK(!fromLedge);
 }
 
 } // namespace
@@ -208,8 +165,7 @@ void TestLightOverTheBlock()
 int main()
 {
     TestLogic();
-    TestLightInTheWall();
-    TestLightOverTheBlock();
+    TestLightInTheGate();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

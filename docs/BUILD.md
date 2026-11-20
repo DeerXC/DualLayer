@@ -10,7 +10,7 @@
 
 1. Open `DualLayer.slnx` (or the `.vcxproj`), choose `Debug | x64`, press **F5**. The debugger's working directory is the project folder, so `shaders/` and `config/` are found.
 2. `build\x64\<Config>\DualLayer.exe` also runs when started from Explorer: a post-build step copies `shaders\` and `config\` next to it.
-3. Logic tests: `.\tests\run_tests.ps1` in a *Developer PowerShell for VS* (Config / Log / Assert, the camera, the shapes of the models, the collision, the layer ripple, the walking body, the puzzle). `tools\check.ps1` runs them (see "One command" below).
+3. Logic tests: `.\tests\run_tests.ps1` in a *Developer PowerShell for VS* (Config / Log / Assert, the camera, the shapes of the models, the collision, the layer ripple, the walking body, the puzzle, the solver of the courtyard, the stage, its hints and its hidden light). `tools\check.ps1` runs them (see "One command" below).
 
 ## One command
 
@@ -20,12 +20,12 @@
 
 It can be started from any PowerShell and finds the project and the Visual Studio build tools by itself. It runs, in this order:
 
-1. the logic tests (`tests\run_tests.ps1`);
-2. the `Debug | x64` and the `Release | x64` build, and counts errors and warnings (Release treats warnings as errors);
-3. the game: it starts, waits for the window, walks ahead with `W`, jumps with `Space`, switches walking and flying with `F`, presses `Tab` and `N`, resizes the window during a ripple, closes it, and reads the title bar and `logs\dual.log` (no `[ERROR]` line, the ripple pictures were made, the game ended normally, the jump rose the jump height). This part presses keys for about 35 seconds, during which the keyboard and the mouse must stay untouched. If the game window is not in front, the keys are skipped and the table says so;
-4. the repository: nothing that must not be uploaded (build output, logs, private local files, `config/local.ini`, files over 50 MB), and whether the hooks are on.
+1. the logic tests (`tests\run_tests.ps1`): every test of the table in that script, then a build-only pass over the tools that are not part of the game (`tools\maze_search.cpp`), so that they cannot rot unseen. A compiler warning in a test is reported as WARN;
+2. a full rebuild of `Debug | x64` and `Release | x64`, counting errors and warnings (Release treats warnings as errors), and a check that the exe was written by this build and is newer than every source file. WHY: an unzipped file can carry an old time stamp; an incremental build then keeps the old exe and the game run tests the previous version. `-Fast` builds incrementally; the time check still runs;
+3. the game, with a fresh `logs\dual.log`: it starts on the terrace of the stage (eye height about 2.95 m, `part 1` in the title bar), walks ahead with `W` for 0.8 s (short of the red gate), jumps with `Space` held, switches walking and flying with `F`, presses `Tab` and `N`, resizes the window during a ripple, closes it, and reads the title bar and the log (no `[ERROR]`, the ripple pictures were made, the game ended normally, no fall, the jump rose the jump height). This part presses keys for about 35 seconds, during which the keyboard and the mouse must stay untouched; no key is left down even when the script is stopped. If the game window is not in front, the keys are skipped and the table says so;
+4. the repository: nothing that must not be uploaded (build output, logs, private local files, `config/local.ini`, one-time scripts `tools\apply_*.ps1` / `fix_*` / `docs_*` / `add_*`, files over 50 MB), and whether the hooks are on.
 
-The last table says `OK`, `WARN`, `SKIP` or `FAIL` for every step; the exit code is 0 unless something failed. Useful switches: `-SkipBuild`, `-SkipSmoke`.
+The last table says `OK`, `WARN`, `SKIP` or `FAIL` for every step; the exit code is 0 unless something failed. Switches: `-Fast`, `-SkipBuild`, `-SkipSmoke`. One test alone: `.\tests\run_tests.ps1 -Only stage`.
 
 To check and, only when everything passed, commit (and push) in one go:
 
@@ -33,7 +33,7 @@ To check and, only when everything passed, commit (and push) in one go:
 .\tools\check.ps1 -Commit "feat(scene): add a walking body" -Push
 ```
 
-The message must be `type(scope): subject`, at most 72 characters, without a final period; then `git add -A`, `git audit`, `git commit` and (with `-Push`) `git push` run one after the other and stop at the first failure. `--no-verify` is never used.
+The message must be `type(scope): subject`, at most 72 characters, without a final period or a double quote; then `git add -A`, `git audit` (at most 90 s), `git commit` (at most 120 s) and, with `-Push`, `git push` (at most 180 s) run one after the other and stop at the first failure. A command that does not answer in its time is stopped and reported, instead of leaving the script silent. `--no-verify` is never used.
 
 ## Keys
 
@@ -59,6 +59,19 @@ The game starts in the first stage (`scene/Stage.h`), walked from south to north
 | Q-29 | eye | look at the gap in A, and at the corridor in B | a thin blue outline floats where the stone of B is; a thin red outline lies on the floor where the wall of A is; the body falls through an outline; `[hints] ghosts = false` and F5 removes them |
 
 | Q-30 | eye | in B jump at the red outline of the wall; push the block under the high light on the west and jump from it; jump east off the north floor at the light beside it | each light disappears when touched and the title bar counts `lights n/3`; a fall or `R` does not bring a light back; with all three the goal light is white |
+
+## The courtyard stage
+
+Since 2026-11-21 the stage is the courtyard (`scene/Stage.h`). The rows Q-25 .. Q-31 above describe the earlier stage and are kept as a record.
+
+| No. | By | Do | Expected |
+|---|---|---|---|
+| Q-32 | eye | at the start look north | a thin column of light over the goal, seen over the red gate |
+| Q-33 | eye | through the gate (B), over the gap (B onto the stone, jump, switch to A in the air), walk off the red strip | the courtyard is seen from above before the drop: the purple block, the red plate, the low red wall, and the outlines of the blue walls (in A) |
+| Q-34 | eye | push the block west, the way that looks right in A | it is refused and the blue wall flashes: the block obeys both layers |
+| Q-35 | eye | hold the key at a face of the block; let go during a move | the block goes on cell after cell without a stop and the body stays at its face; let go, it stops at the next cell |
+| Q-36 | eye | solve the puzzle (10 pushes; some from inside a blue wall, in A); climb the block and the low red wall in A; run along it, jump over the moat and switch to B in the air | the body lands on the blue apron and walks through the open door; at the goal the light is taken, rings spread, the beacon widens and the title bar says `CLEAR` with the time |
+| Q-37 | eye | fall into the moat; press R in the courtyard | the body comes back in the south-west corner of the courtyard; after R the block is back at its start |
 
 ## Optional keys in `config/default.ini`
 
@@ -110,7 +123,7 @@ Run it in Debug after a change. The long list of M0, M1 and the first M2 checks 
 | Q-13 | eye | `F` (flying), then `Tab` while the camera is inside the other layer's object | the camera is pushed out to its surface, no jump to a far place, no flicker |
 | Q-14 | script | `N` | the title bar ends with `noclip` and the camera flies through everything; `N` again, it is solid again (that it really passes through is for the eye) |
 | Q-15 | script | start | the title bar says `walk`: walking is the default |
-| Q-16 | script | hold `W` for 1.2 s | the eye moves about 4.8 m ahead and stays at standing height (about 0.5 in the title bar) |
+| Q-16 | script | hold `W` for 0.8 s | the eye moves about 3 m ahead, short of the red gate, and stays at standing height on the terrace (about 2.95 in the title bar) |
 | Q-17 | script | `Space` | the log has `jump peak` with about 2.0 m (the jump height) |
 | Q-18 | script | `F`, `F` | the title bar says `fly`, then `walk` again |
 | Q-19 | eye | walk to the edge of the floor and over it | the body falls; after about 1.5 s it is back at the start, standing; the log has `fell off the floor` |

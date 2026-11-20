@@ -1,12 +1,14 @@
 // Puzzle.h - the puzzle pieces of the stage: a purple block that exists in BOTH layers and can be pushed, a red plate that
 //            is pressed in layer A and opens a blue door in layer B, and the guard that refuses a layer switch that would put
 //            the body inside something.
-// Plain logic, no Windows, no Direct3D: tested without a window (tests/test_puzzle.cpp).
+// Plain logic, no Windows, no Direct3D: tested without a window (tests/test_puzzle.cpp, tests/test_stage.cpp).
 // Block:     a 1 m cube on the floor, on a 1 m grid (cell (x, z) has its centre at world (x, z)). It is solid in both layers,
-//            so a push in one layer moves it in both. It moves one cell when the body stands next to it on the floor, walks
-//            against one of its faces for kPushSeconds, and the next cell is free in BOTH layers (no solid of A, no solid of B,
-//            not the door, not outside the allowed cells). A refused push names what was in the way (LastBlocker), so the
-//            renderer can make it flash: the thing in the way may be in the layer that is not on the screen.
+//            so a push in one layer moves it in both. The first push needs kPushSeconds of walking straight at one face
+//            (within about 45 degrees) from the floor; after that, as long as the body keeps walking that way, the block
+//            goes on cell after cell without a stop. It slides at kSlideSpeed, a little slower than the walk, so the body
+//            stays at its face and is never left behind. The next cell must be free in BOTH layers (no solid of A, no solid
+//            of B, not the door, not outside the allowed cells). A refused push names what was in the way (LastBlocker), so
+//            the renderer can make it flash: the thing in the way may be in the layer that is not on the screen.
 // Plate:     in layer A, flat on the floor, not solid. It is pressed by the block resting on it, or by the body standing on it
 //            while the body is in layer A. A body in layer B does not press it.
 // Door:      in layer B, solid while closed. It is open while the plate is pressed. The question "is the door open?" depends
@@ -63,11 +65,12 @@ inline constexpr int kBlockerBounds = -1; ///< (0 and above: the index of a fixe
 class Puzzle
 {
   public:
-    static constexpr int kMaxSolids = 64;       ///< fixed objects + the block + the door
-    static constexpr float kPushSeconds = 0.20f; ///< UNITS: seconds of walking against the block before it moves
-    static constexpr float kSlideSeconds = 0.25f; ///< UNITS: seconds that one move of one cell takes
-    static constexpr float kFlashSeconds = 0.6f;  ///< UNITS: seconds that a refused push shows what was in the way
-    static constexpr float kBlockSize = 1.0f;     ///< UNITS: metres
+    static constexpr int kMaxSolids = 64;          ///< fixed objects + the block + the door
+    static constexpr float kPushSeconds = 0.15f;   ///< UNITS: seconds of walking against the block before the FIRST move
+    static constexpr float kSlideSpeed = 3.6f;     ///< UNITS: metres per second; the walk is 4, so the body keeps contact
+    static constexpr float kFlashSeconds = 0.6f;   ///< UNITS: seconds that a refused push shows what was in the way
+    static constexpr float kBlockSize = 1.0f;      ///< UNITS: metres
+    static constexpr float kFacing = 0.7f;         ///< the walk must point at the face by at least this part (about 45 degrees)
 
     /// Copies the stage. False (and the puzzle stays empty) when the stage has too many objects or makes no sense.
     bool Init(const StageDesc& desc)
@@ -124,19 +127,26 @@ class Puzzle
         // ---- a move that is under way
         if (m_moving)
         {
-            m_slide += dt / kSlideSeconds;
-            if (m_slide >= 1.0f)
+            m_slide += dt * kSlideSpeed / kBlockSize;
+            if (m_slide < 1.0f)
             {
-                m_cell = m_target;
-                m_slide = 0.0f;
-                m_moving = false;
-                ++m_moves;
+                return;
+            }
+            m_cell = m_target;
+            m_slide = 0.0f;
+            m_moving = false;
+            ++m_moves;
+            // the body still walks the same way, a little behind the face: go on without a stop
+            Cell axis{};
+            if (Follows(player, axis) && axis.x == m_pushAxis.x && axis.z == m_pushAxis.z && TryMove(axis))
+            {
+                return;
             }
             m_pushTime = 0.0f;
             return;
         }
 
-        // ---- a push: the body on the floor, next to a face of the block, walking against it
+        // ---- the first push: the body on the floor, next to a face of the block, walking against it for a moment
         Cell axis{};
         if (!PushesAgainst(player, axis))
         {
@@ -153,18 +163,8 @@ class Puzzle
         {
             return;
         }
-        m_pushTime = 0.0f; // the next move needs another kPushSeconds of pushing
-        const Cell next{m_cell.x + axis.x, m_cell.z + axis.z};
-        const int blocker = WhatBlocks(next);
-        if (blocker != kBlockerNone)
-        {
-            m_blocker = blocker;
-            m_flash = kFlashSeconds;
-            return;
-        }
-        m_target = next;
-        m_moving = true;
-        m_slide = 0.0f;
+        m_pushTime = 0.0f;
+        TryMove(axis);
     }
 
     /// The centre of the block in the world (between two cells while it moves).
@@ -174,9 +174,8 @@ class Puzzle
         float z = CellZ(m_cell);
         if (m_moving)
         {
-            const float t = m_slide * m_slide * (3.0f - 2.0f * m_slide); // smoothstep: it starts and stops gently
-            x += (CellX(m_target) - x) * t;
-            z += (CellZ(m_target) - z) * t;
+            x += (CellX(m_target) - x) * m_slide; // linear: the body walks at a constant speed behind it
+            z += (CellZ(m_target) - z) * m_slide;
         }
         return {x, scene::kFloorY + 0.5f * kBlockSize, z};
     }
@@ -292,7 +291,8 @@ class Puzzle
   private:
     static constexpr float kFitTolerance = 0.01f; // UNITS: metres a ball may be pushed and still count as fitting
     static constexpr float kContactGap = 0.06f;  // UNITS: metres between the body and the face that still count as touching
-    static constexpr float kFacing = 0.8f;       // the walk must point at the face by at least this part (about 37 degrees)
+    static constexpr float kFollowGap = 0.5f;    // UNITS: metres; while the block slides, a body this close behind follows
+    static constexpr float kProbeRadius = 0.24f; // UNITS: metres; with the offsets in WhatBlocks the probes reach 0.49 m
 
     static float CellX(const Cell& c)
     {
@@ -309,9 +309,27 @@ class Puzzle
         return c.x >= d.minCell.x && c.x <= d.maxCell.x && c.z >= d.minCell.z && c.z <= d.maxCell.z;
     }
 
-    /// True when the body stands on the floor next to a face of the block and walks against it; `axis` is the way the block
-    /// would move (one of +X, -X, +Z, -Z).
-    bool PushesAgainst(const Player& player, Cell& axis) const
+    /// Starts a move along `axis` when the next cell is free; otherwise records what was in the way. True when it started.
+    bool TryMove(const Cell& axis)
+    {
+        const Cell next{m_cell.x + axis.x, m_cell.z + axis.z};
+        const int blocker = WhatBlocks(next);
+        if (blocker != kBlockerNone)
+        {
+            m_blocker = blocker;
+            m_flash = kFlashSeconds;
+            return false;
+        }
+        m_pushAxis = axis;
+        m_target = next;
+        m_moving = true;
+        m_slide = 0.0f;
+        return true;
+    }
+
+    /// The face of the block the body is at, as the way the block would move, and whether the walk points along it.
+    /// `gap`: how far behind the face the body may be.
+    bool AtFace(const Player& player, float gap, Cell& axis) const
     {
         if (!player.Grounded())
         {
@@ -331,13 +349,23 @@ class Puzzle
         const float across = alongX ? std::fabs(dz) : std::fabs(dx);
         const float half = 0.5f * kBlockSize;
         const float radius = player.GetSettings().radius;
-        if (along - half - radius > kContactGap || across > half - 0.05f)
+        if (along - half - radius > gap || across > half - 0.05f)
         {
-            return false; // not touching a face, or at a corner
+            return false; // not at a face, or at a corner
         }
         axis = alongX ? Cell{dx > 0.0f ? 1 : -1, 0} : Cell{0, dz > 0.0f ? 1 : -1};
         const float facing = wish.x * static_cast<float>(axis.x) + wish.z * static_cast<float>(axis.z);
         return facing > kFacing;
+    }
+
+    bool PushesAgainst(const Player& player, Cell& axis) const
+    {
+        return AtFace(player, kContactGap, axis);
+    }
+
+    bool Follows(const Player& player, Cell& axis) const
+    {
+        return AtFace(player, kFollowGap, axis);
     }
 
     /// What is in the way of the block in `cell`: kBlockerNone when the cell is free in both layers.
@@ -370,8 +398,6 @@ class Puzzle
         }
         return kBlockerNone;
     }
-
-    static constexpr float kProbeRadius = 0.24f; // UNITS: metres; with the offsets above the probes reach 0.49 m from the cell centre
 
     std::array<scene::SceneObject, kMaxSolids> m_statics{};
     std::array<scene::SceneObject, kMaxSolids> m_solids{};

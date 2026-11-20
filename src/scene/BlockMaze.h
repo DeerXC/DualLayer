@@ -8,13 +8,14 @@
 //            (floor)   'K' where the block starts (floor)   'S' where the body starts (floor, layer A)
 // Climbing:  the block is 1 m high and a jump is 2 m, so the body can climb over the block: for the body, the cell of the
 //            block is passable (on top of it). The walls of the courtyard are taller than a jump from the top of the block,
-//            so the body cannot climb a wall (src/scene/Courtyard.h keeps them so; the low red wall of the finale is the
-//            only exception, and in B, where the body could use it, it is not there).
+//            so the body cannot climb a wall (src/scene/Stage.h keeps them so; the low red wall of the finale is the only
+//            exception, and it does not help the puzzle: see Stage.h).
 // Solver:    a breadth-first search over (cell of the block, where the body can get to without pushing). One push moves
 //            the block one cell; the body steps into the cell the block left, in the layer it pushed from. Walking and
 //            switching cost nothing; the count is pushes, the measure that a player feels as "how far the block went".
 // Modes:     Both = the game; OnlyA / OnlyB = a body that never switches (it still sees the block stopped by both layers).
-// Plain logic, no Windows, no Direct3D, no game state: used by tests/test_maze.cpp and tools/maze_search.cpp.
+// Plain logic, no Windows, no Direct3D, no game state: used by src/scene/Stage.h, tests/test_maze.cpp and
+// tools/maze_search.cpp.
 #pragma once
 
 #include <array>
@@ -180,10 +181,10 @@ struct Push
 struct Result
 {
     bool solved = false;
-    int pushes = -1;          // the fewest pushes that put the block on the plate
-    std::vector<Push> path;   // one shortest solution
-    int states = 0;           // (block, body region) states reachable from the start
-    int deadStates = 0;       // of these, states from which the plate can no longer be reached
+    int pushes = -1;        // the fewest pushes that put the block on the plate
+    std::vector<Push> path; // one shortest solution
+    int states = 0;         // (block, body region) states reachable from the start
+    int deadStates = 0;     // of these, states from which the plate can no longer be reached
 };
 
 namespace detail
@@ -242,72 +243,72 @@ struct State
     int bodyLayer;
 };
 
-/// Breadth-first search from `from` in pushes. Fills `result` (solved, pushes, path) and, when `count` is set, the number
-/// of reachable states. `key` is the visited map, sized by the caller.
-inline void Search(const Grid& g, const State& from, Mode mode, Result& result, bool count)
+/// Calls `step(next)` for every state one push away from `s` (`seen` is scratch).
+template <class Step>
+inline void ForEachPush(const Grid& g, const State& s, Mode mode, std::vector<char>& seen, Step step)
+{
+    Flood(g, s.block, s.bodyCell, s.bodyLayer, mode, seen);
+    const int bx = g.X(s.block);
+    const int bz = g.Z(s.block);
+    for (int i = 0; i < 4; ++i)
+    {
+        // the body stands on the other side of the block, in a layer where it fits, and pushes
+        const int px = bx - kDx[i];
+        const int pz = bz - kDz[i];
+        const int tx = bx + kDx[i];
+        const int tz = bz + kDz[i];
+        if (!g.Inside(px, pz) || !BlockFree(g, tx, tz))
+        {
+            continue;
+        }
+        for (int l = 0; l < 2; ++l)
+        {
+            if (seen[static_cast<std::size_t>(g.Index(px, pz) * 2 + l)] != 0)
+            {
+                step(State{g.Index(tx, tz), s.block, l}, Push{s.block, kDx[i], kDz[i]});
+            }
+        }
+    }
+}
+
+/// Breadth-first search from `from` in pushes. Fills `result` (solved, pushes, path).
+inline void Search(const Grid& g, const State& from, Mode mode, Result& result)
 {
     const int n = g.w * g.d;
     std::vector<int> parent(static_cast<std::size_t>(n * n * 2), -2); // key -> key of the state before (-1: the start)
     std::vector<Push> how(static_cast<std::size_t>(n * n * 2));
     std::vector<char> seen;
-    const auto keyOf = [&](int block, int region) { return block * n * 2 + region; };
+    std::vector<char> scratch;
+    const auto keyOf = [&](const State& s) { return s.block * n * 2 + Flood(g, s.block, s.bodyCell, s.bodyLayer, mode, scratch); };
 
-    std::queue<std::pair<State, int>> queue; // state, its key
-    const int startRegion = Flood(g, from.block, from.bodyCell, from.bodyLayer, mode, seen);
-    if ((seen.empty() || seen[static_cast<std::size_t>(from.bodyCell * 2 + from.bodyLayer)] == 0))
+    Flood(g, from.block, from.bodyCell, from.bodyLayer, mode, seen);
+    if (seen[static_cast<std::size_t>(from.bodyCell * 2 + from.bodyLayer)] == 0)
     {
         return; // the body does not fit where it starts
     }
-    const int startKey = keyOf(from.block, startRegion);
+    std::queue<std::pair<State, int>> queue;
+    const int startKey = keyOf(from);
     parent[static_cast<std::size_t>(startKey)] = -1;
     queue.push({from, startKey});
     int goalKey = -1;
-    while (!queue.empty())
+    while (!queue.empty() && goalKey < 0)
     {
         const auto [state, key] = queue.front();
         queue.pop();
-        ++result.states;
-        if (state.block == g.plate && goalKey < 0)
+        if (state.block == g.plate)
         {
             goalKey = key;
-            if (!count)
-            {
-                break;
-            }
+            break;
         }
-        Flood(g, state.block, state.bodyCell, state.bodyLayer, mode, seen);
-        const int bx = g.X(state.block);
-        const int bz = g.Z(state.block);
-        for (int i = 0; i < 4; ++i)
-        {
-            // the body stands on the other side of the block, in a layer where it fits, and pushes
-            const int px = bx - kDx[i];
-            const int pz = bz - kDz[i];
-            const int tx = bx + kDx[i];
-            const int tz = bz + kDz[i];
-            if (!g.Inside(px, pz) || !BlockFree(g, tx, tz))
+        ForEachPush(g, state, mode, seen, [&](const State& next, const Push& push) {
+            const int nextKey = keyOf(next);
+            if (parent[static_cast<std::size_t>(nextKey)] == -2)
             {
-                continue;
-            }
-            for (int l = 0; l < 2; ++l)
-            {
-                if (seen[static_cast<std::size_t>(g.Index(px, pz) * 2 + l)] == 0)
-                {
-                    continue;
-                }
-                const State next{g.Index(tx, tz), state.block, l};
-                std::vector<char> nextSeen;
-                const int region = Flood(g, next.block, next.bodyCell, next.bodyLayer, mode, nextSeen);
-                const int nextKey = keyOf(next.block, region);
-                if (parent[static_cast<std::size_t>(nextKey)] != -2)
-                {
-                    continue;
-                }
                 parent[static_cast<std::size_t>(nextKey)] = key;
-                how[static_cast<std::size_t>(nextKey)] = {state.block, kDx[i], kDz[i]};
+                how[static_cast<std::size_t>(nextKey)] = push;
                 queue.push({next, nextKey});
             }
-        }
+        });
     }
     if (goalKey >= 0)
     {
@@ -331,28 +332,35 @@ inline Result Solve(const Grid& g, Mode mode = Mode::Both)
         return result;
     }
     const int startLayer = mode == Mode::OnlyB ? 1 : 0;
-    detail::Search(g, {g.block, g.start, startLayer}, mode, result, false);
+    detail::Search(g, {g.block, g.start, startLayer}, mode, result);
     return result;
 }
 
-/// Solve, plus how many states the player can get into and how many of them are dead ends (the plate can no longer be
-/// reached: the player must press R). A puzzle with dead ends punishes a careless push; one without them cannot be lost.
-inline Result Analyse(const Grid& g)
+/// For every cell, what the block can be there: 0 never, 1 only in dead ends (the plate can no longer be reached from
+/// there), 2 in at least one state from which the plate can still be reached.
+struct BlockCells
+{
+    std::array<unsigned char, kMaxCells> kind{};
+};
+
+/// Solve, plus how many states the player can get into, how many of them are dead ends (the plate can no longer be
+/// reached: the player must press R), and where the block can be. A puzzle with dead ends punishes a careless push; one
+/// without them cannot be lost.
+inline Result Analyse(const Grid& g, BlockCells* cells = nullptr)
 {
     Result result = Solve(g, Mode::Both);
-    if (g.block < 0)
+    if (g.block < 0 || g.start < 0)
     {
         return result;
     }
-    // walk every reachable state once more and ask the solver from each one
     const int n = g.w * g.d;
     std::vector<char> visited(static_cast<std::size_t>(n * n * 2), 0);
     std::vector<char> seen;
-    std::queue<detail::State> queue;
+    std::vector<char> scratch;
     const auto keyOf = [&](const detail::State& s) {
-        std::vector<char> tmp;
-        return s.block * n * 2 + detail::Flood(g, s.block, s.bodyCell, s.bodyLayer, Mode::Both, tmp);
+        return s.block * n * 2 + detail::Flood(g, s.block, s.bodyCell, s.bodyLayer, Mode::Both, scratch);
     };
+    std::queue<detail::State> queue;
     const detail::State start{g.block, g.start, 0};
     visited[static_cast<std::size_t>(keyOf(start))] = 1;
     queue.push(start);
@@ -364,40 +372,25 @@ inline Result Analyse(const Grid& g)
         queue.pop();
         ++states;
         Result from;
-        detail::Search(g, s, Mode::Both, from, false);
+        detail::Search(g, s, Mode::Both, from);
+        if (cells != nullptr)
+        {
+            unsigned char& k = cells->kind[static_cast<std::size_t>(s.block)];
+            k = from.solved ? 2 : (k == 2 ? 2 : 1);
+        }
         if (!from.solved)
         {
             ++dead;
             continue; // nothing after a dead end matters
         }
-        detail::Flood(g, s.block, s.bodyCell, s.bodyLayer, Mode::Both, seen);
-        const int bx = g.X(s.block);
-        const int bz = g.Z(s.block);
-        for (int i = 0; i < 4; ++i)
-        {
-            const int px = bx - detail::kDx[i];
-            const int pz = bz - detail::kDz[i];
-            const int tx = bx + detail::kDx[i];
-            const int tz = bz + detail::kDz[i];
-            if (!g.Inside(px, pz) || !BlockFree(g, tx, tz))
+        detail::ForEachPush(g, s, Mode::Both, seen, [&](const detail::State& next, const Push&) {
+            const int k = keyOf(next);
+            if (visited[static_cast<std::size_t>(k)] == 0)
             {
-                continue;
+                visited[static_cast<std::size_t>(k)] = 1;
+                queue.push(next);
             }
-            for (int l = 0; l < 2; ++l)
-            {
-                if (seen[static_cast<std::size_t>(g.Index(px, pz) * 2 + l)] == 0)
-                {
-                    continue;
-                }
-                const detail::State next{g.Index(tx, tz), s.block, l};
-                const int k = keyOf(next);
-                if (visited[static_cast<std::size_t>(k)] == 0)
-                {
-                    visited[static_cast<std::size_t>(k)] = 1;
-                    queue.push(next);
-                }
-            }
-        }
+        });
     }
     result.states = states;
     result.deadStates = dead;
