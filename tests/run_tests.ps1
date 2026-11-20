@@ -44,6 +44,11 @@ cl /nologo /std:c++20 /EHsc /W4 /I src /Fo:build\tests\ /Fe:build\tests\test_hin
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & .\build\tests\test_hints.exe
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+cl /nologo /std:c++20 /EHsc /W4 /I src /Fo:build\tests\ /Fe:build\tests\test_lights.exe `
+    tests\test_lights.cpp
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& .\build\tests\test_lights.exe
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 # test_mesh: the shapes of the models (M1). /WX is left out until it has compiled clean once on this machine; then add it like the lines above.
 cl /nologo /std:c++20 /EHsc /W4 /I src /Fo:build\tests\ /Fe:build\tests\test_mesh.exe `
     tests\test_mesh.cpp src\render\MeshData.cpp

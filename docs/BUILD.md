@@ -58,6 +58,8 @@ The game starts in the first stage (`scene/Stage.h`), walked from south to north
 
 | Q-29 | eye | look at the gap in A, and at the corridor in B | a thin blue outline floats where the stone of B is; a thin red outline lies on the floor where the wall of A is; the body falls through an outline; `[hints] ghosts = false` and F5 removes them |
 
+| Q-30 | eye | in B jump at the red outline of the wall; push the block under the high light on the west and jump from it; jump east off the north floor at the light beside it | each light disappears when touched and the title bar counts `lights n/3`; a fall or `R` does not bring a light back; with all three the goal light is white |
+
 ## Optional keys in `config/default.ini`
 
 The program has built-in values for all of them, so the file may leave them out.

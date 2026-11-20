@@ -89,6 +89,8 @@ The layer is a parameter of every `Update`, so a body that stands on an object t
 
 Hint: `scene/StageHints.h` adds to the drawn table a thin outline, in the other layer, of each listed object that exists in one layer only (a platform at its top, a wall at its base). The outlines never reach the solid table.
 
+Hidden lights: `scene/StageLights.h` keeps which of the three lights are taken (a ball of the body touching one) and adds the others to the drawn table; they are never solid. With all three the goal light is recoloured.
+
 ## Modules and the allowed direction of dependencies
 
 ```

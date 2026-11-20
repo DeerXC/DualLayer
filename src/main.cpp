@@ -41,6 +41,7 @@
 #include "scene/SceneData.h"
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
+#include "scene/StageLights.h"
 
 #include <DirectXMath.h>
 
@@ -238,6 +239,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
     dl::puzzle::LayerGuard guard;
+    dl::stage::LightSet lights; // the three hidden lights: once taken, taken for the rest of the run
     int checkpoint = 0;
     // WHY outside the loop: the renderer keeps a pointer to the drawn table until the next SetObjects, and the title bar and
     // the X key read it between two frames
@@ -443,6 +445,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             player.SetScene(solids, solidCount);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
             puzzle.Update(player, dtf);
+            const int taken = lights.Collect(player);
+            if (taken >= 0)
+            {
+                DL_LOG_INFO("Stage", "hidden light %d of %d: %s", lights.Count(), dl::stage::kHiddenLightCount, dl::stage::kHiddenLights[taken].name);
+            }
 
             // the checkpoint: reached by standing on the floor of a part; a fall below the stage goes back to it
             const int reached = dl::stage::CheckpointFor(player.Feet(), player.Grounded(), checkpoint);
@@ -511,6 +518,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             drawCount = dl::stage::AddGhosts(drawTable, drawCount, dl::stage::kMaxDrawObjects);
         }
+        drawCount = lights.AddToDrawTable(drawTable, drawCount, dl::stage::kMaxDrawObjects);
+        if (lights.All())
+        {
+            dl::stage::RecolourGoal(drawTable, drawCount); // every hidden light taken: the goal light turns cool white
+        }
         gpu.models.SetObjects(drawTable, drawCount);
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
@@ -550,11 +562,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             wchar_t stageText[64];
             if (clearSeconds >= 0.0)
             {
-                swprintf_s(stageText, L"CLEAR %.1f s", clearSeconds);
+                swprintf_s(stageText, L"CLEAR %.1f s | lights %d/%d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount);
             }
             else
             {
-                swprintf_s(stageText, L"part %d | %.0f s", checkpoint + 1, stageSeconds);
+                swprintf_s(stageText, L"part %d | %.0f s | lights %d/%d", checkpoint + 1, stageSeconds, lights.Count(), dl::stage::kHiddenLightCount);
             }
             wchar_t title[384];
             swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | %s%s",
