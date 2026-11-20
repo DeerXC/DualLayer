@@ -83,6 +83,12 @@ The layer is a parameter of every `Update`, so a body that stands on an object t
 - **Solids**: `Puzzle::Solids(layer)` builds, every frame, the table that the collision and the walking body use: the fixed objects, the block, and the door while it is closed.
 - **Switch guard**: `Puzzle::BodyFits` tells whether the body would be free in the other layer; `LayerGuard` turns `Tab` into Switch, Refuse (the ripple opens for 0.15 s and turns back, the old layer stays solid) or Ignore. The push-out of the collision stays only as a safety net.
 
+## The first stage (M2)
+
+`scene/Stage.h` holds the stage as data: the fixed objects, the door, the plate cell, the block start, the checkpoints, the fall line and the goal. The puzzle copies the fixed objects. Every frame `main.cpp` builds two tables from the same state: the solid table of the layer of the body (`Puzzle::Solids`: fixed objects, block, closed door), which goes to `Player::SetScene` (or to `ResolveSphere` while flying), and the drawn table (`Stage::BuildDrawTable`: the same, plus the plate and the goal light, with a blocker of a refused push shown in both layers), which goes to `Models::SetObjects`. `Tab` goes through `LayerGuard`: a switch into something is refused, the ripple opens and turns back, and the old layer stays solid meanwhile. `tests/test_stage.cpp` plays the stage with the real body and shows that every part needs the layer switch.
+
+Hint: `scene/StageHints.h` adds to the drawn table a thin outline, in the other layer, of each listed object that exists in one layer only (a platform at its top, a wall at its base). The outlines never reach the solid table.
+
 ## Modules and the allowed direction of dependencies
 
 ```

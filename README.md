@@ -6,7 +6,7 @@
 
 Self-made engine layer on C++20 / Direct3D 11. No game engine.
 
-Status: milestone M2 in progress. Builds and runs on Windows; the two layers, the ripple that switches between them, the collision per layer and a walking body work. The puzzle pieces of the stage are written and tested as logic; putting the stage into the game is the next step.
+Status: milestone M2 in progress. Builds and runs on Windows; the two layers, the ripple that switches between them, the collision per layer and a walking body work. The first stage is playable: a room of about two minutes in three parts, each of which needs the layer switch.
 
 ## Highlights
 
@@ -17,6 +17,8 @@ Status: milestone M2 in progress. Builds and runs on Windows; the two layers, th
 - Collision per layer: exact box, sphere, cylinder and torus tests in the local space of each object. An object is solid only in its own layers, and the renderer and the collision read one scene table, so what is drawn is what is solid.
 - Walking: the camera is the eye of a body of three balls that falls, lands, jumps, stands on objects and slides off slopes that are too steep. Standing on an object and switching layers takes the ground away.
 - Puzzle logic tied to the two layers: a block that exists in both layers (one push moves it in both), a plate in one layer that opens a door in the other, and a switch that is refused when the body would end up inside something. A test shows that the test room cannot be solved without the block.
+- A first stage that is proved, not only played: a test plays it with the real walking body and shows that each part (a wall that is only in one layer, a gap crossed by switching layers in mid-air, a block whose single push opens a door in the other layer and becomes a step) is solved by switching layers and not without it.
+- A hint without words: an object that exists in one layer only leaves a thin outline in the other layer, so the player can read the other side before switching. The outlines are drawn, never solid.
 - Recovery from a lost graphics device: all GPU objects are rebuilt while the camera and the layer state stay as they were.
 - Looks and speeds are read from `config/default.ini` and reloaded with F5, without recompiling.
 - One command, `tools/check.ps1`, runs the logic tests, the Debug and Release builds, a scripted game run and a repository safety check. The logic tests are checked against deliberately inserted bugs.

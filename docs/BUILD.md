@@ -45,6 +45,19 @@ The title bar ends with the movement mode: `collide | walk`, `collide | fly` or 
 
 A click into the window captures the mouse for mouse look; `Esc` gives it back, and a second `Esc` quits. `Space` held is the full jump, a tap a small hop. New config keys: `[player]` `ground_accel`, `ground_decel`, `air_accel`, `fall_gravity_scale`, `jump_cut`; `[mouse]` `sensitivity`, `invert_y`; `[camera]` `land_dip`, `land_dip_max` (all optional).
 
+## The first stage
+
+The game starts in the first stage (`scene/Stage.h`), walked from south to north. `R` goes back to the last checkpoint and puts the purple block back at its start. The title bar shows the part and the time, and `CLEAR` with the time at the goal. A switch that would put the body inside something is refused: the ripple opens a little and turns back.
+
+| No. | By | Do | Expected |
+|---|---|---|---|
+| Q-25 | eye | walk north in A, then `Tab` | the red wall stops the body; in B it is not there |
+| Q-26 | eye | the gap: in B jump onto the blue stone, jump on and press `Tab` in the air | the body lands on the red strip of A; a fall comes back in front of the gap |
+| Q-27 | eye | push the purple block onto the red plate; push it against something of the other layer | the block moves one cell per push; a blocked push makes the blocker flash in both layers; on the plate the blue door opens in B |
+| Q-28 | eye | in B climb the block, jump onto the blue ledge and walk through the doorway; stand inside the red wall's place in B and press `Tab` | the title bar says `CLEAR` with the time; the refused switch opens the ripple a little and turns it back, the body is not moved |
+
+| Q-29 | eye | look at the gap in A, and at the corridor in B | a thin blue outline floats where the stone of B is; a thin red outline lies on the floor where the wall of A is; the body falls through an outline; `[hints] ghosts = false` and F5 removes them |
+
 ## Optional keys in `config/default.ini`
 
 The program has built-in values for all of them, so the file may leave them out.
@@ -74,12 +87,14 @@ The program has built-in values for all of them, so the file may leave them out.
 
 ## Quick check
 
+Since the first stage replaced the test scene, the rows Q-10 .. Q-13 and Q-19 .. Q-21 that name the cube, the sphere, the cylinder or the torus are kept as a record of what was checked on 2026-11-18 / 19; the stage rows Q-25 .. Q-28 check the same rules in the stage.
+
 Run it in Debug after a change. The long list of M0, M1 and the first M2 checks passed on 2026-11-17 (see the CHANGELOG). The column "By" says who does a check: `script` = `tools\check.ps1` does it; `eye` = checked by looking at the screen. A result is written as "Q-2 ok" or "Q-2 fails: what was seen".
 
 | No. | By | Do | Expected |
 |---|---|---|---|
-| Q-1 | script, eye | F5 | the title bar shows the **NVIDIA RTX 5060** and `layer A`; the red cube and the grey cylinder stand on the checkered floor; the output window has no D3D11 / DXGI warning or error (the script checks the first two and the log; the output window is for the eye) |
-| Q-2 | script, eye | `Tab` once | a ring opens from the centre of the screen and spreads in about one second; inside it the blue sphere and the yellow torus, in cool light; the ring bends the picture a little and glows; at the end the title bar says `layer B` and nothing flickers (the script checks the title bar and that the ripple pictures were made; the look is for the eye) |
+| Q-1 | script, eye | F5 | the title bar shows the **NVIDIA RTX 5060** and `layer A`; the stage stands in front of the camera, with the red wall across the corridor; the output window has no D3D11 / DXGI warning or error (the script checks the first two and the log; the output window is for the eye) |
+| Q-2 | script, eye | `Tab` once | a ring opens from the centre of the screen and spreads in about one second; inside it layer B in cool light, without the red wall; the ring bends the picture a little and glows; at the end the title bar says `layer B` and nothing flickers (the script checks the title bar and that the ripple pictures were made; the look is for the eye) |
 | Q-3 | script | `Tab` again | the same, from the centre, back to `layer A` |
 | Q-4 | script | `Tab`, then `Tab` again after about 0.3 s | the circle stops and closes again; the end is layer A (that it does so without a jump is for the eye) |
 | Q-5 | script | `Tab` and resize the window during the ripple | no crash; the ripple fills the new size; no `[ERROR]` in the log |

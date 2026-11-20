@@ -710,7 +710,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
 
     // ---- one draw call per object: only the objects of this layer
     const unsigned layerBit = 1u << layer;
-    for (const SceneObject& object : kScene)
+    for (const SceneObject& object : Objects())
     {
         if ((object.layerMask & layerBit) == 0)
         {
@@ -861,7 +861,7 @@ int Models::TriangleTotal() const
 {
     const unsigned layerBit = 1u << m_ripple.Target();
     int total = 0;
-    for (const SceneObject& object : kScene)
+    for (const SceneObject& object : Objects())
     {
         if ((object.layerMask & layerBit) != 0)
         {
@@ -875,7 +875,7 @@ int Models::VisibleModelCount() const
 {
     const unsigned layerBit = 1u << m_ripple.Target();
     int count = 0;
-    for (const SceneObject& object : kScene)
+    for (const SceneObject& object : Objects())
     {
         if ((object.layerMask & layerBit) != 0 && object.checker < 0.5f) // (the floor is not a "model")
         {

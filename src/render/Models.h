@@ -80,6 +80,29 @@ class Models
     void Draw(ID3D11DeviceContext* context, const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& projection,
               const DirectX::XMFLOAT3& eye);
 
+    /// The objects that are drawn (BORROWS: the table must stay alive until the next call). The default is the scene table
+    /// of the program; a null table or a count of 0 goes back to it. The stage gives a new table every frame (its block
+    /// moves, its door opens and closes, a blocker flashes).
+    void SetObjects(const scene::SceneObject* objects, int count)
+    {
+        if (objects != nullptr && count > 0)
+        {
+            m_objects = objects;
+            m_objectCount = count;
+        }
+        else
+        {
+            m_objects = scene::kScene;
+            m_objectCount = scene::kSceneCount;
+        }
+    }
+
+    /// True while a ripple runs (the switch guard does not refuse on top of a ripple).
+    bool LayerSwitching() const
+    {
+        return m_ripple.Active();
+    }
+
     /// The time that the turning shapes use (seconds; it stops while the shapes are stopped). The collision needs the
     /// same time, or what is solid and what is drawn drift apart.
     float SpinSeconds() const
@@ -149,6 +172,26 @@ class Models
     std::array<GpuMesh, kShapeCount> m_meshes;
     std::array<Theme, 2> m_themes; // [0] = layer A, [1] = layer B (set by Init, changed by LoadThemes)
     int m_segments = 32;
+    /// The drawn table as a range, so that a loop reads "for (const SceneObject& object : Objects())".
+    struct ObjectRange
+    {
+        const scene::SceneObject* first;
+        const scene::SceneObject* last;
+        const scene::SceneObject* begin() const
+        {
+            return first;
+        }
+        const scene::SceneObject* end() const
+        {
+            return last;
+        }
+    };
+    ObjectRange Objects() const
+    {
+        return {m_objects, m_objects + m_objectCount};
+    }
+    const scene::SceneObject* m_objects = scene::kScene; // BORROWED: see SetObjects
+    int m_objectCount = scene::kSceneCount;
     bool m_wireframe = false;
     bool m_spinning = true;
     float m_spin = 0.0f; // seconds of turning (it does not run while the shapes are stopped)

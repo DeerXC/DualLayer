@@ -1,20 +1,25 @@
 // main.cpp - entry point and the frame loop.
-// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, walking or collision) > Render
+// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, the stage, walking or collision) > Render
 //         [GPU event "Frame" > "Opaque.Models" (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
+// Stage:  scene/Stage.h, the first stage: the fixed objects, the purple block, the plate and the door (scene/Puzzle.h). Every
+//         frame the drawn table (Stage::BuildDrawTable) goes to the renderer and the solid table of the layer of the body
+//         (Puzzle::Solids) to the body, so what is drawn and what is solid come from the same state.
 // Keys:   W A S D move, the mouse turns (click into the window to capture it; Esc gives it back, a second Esc quits), the arrow
-//         keys turn as well, R puts the camera back, F5 reloads config/default.ini
+//         keys turn as well, R goes back to the last checkpoint (and puts the block back), F5 reloads config/default.ini
 //         Space jumps (walking; held = the full jump, a tap = a small hop), Q / E down / up (flying)
 //         F walking / flying (walking: gravity, the body stands on the floor and on objects; flying: a free camera)
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
-//         Tab switches the layer (A <-> B)
+//         Tab switches the layer (A <-> B). A switch that would put the body inside something is refused: the ripple opens
+//         a little and turns back (Puzzle::BodyFits, LayerGuard), and the old layer stays solid meanwhile.
 //         N collision on / off (off = fly through everything; walking needs collision, so N off also means flying)
 //         F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds them again: the test of the recovery
 // Walking: scene/Player.h. The camera is the eye of a body of three balls; the camera only turns, the body walks, falls and jumps.
-//         A hard landing lowers the eye for a moment ([camera] land_dip), so that a landing is felt.
+//         A hard landing lowers the eye for a moment ([camera] land_dip). A body that falls below the stage goes back to the
+//         last checkpoint it stood on.
 // Flying: the camera is one ball ([collision] radius); after it has moved, the ball is pushed out of the solid objects of the layer
 //         that the screen is going to show (scene/Collision.h); the camera keeps its direction.
-// Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin and the
-//         camera stay as they were. After kMaxRecoveries tries the program says so and ends.
+// Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin, the
+//         stage and the camera stay as they were. After kMaxRecoveries tries the program says so and ends.
 // Args:   --adapter N   choose the N-th adapter listed in the log (overrides [render] adapter)
 
 #define WIN32_LEAN_AND_MEAN
@@ -32,7 +37,10 @@
 #include "scene/Camera.h"
 #include "scene/Collision.h"
 #include "scene/Player.h"
+#include "scene/Puzzle.h"
 #include "scene/SceneData.h"
+#include "scene/Stage.h"
+#include "scene/StageHints.h"
 
 #include <DirectXMath.h>
 
@@ -58,7 +66,6 @@ namespace
 constexpr char kConfigPath[] = "config/default.ini";
 constexpr int kMaxRecoveries = 5; // after this many lost devices in one run the program gives up
 constexpr float kDefaultBodyRadius = 0.35f; // UNITS: metres, the ball of the camera. TUNE: [collision] radius, 0.05 .. 1
-constexpr float kSpawnZ = -3.0f;            // UNITS: metres, where the walking body starts (the same place as the camera): x = 0, on the floor
 constexpr float kDefaultMouseSensitivity = 0.0022f; // UNITS: radians per count of the mouse. TUNE: [mouse] sensitivity, 0.0002 .. 0.02
 constexpr float kDefaultLandDip = 0.012f;           // UNITS: metres of dip per m/s of landing speed. TUNE: [camera] land_dip, 0 = off
 constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepest dip. TUNE: [camera] land_dip_max
@@ -221,9 +228,24 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
 
+    // ---- the stage: its puzzle, the guard of the layer switch, the checkpoint the body has reached
+    dl::puzzle::Puzzle puzzle;
+    if (!puzzle.Init(dl::stage::MakeStage()))
+    {
+        DL_LOG_ERROR("Main", "the stage could not be set up (scene/Stage.h)");
+        MessageBoxA(window.Handle(), "The stage could not be set up. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
+        gpu.Shutdown();
+        return 1;
+    }
+    dl::puzzle::LayerGuard guard;
+    int checkpoint = 0;
+    // WHY outside the loop: the renderer keeps a pointer to the drawn table until the next SetObjects, and the title bar and
+    // the X key read it between two frames
+    dl::scene::SceneObject drawTable[dl::stage::kMaxDrawObjects] = {};
+
     dl::Player player;
     ApplyPlayerConfig(config, player);
-    player.SetSpawn({0.0f, dl::scene::kFloorY, kSpawnZ});
+    player.SetSpawn(dl::stage::kCheckpoints[0].feet);
     player.Respawn();
 
     LARGE_INTEGER frequency{};
@@ -234,6 +256,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     int fpsFrames = 0;
     float angle = 0.0f;           // radians
     float landDip = 0.0f;         // UNITS: metres the eye is lowered after a hard landing (it comes back up by itself)
+    double stageSeconds = 0.0;    // UNITS: seconds since the start (or the last R at the first checkpoint)
+    double clearSeconds = -1.0;   // the time of the clear; negative while the goal is not reached
+    int blockMoves = 0;           // for the log: a move and a refused push are written once
+    float lastFlash = 0.0f;
     bool resetKeyWasDown = false; // WHY: R must act once per press, not on every frame it is held
     bool wireKeyWasDown = false;
     bool detailKeyWasDown = false;
@@ -296,6 +322,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         last = now;
         const float dtf = static_cast<float>(dt);
         angle += DirectX::XMConvertToRadians(config.GetFloat("test_triangle", "spin_deg_per_sec", 0.0f)) * dtf;
+        if (clearSeconds < 0.0)
+        {
+            stageSeconds += dt;
+        }
 
         // ---- the mouse turns the camera (only while it is captured: the window collects nothing otherwise)
         long mouseDx = 0;
@@ -323,11 +353,6 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             gpu.models.ToggleSpin();
         }
-        // WHY not while Alt is down: Alt + Tab switches windows and must not also switch the layer
-        if (PressedOnce(VK_TAB, layerKeyWasDown, focused && !IsDown(VK_MENU)))
-        {
-            gpu.models.ToggleLayer();
-        }
         if (PressedOnce('N', collideKeyWasDown, focused))
         {
             collide = !collide;
@@ -339,9 +364,34 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             DL_LOG_INFO("Main", "movement: %s", walk ? "walk" : "fly");
         }
         const bool jumpPressed = PressedOnce(VK_SPACE, jumpKeyWasDown, focused);
+        const bool walking = walk && collide; // a body that walks needs something to stand on
+
+        // ---- the layer switch, through the guard. WHY not while Alt is down: Alt + Tab switches windows and must not also
+        // switch the layer
+        if (PressedOnce(VK_TAB, layerKeyWasDown, focused && !IsDown(VK_MENU)))
+        {
+            const int solidNow = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
+            const int target = 1 - gpu.models.CollisionLayer();
+            const bool fits = !walking || puzzle.BodyFits(player, target, gpu.models.SpinSeconds());
+            switch (guard.OnSwitchRequest(solidNow, gpu.models.LayerSwitching(), fits))
+            {
+            case dl::puzzle::LayerGuard::Action::Switch:
+                gpu.models.ToggleLayer();
+                break;
+            case dl::puzzle::LayerGuard::Action::Refuse:
+                gpu.models.ToggleLayer(); // the ripple opens a little; the guard turns it back
+                DL_LOG_INFO("Main", "switch refused: the body would be inside something in layer %s", target == 0 ? "A" : "B");
+                break;
+            case dl::puzzle::LayerGuard::Action::Ignore:
+                break;
+            }
+        }
+        if (guard.Update(dtf))
+        {
+            gpu.models.ToggleLayer(); // a refused ripple turns round and closes
+        }
 
         // ---- the camera. Walking: it only turns, the body moves. Flying: it moves itself.
-        const bool walking = walk && collide; // a body that walks needs something to stand on
         if (walking && !wasWalking)
         {
             player.Place(camera.Position()); // walking starts again where the camera is: the body falls from there
@@ -361,18 +411,28 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         const bool resetKeyDown = focused && IsDown('R');
         if (resetKeyDown && !resetKeyWasDown)
         {
-            camera.Reset();
             landDip = 0.0f;
+            puzzle.Reset(); // R also puts the block back: a block pushed into a corner never ends the game
             if (walking)
             {
+                player.SetSpawn(dl::stage::kCheckpoints[checkpoint].feet);
                 player.Respawn();
             }
+            else
+            {
+                camera.Reset();
+            }
+            DL_LOG_INFO("Main", "R: back to checkpoint %d, the block is back at its start", checkpoint);
         }
         resetKeyWasDown = resetKeyDown;
         gpu.models.Update(dtf);
 
-        // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid in the layer that the
-        // screen is going to show. The same spin time as the renderer, so the solid is where the picture is.
+        // the layer whose objects are solid: the one the screen is going to show, or the old one while a refusal plays
+        const int solidLayer = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
+        int solidCount = 0;
+        const dl::scene::SceneObject* solids = puzzle.Solids(solidLayer, solidCount);
+
+        // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
         {
             dl::Player::Input move;
@@ -380,11 +440,28 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             move.moveRight = keys.moveRight;
             move.jumpPressed = jumpPressed;
             move.jumpHeld = focused && IsDown(VK_SPACE);
-            player.Update(move, camera.Forward(), gpu.models.CollisionLayer(), gpu.models.SpinSeconds(), dtf);
-            if (player.JustRespawned())
+            player.SetScene(solids, solidCount);
+            player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
+            puzzle.Update(player, dtf);
+
+            // the checkpoint: reached by standing on the floor of a part; a fall below the stage goes back to it
+            const int reached = dl::stage::CheckpointFor(player.Feet(), player.Grounded(), checkpoint);
+            if (reached != checkpoint)
             {
-                DL_LOG_INFO("Main", "fell off the floor: back at the start");
+                checkpoint = reached;
+                DL_LOG_INFO("Stage", "checkpoint %d", checkpoint);
+            }
+            if (player.Feet().y < dl::stage::kFallY || player.JustRespawned())
+            {
+                player.SetSpawn(dl::stage::kCheckpoints[checkpoint].feet);
+                player.Respawn();
                 landDip = 0.0f;
+                DL_LOG_INFO("Main", "fell: back at checkpoint %d", checkpoint);
+            }
+            if (clearSeconds < 0.0 && dl::stage::ReachedGoal(player.Feet(), player.Grounded()))
+            {
+                clearSeconds = stageSeconds;
+                DL_LOG_INFO("Stage", "clear in %.1f s", clearSeconds);
             }
             float peak = 0.0f;
             if (player.ConsumeLanding(peak))
@@ -408,12 +485,33 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             landDip = 0.0f;
             const float radius = std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f);
             const dl::CollisionResult body =
-                dl::ResolveSphere(camera.Position(), radius, gpu.models.CollisionLayer(), gpu.models.SpinSeconds());
+                dl::ResolveSphere(camera.Position(), radius, solidLayer, gpu.models.SpinSeconds(), solids, solidCount);
             if (body.pushed)
             {
                 camera.SetPose(body.position, camera.Yaw(), camera.Pitch());
             }
         }
+
+        // the log: a move of the block, and a refused push (with what was in the way)
+        if (puzzle.Moves() != blockMoves)
+        {
+            blockMoves = puzzle.Moves();
+            DL_LOG_INFO("Stage", "block in cell (%d, %d)", puzzle.BlockCell().x, puzzle.BlockCell().z);
+        }
+        if (puzzle.BlockedFlash() > lastFlash)
+        {
+            DL_LOG_INFO("Stage", "push refused: blocked by %d", puzzle.LastBlocker());
+        }
+        lastFlash = puzzle.BlockedFlash();
+
+        // ---- what is drawn: the stage as it is now
+        // the outlines of the other layer: a hint, drawn only ([hints] ghosts = 0 turns them off)
+        int drawCount = dl::stage::BuildDrawTable(puzzle, drawTable);
+        if (config.GetBool("hints", "ghosts", true))
+        {
+            drawCount = dl::stage::AddGhosts(drawTable, drawCount, dl::stage::kMaxDrawObjects);
+        }
+        gpu.models.SetObjects(drawTable, drawCount);
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
@@ -449,10 +547,19 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (fpsTimer >= 0.5)
         {
             const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
-            wchar_t title[320];
-            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s%s",
+            wchar_t stageText[64];
+            if (clearSeconds >= 0.0)
+            {
+                swprintf_s(stageText, L"CLEAR %.1f s", clearSeconds);
+            }
+            else
+            {
+                swprintf_s(stageText, L"part %d | %.0f s", checkpoint + 1, stageSeconds);
+            }
+            wchar_t title[384];
+            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | %s%s",
                        gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer,
-                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode,
+                       1000.0 * fpsTimer / fpsFrames, pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode, stageText,
                        window.MouseCaptured() ? L"" : L" | click for mouse look");
             window.SetTitle(title);
             fpsTimer = 0.0;
