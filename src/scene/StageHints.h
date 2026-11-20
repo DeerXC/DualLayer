@@ -9,6 +9,12 @@
 //            because the blue door already shows the doorway in B.
 // Solid:     never. The outlines go into the DRAWN table only (AddGhosts); the solid table (Puzzle::Solids) does not hold
 //            them, so the body falls through an outline exactly as through the empty air it marks.
+// Door:      the plate is in layer A and the door it opens is in layer B, so the player who steps on the plate cannot see
+//            what it does. AddDoorFrame draws, in A, a thin blue frame round the doorway while the door is closed; standing on
+//            the plate in A makes the frame vanish. The cause and its effect are then on the same screen: "this plate opens
+//            something blue in the doorway".
+// Beacon:    AddGoalBeacon draws a thin column of light above the goal, tall enough to be seen over the red wall and over
+//            the wall with the doorway from the start of the stage: the goal is seen first and reached last.
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_hints.cpp).
 // UNITS: metres.
 #pragma once
@@ -100,6 +106,64 @@ inline int AddGhosts(scene::SceneObject* out, int count, int capacity)
         count += kBarsPerGhost;
     }
     return count;
+}
+
+// ---- the frame of the blue door, drawn in layer A while the door is closed for a body in A
+inline constexpr float kFrameDepth = 0.03f;  // UNITS: metres, in front of the south face of the wall
+inline constexpr float kFrameGap = 0.01f;    // UNITS: metres between the frame and the wall, so that they never flicker
+inline constexpr int kFrameBars = 4;
+
+/// Adds the frame of the door to `out` when `doorOpenForA` is false (the door as it is for a body in A). Returns the new
+/// count; a table without room for the whole frame gets none.
+inline int AddDoorFrame(scene::SceneObject* out, int count, int capacity, bool doorOpenForA)
+{
+    if (doorOpenForA || out == nullptr || count < 0 || capacity - count < kFrameBars)
+    {
+        return count;
+    }
+    const scene::SceneObject& d = kDoor;
+    const float x0 = d.position[0] - 0.5f * d.scale[0];
+    const float x1 = d.position[0] + 0.5f * d.scale[0];
+    const float y0 = kDoorwayLow;
+    const float y1 = kDoorwayHigh;
+    const float wallSouth = kWallZ - 0.25f; // the wall is 0.5 m thick
+    const float z = wallSouth - kFrameGap - 0.5f * kFrameDepth;
+    const float r = d.colorSrgb[0] + (1.0f - d.colorSrgb[0]) * kGhostLight;
+    const float g = d.colorSrgb[1] + (1.0f - d.colorSrgb[1]) * kGhostLight;
+    const float b = d.colorSrgb[2] + (1.0f - d.colorSrgb[2]) * kGhostLight;
+    const float w = kGhostBar;
+    scene::SceneObject* f = out + count;
+    f[0] = Box(0.5f * (x0 + x1), y1 - 0.5f * w, z, x1 - x0, w, kFrameDepth, r, g, b, scene::kLayerA);           // top
+    f[1] = Box(0.5f * (x0 + x1), y0 + 0.5f * w, z, x1 - x0, w, kFrameDepth, r, g, b, scene::kLayerA);           // bottom
+    f[2] = Box(x0 + 0.5f * w, 0.5f * (y0 + y1), z, w, y1 - y0 - 2.0f * w, kFrameDepth, r, g, b, scene::kLayerA); // left
+    f[3] = Box(x1 - 0.5f * w, 0.5f * (y0 + y1), z, w, y1 - y0 - 2.0f * w, kFrameDepth, r, g, b, scene::kLayerA); // right
+    for (int i = 0; i < kFrameBars; ++i)
+    {
+        f[i].shineStrength = 0.0f;
+        f[i].shininess = 1.0f;
+    }
+    return count + kFrameBars;
+}
+
+// ---- the beacon over the goal
+inline constexpr float kBeaconWidth = 0.12f;  // UNITS: metres
+inline constexpr float kBeaconBottom = 2.7f;  // UNITS: metres (world y): above the goal light
+inline constexpr float kBeaconTop = 10.0f;    // UNITS: metres (world y): seen over both walls from the start (tests/test_hints.cpp)
+inline constexpr float kBeaconX = 1.25f;
+
+/// Adds the beacon (both layers, drawn only) to `out`. Returns the new count.
+inline int AddGoalBeacon(scene::SceneObject* out, int count, int capacity)
+{
+    if (out == nullptr || count < 0 || capacity - count < 1)
+    {
+        return count;
+    }
+    scene::SceneObject o = Box(kBeaconX, 0.5f * (kBeaconBottom + kBeaconTop), kGoalZ, kBeaconWidth, kBeaconTop - kBeaconBottom,
+                               kBeaconWidth, 1.0f, 0.90f, 0.55f, scene::kLayerBoth);
+    o.shineStrength = 0.0f;
+    o.shininess = 1.0f;
+    out[count] = o;
+    return count + 1;
 }
 
 } // namespace dl::stage

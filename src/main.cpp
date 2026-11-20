@@ -239,7 +239,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
     dl::puzzle::LayerGuard guard;
-    dl::stage::LightSet lights; // the three hidden lights: once taken, taken for the rest of the run
+    dl::stage::LightSet lights; // the hidden lights: once taken, taken for the rest of the run
     int checkpoint = 0;
     // WHY outside the loop: the renderer keeps a pointer to the drawn table until the next SetObjects, and the title bar and
     // the X key read it between two frames
@@ -518,6 +518,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             drawCount = dl::stage::AddGhosts(drawTable, drawCount, dl::stage::kMaxDrawObjects);
         }
+        // the blue frame of the door, seen in A while the door is closed for a body in A: the plate shows what it does
+        drawCount = dl::stage::AddDoorFrame(drawTable, drawCount, dl::stage::kMaxDrawObjects, puzzle.DoorOpen(0));
+        // the beacon over the goal: seen from the start, over both walls
+        drawCount = dl::stage::AddGoalBeacon(drawTable, drawCount, dl::stage::kMaxDrawObjects);
         drawCount = lights.AddToDrawTable(drawTable, drawCount, dl::stage::kMaxDrawObjects);
         if (lights.All())
         {

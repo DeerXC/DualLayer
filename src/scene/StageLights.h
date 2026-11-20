@@ -1,14 +1,13 @@
-// StageLights.h - three hidden lights in the first stage. None of them is on the way to the goal; each one asks for a
+// StageLights.h - two hidden lights in the first stage. None of them is on the way to the goal; each one asks for a
 //            mechanic of the stage used in a way the main path does not use it:
 //   0 "inside the wall"  part 1: a light buried in the top of the red wall. In A it is inside the wall and cannot be
 //                        touched; in B the wall is gone and a full jump at the red outline on the floor reaches it.
 //   1 "the block, again" part 3: a light high above the west side of the north floor, out of reach of a jump from the floor.
 //                        The purple block, pushed under it instead of onto the plate, is the step that reaches it.
-//   2 "falling is free"  part 3: a light floating beside the north floor, outside the corridor. Only a jump off the edge
-//                        reaches it; the fall afterwards costs nothing, because the body comes back at the checkpoint and a
-//                        light, once taken, stays taken.
 // A light is taken when one of the three balls of the body touches it. Taken lights stay taken for the rest of the run (R
-// and a fall do not bring them back). With all three taken, the goal light changes its colour.
+// and a fall do not bring them back). With both taken, the goal light changes its colour.
+// Why two: each light must be a second use of something the stage already teaches (the other layer, the block). A third one,
+//            beside the floor and reached by jumping off the edge, used neither and was removed.
 // Drawn:     every light not yet taken, in both layers, as a small turning sphere (a light buried in the wall of A is hidden by
 //            the wall in A). Never solid.
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_lights.cpp).
@@ -38,7 +37,6 @@ inline constexpr float kLightReach = 0.20f;  ///< UNITS: metres; a ball of the b
 inline constexpr HiddenLight kHiddenLights[] = {
     {{-2.4f, kFloorY + 3.0f, 3.0f}, "inside the wall"},
     {{-2.0f, kFloorY + 4.6f, 16.0f}, "the block, again"},
-    {{4.0f, kFloorY + 2.0f, 16.0f}, "falling is free"},
 };
 inline constexpr int kHiddenLightCount = static_cast<int>(sizeof(kHiddenLights) / sizeof(kHiddenLights[0]));
 

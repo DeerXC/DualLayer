@@ -6,8 +6,7 @@
 //      light is not drawn any more; the goal light changes colour only when asked, and only the goal light
 //   2. where they are, with the numbers of the walking body (jump 2.0 m, eye 1.55 m, ball radius 0.35 m, 4 m/s, gravity 30
 //      up and 48 down): light 0 is reached by a jump in B and cannot be touched from any side of the red wall in A; light 1
-//      is out of reach of every jump from the floor and within reach of a jump from the top of the block; light 2 cannot be
-//      touched from the edge of the north floor and is reached by a running jump off it
+//      is out of reach of every jump from the floor and within reach of a jump from the top of the block
 // The flights are computed with the same rules as Player.h (a held jump, the walking speed at once); the full body is played
 // in tests/test_stage.cpp. Returns 1 when a check fails.
 
@@ -110,12 +109,13 @@ void TestLogic()
     CHECK(set.Collect(at) == -1 && set.Count() == 1); // once only
     // the drawn table: the two lights not yet taken
     SceneObject table[8] = {};
-    CHECK(set.AddToDrawTable(table, 0, 8) == 2);
+    CHECK(st::kHiddenLightCount == 2);
+    CHECK(set.AddToDrawTable(table, 0, 8) == 1); // the one not yet taken
     CHECK(table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
-    CHECK(table[0].position[2] == st::kHiddenLights[0].centre.z && table[1].position[2] == st::kHiddenLights[2].centre.z);
-    CHECK(set.AddToDrawTable(table, 7, 8) == 8);     // only as many as there is room for
+    CHECK(table[0].position[2] == st::kHiddenLights[0].centre.z);
+    CHECK(set.AddToDrawTable(table, 8, 8) == 8);     // only as many as there is room for
     CHECK(set.AddToDrawTable(nullptr, 3, 8) == 3);
-    for (int i : {0, 2})
+    for (int i : {0})
     {
         FakeBody b{{st::kHiddenLights[i].centre.x, st::kHiddenLights[i].centre.y - kRadius, st::kHiddenLights[i].centre.z}, {}};
         CHECK(set.Collect(b) == i);
@@ -203,28 +203,6 @@ void TestLightOverTheBlock()
     CHECK(!fromLedge);
 }
 
-void TestLightBesideTheFloor()
-{
-    const Vec3 c = st::kHiddenLights[2].centre;
-    const float edge = 3.0f; // the north floor ends at x = 3
-    // standing at the edge (a ball centre at most about 0.3 m past it, where the corner still holds the body): out of reach
-    bool fromEdge = false;
-    for (float x = edge - 0.5f; x <= edge + 0.3f; x += 0.01f)
-    {
-        fromEdge = fromEdge || Touches({x, kFloorY, c.z}, 2);
-    }
-    CHECK(!fromEdge);
-    // a running jump east off the edge reaches it
-    bool jump = false;
-    for (float x = edge - 0.6f; x <= edge; x += 0.05f)
-    {
-        jump = jump || JumpReaches({x, kFloorY, c.z}, 1.0f, 0.0f, 2);
-    }
-    CHECK(jump);
-    // it is outside the corridor, beside the part of the north floor that has a checkpoint
-    CHECK(c.x - st::kLightRadius > edge && c.z > st::kNorthStart && c.z < st::kWallZ);
-}
-
 } // namespace
 
 int main()
@@ -232,7 +210,6 @@ int main()
     TestLogic();
     TestLightInTheWall();
     TestLightOverTheBlock();
-    TestLightBesideTheFloor();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
