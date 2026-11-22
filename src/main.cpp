@@ -88,7 +88,7 @@ constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepes
 constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
 constexpr float kEyeEase = 30.0f;                   // UNITS: 1 / seconds; small changes of the eye height are eased over about 0.05 s
 constexpr float kEyeEaseMax = 0.5f;                 // UNITS: metres; a larger change (a respawn, a teleport) is followed at once
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount + 1; // + doors, gates, lifts, the crate
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount + 1 + 8; // + doors, gates, lifts, the crate, the water for orbs
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -238,7 +238,8 @@ struct Respawn
 
 int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
                     const dl::mech::MechanismSet& mech, const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts,
-                    const dl::canal::Canal& canal, const dl::stage::AnchorSet& anchors, const Respawn& respawn, const Respawn& orbReturn,
+                    const dl::canal::Canal& canal, const dl::stage::Waterworks& waters, const dl::stage::AnchorSet& anchors,
+                    const Respawn& respawn, const Respawn& orbReturn,
                     const dl::Player& player, const dl::Vec3& look, const dl::Config& config, float sinceClear,
                     dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
@@ -249,6 +250,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = st::AddMapDraw(seals, table, count, st::kMaxDrawObjects);
     count = st::AddLifts(lifts, table, count, st::kMaxDrawObjects);
     count = canal.AddDraw(table, count, st::kMaxDrawObjects);
+    count = st::AddWaterDraw(waters, table, count, st::kMaxDrawObjects); // the water of A as it is now (it drains at the end)
     count = anchors.AddDraw(table, count, st::kMaxDrawObjects);
     count = st::AddRespawnRing(respawn.at, respawn.since, table, count, st::kMaxDrawObjects);
     count = st::AddRespawnRing(orbReturn.at, orbReturn.since, table, count, st::kMaxDrawObjects);
@@ -270,6 +272,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = mech.AddOrbDraw(player, look, table, count, st::kMaxDrawObjects);
     // guidance: a column of light over every place that waits for something, and where a bridge will appear
     count = mech.AddBeacons(table, count, st::kMaxDrawObjects);
+    count = canal.AddBeacons(table, count, st::kMaxDrawObjects);
     count = st::AddGatePreviews(mech, table, count, st::kMaxDrawObjects);
     // a refused push: the outline of what was in the way, in both layers, for a moment
     count = st::AddBlockedFlash(puzzle, table, count, st::kMaxDrawObjects);
@@ -423,6 +426,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     std::array<dl::shapes::Lift, dl::stage::kLiftCount> lifts = dl::stage::MakeLifts(); // the shortcuts that move
     dl::canal::Canal canal; // the canal and lock of the east district (scene/Canal.h)
     canal.Init(dl::stage::MakeCanal());
+    dl::stage::Waterworks waters; // the water of A; the master sluice drains it at the end
     dl::stage::AnchorSet anchors; // the anchor lamps: where a fall or R comes back (scene/Anchors.h)
     Respawn respawn;
     Respawn orbReturn; // the ring where an orb came back to its start (scene/OrbReturn.h)
@@ -578,7 +582,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             const int solidNow = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
             const int target = 1 - gpu.models.CollisionLayer();
-            const bool fits = !walking || puzzle.BodyFits(player, target, gpu.models.SpinSeconds());
+            // WHY the whole solid table of the target layer (not only the map of the puzzle): a switch into a gate of a wing,
+            // a lift or the crate must be refused as well (solidsA is scratch here; it is built again after the body moves)
+            const int targetCount = BuildSolidTable(puzzle, seals, mech, lifts, canal, target, solidsA);
+            const bool fits = !walking || dl::puzzle::Puzzle::FitsIn(player, target, gpu.models.SpinSeconds(), solidsA, targetCount);
             switch (guard.OnSwitchRequest(solidNow, gpu.models.LayerSwitching(), fits))
             {
             case dl::puzzle::LayerGuard::Action::Switch:
@@ -619,9 +626,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (resetKeyDown && !resetKeyWasDown)
         {
             const dl::stage::Room& here = dl::stage::kRooms[room];
-            if (room == dl::stage::RoomIndex("east hall"))
+            if (room == dl::stage::RoomIndex("east hall") || room == dl::stage::RoomIndex("east quay") || room == dl::stage::RoomIndex("canal bed"))
             {
-                canal.Reset(); // R in the hall of the canal puts back the water and the crate (docs/LEVEL_DESIGN.md, 14.7)
+                canal.Reset(); // R by the canal puts back the water, the weir and the crate (docs/LEVEL_DESIGN.md, 14.4)
             }
             landDip = 0.0f;
             if (room == dl::stage::RoomIndex("courtyard"))
@@ -661,6 +668,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             orbReturn.since += dtf;
         }
+        waters.Update(dtf);
+        canal.SetDrained(waters.Drained());
         const int solidCount = BuildSolidTable(puzzle, seals, mech, lifts, canal, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
@@ -695,7 +704,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 }
             }
             const int bodyA = BuildSolidTable(puzzle, seals, mech, lifts, canal, 0, solidsA);
-            const int countA = canal.AddWaterForOrbs(solidsA, dl::stage::AddWaterForOrbs(solidsA, bodyA, kMaxSolids), kMaxSolids); // orbs float
+            const int countA = canal.AddWaterForOrbs(solidsA, dl::stage::AddWaterForOrbs(solidsA, bodyA, kMaxSolids, waters), kMaxSolids); // orbs float
             const int countB = BuildSolidTable(puzzle, seals, mech, lifts, canal, 1, solidsB);
             mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
             // an orb that came to rest where its world cannot take it back goes back to its start (scene/OrbReturn.h)
@@ -729,7 +738,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 secondsInRoom = 0.0;
                 DL_LOG_INFO("Stage", "room: %s", dl::stage::kRooms[room].name);
             }
-            if (player.Feet().y < dl::stage::FallLine(room) || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer) ||
+            if (player.Feet().y < dl::stage::FallLine(room) || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer, waters) ||
                 canal.Submerged(player.Feet(), solidLayer))
             {
                 player.SetSpawn(anchors.RespawnPoint(room)); // beside the lit lamp of the room, else at its entry
@@ -761,6 +770,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             {
                 clearSeconds = stageSeconds;
                 sinceClear = 0.0;
+                waters.Close(); // the master sluice: the aqueduct runs dry and every water of A drains (docs/LEVEL_DESIGN.md, 14.10)
                 DL_LOG_INFO("Stage", "clear in %.1f s, hidden lights %d of %d, falls %d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls);
             }
             float peak = 0.0f;
@@ -810,7 +820,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // ---- what is drawn: the map as it is now
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
-        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, anchors, respawn, orbReturn, player, camera.Forward(), config,
+        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, anchors, respawn, orbReturn, player, camera.Forward(), config,
                                          static_cast<float>(sinceClear), drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();
         gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);
@@ -908,8 +918,3 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
     return RunApp(instance, __argc, __argv);
 }
-
-
-
-
-

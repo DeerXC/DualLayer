@@ -129,5 +129,3 @@ float4 PSMain(VSOut input) : SV_Target
     const float fog = (1.0 - exp(-toEye * fogDensity)) * (1.0 - 0.75 * saturate(input.knobs.w));
     return float4(lerp(shaded, fogColor, fog), 1.0);
 }
-
-

@@ -9,9 +9,10 @@
 //            ring. All of them are exact (no bounding boxes), so the ball touches what the player sees.
 // Turning:   the shapes turn with time (spinSpeed * spinSeconds). Pass the same time that the renderer uses
 //            (Models::SpinSeconds), or the solid and the picture drift apart.
-// Method:    for every solid the centre of the ball is moved into the local space of the object (the inverse of the world
-//            matrix of the renderer), pushed out along the shortest way, and moved back. Up to kPasses rounds, so that a
-//            ball between two solids settles. No speed and no time: the camera moves, then this corrects the place.
+// Method:    a ball outside the bounding sphere of a solid is skipped at once (BoundingRadius); otherwise the centre of the
+//            ball is moved into the local space of the object (the inverse of the world matrix of the renderer), pushed out
+//            along the shortest way, and moved back. Up to kPasses rounds, so that a ball between two solids settles. No speed
+//            and no time: the camera moves, then this corrects the place.
 // Space:     left-handed, +Y up. DirectXMath RotationX / RotationY on a row vector are written out here (a rotation of
 //            +90 degrees round Y turns +Z into +X; round X it turns +Y into +Z), see tests/test_collision.cpp.
 // UNITS:     metres, radians, seconds.
@@ -207,9 +208,41 @@ inline float PushOutOfTorus(Vec3& c, float ringRadius, float tubeRadius, float r
     return reach - dist;
 }
 
+/// The radius of a sphere round the centre of `o` that holds the whole object at every turn (the turn and the tilt are round
+/// its centre). A ball farther than this plus its radius cannot touch it.
+inline float BoundingRadius(const scene::SceneObject& o)
+{
+    const float hx = 0.5f * o.scale[0];
+    const float hy = 0.5f * o.scale[1];
+    const float hz = 0.5f * o.scale[2];
+    switch (o.shape)
+    {
+    case scene::ShapeKind::Sphere:
+        return hx;
+    case scene::ShapeKind::Cylinder:
+        return std::sqrt(hx * hx + hy * hy);
+    case scene::ShapeKind::Torus:
+        return (scene::kTorusMajor + scene::kTorusMinor) * o.scale[0];
+    case scene::ShapeKind::Cube:
+    case scene::ShapeKind::Count:
+        break;
+    }
+    return std::sqrt(hx * hx + hy * hy + hz * hz);
+}
+
 /// Pushes the ball out of one object. Returns the depth of the overlap (0 = no contact) and changes `world`.
 inline float PushOutOf(const scene::SceneObject& o, Vec3& world, float radius, float spinSeconds)
 {
+    // the broad phase: a ball outside the bounding sphere cannot touch the object (exact, so nothing changes but the time;
+    // most of the about 300 boxes of the map are far from the body)
+    const float dx = world.x - o.position[0];
+    const float dy = world.y - o.position[1];
+    const float dz = world.z - o.position[2];
+    const float reach = BoundingRadius(o) + radius;
+    if (dx * dx + dy * dy + dz * dz >= reach * reach)
+    {
+        return 0.0f;
+    }
     Vec3 c = ToLocal(o, world, spinSeconds);
     float depth = 0.0f;
     switch (o.shape)

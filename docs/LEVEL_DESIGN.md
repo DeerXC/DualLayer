@@ -142,7 +142,8 @@ proved by the solver. The district becomes the canal and locks of section 14; it
 
 ### 6.5 North wing: the bell tower (the prism)
 
-Theme: not changing worlds, changing colours. Ramps and stairs, no jump needed.
+Theme: not changing worlds, changing colours. Ramps and stairs, no jump needed. Built: N1 (14.9), N2 (14.12) and the ledge
+of N4; N3 is not built (14.10).
 
 | Room | Moment |
 |---|---|
@@ -179,9 +180,11 @@ socket; the orb dropped elsewhere; under the gap; a dead end of E2; the wall top
 jump at the bell tower; the orb dropped by the prism in another order; the hub after all three shortcuts; the tower
 parapet. With all twelve the goal light changes colour.
 
-Built so far: in the gate (the other layer); on the floor of the pool of the square, behind the cathedral (under water
+Built so far (six): in the gate (the other layer); on the floor of the pool of the square, behind the cathedral (under water
 in A; in B the pool is dry: the water of the west trench used a second time); on the bed of the canal of the east district
-(the same lesson in the district of water).
+(the same lesson in the district of water); behind the bars of the undercroft (seen from the square long before the way in
+is known); in the wall of the north hall over the ledge of N2 (one prism moves two things); under the courtyard, in the
+cellar (the place of the first puzzle, from below).
 
 ## 9. Guidance without words
 
@@ -306,6 +309,7 @@ Whole red or blue boxes are gone; red and blue are only edges and outlines.
 | Things that move exist in both worlds | only where they are differs: the crate of the canal floats in A and lies on the bed in B |
 | Machinery works in A only | in B it has rusted: the lock wheel turns only for a body in A |
 | R puts back the room | the block, the orbs, and the water, the weir and the crate of the canal |
+| A switch is refused into anything solid of the other world | the guard asks the whole solid table of the target layer: the map, the gates of the wings, the lifts, the crate (`Puzzle::FitsIn`) |
 | Orbs never get stuck | an orb that comes to rest where no body of its world can take it back (no place to stand within reach, in a room, out of the water) goes back to its start with a ring of light (`scene/OrbReturn.h`); one that falls out of the map does too |
 | A thing changes world, not the body | the prism moves the gates linked to it into the other layer, for good (14.9) |
 
@@ -331,6 +335,9 @@ Section 6.1.
 | The breach of the undercroft is reached only from the drifted crate of B; no jump from the floor or the quay, even one that turns in the air, ends in it; the bars hold until the lever | `TestUndercroft` |
 | Without the prism neither world crosses the gap of N1, also with a switch in the air | `TestPrism` |
 | An orb is sent back only where its world cannot take it | `TestOrbReturn` |
+| The cellar: B walks it from the canal bed to the grate, which holds until the lever; A is flooded and sealed | `TestCellar` |
+| N2: no way onto the heap before the prism, also with a switch in the air; after it B reaches the light | `TestN2` |
+| The end drains every water of A, the canal and its crate | `TestEnding` |
 | No jump ends higher in a room not joined by walking | `tests/test_reach.cpp` |
 | Drawn-only things stand where no body is (houses, merlons, the aqueduct) | `TestSilhouette`, `Stage::PlotIsFree` |
 
@@ -344,9 +351,9 @@ Section 6.1.
 | 4 | the square entered from different heights; the east district as the first sample | the lock of the canal is built: the hall is cut by a canal, its quay 1.2 m higher is the foot of the ramp up, and the crate on the raised water is the step. The other entrances wait for their districts (section 13, "Districts, when") |
 | 5 | orbs never get stuck | done |
 | 6 | E2: moved in A, used in B | done: the weir and the drift of the crate; the breach of B over it |
-| 7 | a passage of B seen before it is reached | done as the undercroft: from the canal to the east rim of the square. Still open: the cellar under the courtyard between the west and the east districts (the fourth link of the ring) |
-| 8 | the north district: the prism | done: N1. Still open: N2 .. N4, the theatre and the graveyard |
-| 9 | the end | done: the end screen. Still open: the last puzzle of the cathedral (the master sluice of the aqueduct, 14.10) |
+| 7 | a passage of B seen before it is reached | done: the undercroft (from the canal to the east rim of the square) and the cellar (the fourth link of the ring, 14.11) |
+| 8 | the north district: the prism | done: N1 (14.9) and N2 (14.12). N3 (the bell tower as a room), the theatre and the graveyard are not built (14.10) |
+| 9 | the end | done: the master sluice and the end screen (14.13). The rooms T1 .. T3 inside the cathedral are not built (14.10) |
 
 The canal: 4.8 m wide; the lock wheel raises the water by 1.2 m in 2.4 s; low, the crate is 2.4 m under the quay, high,
 1.2 m (the step of the main path); in B the crate lies on the bed and the bed is walked from stairs at its east end.
@@ -370,8 +377,32 @@ it.
 
 ### 14.10 Still open
 
-| Item | Idea |
+| Item | State |
 |---|---|
-| The cellar | the fourth link of the ring: from the west lower room to the east district under the courtyard, dry in B. It must not lie under the gap, where a fall has to stay a fall |
-| North | N2 one prism moves two things, N3 the bell tower, N4 the ledge; the theatre (north-west) and the graveyard (north-east) |
-| The cathedral | the last puzzle: in A the master sluice of the aqueduct is closed, every water of the city changes at once, and the pool rises to carry the body to a high window |
+| The theatre (north-west) and the graveyard (north-east) | not built: the north hall is one district with N1 and N2 |
+| N3, the bell tower as a room | not built: the bell tower stands as a landmark, drawn only |
+| T1 .. T3 inside the cathedral | not built: the cathedral is climbed by its six ramps, and the end is the master sluice (14.13) |
+
+### 14.11 The cellar
+
+The fourth link of the ring, under the courtyard: from the canal bed of the east district (its mouth under the quay) west
+under the courtyard, then down a ramp to a grate in the east wall of the lower room of the west wing. It carries the water of
+the canal: in A it is flooded and an iron sluice panel closes each end; in B it is dry and walked. The grate opens only from
+the lower room, by a lever (a shortcut opened from the far side): seen from the cellar, the lower room lies behind bars long
+before it is reached. A hidden light lies under the courtyard. It never lies under the gap, where a fall has to stay a fall;
+its ceiling (2.2 m over its floor) is under every floor above it.
+
+### 14.12 N2: one prism moves two things
+
+A heap of fallen masonry (B) along the west wall of the north hall, 2.4 m high (out of reach from the floor), is closed by an
+iron cage of B; a wooden step of A stands at its east edge. Before the prism neither world climbs it: in A the step is there
+and the heap is not; in B the heap is there, caged. A switch in the air from the step into B is refused (the guard asks the
+whole solid table, the cage included). The prism on the floor moves the cage into A and the step into B, at once and for good:
+then B climbs the step and the heap to a hidden light in the wall. Optional: the main path does not need it.
+
+### 14.13 The end: the master sluice
+
+On the balcony at the top of the cathedral stands the master sluice of the aqueduct. Reaching the goal closes it: the
+aqueduct runs dry, the waterfall stops, and every water of A (the trench, the pool, the canal and its crate, the cellar) drains
+to its bed in 4 s. The rule of the water of 14.4 is paid back at the end: A is left without water, as B has been all along,
+and the two faces of the city meet. The end screen follows.

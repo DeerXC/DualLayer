@@ -137,7 +137,12 @@ built, like a lift, and carries a body that stands on the crate of its layer.
 lever of the undercroft, the prism of the north hall. A gate may swap its layer instead of coming and going (the portcullis that
 the prism moves). After `MechanismSet::Update`, `OrbReturn` asks of every orb that came to rest whether a body of its world
 could take it back (a place to stand within reach, in a room, out of the water); a stranded orb goes back to its start.
-`EndScreen` makes the lines of the panel shown after the goal.
+`EndScreen` makes the lines of the panel shown after the goal. `Stage::Waterworks` keeps the water of A: full until the goal is
+reached, then drained to the beds in a few seconds (the master sluice); every water is drawn each frame for that reason.
+
+The switch guard (`LayerGuard`) is asked with the whole solid table of the target layer (`Puzzle::FitsIn`): the map, the
+gates of the wings, the lifts and the crate. `Collision::PushOutOf` skips a solid whose bounding sphere the ball cannot
+reach, an exact broad phase.
 
 Single-layer boxes are drawn in their material (wood or iron in A, fallen masonry in B); red and blue are only their edges
 in their own layer and their outlines in the other (`StageHints::WorldTinted`, `AddWorldEdges`). The water of A is fed by the
@@ -167,7 +172,3 @@ and the camera live outside it and are kept. F9 runs the same path for testing.
 - Every GPU object is named `<System>.<Resource>`; every pass is a `GpuEvent` (RenderDoc, PIX, the VS graphics debugger).
 - Debug builds: the D3D11 and DXGI debug layers, a break on error under a debugger, a leak report at exit.
 - `logs/dual.log`: rooms, seals, block moves, refused pushes and switches, falls, jump heights, the clear.
-
-
-
-

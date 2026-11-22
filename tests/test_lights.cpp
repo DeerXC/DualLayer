@@ -11,6 +11,8 @@
 //      B, not reached from the rim
 //   4. the light on the bed of the canal: under the water of A at either level, taken standing in B, not reached from the quay
 //   5. the light behind the bars: taken in the undercroft, never from the rim of the square through the bars
+//   6. the light in the wall of the north hall: taken on the ledge of N2, never by a jump from the floor
+//   7. the light under the courtyard: taken in the cellar, not from the courtyard above
 // Returns 1 when a check fails.
 
 #include "scene/StageLights.h"
@@ -246,6 +248,33 @@ void TestLightBehindBars()
     CHECK(c.x > st::kHubEast + 0.5f && c.x < 14.5f && c.z > st::kBayZ0 && c.z < st::kBayZ1); // inside the undercroft
 }
 
+void TestLightInTheWall()
+{
+    const Vec3 c = st::kHiddenLights[4].centre;
+    // taken standing on the ledge of N2 at the wall; never from the floor of the north hall, by a jump in either layer (the
+    // body comes no closer to the wall than its radius)
+    CHECK(Touches({-9.0f + kBody.radius, st::kN2LedgeTop, c.z}, 4));
+    bool fromFloor = false;
+    for (float z = c.z - 1.0f; z <= c.z + 1.0f; z += 0.1f)
+    {
+        fromFloor = fromFloor || JumpReaches({-9.0f + kBody.radius, kFloorY, z}, 0.0f, 0.0f, 4);
+    }
+    CHECK(!fromFloor);
+    CHECK(c.x < -9.0f && c.x + st::kLightRadius > -9.0f); // in the wall, a little of it showing
+}
+
+void TestLightUnderTheCourtyard()
+{
+    const Vec3 c = st::kHiddenLights[5].centre;
+    CHECK(Touches({c.x, st::kCellarY, c.z}, 5)); // standing in the cellar
+    bool fromAbove = false; // the courtyard above: its floor is 2.5 m higher, and the ceiling of the cellar is between
+    for (float x = -3.0f; x <= 3.0f; x += 0.25f)
+    {
+        fromAbove = fromAbove || Touches({x, kFloorY, c.z}, 5);
+    }
+    CHECK(!fromAbove && c.y + st::kLightRadius < st::kCellarCeiling);
+}
+
 } // namespace
 
 int main()
@@ -255,7 +284,8 @@ int main()
     TestLightInThePool();
     TestLightInTheCanal();
     TestLightBehindBars();
+    TestLightInTheWall();
+    TestLightUnderTheCourtyard();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
-

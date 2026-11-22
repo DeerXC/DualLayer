@@ -11,6 +11,8 @@
 //            crate was moved, in B it is now a step where there was none (docs/LEVEL_DESIGN.md, 14.8, E2).
 // Carry:     the crate moves while the water rises or while it drifts; a body standing on the crate of its layer is carried
 //            (Player::Carry), as on a lift.
+// Drain:     at the end the aqueduct is closed (scene/Stage.h, Waterworks): SetDrained moves the water toward the bed; the
+//            crate of A comes down with it and rests on the bed.
 // Water:     never solid for the body: feet kSubmerge under the surface in A is a fall (main.cpp brings the body back).
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_stage.cpp, TestEastCanal).
 // UNITS: metres, seconds. Layers: 0 = A, 1 = B.
@@ -113,9 +115,15 @@ class Canal
     {
         return m_open;
     }
+    /// The surface now (the level of the lock, drained toward the bed at the end).
     float WaterTop() const
     {
-        return m_level;
+        return m_level - m_drained * (m_level - m_d.bed);
+    }
+    /// 0 = as the lock says, 1 = on the bed (the end: scene/Stage.h, Waterworks).
+    void SetDrained(float drained)
+    {
+        m_drained = drained < 0.0f ? 0.0f : (drained > 1.0f ? 1.0f : drained);
     }
     bool WeirOpen() const
     {
@@ -140,7 +148,8 @@ class Canal
     }
     float CrateTopA() const
     {
-        return m_level + m_d.draft;
+        const float floating = WaterTop() + m_d.draft;
+        return floating > CrateTopB() ? floating : CrateTopB(); // on the bed once the water is too low to hold it
     }
     float CrateTopB() const
     {
@@ -150,7 +159,8 @@ class Canal
     /// True when a body whose feet are at `feet` in `layer` is in the water (A only).
     bool Submerged(const Vec3& feet, int layer) const
     {
-        return layer == 0 && feet.x > m_d.x0 && feet.x < m_d.x1 && feet.z > m_d.z0 && feet.z < m_d.z1 && feet.y < m_level - kSubmerge;
+        return layer == 0 && m_drained < 1.0f && feet.x > m_d.x0 && feet.x < m_d.x1 && feet.z > m_d.z0 && feet.z < m_d.z1 &&
+               feet.y < WaterTop() - kSubmerge;
     }
 
     /// The crate of `layer`: floating in A, on the bed in B.
@@ -182,11 +192,14 @@ class Canal
         {
             return count;
         }
-        SceneObject water = shapes::Box(m_d.x0, m_d.bed, m_d.z0, m_d.x1, m_level, m_d.z1, shapes::kWaterColour, scene::kLayerA);
-        water.shineStrength = 0.9f;
-        water.shininess = 90.0f;
-        water.glow = 0.12f;
-        out[count++] = water;
+        if (WaterTop() - m_d.bed > 0.02f)
+        {
+            SceneObject water = shapes::Box(m_d.x0, m_d.bed, m_d.z0, m_d.x1, WaterTop(), m_d.z1, shapes::kWaterColour, scene::kLayerA);
+            water.shineStrength = 0.9f;
+            water.shininess = 90.0f;
+            water.glow = 0.12f;
+            out[count++] = water;
+        }
         out[count++] = Crate(0);
         out[count++] = Crate(1);
         const Vec3 w = m_d.wheel;
@@ -207,12 +220,34 @@ class Canal
         return count;
     }
 
+    /// Adds a thin gold column of light over each wheel not yet turned (both layers, as over a lever: scene/Mechanisms.h), so
+    /// that a thing to touch is seen from across the hall. Returns the new count.
+    int AddBeacons(SceneObject* out, int count, int capacity) const
+    {
+        const Vec3 wheels[2] = {m_d.wheel, m_d.weir};
+        const bool turned[2] = {m_open, m_weirOpen};
+        for (int i = 0; i < 2 && out != nullptr && count >= 0 && count < capacity; ++i)
+        {
+            if (turned[i])
+            {
+                continue;
+            }
+            const Vec3 w = wheels[i];
+            SceneObject o = shapes::Box(w.x - 0.03f, w.y + 0.4f, w.z - 0.03f, w.x + 0.03f, w.y + 2.8f, w.z + 0.03f, shapes::Rgb{1.0f, 0.82f, 0.36f},
+                                        scene::kLayerBoth);
+            o.shineStrength = 0.0f;
+            o.glow = 1.6f;
+            out[count++] = o;
+        }
+        return count;
+    }
+
     /// Adds the surface of the water (layer A) to a solid table for ORBS: they float on the canal as on the other waters.
     int AddWaterForOrbs(SceneObject* out, int count, int capacity) const
     {
-        if (out != nullptr && count >= 0 && count < capacity)
+        if (out != nullptr && count >= 0 && count < capacity && m_drained < 1.0f)
         {
-            out[count++] = shapes::Box(m_d.x0, m_level - 0.1f, m_d.z0, m_d.x1, m_level, m_d.z1, shapes::kWaterColour, scene::kLayerA);
+            out[count++] = shapes::Box(m_d.x0, WaterTop() - 0.1f, m_d.z0, m_d.x1, WaterTop(), m_d.z1, shapes::kWaterColour, scene::kLayerA);
         }
         return count;
     }
@@ -262,6 +297,7 @@ class Canal
     Desc m_d{};
     float m_level = 0.0f;
     float m_x = 0.0f;
+    float m_drained = 0.0f;
     bool m_open = false;
     bool m_weirOpen = false;
 };

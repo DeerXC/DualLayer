@@ -135,11 +135,11 @@ seen".
 | E-26 | E2: lock, crate, quay; the weir at the west end of the quay; in B into the canal east of the parapet, onto the crate, into the breach; the lever; out onto the rim | the weir turns only in A and the crate drifts west; in B the crate lies under the breach; the bars open and stay open; R in the hall puts the crate back |
 | E-27 | the north hall, landing 2: walk west in A, in B; the crystal; then west in A | A: the portcullis stops the walk on the bridge; B: no bridge; on the crystal the portcullis moves into B (its outline shows in A); A walks to the seal |
 | E-28 | reach the goal | after the rings, a panel: CLEAR, the time, the hidden lights, the falls |
+| E-29 | the canal bed in B: into the mouth under the quay, along the cellar, down to the grate; then the lower room of the west wing, the lever, back through the cellar | the grate holds and the lower room is seen through it; the lever opens it for good; a hidden light under the courtyard; in A both ends are closed by iron panels and the cellar is under water |
+| E-30 | the north hall: the heap by the west wall in A and in B; the second crystal on the floor; then B | before: in A a wooden step and no heap, in B a caged heap; after: the cage is in A and the step in B; B climbs to a light in the wall |
+| E-31 | reach the goal and look down from the balcony | the master sluice turns gold; the aqueduct and the waterfall stop; the pool, the trench and the canal drain in about 4 s; the crate settles on the bed |
+| E-32 | the east hall before the wheels are turned | a gold column of light over each wheel; R on the quay or the bed puts the canal back |
 | E-23 | anywhere: boxes of one world | wood or iron in A, fallen masonry in B, never plain red or blue; a thin red (A) or blue (B) edge at their base in their own world and an outline in the other; the aqueduct over the east of the square, its waterfall into the pool in A, fallen in B |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
-
-
-
-

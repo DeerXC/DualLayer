@@ -1020,5 +1020,3 @@ std::wstring Models::StatusLine() const
 }
 
 } // namespace dl
-
-

@@ -310,4 +310,3 @@ void Device::Shutdown()
     m_factory.Reset();
 }
 } // namespace dl
-

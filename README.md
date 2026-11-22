@@ -9,8 +9,9 @@ in a guardhouse on the town wall and teaches its one rule in seven wordless beat
 round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in the
 other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers), the
 lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other)
-and the first prism of the north district (a wall moved into the other world) are playable; the rest of the north district
-and the last puzzle of the cathedral are being built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+two prisms of the north district (a wall moved into the other world; two things moved at once), a cellar that closes the
+ring of districts, and an end in which the master sluice drains every water of one world are playable. The theatre, the
+graveyard and the rooms inside the cathedral are still to be built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
 
@@ -22,8 +23,8 @@ and the last puzzle of the cathedral are being built from [docs/LEVEL_DESIGN.md]
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
   cannot drift apart.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
-  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4700 places to
-  stand, about 108000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
+  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4900 places to
+  stand, about 135000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
 - **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
   falls through a floor that exists only in the other layer. The west wing is built on that: an orb that lays a bridge of
@@ -85,7 +86,3 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 
 Not decided yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but
 not reused.
-
-
-
-

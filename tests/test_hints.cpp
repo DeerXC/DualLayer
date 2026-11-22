@@ -548,7 +548,7 @@ void TestWholeFrameFits()
     const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, the orbs with their marks,
                                                            // a column per trigger, the previews of the gates
     const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + 2 * st::kGhostCount * st::kBarsPerGhost +
-                        9 /* the canal */ + st::kAnchorCount + 2 /* the respawn rings */ + moving * st::kBarsPerGhost /* own edges */ +
+                        9 /* the canal */ + 2 /* its beacons */ + st::kWaterDrawCount + st::kAnchorCount + 2 /* the respawn rings */ + moving * st::kBarsPerGhost /* own edges */ +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
                         st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
@@ -573,7 +573,3 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
-
-
-
-

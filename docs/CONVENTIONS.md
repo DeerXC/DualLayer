@@ -35,6 +35,7 @@ Decided once, used everywhere.
 | Fall line | per room: 6 m below the bottom of the room (`Stage::FallLine`); the lowest point of an orb is `Stage::kFallY` | `TestFallLines` |
 | Moving things | exist in both layers; only where they are may differ (the crate of the canal floats in A, lies on the bed in B); moved in one, they move in both (the drift) | `Canal::Crate` |
 | Prism | belongs to no world: worked in either layer, drawn the same in both, white; what it moves changes world, it does not come and go | `TriggerKind::Prism`, `Gate::swapsLayer` |
+| Switch guard | a switch is refused when the body would overlap anything solid of the target layer (the whole table) | `Puzzle::FitsIn` |
 | Orbs | never stuck: an orb at rest that no body of its world can take back goes to its start | `scene/OrbReturn.h` |
 | Puzzle grid | the purple block lives on a 1 m grid: cell (x, z) has its centre at world (x, z), on the floor. A stage says which cells the block may use (`StageDesc::minCell` .. `maxCell`) | `scene/Puzzle.h` |
 | Purple block | the only thing that is solid in BOTH layers and can move. One move = one cell in 0.25 s, after 0.2 s of walking straight at a face (within about 37 degrees) from the floor. The next cell must be free in both layers and must not hold the door; a refused push names what was in the way (`LastBlocker`) and it flashes for 0.6 s, because it may be in the layer that is not on the screen | `Puzzle::Update`, `tests/test_puzzle.cpp` |
@@ -47,5 +48,3 @@ Decided once, used everywhere.
 | Feature level | 11_0 minimum (11_1 used when present) | |
 | File encoding | UTF-8, no BOM, LF line ends (`.gitattributes`, `.editorconfig`) | |
 | Naming | types and functions `PascalCase`, variables `camelCase`, members `m_`, constants `kPascalCase`, `enum class` | `.clang-format` formats, it does not rename |
-
-

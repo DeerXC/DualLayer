@@ -272,6 +272,13 @@ class Puzzle
     {
         int count = 0;
         const scene::SceneObject* solids = Solids(layer, count);
+        return FitsIn(player, layer, spinSeconds, solids, count);
+    }
+
+    /// The same against any solid table of `layer` (the program gives the whole one: the map, the gates of the wings, the lifts,
+    /// the crate of the canal; a switch into any of them is refused).
+    static bool FitsIn(const Player& player, int layer, float spinSeconds, const scene::SceneObject* solids, int count)
+    {
         const float radius = player.GetSettings().radius;
         for (int i = 0; i < 3; ++i)
         {
@@ -492,4 +499,3 @@ class LayerGuard
 };
 
 } // namespace dl::puzzle
-

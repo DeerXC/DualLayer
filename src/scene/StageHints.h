@@ -384,5 +384,3 @@ inline int AddClearRings(SceneObject* out, int count, int capacity, float clearS
 }
 
 } // namespace dl::stage
-
-

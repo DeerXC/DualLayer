@@ -27,6 +27,10 @@
 //   9. the undercroft (E2): the weir, the drift, the breach of B over the crate, the lever and the bars; the ways round
 //  10. the prism (N1): neither world crosses the gap without it, A walks over with it
 //  11. orbs: an orb at rest out of reach of its world goes back to its start, one in reach stays
+//  12. the cellar: B from the canal bed to the grate, which holds until the lever in the lower room; then the way through;
+//      A flooded and closed by its sluice panels
+//  13. N2: no way onto the ledge before the prism (also with a switch in the air); after it, B by the step to the light
+//  14. the end: the master sluice drains every water of A, the canal and its crate
 //   6. the rooms: every entry is in its own room and is a place to stand in both layers; the courtyard entry is a cell the
 //      block can never be in
 // The walks between the points of a path are played frame by frame (the body steers to each point). Returns 1 when a check
@@ -36,6 +40,7 @@
 #include "scene/CityParts.h"
 #include "scene/OrbReturn.h"
 #include "scene/Stage.h"
+#include "scene/StageLights.h"
 #include "scene/WestWing.h"
 
 #include <cmath>
@@ -103,7 +108,7 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 3;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 8;
 
 int Room(const char* name)
 {
@@ -273,7 +278,8 @@ struct World
     bool Switch(int to)
     {
         dl::puzzle::LayerGuard guard;
-        const bool fits = puzzle.BodyFits(player, to, spin);
+        BuildSolids(); // the whole solid table of the target layer, as the program checks it
+        const bool fits = dl::puzzle::Puzzle::FitsIn(player, to, spin, solids[to], counts[to]);
         if (guard.OnSwitchRequest(layer, false, fits) != dl::puzzle::LayerGuard::Action::Switch)
         {
             return false;
@@ -1277,6 +1283,11 @@ void TestPrism()
     CHECK(w.WalkPath({{-7.5f, kFloorY, 45.0f}}) && w.At(-7.5f, y, 45.0f) && w.seals.Taken(2));
     World back = w; // and back over the bridge
     CHECK(back.WalkPath({{1.5f, kFloorY, 45.0f}}) && back.At(1.5f, y, 45.0f));
+    // a switch into a gate is refused like a switch into a wall (the guard asks the whole solid table): standing on the bridge
+    // of A where the portcullis now is in B, the switch to B does not happen
+    World g = w;
+    g.PlaceFeet({0.5f * (st::kPortcullisX0 + st::kPortcullisX1), y, 45.0f});
+    CHECK(g.layer == 0 && !g.Switch(1) && g.layer == 0);
 }
 
 void TestOrbReturn()
@@ -1335,6 +1346,182 @@ void TestOrbReturn()
     CHECK(st::OrbStranded({st::kHubEast + 0.25f, st::kHubWallTop + dl::mech::kOrbRadius, 24.0f}, 0, w.solids[0], w.counts[0], w.canal));
     CHECK(st::OrbStranded({0.0f, st::kSquareLowY + dl::mech::kOrbRadius, 31.0f}, 0, w.solids[0], w.counts[0], w.canal)); // in the pool, A
     CHECK(!st::OrbStranded({5.6f, st::kSquareLowY + dl::mech::kOrbRadius, 31.0f}, 1, w.solids[1], w.counts[1], w.canal)); // dry, B
+}
+
+
+/// The cellar: the fourth link of the ring (docs/LEVEL_DESIGN.md, 14.8).
+void TestCellar()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const Vec3 W{-1.0f, 0.0f, 0.0f};
+    // the numbers: high enough to walk, under every floor above it, under the water of A, the grate out of reach of the lever
+    CHECK(st::kCellarCeiling - st::kCellarY > Player::Settings{}.eyeHeight + 0.35f + 0.25f);
+    CHECK(st::kCellarCeiling + 0.2f <= kFloorY - 0.1f + 1e-4f);
+    CHECK(st::kCellarWater <= st::MakeCanal().highTop + 1e-4f && st::kCellarWater > st::kCellarY + 1.85f);
+    CHECK(st::kCellarSouthX1 <= -3.0f - 1.0f && st::kCellarZ0 >= st::kCourtSouth); // never under the gap
+    // B: from the canal bed into the mouth, along the cellar, down the ramp, to the grate: it holds before the lever
+    World b = hub;
+    b.layer = 1;
+    b.PlaceFeet({20.0f, st::kCanalBed, 25.6f});
+    CHECK(b.player.Grounded() && st::RoomAt(b.player.Feet()) == Room("canal bed"));
+    CHECK(b.WalkPath({{20.0f, kFloorY, 23.0f}, {20.0f, kFloorY, 15.0f}}) && st::RoomAt(b.player.Feet()) == Room("cellar"));
+    CHECK(b.WalkPath({{-7.0f, kFloorY, 15.0f}, {-7.0f, kFloorY, 10.0f}, {-9.0f, kFloorY, 10.0f}}) && b.At(-9.0f, st::kWestLowY, 10.0f, 0.4f));
+    b.Run(1.5f, Keys(1.0f), W);
+    CHECK(b.player.Feet().x > -9.5f + 0.3f && !b.mech.Active(st::kCellarLever)); // the bars hold; the lever is out of reach
+    // A: the cellar is flooded (a body put in it is under the water); the sluice panels hold the water at both ends
+    World a = hub;
+    a.layer = 0;
+    a.PlaceFeet({0.0f, st::kCellarY, 15.0f});
+    CHECK(a.InWater());
+    // the lever inside the lower room opens the grate for good: then the cellar is a shortcut, in B, to the canal and up
+    World w = hub;
+    w.layer = 1;
+    w.PlaceFeet({-12.0f, st::kWestLowY, 9.0f});
+    CHECK(w.WalkPath({{-11.0f, kFloorY, 8.6f}}) && w.mech.Active(st::kCellarLever));
+    CHECK(!w.mech.GatePresent(st::kCellarGrate) && !w.mech.GatePresent(st::kCellarGrate + 4));
+    {
+        World a2 = w; // in A the iron panel still closes it
+        a2.layer = 0;
+        a2.PlaceFeet({-11.0f, st::kWestLowY, 10.0f});
+        a2.Run(1.5f, Keys(1.0f), kEast);
+        CHECK(a2.player.Feet().x < -10.0f - 0.3f);
+    }
+    CHECK(w.WalkPath({{-11.0f, kFloorY, 10.0f}, {-7.0f, kFloorY, 10.0f}, {-7.0f, kFloorY, 15.0f}}) && w.At(-7.0f, st::kCellarY, 15.0f, 0.4f));
+    st::LightSet lights;
+    CHECK(w.WalkPath({{-1.0f, kFloorY, 15.0f}}));
+    for (int i = 0; i < 120; ++i)
+    {
+        w.Frame(Keys(1.0f), kEast);
+        lights.Collect(w.player);
+    }
+    CHECK(lights.Taken(5)); // the light under the courtyard
+    CHECK(w.WalkPath({{20.0f, kFloorY, 15.0f}, {20.0f, kFloorY, 23.5f}, {20.0f, kFloorY, 25.6f}}) && st::RoomAt(w.player.Feet()) == Room("canal bed"));
+    CHECK(w.WalkPath({{23.2f, kFloorY, 25.15f}, {23.2f, kFloorY, 29.3f}, {23.2f, kFloorY, 31.0f}}) && st::RoomAt(w.player.Feet()) == Room("east hall"));
+    // the mouth under the quay: in A the sluice panel holds the canal back
+    World m = hub;
+    m.layer = 0;
+    m.PlaceFeet({20.0f, st::kCellarY, 23.0f});
+    m.Run(1.0f, Keys(1.0f), kNorth);
+    CHECK(m.player.Feet().z < st::kCanalSouth - 0.2f - 0.3f);
+}
+
+/// N2: one prism moves two things (the cage of the ledge out of B, the step into B).
+void TestN2()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const Vec3 W{-1.0f, 0.0f, 0.0f};
+    const float ledge = st::kN2LedgeTop;
+    const float stepTop = kFloorY + 1.2f;
+    const auto takesLight = [](World& t, float seconds, const Player::Input& in, const Vec3& look) {
+        st::LightSet set;
+        const int frames = static_cast<int>(seconds / kDt);
+        for (int i = 0; i < frames; ++i)
+        {
+            t.Frame(in, look);
+            set.Collect(t.player);
+            if (set.Taken(4))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    // the numbers: the ledge is out of reach from the floor, a step from the step; the light is in the wall
+    CHECK(ledge - kFloorY >= 2.3f && ledge - stepTop <= 1.2f + 1e-4f);
+    // before the prism: in A the step is there but the ledge is not; from the step, no jump (with or without a switch to B in
+    // the air: the cage) ends on the ledge or touches the light
+    for (float runUp : {0.0f, 0.1f, 0.2f})
+    {
+        for (float after : {-1.0f, 0.15f, 0.3f, 0.45f})
+        {
+            for (float z : {57.4f, 57.7f, 58.0f})
+            {
+                World a = hub;
+                a.layer = 0;
+                a.PlaceFeet({-4.3f, stepTop, z});
+                CHECK(a.player.Grounded() && Near(a.player.Feet().y, stepTop, 0.03f));
+                a.Run(runUp, Keys(1.0f), W);
+                a.Frame(Keys(1.0f, true), W);
+                st::LightSet set;
+                bool switched = false;
+                bool high = false;
+                for (int i = 0; i < 240; ++i)
+                {
+                    if (after > 0.0f && !switched && static_cast<float>(i) * kDt >= after)
+                    {
+                        switched = a.Switch(1);
+                    }
+                    a.Frame(Keys(1.0f), W);
+                    set.Collect(a.player);
+                    high = high || (a.player.Grounded() && a.player.Feet().y > ledge - 0.1f);
+                }
+                CHECK(!high && !set.Taken(4));
+            }
+        }
+    }
+    {
+        World f = hub; // nor a jump from the floor, in either layer, under the light
+        for (int layer = 0; layer < 2; ++layer)
+        {
+            f.layer = layer;
+            f.PlaceFeet({-4.6f, kFloorY, 57.7f});
+            CHECK(!takesLight(f, 1.2f, Keys(1.0f, true), W));
+        }
+    }
+    // the prism, stepped on in A: the cage goes into A, the step into B, both for good
+    World w = hub;
+    w.layer = 0;
+    w.PlaceFeet({-4.0f, kFloorY, 51.0f});
+    CHECK(w.mech.Active(st::kN2Prism) && w.mech.GateBox(st::kN2Cage).layerMask == kLayerA && w.mech.GateBox(st::kN2Step).layerMask == kLayerB);
+    CHECK(!w.mech.Active(st::kNorthPrism)); // (the prism of N1 is another one)
+    // then in B: onto the step, onto the ledge, to the wall: the light
+    CHECK(w.Switch(1));
+    CHECK(w.WalkPath({{-3.0f, kFloorY, 57.7f}}));
+    CHECK(w.JumpAlong(W, 3.4f, 4.6f) && Near(w.player.Feet().y, stepTop, 0.05f));
+    CHECK(w.JumpAlong(W, 4.4f, 6.0f) && Near(w.player.Feet().y, ledge, 0.05f));
+    CHECK(takesLight(w, 1.5f, Keys(1.0f), W));
+}
+
+/// The end: the master sluice drains every water of A (docs/LEVEL_DESIGN.md, 14.10).
+void TestEnding()
+{
+    st::Waterworks works;
+    const Vec3 pool{0.0f, st::kSquareLowY, 36.0f};
+    CHECK(st::Submerged(pool, 0, works) && !st::Submerged(pool, 1, works));
+    static SceneObject table[64] = {};
+    CHECK(st::AddWaterDraw(works, table, 0, 64) == st::kWaterDrawCount);
+    CHECK(st::AddWaterDraw(works, table, 60, 64) == 60); // no room: nothing
+    works.Update(10.0f); // not closed: nothing drains
+    CHECK(works.Drained() == 0.0f);
+    works.Close();
+    works.Update(0.5f * st::Waterworks::kDrainSeconds);
+    CHECK(Near(works.Drained(), 0.5f, 1e-4f) && st::Submerged(pool, 0, works));
+    works.Update(st::Waterworks::kDrainSeconds);
+    CHECK(works.Drained() == 1.0f && !st::Submerged(pool, 0, works) && !st::Submerged({0.0f, st::kCellarY, 15.0f}, 0, works));
+    const int n = st::AddWaterDraw(works, table, 0, 64);
+    CHECK(n == 3 && st::SameRgb(table[1], st::kGold)); // only the master sluice is left, its wheel gold
+    SceneObject orbWater[8] = {};
+    CHECK(st::AddWaterForOrbs(orbWater, 0, 8, works) == 0);
+    dl::canal::Canal canal;
+    canal.Init(st::MakeCanal());
+    canal.SetDrained(1.0f);
+    const dl::canal::Desc d = st::MakeCanal();
+    CHECK(Near(canal.WaterTop(), d.bed, 1e-5f) && Near(canal.CrateTopA(), canal.CrateTopB(), 1e-5f));
+    CHECK(!canal.Submerged({20.0f, d.bed, 27.0f}, 0));
+    SceneObject drawn[16] = {};
+    const int canalDrawn = canal.AddDraw(drawn, 0, 16);
+    bool water = false;
+    for (int i = 0; i < canalDrawn; ++i)
+    {
+        water = water || st::SameRgb(drawn[i], st::Rgb{dl::shapes::kWaterColour.r, dl::shapes::kWaterColour.g, dl::shapes::kWaterColour.b});
+    }
+    CHECK(!water);
+    SceneObject beacons[4] = {};
+    CHECK(canal.AddBeacons(beacons, 0, 4) == 2 && beacons[0].layerMask == kLayerBoth); // the two wheels, not yet turned
 }
 
 /// A point that touches the lock wheel, as a body would (for the test of the carry, which needs the wheel turned while the
@@ -1568,6 +1755,10 @@ float WaterTopOf(std::string_view name)
     {
         return st::MakeCanal().highTop;
     }
+    if (name == "the cellar")
+    {
+        return st::kCellarWater;
+    }
     if (name == "the aqueduct")
     {
         return st::kAqueductBottom;
@@ -1578,7 +1769,7 @@ float WaterTopOf(std::string_view name)
 void TestWater()
 {
     // every water of A is fed, through a chain, by the aqueduct; each feed runs downhill
-    CHECK(st::kWaterFeedCount == st::kWaterCount + 1); // the static waters and the canal
+    CHECK(st::kWaterFeedCount == st::kWaterCount + 2); // the static waters, the canal and the cellar
     for (const st::WaterFeed& f : st::kWaterFeeds)
     {
         CHECK(Near(f.top, WaterTopOf(f.water), 1e-4f));
@@ -1599,8 +1790,6 @@ void TestWater()
     // the aqueduct: whole in A from its spout to its source; in B broken by more than a running jump. No water in B anywhere
     float coveredA = 0.0f;
     float coveredB = 0.0f;
-    int waterInB = 0;
-    int fallsInA = 0;
     for (const SceneObject& o : st::kDecor)
     {
         const bool channelFloor = Near(o.position[1] - 0.5f * o.scale[1], st::kAqueductBottom, 1e-4f) && Near(o.scale[1], 0.2f, 1e-4f) &&
@@ -1610,7 +1799,16 @@ void TestWater()
             coveredA += (o.layerMask & kLayerA) != 0u ? o.scale[0] : 0.0f;
             coveredB += (o.layerMask & kLayerB) != 0u ? o.scale[0] : 0.0f;
         }
-        const bool water = st::SameRgb(o, st::kWaterRgb);
+        CHECK(!st::SameRgb(o, st::kWaterRgb)); // no water is baked: it drains at the end
+    }
+    static SceneObject waterTable[64] = {};
+    const int nWater = st::AddWaterDraw(st::Waterworks{}, waterTable, 0, 64);
+    int waterInB = 0;
+    int fallsInA = 0;
+    for (int i = 0; i < nWater; ++i)
+    {
+        const SceneObject& o = waterTable[i];
+        const bool water = st::SameRgb(o, st::kWaterRgb) || st::SameRgb(o, st::Rgb{dl::shapes::kWaterColour.r, dl::shapes::kWaterColour.g, dl::shapes::kWaterColour.b});
         waterInB += (water && (o.layerMask & kLayerB) != 0u) ? 1 : 0;
         fallsInA += (water && o.layerMask == kLayerA && o.scale[1] > 5.0f) ? 1 : 0;
     }
@@ -1734,6 +1932,9 @@ int main()
     TestUndercroft();
     TestPrism();
     TestOrbReturn();
+    TestCellar();
+    TestN2();
+    TestEnding();
     TestAnchors();
     TestFallLines();
     TestWater();
@@ -1744,7 +1945,3 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
-
-
-
-

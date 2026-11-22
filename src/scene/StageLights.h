@@ -13,6 +13,10 @@
 //   3 "behind the bars"   in the undercroft, seen through its bars from the east rim of the square. The bars open only
 //                         from inside; the way in is the breach of B at the west end of the canal, over the crate that the weir
 //                         let drift there (E2): moved in A, used in B.
+//   4 "in the wall of the north hall"  buried in the west wall over the ledge of N2: only a body standing on the ledge in B
+//                         reaches it, after the prism has moved the cage out of B and the step into B.
+//   5 "under the courtyard"  in the middle of the cellar, under the puzzle that the player solved at the start: the place is
+//                         known, the side is new.
 // A light is taken when one of the three balls of the body touches it. Taken lights stay taken for the rest of the run (R
 // and a fall do not bring them back). With every light taken, the goal light changes its colour.
 // Drawn:     every light not yet taken, in both layers, as a small turning sphere. Never solid.
@@ -44,6 +48,8 @@ inline constexpr HiddenLight kHiddenLights[] = {
     {{0.0f, kSquareLowY + 0.3f, 36.25f}, "the floor of the pool"},
     {{15.7f, kCanalBed + 0.25f, kCanalSouth + 0.6f}, "the bed of the canal"},
     {{12.5f, kUndercroftY + 0.6f, 0.5f * (kBayZ0 + kBayZ1)}, "behind the bars"},
+    {{-9.15f, kN2LedgeTop + 1.6f, 57.7f}, "in the wall of the north hall"},
+    {{0.0f, kCellarY + 0.6f, 0.5f * (kCellarZ0 + kCellarZ1)}, "under the courtyard"},
 };
 inline constexpr int kHiddenLightCount = static_cast<int>(sizeof(kHiddenLights) / sizeof(kHiddenLights[0]));
 
@@ -161,5 +167,3 @@ inline bool RecolourGoal(SceneObject* out, int count)
 }
 
 } // namespace dl::stage
-
-

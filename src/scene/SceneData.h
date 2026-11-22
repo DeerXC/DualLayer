@@ -142,4 +142,3 @@ static_assert(SceneIsSupported(), "scene/SceneData.h: a sphere / torus must be s
                                   "every scale must be above 0, and every layer mask must be A, B or both");
 
 } // namespace dl::scene
-

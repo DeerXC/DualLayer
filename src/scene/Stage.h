@@ -312,6 +312,32 @@ inline constexpr float kBreachTop = 2.2f;            // the top of the breach an
 inline constexpr float kCanalParapetX1 = 18.6f;      // the parapets on the west end of the hall floor and of the quay:
                                                      // no jump from them, even one that turns in the air, ends in the breach
 inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
+// the cellar (docs/LEVEL_DESIGN.md, 14.8): the fourth link of the ring, from the canal bed of the east district west under the
+// courtyard to the lower room of the west wing. It carries the water of the canal: in A it is flooded and an iron sluice panel
+// closes each end; in B it is dry. Its west end is a grate opened by a lever inside the lower room (a shortcut opened from the
+// far side). It never lies under the gap, where a fall has to stay a fall. Legs: east x 19 .. 21 (z 14 .. 24.8, under the
+// quay), middle z 14 .. 16 (x -8 .. 21, under the courtyard), south x -8 .. -6 (z 9 .. 16, a ramp down to the floor of the
+// lower room), west z 9 .. 11 (x -9.5 .. -8, to the grate)
+inline constexpr float kCellarY = kCanalBed;          // -3.5: the floor of the east and the middle legs, level with the canal bed
+inline constexpr float kCellarCeiling = kFloorY - 0.3f; // -1.3: the underside of its ceiling, 2.2 m over its floor
+inline constexpr float kCellarWater = kFloorY - 0.6f; // -1.6 (A): the canal at its high level, under the ceiling
+inline constexpr float kCellarEastX0 = 19.0f;
+inline constexpr float kCellarEastX1 = 21.0f;
+inline constexpr float kCellarZ0 = 14.0f;              // the middle leg
+inline constexpr float kCellarZ1 = 16.0f;
+inline constexpr float kCellarSouthX0 = -8.0f;         // the south leg
+inline constexpr float kCellarSouthX1 = -6.0f;
+inline constexpr float kCellarWestZ0 = 9.0f;           // the west leg and the grate
+inline constexpr float kCellarWestZ1 = 11.0f;
+inline constexpr float kCellarGrateTop = kWestLowY + 2.2f; // -2.4: the top of the opening in the east wall of the lower room
+// N2 (docs/LEVEL_DESIGN.md, 14.9): one prism moves two things. A ledge of B along the west wall of the north hall (top 2.4 m
+// over the floor, out of reach) is closed by a cage of B; a step of A stands at its east edge. The prism moves the cage into A
+// and the step into B at once: then B climbs the step and the ledge to a hidden light buried in the wall
+inline constexpr float kN2LedgeX1 = -5.0f;             // the ledge, x -9 .. -5, z 56.6 .. 58.8
+inline constexpr float kN2LedgeZ0 = 56.6f;
+inline constexpr float kN2LedgeZ1 = 58.8f;
+inline constexpr float kN2LedgeTop = kFloorY + 2.4f;   // 1.4
+inline constexpr float kN2CageTop = kN2LedgeTop + 2.6f;
 // the square (step 3b): the hub is a sunken square. A rim at the level of the streets (kFloorY) runs along its walls and
 // holds every opening; inside it a pool 1.5 m deep surrounds the cathedral. In A the pool is full (water: a body that goes
 // in comes back at the entry of the square); in B the storm has drained it and its floor can be walked. A causeway crosses
@@ -577,7 +603,9 @@ inline constexpr SceneObject kFixed[] = {
     Floor(-24.0f, 2.0f, -10.0f, kWestDoorSouth, kWestLowY),
     Wall(-24.5f, kWestLowY, 1.5f, -24.0f, kCityWallTop, kWestDoorNorth),
     Wall(-24.5f, kWestLowY, 1.5f, -9.5f, kCityWallTop, 2.0f),
-    Wall(-10.0f, kWestLowY, 2.0f, -9.5f, kCityWallTop, kWestDoorSouth),
+    Wall(-10.0f, kWestLowY, 2.0f, -9.5f, kCityWallTop, kCellarWestZ0),                                // its east wall, with the
+    Wall(-10.0f, kWestLowY, kCellarWestZ1, -9.5f, kCityWallTop, kWestDoorSouth),                      // grate of the cellar
+    Wall(-10.0f, kCellarGrateTop, kCellarWestZ0, -9.5f, kCityWallTop, kCellarWestZ1),
     Wall(-24.0f, kWestLowY, kWestDoorSouth, -22.5f, kCityWallTop, kWestDoorNorth),                     // its north edge, beside
     Wall(-17.5f, kWestLowY, kWestDoorSouth, -12.5f, kCityWallTop, kWestDoorNorth),                     // and between the ramps
     // W3's mezzanine: a floor 3 m over the lower room, reached by a ramp along its east side; over the vault it has a hole
@@ -601,7 +629,10 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kHubEast + 0.5f, kFloorY, kWingDoorZ1, 15.0f, kCityWallTop, kWingDoorZ1 + 0.5f),
     // the hall, cut by the canal (scene/Canal.h): the floor north of it and the quay south of it are solid down to its bed
     Span(15.0f, kCanalBed - 0.2f, kCanalNorth, 24.0f, kFloorY, 40.0f, kGrey, kLayerBoth, 1.0f),
-    Span(15.0f, kCanalBed - 0.2f, 22.0f, 24.0f, kQuayY, kCanalSouth, kGrey, kLayerBoth, 1.0f),
+    Span(15.0f, kCanalBed - 0.2f, 22.0f, kCellarEastX0, kQuayY, kCanalSouth, kGrey, kLayerBoth, 1.0f), // the quay, over
+    Span(kCellarEastX1, kCanalBed - 0.2f, 22.0f, 24.0f, kQuayY, kCanalSouth, kGrey, kLayerBoth, 1.0f), // the east leg of the
+    Span(kCellarEastX0, kCellarCeiling, 22.0f, kCellarEastX1, kQuayY, kCanalSouth, kGrey, kLayerBoth, 1.0f), // cellar
+    Span(kCellarEastX0, kCanalBed - 0.2f, 22.0f, kCellarEastX1, kCanalBed, kCanalSouth, kGrey, kLayerBoth, 1.0f),
     Floor(15.0f, kCanalSouth, 24.0f, kCanalNorth, kCanalBed),
     Wall(24.0f, kCanalBed - 0.2f, 21.5f, 24.5f, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 40.0f, kStairsX0, kCityWallTop, 40.5f),                                      // north, with the door of
@@ -630,6 +661,26 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kCourtEast - 0.5f, kEastHighY, 1.5f, kCourtEast, kEastHighY + kParapet, kEastRoomNorth),
     Wall(kCourtEast + 1.5f, kEastHighY, kEastRoomNorth, 17.5f, kEastHighY + kParapet, kEastRoomNorth + 0.5f),
     Wall(22.5f, kEastHighY, kEastRoomNorth, 24.5f, kEastHighY + kParapet, kEastRoomNorth + 0.5f),
+    // ---- the cellar (B: dry; A: flooded, closed by iron sluice panels): the floors, the walls, the ceilings of its legs
+    Span(kCellarEastX0, kCellarY - 0.2f, kCellarZ0, kCellarEastX1, kCellarY, 22.0f, kGrey, kLayerBoth, 1.0f),           // east leg
+    Span(kCellarSouthX0, kCellarY - 0.2f, kCellarZ0, kCellarEastX0, kCellarY, kCellarZ1, kGrey, kLayerBoth, 1.0f),     // middle leg
+    Span(-9.5f, kWestLowY - 0.2f, kCellarWestZ0, kCellarSouthX1, kWestLowY, kCellarWestZ1, kGrey, kLayerBoth, 1.0f), // west leg
+    Wall(kCellarEastX0 - 0.2f, kCellarY - 0.2f, kCellarZ1, kCellarEastX0, kCellarCeiling, 22.0f),
+    Wall(kCellarEastX1, kCellarY - 0.2f, kCellarZ0 - 0.2f, kCellarEastX1 + 0.2f, kCellarCeiling, 22.0f),
+    Wall(kCellarSouthX1, kCellarY - 0.2f, kCellarZ0 - 0.2f, kCellarEastX1, kCellarCeiling, kCellarZ0),                 // middle, south
+    Wall(kCellarSouthX0 - 0.2f, kCellarY - 0.2f, kCellarZ1, kCellarEastX0 - 0.2f, kCellarCeiling, kCellarZ1 + 0.2f),   // middle, north
+    Wall(kCellarSouthX0 - 0.2f, kWestLowY - 0.2f, kCellarWestZ1, kCellarSouthX0, kCellarCeiling, kCellarZ1 + 0.2f),   // south leg, west
+    Wall(kCellarSouthX1, kWestLowY - 0.2f, kCellarWestZ0 - 0.2f, kCellarSouthX1 + 0.2f, kCellarCeiling, kCellarZ0 - 0.2f), // and east
+    Wall(-9.5f, kWestLowY - 0.2f, kCellarWestZ0 - 0.2f, kCellarSouthX1, kCellarCeiling, kCellarWestZ0),               // west leg
+    Wall(-9.5f, kWestLowY - 0.2f, kCellarWestZ1, kCellarSouthX0 - 0.2f, kCellarCeiling, kCellarWestZ1 + 0.2f),
+    Wall(kCellarEastX0 - 0.2f, kCellarCeiling, kCellarZ1, kCellarEastX1 + 0.2f, kCellarCeiling + 0.2f, 22.0f),         // the ceilings
+    Wall(kCellarSouthX0 - 0.2f, kCellarCeiling, kCellarZ0 - 0.2f, kCellarEastX1 + 0.2f, kCellarCeiling + 0.2f, kCellarZ1 + 0.2f),
+    Wall(kCellarSouthX0 - 0.2f, kCellarCeiling, kCellarWestZ0 - 0.2f, kCellarSouthX1 + 0.2f, kCellarCeiling + 0.2f, kCellarZ0 - 0.2f),
+    Wall(-9.5f, kCellarCeiling, kCellarWestZ0 - 0.2f, kCellarSouthX0 - 0.2f, kCellarCeiling + 0.2f, kCellarWestZ1 + 0.2f),
+    Span(kCellarEastX0, kCellarY, kCanalSouth - 0.2f, kCellarEastX1, kCellarCeiling, kCanalSouth, kIron, kLayerA),    // the sluice panels (A)
+    Span(-10.0f, kWestLowY, kCellarWestZ0, -9.5f, kCellarGrateTop, kCellarWestZ1, kIron, kLayerA),
+    // ---- N2: the ledge of B along the west wall of the north hall (its cage and its step are gates: scene/CityParts.h)
+    Span(-9.0f, kFloorY, kN2LedgeZ0, kN2LedgeX1, kN2LedgeTop, kN2LedgeZ1, kDebris, kLayerB),
     // ---- the north wing (UP): the corridor, the hall, the two landings, the ledge through the window into the hub
     Floor(-1.0f, kHubNorth + 0.5f, 1.0f, 44.0f, kFloorY),
     Wall(-1.5f, kFloorY, kHubNorth + 0.5f, -1.0f, kCityWallTop, kNorthBreachZ0),                       // its west wall, with the
@@ -687,6 +738,7 @@ inline const SceneObject kRamps[] = {
     Ramp(-12.0f, -10.0f, 12.0f, kWestLowY, 22.0f, kFloorY),                    // west: the shortcut up
     Ramp(-16.0f, kMezzEast, 11.0f, kWestLowY, kMezzNorth, kMezzY),             // west: up to the mezzanine (W3)
     Ramp(18.0f, 22.0f, 22.0f, kQuayY, kEastRoomNorth, kEastHighY),             // east: up, from the quay
+    Ramp(kCellarSouthX0, kCellarSouthX1, kCellarZ0, kCellarY, kCellarWestZ1, kWestLowY), // the cellar: down to the grate
     Ramp(5.0f, 9.0f, 46.0f, kFloorY, 58.0f, kFloorY + 3.5f),                   // north: 1
     Ramp(0.0f, 4.0f, 58.0f, kFloorY + 3.5f, 46.0f, kNorthHighY),               // north: 2
 };
@@ -883,6 +935,7 @@ inline constexpr Room kRooms[] = {
     {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, -4.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, true},
     {"east hall", kHubEast, -2.0f, kCanalNorth, 24.0f, -0.5f, 40.0f, {12.0f, kFloorY, 31.0f}, true},
     {"canal bed", 15.0f, kCanalBed - 0.5f, kCanalSouth, 24.0f, kCanalBed + 0.7f, kCanalNorth, {23.2f, kCanalBed, 25.15f}, false},
+    {"cellar", -9.5f, kWestLowY - 0.5f, kCellarWestZ0, kCellarEastX1, kCellarY + 0.3f, kCanalSouth, {0.0f, kCellarY, 15.0f}, false},
     {"east quay", 15.0f, -0.5f, 22.0f, 24.0f, 1.5f, kCanalSouth, {16.5f, kQuayY, 23.4f}, false},
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
@@ -1123,6 +1176,13 @@ inline constexpr shapes::Water kWaters[] = {
 };
 inline constexpr int kTrenchWater = 0;
 inline constexpr int kPoolWater = 1;
+/// The water of the cellar (A): the canal at its high level, in its four legs. In B the cellar is dry.
+inline constexpr shapes::Water kCellarWaters[] = {
+    {kCellarEastX0, kCellarZ0, kCellarEastX1, kCanalSouth, kCellarWater, kCellarWater - kCellarY},    // east leg
+    {kCellarSouthX0, kCellarZ0, kCellarEastX0, kCellarZ1, kCellarWater, kCellarWater - kCellarY},     // middle leg
+    {kCellarSouthX0, kCellarWestZ0, kCellarSouthX1, kCellarZ0, kCellarWater, kCellarWater - kWestLowY}, // south leg
+    {-9.5f, kCellarWestZ0, kCellarSouthX0, kCellarWestZ1, kCellarWater, kCellarWater - kWestLowY},     // west leg
+};
 
 /// The canal of the east district (scene/Canal.h): the crate floats 0.5 m out of the water; low, its top is 2.4 m under the
 /// quay (out of reach), high, 1.2 m under it (the step of the main path) and level with the hall floor.
@@ -1170,11 +1230,12 @@ inline constexpr WaterFeed kWaterFeeds[] = {
     {"the pool", "the aqueduct", kFloorY - 0.45f},   // the spout over the east rim falls into the pool
     {"the trench", "the pool", kFloorY - 0.5f},      // a drain under the arcade, out through a culvert into the west trench
     {"the canal", "the aqueduct", kFloorY - 0.5f},   // the sluice of the lock, opened by the wheel
+    {"the cellar", "the canal", kCellarWater},        // through the sluice panel under the quay
 };
 inline constexpr int kWaterFeedCount = static_cast<int>(sizeof(kWaterFeeds) / sizeof(kWaterFeeds[0]));
 
-/// The aqueduct as drawn boxes: the channel in three parts (the middle one in A only), the water in it (A), the piers, the
-/// waterfall from its spout into the pool (A), and the mouth of the culvert in the west trench with its spill (A).
+/// The aqueduct as drawn boxes that never change: the channel in three parts (the middle one in A only), the piers, and the
+/// mouth of the culvert in the west trench. The water in them is drawn by AddWaterDraw (it drains at the end).
 inline void AqueductDecor(std::vector<SceneObject>& drawn)
 {
     const float b = kAqueductBottom;
@@ -1190,22 +1251,13 @@ inline void AqueductDecor(std::vector<SceneObject>& drawn)
         drawn.push_back(Span(parts[i][0], b + 0.2f, z0, parts[i][1], t, z0 + 0.15f, c, mask));
         drawn.push_back(Span(parts[i][0], b + 0.2f, z1 - 0.15f, parts[i][1], t, z1, c, mask));
     }
-    SceneObject water = Span(kAqueductWest, b + 0.2f, z0 + 0.15f, kAqueductEast, t - 0.15f, z1 - 0.15f, kWaterRgb, kLayerA);
-    water.glow = 0.12f;
-    drawn.push_back(water);
     for (float x : kAqueductPiers)
     {
         drawn.push_back(Span(x - 0.4f, kFloorY, z0, x + 0.4f, b, z1, kAqueductStone, kLayerBoth));
     }
     drawn.push_back(Span(kAqueductEast - 1.0f, kFloorY, z0 - 0.6f, kAqueductEast + 1.0f, t + 1.0f, z1 + 0.6f, kAqueductStone, kLayerBoth));
-    SceneObject fall = Span(kAqueductWest - 0.8f, kFloorY - 0.45f, z0 + 0.15f, kAqueductWest, b, z1 - 0.15f, kWaterRgb, kLayerA);
-    fall.glow = 0.2f;
-    drawn.push_back(fall);
     // the culvert in the east wall of the west trench (its drain runs under the arcade from the pool)
     drawn.push_back(Span(-15.02f, kFloorY - 1.0f, 26.4f, -15.0f, kFloorY - 0.3f, 27.6f, kDark, kLayerBoth));
-    SceneObject spill = Span(-15.4f, kFloorY - 0.55f, 26.5f, -15.0f, kFloorY - 0.45f, 27.5f, kWaterRgb, kLayerA);
-    spill.glow = 0.12f;
-    drawn.push_back(spill);
 }
 
 // ---- the cathedral, drawn only: a rose window over the portal and a spire on the north wall, the highest point of the
@@ -1452,10 +1504,6 @@ inline std::vector<SceneObject> BuildDecor()
     std::vector<SceneObject> drawn;
     shapes::Stairs(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY, shapes::kStoneLight, solid, drawn); // the ramp itself is in kRamps
     shapes::Stairs(kStairsX0, kStairsX1, 56.0f, kBridgeY, 42.0f, kFloorY, shapes::kStoneLight, solid, drawn); // (the slope: kPieces)
-    for (const shapes::Water& w : kWaters)
-    {
-        drawn.push_back(shapes::WaterBox(w));
-    }
     shapes::Roof(-15.0f, kHubWest - 0.5f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
     shapes::Roof(kHubEast + 0.5f, 15.0f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
     PoolStairs(solid, drawn); // (the slopes: kPieces)
@@ -1477,27 +1525,143 @@ inline int StaticDrawCount()
     return kStageStaticCount + static_cast<int>(kDecor.size());
 }
 
-/// True when a body whose feet are at `feet` in `layer` is under water.
-inline bool Submerged(const Vec3& feet, int layer)
+// ---- the water of A, and the end (docs/LEVEL_DESIGN.md, 14.10): on the balcony at the top of the cathedral stands the master
+// sluice of the aqueduct. Reaching the goal closes it: the aqueduct runs dry, the waterfall stops, and every water of A drains
+// to its bed in kDrainSeconds - the two faces of the city meet. Until then every water is full.
+class Waterworks
+{
+  public:
+    static constexpr float kDrainSeconds = 4.0f; ///< UNITS: seconds from full to the bed
+
+    void Close()
+    {
+        m_closed = true;
+    }
+    bool Closed() const
+    {
+        return m_closed;
+    }
+    void Update(float dt)
+    {
+        if (m_closed && dt > 0.0f && m_drained < 1.0f)
+        {
+            m_drained = m_drained + dt / kDrainSeconds > 1.0f ? 1.0f : m_drained + dt / kDrainSeconds;
+        }
+    }
+    /// 0 = full, 1 = every water on its bed.
+    float Drained() const
+    {
+        return m_drained;
+    }
+    /// The surface of `w` now.
+    float Top(const shapes::Water& w) const
+    {
+        return w.top - m_drained * w.depth;
+    }
+
+  private:
+    float m_drained = 0.0f;
+    bool m_closed = false;
+};
+
+/// Calls `f(water)` for every static water of A (the trench, the pool, the legs of the cellar).
+template <class F>
+void ForEachWater(F f)
 {
     for (const shapes::Water& w : kWaters)
     {
-        if (shapes::Submerged(w, feet, layer))
-        {
-            return true;
-        }
+        f(w);
     }
-    return false;
+    for (const shapes::Water& w : kCellarWaters)
+    {
+        f(w);
+    }
+}
+
+/// True when a body whose feet are at `feet` in `layer` is under water.
+inline bool Submerged(const Vec3& feet, int layer, const Waterworks& works)
+{
+    if (works.Drained() >= 1.0f)
+    {
+        return false; // drained: what is left is a bed
+    }
+    bool under = false;
+    ForEachWater([&](const shapes::Water& w) {
+        shapes::Water now = w;
+        now.top = works.Top(w);
+        under = under || shapes::Submerged(now, feet, layer);
+    });
+    return under;
+}
+
+/// The same with every water full (before the end).
+inline bool Submerged(const Vec3& feet, int layer)
+{
+    return Submerged(feet, layer, Waterworks{});
 }
 
 /// Adds the water surfaces (layer A) to a solid table for ORBS (they float; the body is never held by water). Returns the new
 /// count.
-inline int AddWaterForOrbs(SceneObject* out, int count, int capacity)
+inline int AddWaterForOrbs(SceneObject* out, int count, int capacity, const Waterworks& works = Waterworks{})
 {
-    for (int i = 0; i < kWaterCount && out != nullptr && count >= 0 && count < capacity; ++i)
+    ForEachWater([&](const shapes::Water& w) {
+        if (out != nullptr && count >= 0 && count < capacity && works.Drained() < 1.0f)
+        {
+            shapes::Water now = w;
+            now.top = works.Top(w);
+            out[count++] = shapes::WaterSurface(now);
+        }
+    });
+    return count;
+}
+
+inline constexpr Vec3 kMasterSluice{2.7f, kSummitY + 1.1f, 28.25f}; ///< the wheel on the balcony, beside the goal light
+inline constexpr int kWaterDrawCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0])) +
+                                       static_cast<int>(sizeof(kCellarWaters) / sizeof(kCellarWaters[0])) + 3 + 3;
+
+/// Adds to a DRAWN table the water of A as it is now (the trench, the pool, the cellar; while the aqueduct runs, the water in
+/// its channel, the waterfall into the pool and the spill of the culvert) and the master sluice on the balcony (an iron wheel
+/// on its post in A, gold once closed; a rusted stump in B). Returns the new count; needs at most kWaterDrawCount places.
+inline int AddWaterDraw(const Waterworks& works, SceneObject* out, int count, int capacity)
+{
+    if (out == nullptr || count < 0 || capacity - count < kWaterDrawCount)
     {
-        out[count++] = shapes::WaterSurface(kWaters[i]);
+        return count;
     }
+    ForEachWater([&](const shapes::Water& w) {
+        const float top = works.Top(w);
+        if (top - (w.top - w.depth) > 0.02f)
+        {
+            shapes::Water now = w;
+            now.top = top;
+            now.depth = top - (w.top - w.depth);
+            out[count++] = shapes::WaterBox(now);
+        }
+    });
+    if (!works.Closed())
+    {
+        const float b = kAqueductBottom;
+        SceneObject channel = Span(kAqueductWest, b + 0.2f, kAqueductZ0 + 0.15f, kAqueductEast, kAqueductTop - 0.15f, kAqueductZ1 - 0.15f, kWaterRgb, kLayerA);
+        channel.glow = 0.12f;
+        out[count++] = channel;
+        SceneObject fall = Span(kAqueductWest - 0.8f, kFloorY - 0.45f, kAqueductZ0 + 0.15f, kAqueductWest, b, kAqueductZ1 - 0.15f, kWaterRgb, kLayerA);
+        fall.glow = 0.2f;
+        out[count++] = fall;
+        SceneObject spill = Span(-15.4f, kFloorY - 0.55f, 26.5f, -15.0f, kFloorY - 0.45f, 27.5f, kWaterRgb, kLayerA);
+        spill.glow = 0.12f;
+        out[count++] = spill;
+    }
+    const Vec3 m = kMasterSluice;
+    SceneObject post = Span(m.x - 0.08f, kSummitY, m.z - 0.08f, m.x + 0.08f, m.y, m.z + 0.08f, kIron, kLayerA);
+    post.glow = 0.04f;
+    out[count++] = post;
+    SceneObject wheel = Span(m.x - 0.05f, m.y - 0.4f, m.z - 0.4f, m.x + 0.05f, m.y + 0.4f, m.z + 0.4f, works.Closed() ? kGold : Rgb{0.42f, 0.44f, 0.48f},
+                             kLayerA);
+    wheel.glow = works.Closed() ? 0.9f : 0.25f;
+    out[count++] = wheel;
+    SceneObject stump = Span(m.x - 0.1f, kSummitY, m.z - 0.1f, m.x + 0.1f, kSummitY + 0.5f, m.z + 0.1f, Rgb{0.40f, 0.26f, 0.18f}, kLayerB);
+    stump.glow = 0.02f;
+    out[count++] = stump;
     return count;
 }
 
@@ -1633,7 +1797,3 @@ static_assert(FixedIsSupported(), "scene/Stage.h: every box must have sizes abov
 static_assert(kPlateCell.x != 0 || kPlateCell.z != 0, "scene/Courtyard.h: the rows must hold a plate 'P'");
 
 } // namespace dl::stage
-
-
-
-

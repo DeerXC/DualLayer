@@ -162,8 +162,39 @@
   0.4 m lower, no orb return, a portcullis only as wide as the landing. Piers beside the breach were tried and removed: with
   the parapets no test needed them. `src/main.cpp` compiles against stand-ins of the interfaces it uses.
 - Not checked yet: the MSVC build and `tools/check.ps1`; the look by eye (docs/BUILD.md, E-19 .. E-28).
-- Next: play the whole map once and fix what is found; the cellar under the courtyard, the rest of the north district and the
-  last puzzle of the cathedral (docs/LEVEL_DESIGN.md, 14.10).
+- Made (2026-11-23, the cellar, docs/LEVEL_DESIGN.md 14.11): the fourth link of the ring, from the canal bed west under the
+  courtyard and down a ramp to a grate in the east wall of the lower room of the west wing. Flooded in A (its water fed from the
+  canal, `Stage::kCellarWaters`, a sluice panel of A at each end), dry in B. The grate (five bars, both layers) opens for good by
+  a lever inside the lower room. The quay and the east wall of the lower room are split round its ends. Room `cellar`.
+- Made (2026-11-23, N2, 14.12): a heap of B along the west wall of the north hall, closed by a cage of B; a step of A at its
+  foot. A second prism moves the cage into A and the step into B at once (`CityParts`: two gates with `swapsLayer` on one
+  trigger). Optional: it leads to a hidden light in the wall.
+- Made (2026-11-23, the end, 14.13): `Stage::Waterworks`. Reaching the goal closes the master sluice on the balcony: the
+  aqueduct runs dry, and every water of A drains to its bed in 4 s (`Canal::SetDrained` for the canal and its crate). Every
+  water is now drawn each frame (`AddWaterDraw`), not baked into the static batch.
+- Made (2026-11-23, guidance): a gold column of light over each wheel of the canal until it is turned (`Canal::AddBeacons`); R
+  puts back the canal from the quay and the bed as well as from the hall. Two more hidden lights (six in all).
+- Fixed (2026-11-23, found by the review): the switch guard asked only the map of the puzzle (`Puzzle::BodyFits`), not the
+  gates of the wings, the lifts or the crate: a switch into a portcullis or a cage was not refused, and the push-out could drop
+  the body through a floor (the new N2 test found it). `Puzzle::FitsIn` takes any solid table; `main.cpp` gives it the whole
+  table of the target layer.
+- Fixed (2026-11-23, the search for skips): a body standing on the edge of a ramp (its ball on the edge, its feet just beyond
+  the side) and a body on the slope under stairs counted as standing in no room. Two such jumps (onto the side of the ramp of
+  the mezzanine, onto the side of the stairs of the canal) were reported once the new boxes made those places searched. Both
+  are walks that exist anyway; the search now treats every slope of the map as a ramp, up to a radius beyond its side.
+- Changed (2026-11-23, speed): `Collision::PushOutOf` skips a solid whose bounding sphere the ball cannot reach (exact: the
+  same result). `tests/test_stage.cpp` takes about 40% less time, `tests/test_reach.cpp` about half.
+- Checked (2026-11-23) with g++: `tests/test_stage.cpp` (2090 checks; new `TestCellar`, `TestN2` (36 tried jumps from the step
+  with and without a switch in the air), `TestEnding`, and a switch refused into the moved portcullis), `tests/test_lights.cpp`
+  (45: the light in the wall is never reached from the floor; the light under the courtyard not from above),
+  `tests/test_hints.cpp` (349), `tests/test_reach.cpp`: 0 skips (4916 places, 134656 jumps), the other tests unchanged.
+  Deliberate changes, each caught: the cage that does not move, the sluice panel of the west end removed, the guard asking only
+  the map of the puzzle, parapets of 1.2 m. `src/main.cpp` compiles against stand-ins of the interfaces it uses.
+- Changed (2026-11-23, the documents): blank lines made regular (one blank line, one final newline), as `git audit` asks.
+- Not checked yet: the MSVC build and `tools/check.ps1`; the look by eye (docs/BUILD.md, E-29 .. E-32).
+- Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
+  (docs/LEVEL_DESIGN.md, 14.10).
+
 ## m1-models (built and run together with M2, 2026-11-17)
 
 - Made: a depth buffer in `Device` (D32_FLOAT, cleared to 1.0, made again on resize); `render/MeshData` (cube, sphere, cylinder, torus on the CPU, no Windows in it) with `tests/test_mesh.cpp`; `render/Models` (vertex / index buffers, one shader `models.hlsl`, one directional light, a checkered floor, wireframe / level-of-detail / spin keys); `render/Projection.h` (one lens for every pass, `Triangle` uses it too); the M0 triangle is hidden by default (`[test_triangle] show`).
@@ -189,7 +220,3 @@
 | KI-02 | A lost device ended the program | 2026-11-17 | `Gpu::Recover` in `main.cpp` builds device, triangle and models again (checks K-2, K-3 passed). Only the `F9` test path was run; a real device loss (driver reset, GPU switched off) has not been tried |
 | KI-05 | The GPU used by default on the dual-GPU laptop was not confirmed | 2026-11-17 | the code picks the high-performance adapter and exports the two driver hints; check K-1 passed (NVIDIA RTX 5060) |
 | KI-04 | Reverse-Z was undecided: depth is the plain `D32_FLOAT`, LESS, clear 1.0 | 2026-11-18 | decided to **keep** it: the scene is small (floor 24 m, near 0.1 m, far 100 m), no flicker has been seen, and the two ripple depth buffers use the same convention. Revisit only if far objects flicker (it would change `Projection.h`, `Device::BeginFrame`, `Models::CreateStates`, the ripple depth buffers and the depth state of `Triangle`) |
-
-
-
-

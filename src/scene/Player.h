@@ -596,4 +596,3 @@ class Player
 };
 
 } // namespace dl
-

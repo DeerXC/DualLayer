@@ -812,5 +812,3 @@ class MechanismSet
 };
 
 } // namespace dl::mech
-
-

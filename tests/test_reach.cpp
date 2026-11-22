@@ -68,7 +68,7 @@ const char* const kWalkJoined[][2] = {
     {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"square", "west landing"},
     {"square", "east hall"},        {"east hall", "canal bed"},  {"square", "undercroft"},     {"east hall", "east quay"},  {"east quay", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
     {"west hall", "west passage"}, {"west passage", "north hall"}, {"north hall", "sky bridge"}, {"sky bridge", "east stairs"},
-    {"east stairs", "east hall"},
+    {"east stairs", "east hall"}, {"cellar", "canal bed"}, {"cellar", "west lower"},
 };
 
 int RoomIndex(const char* name)
@@ -327,13 +327,19 @@ bool Jump(const Sample& s, const Vec3& dir, bool runUp, bool doSwitch, const std
     return false;
 }
 
-/// The room a body standing on a ramp at `f` belongs to, for the search: a ramp is walked from the rooms at its two ends, so
-/// a jump onto it from one of them is a short cut of a walk, not a skip. Returns -1 when `f` is not on a ramp; `other` gets
-/// the room at its other end.
+/// The room a body standing on a ramp (or the slope under stairs) at `f` belongs to, for the search: a ramp is walked from the
+/// rooms at its two ends, so a jump onto it from one of them is a short cut of a walk, not a skip. Returns -1 when `f` is not on
+/// a ramp; `other` gets the room at its other end.
 int RampRooms(const Vec3& f, int& other)
 {
-    for (const SceneObject& r : st::kRamps)
+    // a body stands on a ramp also with its feet a little beyond its side (its ball rests on the edge): up to its radius
+    const float kEdge = Player::Settings{}.radius;
+    for (const SceneObject& r : st::kStageStatics) // every slope: the ramps and the slopes under stairs (kPieces)
     {
+        if (r.tilt == 0.0f)
+        {
+            continue;
+        }
         const float c = std::cos(r.tilt);
         const float s = std::sin(r.tilt);
         // the feet in the local space of the ramp (turned back round X)
@@ -341,7 +347,7 @@ int RampRooms(const Vec3& f, int& other)
         const float dz = f.z - r.position[2];
         const float ly = dy * c + dz * s;
         const float lz = -dy * s + dz * c;
-        if (std::fabs(f.x - r.position[0]) > 0.5f * r.scale[0] || std::fabs(lz) > 0.5f * r.scale[2] + 0.2f || std::fabs(ly - 0.5f * r.scale[1]) > 0.3f)
+        if (std::fabs(f.x - r.position[0]) > 0.5f * r.scale[0] + kEdge || std::fabs(lz) > 0.5f * r.scale[2] + 0.2f || std::fabs(ly - 0.5f * r.scale[1]) > 0.3f)
         {
             continue;
         }
@@ -487,5 +493,3 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
-
-

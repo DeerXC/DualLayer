@@ -73,4 +73,3 @@ private:
     bool m_lost = false;
 };
 } // namespace dl
-

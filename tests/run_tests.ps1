@@ -77,5 +77,3 @@ if ($Only -eq "")
 if ($ran -eq 0) { Write-Host "no test is called '$Only'" -ForegroundColor Red; exit 2 }
 Write-Host ("all {0} test(s) passed" -f $ran) -ForegroundColor Green
 exit 0
-
-
