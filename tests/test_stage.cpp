@@ -15,7 +15,9 @@
 //      and back up the shortcut through the door that the seal opened; the east wing up to the top of the courtyard wall,
 //      its seal, the drop onto the gallery and from there into the hub (and the gallery not reached again from the floor); the north wing up two ramps to its seal, along the ledge through the window of
 //      the hub wall and off it
-//   4. the tower: shut until the three seals are taken, then walked up its six ramps to the balcony, the goal
+//   4. the square: in A the pool is water (a body that walks off the rim goes under it), in B it is dry and walked down one
+//      stair, round the cathedral and up the other; a jump climbs out of it anywhere; the causeway leads to the portal in
+//      both layers. The cathedral: shut until the three seals are taken, then walked up its six ramps to the balcony, the goal
 //   5. no way round: the tower door; the shortcut door from both sides; the east wing from the terrace; the courtyard wall
 //      top and the ledge from the hub; from the ledge, no jump in any direction lands on the tower or on the hub walls; from
 //      the landing of the north wing, no jump lands on its walls; from the courtyard wall top, none lands on the hub walls
@@ -499,7 +501,7 @@ World ReachTheHub(bool& ok)
     World w = PlaySolution(ok);
     w.layer = 1;
     w.PlaceFeet({st::kDoorX, kFloorY, 20.5f});
-    ok = ok && w.WalkPath({{st::kDoorX, kFloorY, 23.5f}}) && st::RoomAt(w.player.Feet()) == Room("hub");
+    ok = ok && w.WalkPath({{st::kDoorX, kFloorY, 23.5f}}) && st::RoomAt(w.player.Feet()) == Room("square");
     return w;
 }
 
@@ -540,6 +542,10 @@ void TestCourtyard()
 
 const Vec3 kSouth{0.0f, 0.0f, -1.0f};
 const Vec3 kWest{-1.0f, 0.0f, 0.0f};
+// the middle of the rims of the square: the walks round it stay on them (in A the pool is water)
+constexpr float kWestRim = 0.5f * (st::kHubWest + st::kPoolWest) + 0.3f; // a little east of the middle: the arcade stands on it
+constexpr float kEastRim = 0.5f * (st::kHubEast + st::kPoolEast);
+constexpr float kNorthRim = 0.5f * (st::kPoolNorth + st::kHubNorth);
 
 /// Plays the west wing from the hub to the seal: W1 (the orb onto the socket in B, the bridge), W2 (the other orb onto the
 /// plate in A, through the door in B, the lever, the orb fetched), W3 (the orb let fall through the hole in B), W4 (the seal).
@@ -558,7 +564,7 @@ bool PlayWestWing(World& w)
     };
     w.layer = 0;
     // ---- W1: the orb on the north floor, to the socket by the trench
-    step(w.WalkPath({{-6.0f, kFloorY, 25.0f}, {-6.0f, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-21.0f, kFloorY, 35.8f}}), "walk to the W1 orb");
+    step(w.WalkPath({{kWestRim, kFloorY, 23.5f}, {kWestRim, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-21.0f, kFloorY, 35.8f}}), "walk to the W1 orb");
     step(w.Use(kNorth) == dl::mech::Action::Took, "take the W1 orb");
     step(w.WalkPath({{-17.0f, kFloorY, 32.7f}}), "walk to the socket");
     {
@@ -732,7 +738,7 @@ void TestWings()
         CHECK(w.seals.Taken(st::kWestSeal) && w.seals.ShortcutOpen());
         CHECK(w.WalkPath({{-21.0f, kFloorY, 7.0f}, {-17.0f, kFloorY, 11.6f}, {-11.0f, kFloorY, 11.6f}, {-11.0f, kFloorY, 23.5f},
                           {-7.0f, kFloorY, 23.5f}})); // round the foot of the ramp up to the mezzanine
-        CHECK(w.At(-7.0f, kFloorY, 23.5f) && st::RoomAt(w.player.Feet()) == Room("hub"));
+        CHECK(w.At(-7.0f, kFloorY, 23.5f) && st::RoomAt(w.player.Feet()) == Room("square"));
         World before = hub; // without the seal, the same door holds from the hub side
         before.PlaceFeet({-7.0f, kFloorY, 23.5f});
         before.Run(2.0f, Keys(1.0f), {-1.0f, 0.0f, 0.0f});
@@ -747,28 +753,31 @@ void TestWings()
         // the east wing: up to the top of the courtyard wall, the seal, the drop into the hub
         World w = hub;
         w.layer = 0;
-        CHECK(w.WalkPath({{6.0f, kFloorY, 25.0f}, {6.0f, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {20.0f, kFloorY, 31.0f},
+        CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {20.0f, kFloorY, 31.0f},
                           {20.0f, kFloorY, 23.0f}, {20.0f, kFloorY, 8.0f}}));
         CHECK(w.At(20.0f, st::kEastHighY, 8.0f) && st::RoomAt(w.player.Feet()) == Room("east upper"));
         CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 8.0f}, {st::kCourtEast + 0.75f, kFloorY, 20.0f}}));
         CHECK(w.seals.Taken(1) && w.At(st::kCourtEast + 0.75f, st::kEastHighY, 20.0f));
         CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 24.0f}})); // off the north end: onto the gallery
         CHECK(w.At(st::kCourtEast + 0.75f, st::kGalleryY, 24.0f) && std::string_view(st::kRooms[st::RoomAt(w.player.Feet())].name) == "gallery");
-        CHECK(w.WalkPath({{8.0f, kFloorY, 24.0f}, {8.0f, kFloorY, 32.0f}, {5.5f, kFloorY, 32.0f}})); // along it, and off its west edge
+        CHECK(w.WalkPath({{8.0f, kFloorY, 24.0f}, {8.0f, kFloorY, 33.0f}, {8.0f, kFloorY, 35.6f}})); // along it, and off its north end
         w.Run(0.5f);
-        CHECK(w.At(5.5f, kFloorY, 32.0f) && st::RoomAt(w.player.Feet()) == Room("hub"));
-        World back = w; // the gallery is not reached again from the hub floor
-        back.PlaceFeet({5.5f, kFloorY, 30.0f});
-        back.Run(0.3f, Keys(1.0f), kEast);
-        back.Frame(Keys(1.0f, true), kEast);
-        back.Run(1.2f, Keys(1.0f), kEast);
-        CHECK(back.player.Feet().y < kFloorY + 0.5f);
+        CHECK(w.At(8.0f, kFloorY, 35.6f) && st::RoomAt(w.player.Feet()) == Room("square")); // onto the east rim
+        for (const Vec3& look : {kSouth, kNorth}) // the gallery is not reached again from the rim, from its end or from under it
+        {
+            World back = w;
+            back.PlaceFeet({8.0f, kFloorY, look.z < 0.0f ? 35.6f : 29.0f});
+            back.Run(0.3f, Keys(1.0f), look);
+            back.Frame(Keys(1.0f, true), look);
+            back.Run(1.2f, Keys(1.0f), look);
+            CHECK(back.player.Feet().y < kFloorY + 0.5f);
+        }
     }
     {
         // the north wing: up two ramps to the seal, along the ledge through the window of the hub wall, and off it
         World w = hub;
         w.layer = 0;
-        CHECK(w.WalkPath({{6.0f, kFloorY, 25.0f}, {6.0f, kFloorY, 38.0f}, {0.0f, kFloorY, 38.0f}, {0.0f, kFloorY, 43.0f},
+        CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, kNorthRim}, {0.0f, kFloorY, kNorthRim}, {0.0f, kFloorY, 43.0f},
                           {7.0f, kFloorY, 45.0f}, {7.0f, kFloorY, 59.0f}, {2.0f, kFloorY, 59.0f}, {2.0f, kFloorY, 45.0f}}));
         CHECK(w.At(2.0f, st::kNorthHighY, 45.0f));
         CHECK(w.WalkPath({{-7.0f, kFloorY, 45.0f}}));
@@ -777,7 +786,7 @@ void TestWings()
         CHECK(w.At(-7.0f, st::kNorthHighY, 40.25f));
         CHECK(w.WalkPath({{-7.0f, kFloorY, 34.0f}}));
         w.Run(1.0f); // the drop is 7 m
-        CHECK(w.At(-7.0f, kFloorY, 34.0f) && st::RoomAt(w.player.Feet()) == Room("hub"));
+        CHECK(w.At(-7.0f, kFloorY, 34.0f) && st::RoomAt(w.player.Feet()) == Room("square"));
     }
 }
 
@@ -790,11 +799,11 @@ void TestRing()
         // B: the hub, the west hall, the passage under the ledge, the north corridor, back into the hub
         World w = hub;
         w.layer = 1;
-        CHECK(w.WalkPath({{-6.0f, kFloorY, 25.0f}, {-6.0f, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-20.0f, kFloorY, 31.0f},
+        CHECK(w.WalkPath({{kWestRim, kFloorY, 23.5f}, {kWestRim, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-20.0f, kFloorY, 31.0f},
                           {-20.0f, kFloorY, 38.0f}, {-20.0f, kFloorY, 42.0f}}));
         CHECK(st::RoomAt(w.player.Feet()) == Room("west passage"));
-        CHECK(w.WalkPath({{-3.0f, kFloorY, 42.5f}, {0.0f, kFloorY, 42.5f}, {0.0f, kFloorY, 38.0f}}));
-        CHECK(w.At(0.0f, kFloorY, 38.0f) && st::RoomAt(w.player.Feet()) == Room("hub"));
+        CHECK(w.WalkPath({{-3.0f, kFloorY, 42.5f}, {0.0f, kFloorY, 42.5f}, {0.0f, kFloorY, kNorthRim}}));
+        CHECK(w.At(0.0f, kFloorY, kNorthRim) && st::RoomAt(w.player.Feet()) == Room("square"));
         // A: both breaches are shut
         World a = hub;
         a.layer = 0;
@@ -811,7 +820,7 @@ void TestRing()
         // A: the north hall, landing 1, the sky bridge, the lookout, the stairs down into the east hall
         World w = hub;
         w.layer = 0;
-        CHECK(w.WalkPath({{6.0f, kFloorY, 25.0f}, {6.0f, kFloorY, 38.0f}, {0.0f, kFloorY, 38.0f}, {0.0f, kFloorY, 43.0f},
+        CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, kNorthRim}, {0.0f, kFloorY, kNorthRim}, {0.0f, kFloorY, 43.0f},
                           {7.0f, kFloorY, 45.0f}, {7.0f, kFloorY, 59.0f}, {10.5f, kFloorY, 59.0f}}));
         CHECK(w.At(10.5f, st::kBridgeY, 59.0f) && st::RoomAt(w.player.Feet()) == Room("sky bridge"));
         World b = w; // B: the middle of the bridge is gone
@@ -854,19 +863,70 @@ void TestRing()
     }
 }
 
+void TestSquare()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    {
+        // A: the pool is water. A body that walks off the rim goes under it (main.cpp then puts it back at the entry)
+        World a = hub;
+        a.layer = 0;
+        a.PlaceFeet({kEastRim, kFloorY, 30.0f});
+        bool under = false;
+        for (int i = 0; i < 240 && !under; ++i)
+        {
+            a.Frame(Keys(1.0f), kWest);
+            under = st::Submerged(a.player.Feet(), 0);
+        }
+        CHECK(under);
+        CHECK(!st::Submerged({0.0f, st::kSquareLowY, 36.0f}, 1)); // B: the pool is dry
+        CHECK(!st::Submerged({-2.5f, kFloorY, 26.0f}, 0));        // the causeway is over the water
+    }
+    {
+        // B: down the south-east stairs onto the floor of the pool, round the cathedral to the north-west stairs and up
+        World b = hub;
+        b.layer = 1;
+        const float sx = st::kPoolEast - 0.5f * st::kStairWidth;
+        const float nx = st::kPoolWest + 0.5f * st::kStairWidth;
+        CHECK(b.WalkPath({{sx, kFloorY, 23.5f}, {sx, kFloorY, st::kPoolSouth + st::kStairRun + 0.5f}}));
+        CHECK(b.At(sx, st::kSquareLowY, st::kPoolSouth + st::kStairRun + 0.5f) && st::RoomAt(b.player.Feet()) == Room("square"));
+        CHECK(b.WalkPath({{5.5f, kFloorY, 36.3f}, {-3.8f, kFloorY, 36.3f}, {-4.5f, kFloorY, 34.0f}, {nx, kFloorY, 34.0f}}));
+        CHECK(b.At(nx, st::kSquareLowY, 34.0f)); // round the cathedral, between it and the stairs
+        CHECK(b.WalkPath({{nx, kFloorY, kNorthRim}}) && b.At(nx, kFloorY, kNorthRim));
+        // a jump climbs out of the pool anywhere: nobody is trapped in it in B
+        World j = hub;
+        j.layer = 1;
+        CHECK(j.JumpFrom({5.6f, st::kSquareLowY, 31.0f}, kEast, 0.2f) > kFloorY - 0.05f);
+        // the stairs are drawn as steps of at most one rise and walked as their slope
+        CHECK(st::kFloorY - st::kSquareLowY < Player::Settings{}.jumpHeight - 0.3f);
+    }
+    {
+        // the causeway: from the south rim to the portal, in both layers, without a jump
+        for (int layer = 0; layer < 2; ++layer)
+        {
+            World c = hub;
+            c.layer = layer;
+            c.TakeAllSeals();
+            CHECK(c.WalkPath({{-2.5f, kFloorY, 23.5f}, {-2.5f, kFloorY, 28.5f}}));
+            CHECK(c.player.Grounded() && st::RoomAt(c.player.Feet()) == Room("cathedral"));
+        }
+    }
+}
+
 void TestTower()
 {
     bool ok = false;
     World w = ReachTheHub(ok);
     CHECK(ok);
     w.layer = 0;
-    CHECK(w.WalkPath({{-2.5f, kFloorY, 25.5f}})); // shut: the door holds before the seals
+    CHECK(w.WalkPath({{-2.5f, kFloorY, 23.5f}, {-2.5f, kFloorY, 25.5f}})); // along the causeway; shut: the door holds before the seals
     w.Run(2.0f, Keys(1.0f), kNorth);
     CHECK(w.player.Feet().z < st::kTowerSouth);
     w.TakeAllSeals(); // the walks to them are in TestWings
     CHECK(w.seals.TowerOpen());
     CHECK(w.WalkPath({{-2.5f, kFloorY, 28.2f}}));
-    CHECK(st::RoomAt(w.player.Feet()) == Room("tower"));
+    CHECK(st::RoomAt(w.player.Feet()) == Room("cathedral"));
     // six ramps: lanes 1, 2, 3 and again 1, 2, 3, each one level (2 m) higher, turning at the landings
     const float lane[3] = {-2.33f, 0.0f, 2.33f};
     const float north = 33.8f;
@@ -977,7 +1037,7 @@ void TestRooms()
     CHECK(g.Inside(gx, gz) && cells.kind[static_cast<std::size_t>(g.Index(gx, gz))] == 0); // the block is never there
     const int last = Room("east hall");
     CHECK(st::CurrentRoom({0.0f, kFloorY, 30.0f}, false, last) == last);       // in the air: the last room
-    CHECK(st::CurrentRoom({0.0f, kFloorY, 25.0f}, true, last) == Room("hub")); // standing in the hub
+    CHECK(st::CurrentRoom({0.0f, kFloorY, 25.0f}, true, last) == Room("square")); // standing in the hub
     CHECK(st::CurrentRoom({50.0f, kFloorY, 25.0f}, true, last) == last);      // standing in no room: the last one
 }
 
@@ -991,12 +1051,14 @@ int main()
     TestWings();
     TestWestWing();
     TestRing();
+    TestSquare();
     TestTower();
     TestNoWayRound();
     TestRooms();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+
 
 
 

@@ -106,7 +106,12 @@ doors they open. Every frame `main.cpp` builds the solid table of the layer of t
 and without a switch at the top, and a jump that ends higher in a room that is not joined by walking fails the test. The
 landmarks of the wings are in the drawn table only; they stand outside every room.
 
-The map is a ring: besides the hub, a passage of B joins the west hall to the north corridor and a sky bridge of A joins the
+The hub is a sunken square: a rim at street level holds every opening, and a pool round the cathedral is water in A
+(`Stage::kWaters`, a wall) and dry in B. `main.cpp` puts a body that went under water back at the room entry before it
+takes seals or lights, so nothing under the surface of A can be taken. The cathedral (the tower) stands on a plinth in the
+pool; its rose window and spire are drawn only, above every place a body reaches.
+
+The map is a ring: besides the square, a passage of B joins the west hall to the north corridor and a sky bridge of A joins the
 north hall to the east hall. Lifts (`Stage::kLifts`) are moved by `UpdateLifts` before the solid tables are built, so the
 body stands on them where they are in this frame; a lift is opened by a seal.
 
@@ -138,6 +143,7 @@ and the camera live outside it and are kept. F9 runs the same path for testing.
 - Every GPU object is named `<System>.<Resource>`; every pass is a `GpuEvent` (RenderDoc, PIX, the VS graphics debugger).
 - Debug builds: the D3D11 and DXGI debug layers, a break on error under a debugger, a leak report at exit.
 - `logs/dual.log`: rooms, seals, block moves, refused pushes and switches, falls, jump heights, the clear.
+
 
 
 

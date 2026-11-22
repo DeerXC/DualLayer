@@ -108,25 +108,27 @@ seen".
 
 | No. | Do | Expected |
 |---|---|---|
-| E-1 | start, look north; Tab | the beacon over the tower is seen over the town wall; the view is wide; no D3D11 / DXGI message in the output window. A: a warm evening, sandstone, a light haze, the gate shut. B: a cold grey light, dark wet stone with moss on top faces, a thick fog, the wall broken open where the gate was, with rubble |
+| E-1 | start, look north; Tab | the beacon over the cathedral is seen over the town wall; the view is wide; no D3D11 / DXGI message in the output window. A: a warm evening, sandstone, a light haze, the gate shut. B: a cold grey light, dark wet stone with moss on top faces, a thick fog, the wall broken open where the gate was, with rubble |
 | E-2 | Tab, then Tab again during the ripple | a ring opens from the centre and the other layer shows inside it; the second Tab turns it round without a jump |
 | E-3 | through the breach in B; onto the blue stone; jump, Tab in the air | the body lands on the red strip of A; at the end of the strip the courtyard is seen from above |
 | E-4 | in the courtyard, in A, push the block west | refused; the outline of the blue wall flashes on the floor in both layers; no blue box appears in A |
-| E-5 | push the block onto the plate; walk through the north door in B | the hub, with the tower and three dark seal lamps |
+| E-5 | push the block onto the plate; walk through the north door in B | the sunken square: the causeway straight ahead to the portal of the cathedral, its three dark seal lamps, the rose window over it, the spire; in A the pool is water, in B it is dry |
 | E-6 | walk up and down the ramps of the wings and the tower, turning with the mouse | the picture does not shake; the walk does not stop at the foot of a ramp |
 | E-7 | west wing: W1 the orb to the socket (in A it is put down beside it, red-gold, and TAB SWITCH WORLD is offered; switched with it to B, it turns blue and is placed: the bridge); W2 the other orb onto the plate in A, through the door in B, the lever, back for the orb; W3 the orb over the hole (in A it lies on the lid, in B it falls and the bars open); the seal; up the shortcut | each step does what it says; the held orb is seen in front of the view; an orb left in one layer leaves a small mark in the other; one lamp lights and the shortcut opens into the hub |
-| E-8 | east wing up to the courtyard wall top, the seal, off its north end | the body drops onto the gallery of the hub, which looks over the hub; off its edge into the hub; the gallery cannot be jumped onto from the floor |
-| E-9 | north wing up to the seal, along the ledge through the window, off it; on the ledge jump toward the tower | the body drops into the hub; nothing higher is reached from the ledge |
-| E-10 | with three seals, up the six ramps of the tower | the balcony looks back over the map; `CLEAR` with the time |
+| E-8 | east wing up to the courtyard wall top, the seal, off its north end | the body drops onto the gallery, which looks over the square; off its north end onto the east rim; the gallery cannot be jumped onto from the rim |
+| E-9 | north wing up to the seal, along the ledge through the window, off it; on the ledge jump toward the cathedral | the body drops onto the west rim of the square; nothing higher is reached from the ledge |
+| E-10 | with three seals, along the causeway, up the six ramps of the cathedral | the balcony looks back over the map; `CLEAR` with the time |
 | E-11 | fall off a ramp; press R in the courtyard | the body comes back at the entry of the room; R puts the block back |
 | E-12 | close the window | the live-object report lists only the device |
-| E-13 | in the hub, look round | the archive (west), the water ring (east) and the bell tower (north) stand over the walls |
+| E-13 | in the square, look round | the archive (west), the water ring (east) and the bell tower (north) stand over the walls |
 | E-14 | start; walk to the first orb of the west wing; take it; walk to the trench | TAB SWITCH WORLD at the bottom until Tab was used three times; a dot in the middle; the status line at the top left; E TAKE near the orb, E PUT DOWN while holding it, E PLACE in front of the socket; a blue column of light over the socket seen from across the hall; the outline of the bridge over the trench in both layers |
-| E-15 | in the west wing: the ramp down, the trench in A and in B, the hub's west wall; the title bar | steps on the ramp down (walked smoothly); water in the trench in A, gone in B; falling into it in A brings the body back at the entry of the hall; an orb put down over it floats; an arcade along the west wall of the hub; roofs over the wing corridors; the title bar shows a few dozen draws, not hundreds |
+| E-15 | in the west wing: the ramp down, the trench in A and in B, the west wall of the square; the title bar | steps on the ramp down (walked smoothly); water in the trench in A, gone in B; falling into it in A brings the body back at the entry of the hall; an orb put down over it floats; an arcade along the west wall of the hub; roofs over the wing corridors; the title bar shows a few dozen draws, not hundreds |
 | E-16 | B: west hall north wall, the passage, the north corridor; A: landing 1 of the north hall, the bridge, the lookout, the stairs; the lift by the north landing before and after the north seal | B: a breach with rubble in each end of the passage (in A a red panel); A: a walled bridge east to a lookout over the city and stairs into the east hall (in B its middle is gone); the lift stays down before the seal and afterwards carries the body up to the seal landing |
+| E-17 | the square: walk off the rim into the pool in A; in B down the south-east stairs, round the cathedral, up the north-west stairs; behind the cathedral in B; jump out of the pool | A: the body comes back at the entry of the square; B: the stairs are walked without a hop, the pool is walked round between the cathedral, its buttresses and the stairs; a hidden light lies on the floor behind the cathedral (in A it is under the water and cannot be taken); a jump climbs out of the pool anywhere |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
+
 
 
 

@@ -91,12 +91,19 @@ Each room states its purpose, layout, solution, its "of course!", failure and re
 - Courtyard: the proved puzzle (10 pushes). The block on the plate opens the door in the north wall into the hub. The tops
   of the puzzle walls (2.5 m) can be stood on from the strip; the walls round the courtyard (5 m) are out of reach from them.
 
-### 6.2 Hub
+### 6.2 Hub: the sunken square
 
-A walled square, 10 m high, round the tower. The tower door carries three seal lamps. The openings of the three wings and
-the far ends of their shortcuts are in its walls; the ends are closed and promise "this will open". A gallery runs along
-its south-east corner, 2.4 m up: out of reach from the floor, it is reached only from the east wing, and turns the hub
-from a place to pass through into a place seen from above.
+Built in step 3b. A walled square, 10 m high, round the cathedral, sunk into the city:
+
+| Part | Layout | Why |
+|---|---|---|
+| Rim | a walk 2.5 m wide at street level along the four walls; every opening of the wings and the far ends of their shortcuts are on it; the arcade stands on its west side | every way in and out of the square is on one level, so the square is crossed without a jump |
+| Pool | 1.5 m below the rim, round the cathedral. A: full of water, a wall (a body that goes in comes back at the entry). B: drained by the storm, its floor walked | the square itself says the rule of the two faces of the city: in A the structure is the way, in B what the storm opened |
+| Causeway | from the south rim straight to the portal, over the pool | the first sight from the courtyard door is the portal at the end of the causeway, its seal lamps, the beacon over it |
+| Stairs | two, at opposite corners of the pool (south-east and north-west), 1.5 m wide; the pool is 1 m wide beside them, so it is walked round | in B the pool is a place with two ways in; nobody is trapped in it (a jump climbs out anywhere) |
+| Gallery | along the south-east corner, 2.4 m over the rim, reached only from the east wing; its north end drops onto the east rim | the square seen from above before it is entered |
+
+The ends of the shortcuts are closed and promise "this will open".
 
 ### 6.3 West wing: the archive (the orb)
 
@@ -135,10 +142,11 @@ Theme: not changing worlds, changing colours. Ramps and stairs, no jump needed.
 | N3 the bell tower | three floors of prisms; the top window looks at the seal lamps on the tower |
 | N4 seal and ledge | a ledge through a window of the hub wall, the way down into the hub |
 
-### 6.6 Tower
+### 6.6 Tower: the cathedral
 
-The landmark of the map: 13 m high, gold pinnacles on its corners, the beacon over it. Its door opens with the three seals,
-on the hub floor, with no jump. Inside, ramps wind round its walls to a balcony 12 m above the hub that looks back over the
+The landmark of the map, standing on a plinth in the pool: walls 13 m high, gold pinnacles on its corners, buttresses in the
+pool, a rose window over the portal, and a spire on its north wall, the highest point of the map (28.5 m), seen from every
+district; the beacon over it. Its portal, at the end of the causeway, opens with the three seals, with no jump. Inside, ramps wind round its walls to a balcony 12 m above the hub that looks back over the
 whole map; the goal is there. The rooms T1 .. T3 combine the objects: orb and prism, block and prism, then orb, purple block
 and one switch in the air over a net.
 
@@ -161,6 +169,9 @@ Twelve, each a second use of something taught or a view back: in the gate; the p
 socket; the orb dropped elsewhere; under the gap; a dead end of E2; the wall top; the outside of the bell tower; a precise
 jump at the bell tower; the orb dropped by the prism in another order; the hub after all three shortcuts; the tower
 parapet. With all twelve the goal light changes colour.
+
+Built so far: in the gate (the other layer), and on the floor of the pool of the square, behind the cathedral (under water
+in A; in B the pool is dry: the water of the west trench used a second time).
 
 ## 9. Guidance without words
 
@@ -208,7 +219,7 @@ Every step ends with a playable build and a green `tools/check.ps1`.
 
 | Step | Content | State |
 |---|---|---|
-| 1 skeleton | prologue, hub, the shapes of the wings and the tower, rooms and room reset, seals and doors; the gallery, the landmarks, the search for skips | done, play-tested once |
+| 1 skeleton | prologue, hub, the shapes of the wings and the tower, rooms and room reset, seals and doors; the gallery, the landmarks, the search for skips | done, play-tested once; the hub became the sunken square and the tower the cathedral in step 3b of section 13 |
 | 2 west wing | the orb, sockets, plates, levers, gates, W1 .. W4 | done |
 | 3 east wing | single-layer blocks, channels, the solver extended, E1 .. E4 | next |
 | 4 north wing | the prism and its links, N1 .. N4 | |
@@ -246,7 +257,9 @@ document as they are built, step by step):
 | Districts | west: market and sewers (the orb, going down); east: canal and locks (single-layer blocks, water); north-west: theatre and roofs (the prism as a change of scenery); north-east: graveyard and bell tower (prism and orb) |
 | New objects | water, only in A: a wall, not swimming (a body that falls in goes back to the room entry); things float on it. Lifts: shortcuts only, entered standing still |
 | Guidance | five levels: landmarks (far), light (middle), one look for everything that can be used (near), a safe first use of every object, and key prompts on the screen |
-| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); step 2, the vocabulary of shapes (done: stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts, with the static batch; used so far: stairs, water, an arcade and roofs); step 3a, the ring on the present map (done: the passage of B under the ledge, the sky bridge of A to the east hall, the lift of the north hall); then 3b, the sunken square, the districts, the cathedral |
+| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); step 2, the vocabulary of shapes (done: stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts, with the static batch; used so far: stairs, water, an arcade and roofs); step 3a, the ring on the present map (done: the passage of B under the ledge, the sky bridge of A to the east hall, the lift of the north hall); step 3b, the sunken square and the cathedral (done: the rim, the pool of A, the causeway, the stairs, the cathedral with its spire, a hidden light on the floor of the pool) |
+| Districts, when | the districts are rebuilt with their rooms, not before (decided 2026-11-22, in step 3b): the shape of a district follows from its puzzles, and a shape built first would be built twice. The east wing becomes the canal and locks with steps 3 and 4 of section 12, together with the cellar of B that joins it to the west under the courtyard (the fourth link of the ring); the north hall is split into the theatre (north-west) and the graveyard and bell tower (north-east) with the north rooms |
+
 
 
 

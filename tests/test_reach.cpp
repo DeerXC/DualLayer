@@ -62,9 +62,9 @@ constexpr int kDirections = 16;
 
 /// Pairs of rooms (names of Stage::kRooms) that are joined by walking: a jump from one to the other is not a way round.
 const char* const kWalkJoined[][2] = {
-    {"terrace", "gap"},          {"gap", "courtyard"},        {"hub", "west hall"},          {"west hall", "west lower"},
-    {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"hub", "west landing"},
-    {"hub", "east hall"},        {"east hall", "east upper"}, {"hub", "north hall"},         {"hub", "tower"},
+    {"terrace", "gap"},          {"gap", "courtyard"},        {"square", "west hall"},          {"west hall", "west lower"},
+    {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"square", "west landing"},
+    {"square", "east hall"},        {"east hall", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
     {"west hall", "west passage"}, {"west passage", "north hall"}, {"north hall", "sky bridge"}, {"sky bridge", "east stairs"},
     {"east stairs", "east hall"},
 };
@@ -459,4 +459,5 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+
 

@@ -7,10 +7,13 @@
 //              the air onto the red strip; a blue curtain at the end of the strip keeps B from flying over it), the overlook, and
 //              the courtyard with the proved block puzzle (scene/Courtyard.h). The block on the plate opens the blue door
 //              in the north wall of the courtyard: the way into the hub.
-//   hub        a square place, walled 10 m high, with the tower in the middle and a gallery along its south-east corner
-//              (2.4 m up, reached only from the east wing: the hub seen from above). The tower door carries three seal lamps; it
-//              opens when the three seals of the wings are taken. Three openings lead to the wings; a fourth, closed door in
-//              the west wall is the far end of a shortcut that is opened from the other side.
+//   square     (the hub; step 3b) a sunken square, walled 10 m high. A rim at street level runs along its walls and holds
+//              every opening; inside it a pool 1.5 m deep surrounds the cathedral: water in A (a wall: a body that goes in
+//              comes back at the entry), dry in B, entered by two stairs at opposite corners. A causeway crosses the pool to
+//              the portal of the cathedral, which carries three seal lamps and opens when the three seals of the wings are
+//              taken. A gallery runs along the south-east corner (2.4 m over the rim, reached only from the east wing: the
+//              square seen from above). Three openings lead to the wings; a fourth, closed door in the west wall is the far
+//              end of a shortcut that is opened from the other side.
 //   west wing  going DOWN, the archive: an orb that is carried between the layers (scene/WestWing.h). W1, the hall: a
 //              trench, bridged in B by an orb on a socket of B. W2: an orb on a plate of A opens a door of B at the foot of the
 //              ramp down; a lever inside keeps it open, so that the orb can be fetched. W3, the lower room: from a mezzanine,
@@ -22,9 +25,10 @@
 //              is on it; its north end drops onto the gallery of the hub, and the gallery drops into the hub (one way).
 //   north wing going UP by two ramps to a landing 7 m above the hub floor, with the seal; a ledge runs south through a window
 //              in the hub wall and drops into the hub (a one-way shortcut).
-//   tower      the landmark of the map: 13 m high, gold pinnacles on its corners, the beacon over it. Inside, six ramps wind
-//              round its walls to a balcony on its south side, 12 m above the hub, which looks back over the whole map; the
-//              goal is there.
+//   cathedral  (the tower) the landmark of the map: walls 13 m high on a plinth in the pool, gold pinnacles, buttresses, a rose
+//              window over the portal and a spire on its north wall, the highest point of the map (28.5 m); the beacon over
+//              it. Inside, six ramps wind round its walls to a balcony on its south side, 12 m above the rim, which looks back
+//              over the whole map; the goal is there.
 // Landmarks:  one per wing (an archive of shelves, a turning water ring, a bell tower), outside the walls and drawn only.
 // Ring:       (step 3) the districts are joined without the hub, one way in each layer. B: a passage under the ledge from the
 //             west hall to the north corridor, with a breach at each end (in A both are shut). A: a sky bridge from landing 1
@@ -245,7 +249,22 @@ inline constexpr float kBridgeGapX1 = 15.75f;
 inline constexpr float kLookoutTop = kBridgeY + kParapet; // the parapets of the lookout and the stairs
 inline constexpr float kStairsX0 = 19.0f;            // the stairs from the lookout (z 56) down into the east hall (z 42)
 inline constexpr float kStairsX1 = 21.0f;
-// the tower, in the middle of the hub
+// the square (step 3b): the hub is a sunken square. A rim at the level of the streets (kFloorY) runs along its walls and
+// holds every opening; inside it a pool 1.5 m deep surrounds the cathedral. In A the pool is full (water: a body that goes
+// in comes back at the entry of the square); in B the storm has drained it and its floor can be walked. A causeway crosses
+// the pool from the south rim to the portal of the cathedral; two stairs lead down into the pool (used in B).
+inline constexpr float kSquareLowY = kFloorY - 1.5f; // -2.5: the floor of the pool. Out of reach of nothing: a jump (2 m)
+                                                     // climbs back onto the rim, so a body in B is never trapped
+inline constexpr float kPoolWest = -6.5f;            // the pool, x -6.5 .. 6.5, z 24.5 .. 37.5 (the rim is 2.5 m wide)
+inline constexpr float kPoolEast = 6.5f;
+inline constexpr float kPoolSouth = 24.5f;
+inline constexpr float kPoolNorth = 37.5f;
+inline constexpr float kCausewayX0 = -4.0f; // the causeway to the portal, x -4 .. -1 (the portal is x -3.2 .. -1.8)
+inline constexpr float kCausewayX1 = -1.0f;
+inline constexpr float kStairRun = 3.0f;    // the stairs into the pool: 1.5 m over 3 m (27 degrees), 1.5 m wide, so that the
+inline constexpr float kStairWidth = 1.5f;  // pool beside them (1 m to the cathedral) is still walked round
+
+// the tower (the cathedral), in the middle of the square
 inline constexpr float kTowerWest = -4.0f;
 inline constexpr float kTowerEast = 4.0f;
 inline constexpr float kTowerSouth = 27.0f;
@@ -395,9 +414,22 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kDoorX + kDoorwayHalfWidth, kFloorY, kDoorSouth, kCourtEast, kCourtWallTop, kDoorNorth),
     Wall(kDoorX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kDoorX + kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
     Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth, kDoorwayHigh, kDoorNorth, kRed, kLayerA),
-    // ---- the hub: its floor and its walls, 10 m high (openings: the wings west, east and north; the closed shortcut door
-    // west; the window of the ledge north)
-    Floor(kHubWest, kHubSouth, kHubEast, kHubNorth, kFloorY),
+    // ---- the square: the rim (solid down to the floor of the pool, so the edge of the pool is a wall of 1.5 m), the floor of
+    // the pool, the plinth of the cathedral (its top is the floor inside it), the causeway to its portal
+    Span(kHubWest, kSquareLowY - 0.2f, kHubSouth, kHubEast, kFloorY, kPoolSouth, kGrey, kLayerBoth, 1.0f),  // south rim
+    Span(kHubWest, kSquareLowY - 0.2f, kPoolNorth, kHubEast, kFloorY, kHubNorth, kGrey, kLayerBoth, 1.0f),  // north rim
+    Span(kHubWest, kSquareLowY - 0.2f, kPoolSouth, kPoolWest, kFloorY, kPoolNorth, kGrey, kLayerBoth, 1.0f), // west rim
+    Span(kPoolEast, kSquareLowY - 0.2f, kPoolSouth, kHubEast, kFloorY, kPoolNorth, kGrey, kLayerBoth, 1.0f), // east rim
+    Floor(kPoolWest, kPoolSouth, kPoolEast, kPoolNorth, kSquareLowY),                                       // the pool
+    Span(kTowerWest, kSquareLowY - 0.2f, kTowerSouth, kTowerEast, kFloorY, kTowerNorth, kTowerStone, kLayerBoth, 1.0f), // plinth
+    Span(kCausewayX0, kSquareLowY - 0.2f, kPoolSouth, kCausewayX1, kFloorY, kTowerSouth, kGrey, kLayerBoth, 1.0f), // causeway
+    // the buttresses of the cathedral, standing in the pool on its west and east sides (out of reach: 9.5 m over the pool)
+    Span(kTowerWest - 1.0f, kSquareLowY, 28.6f, kTowerWest, 7.0f, 29.4f, kTowerStone, kLayerBoth),
+    Span(kTowerWest - 1.0f, kSquareLowY, 32.6f, kTowerWest, 7.0f, 33.4f, kTowerStone, kLayerBoth),
+    Span(kTowerEast, kSquareLowY, 28.6f, kTowerEast + 1.0f, 7.0f, 29.4f, kTowerStone, kLayerBoth),
+    Span(kTowerEast, kSquareLowY, 32.6f, kTowerEast + 1.0f, 7.0f, 33.4f, kTowerStone, kLayerBoth),
+    // ---- the walls of the square, 10 m high (openings: the wings west, east and north; the closed shortcut door west; the
+    // window of the ledge north)
     Wall(kHubWest - 0.5f, kFloorY, kDoorSouth, kCourtWest - 0.5f, kHubWallTop, kHubSouth),            // south, west part
     Wall(kCourtEast + 1.5f, kFloorY, kDoorSouth, kHubEast + 0.5f, kHubWallTop, kHubSouth),            // south, east part
     Wall(kHubWest - 0.5f, kFloorY, kHubSouth, kHubWest, kHubWallTop, kShortcutZ0),                    // west
@@ -573,15 +605,23 @@ inline std::array<SceneObject, kArcadeCount> BuildArcade()
 }
 inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
 
-/// Pieces of scene/Shapes.h in the ring: the breach in the north wall of the west hall (5 boxes) and the slope of the stairs
-/// from the lookout (1; its steps are drawn in kDecor).
-inline constexpr int kPieceCount = 5 + 1;
+/// Pieces of scene/Shapes.h: the breach in the north wall of the west hall (5 boxes), the slope of the stairs from the lookout
+/// (1), and the slopes of the two stairs down into the pool of the square (2). Their steps are drawn in kDecor.
+inline constexpr int kPieceCount = 5 + 1 + 2;
+/// The two stairs down into the pool: south-east (from the south rim, beside the east rim) and north-west (from the north rim,
+/// beside the west rim), so that the pool is entered at its two opposite corners.
+inline void PoolStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
+{
+    shapes::Stairs(kPoolEast - kStairWidth, kPoolEast, kPoolSouth, kFloorY, kPoolSouth + kStairRun, kSquareLowY, shapes::kStoneLight, solid, drawn);
+    shapes::Stairs(kPoolWest, kPoolWest + kStairWidth, kPoolNorth, kFloorY, kPoolNorth - kStairRun, kSquareLowY, shapes::kStoneLight, solid, drawn);
+}
 inline std::array<SceneObject, kPieceCount> BuildPieces()
 {
     std::vector<SceneObject> v;
     shapes::BreachWall(-24.5f, -14.5f, 40.25f, 0.5f, kFloorY, kCityWallTop - kFloorY, kWestBreachX0, kWestBreachX1, v);
     std::vector<SceneObject> steps;
     shapes::Stairs(kStairsX0, kStairsX1, 56.0f, kBridgeY, 42.0f, kFloorY, shapes::kStoneLight, v, steps);
+    PoolStairs(v, steps);
     std::array<SceneObject, kPieceCount> out{};
     for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
     {
@@ -674,11 +714,11 @@ struct Room
 
 /// The rooms, the most specific first (the tower stands inside the hub).
 inline constexpr Room kRooms[] = {
-    {"tower", kTowerInnerWest, -2.0f, kTowerInnerSouth, kTowerInnerEast, 14.0f, kTowerInnerNorth, {-2.5f, kFloorY, 28.0f}, false},
+    {"cathedral", kTowerInnerWest, -2.0f, kTowerInnerSouth, kTowerInnerEast, 14.0f, kTowerInnerNorth, {-2.5f, kFloorY, 28.0f}, false},
     {"terrace", -3.2f, 0.0f, -4.0f, 3.2f, 6.0f, 4.2f, {0.0f, kTerraceY, -3.0f}, false},
     {"gap", -3.2f, 0.0f, 4.2f, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 5.0f}, false},
     {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 3.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
-    {"hub", kHubWest, -2.0f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
+    {"square", kHubWest, kSquareLowY - 0.5f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
     {"west landing", -12.0f, -2.0f, 22.0f, kHubWest, -0.5f, 25.0f, {-11.0f, kFloorY, 23.5f}, false},
     {"west passage", kWestBreachX0, -2.0f, kPassageSouth, -1.5f, -0.5f, kPassageNorth, {-12.0f, kFloorY, 42.0f}, false},
     {"sky bridge", 9.0f, 1.5f, kBridgeSouth, kBridgeEast, 3.5f, kBridgeNorth, {10.3f, kBridgeY, 59.0f}, false},
@@ -914,8 +954,53 @@ inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / size
 /// The water in the trench of the west hall (W1): layer A only. A body that goes under it comes back at the entry of the room;
 /// an orb floats on it.
 inline constexpr shapes::Water kWaters[] = {
-    {-24.0f, kTrenchSouth, -15.0f, kTrenchNorth, kFloorY - 0.5f, 3.0f},
+    {-24.0f, kTrenchSouth, -15.0f, kTrenchNorth, kFloorY - 0.5f, 3.0f},                                   // the trench (W1)
+    {kPoolWest, kPoolSouth, kPoolEast, kPoolNorth, kFloorY - 0.45f, kFloorY - 0.45f - kSquareLowY},      // the pool of the square
 };
+inline constexpr int kTrenchWater = 0;
+inline constexpr int kPoolWater = 1;
+
+// ---- the cathedral, drawn only: a rose window over the portal and a spire on the north wall, the highest point of the
+// map, seen from every district. Above every place a body can reach inside (the spire starts 13 m up), so the camera never
+// enters it.
+inline constexpr float kSpireTop = 28.5f; ///< UNITS: metres (world y): over the bell tower (24.5) and under the beacon (30)
+inline constexpr Rgb kRose{1.00f, 0.72f, 0.40f};
+inline void CathedralDecor(std::vector<SceneObject>& drawn)
+{
+    // the rose window: a square frame, a cross and a centre, glowing, just in front of the south wall
+    const float cx = 0.0f;
+    const float cy = 7.0f;
+    const float z0 = kTowerSouth - 0.06f;
+    const float z1 = kTowerSouth;
+    const float h = 1.5f;  // half of its size
+    const float b = 0.18f; // the width of a bar
+    const SceneObject bars[] = {
+        Span(cx - h, cy + h - b, z0, cx + h, cy + h, z1, kRose, kLayerBoth),         Span(cx - h, cy - h, z0, cx + h, cy - h + b, z1, kRose, kLayerBoth),
+        Span(cx - h, cy - h + b, z0, cx - h + b, cy + h - b, z1, kRose, kLayerBoth), Span(cx + h - b, cy - h + b, z0, cx + h, cy + h - b, z1, kRose, kLayerBoth),
+        Span(cx - h + b, cy - 0.5f * b, z0, cx + h - b, cy + 0.5f * b, z1, kRose, kLayerBoth),
+        Span(cx - 0.5f * b, cy - h + b, z0, cx + 0.5f * b, cy + h - b, z1, kRose, kLayerBoth),
+        Span(cx - 0.45f, cy - 0.45f, z0 - 0.02f, cx + 0.45f, cy + 0.45f, z1, kGold, kLayerBoth),
+    };
+    for (SceneObject o : bars)
+    {
+        o.glow = 0.7f;
+        drawn.push_back(o);
+    }
+    // the spire: a collar on the north wall, then four storeys, each narrower, and a gold tip
+    const float sz = 0.5f * (kTowerInnerNorth + kTowerNorth); // over the middle of the north wall
+    drawn.push_back(Span(-1.5f, kTowerTop, kTowerInnerNorth, 1.5f, 13.0f, kTowerNorth, kTowerStone, kLayerBoth));
+    const float halves[] = {1.6f, 1.2f, 0.8f, 0.45f};
+    const float tops[] = {17.0f, 21.0f, 24.5f, 27.5f};
+    float bottom = 13.0f;
+    for (int i = 0; i < 4; ++i)
+    {
+        drawn.push_back(Span(-halves[i], bottom, sz - halves[i], halves[i], tops[i], sz + halves[i], kTowerStone, kLayerBoth));
+        bottom = tops[i];
+    }
+    SceneObject tip = Span(-0.2f, bottom, sz - 0.2f, 0.2f, kSpireTop, sz + 0.2f, kGold, kLayerBoth);
+    tip.glow = 0.4f;
+    drawn.push_back(tip);
+}
 inline constexpr int kWaterCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0]));
 
 inline std::vector<SceneObject> BuildDecor()
@@ -930,6 +1015,8 @@ inline std::vector<SceneObject> BuildDecor()
     }
     shapes::Roof(-15.0f, kHubWest - 0.5f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
     shapes::Roof(kHubEast + 0.5f, 15.0f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
+    PoolStairs(solid, drawn); // (the slopes: kPieces)
+    CathedralDecor(drawn);
     return drawn;
 }
 inline const std::vector<SceneObject> kDecor = BuildDecor();
@@ -1018,7 +1105,7 @@ inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObje
     return count;
 }
 
-inline constexpr int kMaxDrawObjects = 400;
+inline constexpr int kMaxDrawObjects = 480;
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is
@@ -1096,6 +1183,7 @@ static_assert(FixedIsSupported(), "scene/Stage.h: every box must have sizes abov
 static_assert(kPlateCell.x != 0 || kPlateCell.z != 0, "scene/Courtyard.h: the rows must hold a plate 'P'");
 
 } // namespace dl::stage
+
 
 
 

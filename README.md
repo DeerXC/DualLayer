@@ -4,10 +4,12 @@
 >
 > English: a 3D action puzzle about two overlapping worlds, red and blue, built without a game engine on C++20 / Direct3D 11.
 
-Status: in development (milestone M2). The whole map can be walked from the start to the top of the tower, and its parts
-form a ring: a passage that exists only in one world and a sky bridge that exists only in the other join the districts
-without the hub. The prologue and the west wing (an orb carried between the layers) are playable puzzles; the other
-districts and the tower stand as grey boxes, and their rooms are being built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+Status: in development (milestone M2). The whole map can be walked from the start to the top of the cathedral. Its centre
+is a sunken square: a rim at street level, a pool round the cathedral that is water in one world and dry in the other, and
+a causeway to the portal. Its parts form a ring: a passage that exists only in one world and a sky bridge that exists only
+in the other join the districts without the square. The prologue and the west wing (an orb carried between the layers) are
+playable puzzles; the other districts stand as grey boxes, and their rooms are being built from
+[docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
 
@@ -19,7 +21,7 @@ districts and the tower stand as grey boxes, and their rooms are being built fro
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
   cannot drift apart.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
-  room, every shortcut, every ramp, the tower to its top. Another one searches it for skips: from about 4600 places to
+  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4600 places to
   stand, about 74000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
 - **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
@@ -78,6 +80,7 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 
 Not decided yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but
 not reused.
+
 
 
 

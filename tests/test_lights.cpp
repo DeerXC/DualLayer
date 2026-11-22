@@ -7,6 +7,8 @@
 //   2. the light in the gate, with the numbers of the walking body (the jump and the walking speed of Player.h; flights
 //      computed with its rules, a held jump): not touched from any side of the gate in A, reached by a jump in B, not touched
 //      by jumps along the main path
+//   3. the light on the floor of the pool: under the water of A (every pose that touches it is under water), taken standing in
+//      B, not reached from the rim
 // Returns 1 when a check fails.
 
 #include "scene/StageLights.h"
@@ -154,12 +156,38 @@ void TestLightInTheGate()
     CHECK(!onPath);
 }
 
+void TestLightInThePool()
+{
+    const Vec3 c = st::kHiddenLights[1].centre;
+    const dl::shapes::Water& pool = st::kWaters[st::kPoolWater];
+    CHECK(c.x > pool.x0 && c.x < pool.x1 && c.z > pool.z0 && c.z < pool.z1 && c.y + st::kLightRadius < pool.top - 0.3f); // under the water of A
+    CHECK(Touches({c.x, st::kSquareLowY, c.z}, 1)); // in B a body standing on the dry floor takes it
+    // in A every pose of a body that touches it is under the water: main.cpp puts such a body back before it takes lights
+    bool dryTouch = false;
+    for (float dx = -1.0f; dx <= 1.0f; dx += 0.05f)
+    {
+        for (float dz = -1.0f; dz <= 1.0f; dz += 0.05f)
+        {
+            for (float y = st::kSquareLowY; y < kFloorY + 1.0f; y += 0.02f)
+            {
+                const Vec3 feet{c.x + dx, y, c.z + dz};
+                dryTouch = dryTouch || (Touches(feet, 1) && !st::Submerged(feet, 0));
+            }
+        }
+    }
+    CHECK(!dryTouch);
+    // nothing reaches it from the rim without going into the pool: the nearest place to stand on the rim is far
+    CHECK(!Touches({c.x, kFloorY, st::kPoolNorth + 0.1f}, 1) && !JumpReaches({c.x, kFloorY, st::kPoolNorth + 0.3f}, 0.0f, 0.0f, 1));
+}
+
 } // namespace
 
 int main()
 {
     TestLogic();
     TestLightInTheGate();
+    TestLightInThePool();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+

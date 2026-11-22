@@ -3,6 +3,10 @@
 //            of the wings):
 //   0 "inside the gate"   buried in the top of the gate. In A it is inside the shut gate and cannot be touched; in B the
 //                         gate is gone (a breach), and a full jump under it, beside the main path, reaches it.
+//   1 "the floor of the pool"  on the floor of the pool of the square, behind the cathedral. In A it lies under the water:
+//                         a body that goes in comes back at the entry before it gets there (main.cpp takes the lights only
+//                         after that check). In B the pool is dry and the stairs lead down to it: the water of the west
+//                         trench, used a second time.
 // A light is taken when one of the three balls of the body touches it. Taken lights stay taken for the rest of the run (R
 // and a fall do not bring them back). With every light taken, the goal light changes its colour.
 // Drawn:     every light not yet taken, in both layers, as a small turning sphere. Never solid.
@@ -31,6 +35,7 @@ inline constexpr float kLightReach = 0.20f;  ///< UNITS: metres; a ball of the b
 
 inline constexpr HiddenLight kHiddenLights[] = {
     {{-0.9f, kTerraceY + 3.0f, kGateZ}, "inside the gate"},
+    {{0.0f, kSquareLowY + 0.3f, 36.25f}, "the floor of the pool"},
 };
 inline constexpr int kHiddenLightCount = static_cast<int>(sizeof(kHiddenLights) / sizeof(kHiddenLights[0]));
 
@@ -148,4 +153,5 @@ inline bool RecolourGoal(SceneObject* out, int count)
 }
 
 } // namespace dl::stage
+
 
