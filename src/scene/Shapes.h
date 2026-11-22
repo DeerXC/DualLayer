@@ -16,7 +16,7 @@
 //                 entry), solid for orbs (they float). In B the water has gone.
 //   Lift          a platform that rises while a body stands on it and comes back down when it is left: the shortcut of a
 //                 district (entered standing still, no jump needed). It moves itself; what stands on it is carried
-//                 (Player::Carry).
+//                 (Player::Carry). It can be locked until its far end has been reached, and never comes down onto a body.
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_shapes.cpp). UNITS: metres, seconds.
 // Space:     left-handed, +Y up; slopes run along Z (a box turned round X), as every ramp of the project.
 // Note:      no std::min / std::max here: windows.h may define them as macros (docs/CONVENTIONS.md).
@@ -189,6 +189,8 @@ inline int Bridge(float x0, float x1, float z0, float z1, float y, bool brokenIn
     return 3;
 }
 
+inline constexpr float kRubble = 0.25f; ///< UNITS: metres: lower than a step the body snaps over (0.35 m)
+
 /// A wall across Z at z (thickness `t`) from x0 to x1, `height` high on a floor at `y`, with an opening from bx0 to bx1. In A a
 /// panel closes the opening; in B it is a breach with rubble at both sides. Returns the number of boxes.
 inline int BreachWall(float x0, float x1, float z, float t, float y, float height, float bx0, float bx1, std::vector<SceneObject>& solid)
@@ -198,8 +200,8 @@ inline int BreachWall(float x0, float x1, float z, float t, float y, float heigh
     solid.push_back(Box(x0, y, za, bx0, y + height, zb, kStoneLight, kLayerBoth));
     solid.push_back(Box(bx1, y, za, x1, y + height, zb, kStoneLight, kLayerBoth));
     solid.push_back(Box(bx0, y, za, bx1, y + height, zb, kPanelRed, kLayerA));
-    solid.push_back(Box(bx0, y, za - 0.35f, bx0 + 0.3f, y + 0.4f, zb + 0.35f, kStoneDark, kLayerB));
-    solid.push_back(Box(bx1 - 0.3f, y, za - 0.35f, bx1, y + 0.4f, zb + 0.35f, kStoneDark, kLayerB));
+    solid.push_back(Box(bx0, y, za - 0.35f, bx0 + 0.3f, y + kRubble, zb + 0.35f, kStoneDark, kLayerB));
+    solid.push_back(Box(bx1 - 0.3f, y, za - 0.35f, bx1, y + kRubble, zb + 0.35f, kStoneDark, kLayerB));
     return 5;
 }
 
@@ -269,16 +271,24 @@ class Lift
     {
     }
 
-    /// `feet`, `grounded`: the body as it is now. Returns the move of the platform in y.
-    float Update(const Vec3& feet, bool grounded, float dt)
+    /// `feet`, `grounded`: the body as it is now. `enabled`: false keeps a lift at the bottom from starting (a shortcut that is
+    /// opened from its far end); a lift already up still comes down. A lift never comes down onto a body under it. Returns the
+    /// move of the platform in y.
+    float Update(const Vec3& feet, bool grounded, float dt, bool enabled = true)
     {
         if (!(dt > 0.0f))
         {
             return 0.0f;
         }
         const bool on = OnIt(feet, grounded);
+        const bool under = feet.x > m_x0 - 0.35f && feet.x < m_x1 + 0.35f && feet.z > m_z0 - 0.35f && feet.z < m_z1 + 0.35f &&
+                           feet.y < m_y - 0.15f && feet.y > m_bottom - 0.5f;
         float target = m_y;
-        if (on)
+        if (on && !enabled && m_y <= m_bottom + 1.0e-3f)
+        {
+            m_waitOn = 0.0f; // locked: standing on it does nothing
+        }
+        else if (on)
         {
             m_waitOn += dt;
             m_waitOff = 0.0f;
@@ -291,7 +301,7 @@ class Lift
         {
             m_waitOn = 0.0f;
             m_waitOff += dt;
-            if (m_waitOff >= kReturnSeconds)
+            if (m_waitOff >= kReturnSeconds && !under)
             {
                 target = m_bottom;
             }
@@ -353,3 +363,4 @@ class Lift
 };
 
 } // namespace dl::shapes
+

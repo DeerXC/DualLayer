@@ -313,6 +313,29 @@ void TestLift()
         frame({}, kNorth);
     }
     CHECK(lift.AtBottom());
+    // locked, it does not start; a body under a raised lift keeps it up
+    sh::Lift locked(-1.0f, 1.0f, 0.0f, 3.5f, 0.0f, 6.0f);
+    for (int i = 0; i < 240; ++i)
+    {
+        locked.Update({0.0f, 0.0f, 2.0f}, true, kDt, false);
+    }
+    CHECK(locked.AtBottom());
+    sh::Lift up(-1.0f, 1.0f, 0.0f, 3.5f, 0.0f, 6.0f);
+    for (int i = 0; i < 600 && !up.AtTop(); ++i)
+    {
+        up.Update({0.0f, up.Height(), 2.0f}, true, kDt);
+    }
+    CHECK(up.AtTop());
+    for (int i = 0; i < 600; ++i) // left, but a body stands on the floor under it
+    {
+        up.Update({0.0f, 0.0f, 2.0f}, true, kDt);
+    }
+    CHECK(up.AtTop());
+    for (int i = 0; i < 1200 && !up.AtBottom(); ++i) // the body has gone: it comes down
+    {
+        up.Update({0.0f, 0.0f, -3.0f}, true, kDt);
+    }
+    CHECK(up.AtBottom());
 }
 
 } // namespace
@@ -330,3 +353,4 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+

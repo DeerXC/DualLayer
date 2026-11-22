@@ -29,6 +29,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <array>
 #include <initializer_list>
 #include <string_view>
 
@@ -91,7 +92,7 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount;
 
 int Room(const char* name)
 {
@@ -111,6 +112,7 @@ struct World
     dl::puzzle::Puzzle puzzle;
     st::SealSet seals;
     dl::mech::MechanismSet mech;
+    std::array<dl::shapes::Lift, st::kLiftCount> lifts = st::MakeLifts();
     Player player;
     int layer = 0;
     float spin = 0.0f;
@@ -128,7 +130,7 @@ struct World
         player.Respawn();
     }
 
-    World(const World& o) : puzzle(o.puzzle), seals(o.seals), mech(o.mech), player(o.player), layer(o.layer), spin(o.spin)
+    World(const World& o) : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), player(o.player), layer(o.layer), spin(o.spin)
     {
     }
 
@@ -144,6 +146,7 @@ struct World
                 solids[l][i] = table[i];
             }
             count = st::AddMapSolids(seals, solids[l], count, kMaxSolids);
+            count = st::AddLifts(lifts, solids[l], count, kMaxSolids);
             counts[l] = mech.AddSolids(l, solids[l], count, kMaxSolids);
         }
     }
@@ -168,6 +171,7 @@ struct World
 
     void Frame(const Player::Input& input, const Vec3& look)
     {
+        st::UpdateLifts(lifts, player, [this](int seal) { return seals.Taken(seal); }, kDt);
         BuildSolids();
         player.SetScene(solids[layer], counts[layer]);
         spin += kDt;
@@ -777,6 +781,79 @@ void TestWings()
     }
 }
 
+void TestRing()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    {
+        // B: the hub, the west hall, the passage under the ledge, the north corridor, back into the hub
+        World w = hub;
+        w.layer = 1;
+        CHECK(w.WalkPath({{-6.0f, kFloorY, 25.0f}, {-6.0f, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-20.0f, kFloorY, 31.0f},
+                          {-20.0f, kFloorY, 38.0f}, {-20.0f, kFloorY, 42.0f}}));
+        CHECK(st::RoomAt(w.player.Feet()) == Room("west passage"));
+        CHECK(w.WalkPath({{-3.0f, kFloorY, 42.5f}, {0.0f, kFloorY, 42.5f}, {0.0f, kFloorY, 38.0f}}));
+        CHECK(w.At(0.0f, kFloorY, 38.0f) && st::RoomAt(w.player.Feet()) == Room("hub"));
+        // A: both breaches are shut
+        World a = hub;
+        a.layer = 0;
+        a.PlaceFeet({-20.0f, kFloorY, 38.0f});
+        a.Run(1.5f, Keys(1.0f), kNorth);
+        CHECK(a.player.Feet().z < 40.0f - 0.3f);
+        World e = hub;
+        e.layer = 0;
+        e.PlaceFeet({0.0f, kFloorY, 42.5f});
+        e.Run(1.5f, Keys(1.0f), {-1.0f, 0.0f, 0.0f});
+        CHECK(e.player.Feet().x > -1.0f + 0.3f);
+    }
+    {
+        // A: the north hall, landing 1, the sky bridge, the lookout, the stairs down into the east hall
+        World w = hub;
+        w.layer = 0;
+        CHECK(w.WalkPath({{6.0f, kFloorY, 25.0f}, {6.0f, kFloorY, 38.0f}, {0.0f, kFloorY, 38.0f}, {0.0f, kFloorY, 43.0f},
+                          {7.0f, kFloorY, 45.0f}, {7.0f, kFloorY, 59.0f}, {10.5f, kFloorY, 59.0f}}));
+        CHECK(w.At(10.5f, st::kBridgeY, 59.0f) && st::RoomAt(w.player.Feet()) == Room("sky bridge"));
+        World b = w; // B: the middle of the bridge is gone
+        CHECK(b.Switch(1));
+        float lowest = b.player.Feet().y;
+        for (int i = 0; i < 360 && !b.player.JustRespawned(); ++i)
+        {
+            b.Frame(Keys(1.0f), kEast);
+            lowest = b.player.Feet().y < lowest ? b.player.Feet().y : lowest;
+        }
+        CHECK(lowest < st::kBridgeY - 1.0f);
+        for (float runUp : {0.15f, 0.25f, 0.3f}) // B: a running jump from the edge does not clear the gap
+        {
+            World j = w;
+            CHECK(j.Switch(1));
+            CHECK(j.JumpFrom({st::kBridgeGapX0 - 0.2f - 5.5f * runUp, st::kBridgeY, 59.0f}, kEast, runUp) < st::kBridgeY - 1.0f);
+        }
+        CHECK(w.WalkPath({{18.0f, kFloorY, 59.0f}, {20.0f, kFloorY, 58.5f}}));
+        CHECK(w.At(20.0f, st::kBridgeY, 58.5f) && st::RoomAt(w.player.Feet()) == Room("east stairs"));
+        CHECK(w.WalkPath({{20.0f, kFloorY, 55.0f}, {20.0f, kFloorY, 41.0f}, {20.0f, kFloorY, 38.0f}}));
+        CHECK(w.At(20.0f, kFloorY, 38.0f) && st::RoomAt(w.player.Feet()) == Room("east hall"));
+    }
+    {
+        // the lift of the north hall: shut until the north seal, then up to the landing of the seal
+        World w = hub;
+        w.layer = 0;
+        w.PlaceFeet({-8.0f, kFloorY, 47.0f});
+        w.Run(2.0f);
+        CHECK(w.lifts[0].AtBottom() && w.At(-8.0f, kFloorY, 47.0f));
+        w.TakeAllSeals();
+        int air = 0;
+        for (int i = 0; i < 900 && !w.lifts[0].AtTop(); ++i)
+        {
+            w.Frame({}, kNorth);
+            air += (i > 60 && !w.player.Grounded()) ? 1 : 0;
+        }
+        CHECK(w.lifts[0].AtTop() && air == 0);
+        CHECK(w.WalkPath({{-8.0f, kFloorY, 45.0f}, {-4.0f, kFloorY, 45.0f}}));
+        CHECK(w.At(-4.0f, st::kNorthHighY, 45.0f));
+    }
+}
+
 void TestTower()
 {
     bool ok = false;
@@ -913,11 +990,13 @@ int main()
     TestCourtyard();
     TestWings();
     TestWestWing();
+    TestRing();
     TestTower();
     TestNoWayRound();
     TestRooms();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+
 
 

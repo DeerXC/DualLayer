@@ -106,6 +106,10 @@ doors they open. Every frame `main.cpp` builds the solid table of the layer of t
 and without a switch at the top, and a jump that ends higher in a room that is not joined by walking fails the test. The
 landmarks of the wings are in the drawn table only; they stand outside every room.
 
+The map is a ring: besides the hub, a passage of B joins the west hall to the north corridor and a sky bridge of A joins the
+north hall to the east hall. Lifts (`Stage::kLifts`) are moved by `UpdateLifts` before the solid tables are built, so the
+body stands on them where they are in this frame; a lift is opened by a seal.
+
 `Shapes` is the vocabulary the map is built from: stairs (walked as a ramp, drawn as steps), railings, arcades, bridges whole
 or broken in B, breach walls, roofs, water of layer A (a body under it goes back to the room entry; orbs float on it) and
 lifts (a platform that carries what stands on it, `Player::Carry`).
@@ -134,5 +138,6 @@ and the camera live outside it and are kept. F9 runs the same path for testing.
 - Every GPU object is named `<System>.<Resource>`; every pass is a `GpuEvent` (RenderDoc, PIX, the VS graphics debugger).
 - Debug builds: the D3D11 and DXGI debug layers, a break on error under a debugger, a leak report at exit.
 - `logs/dual.log`: rooms, seals, block moves, refused pushes and switches, falls, jump heights, the clear.
+
 
 

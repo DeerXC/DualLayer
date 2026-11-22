@@ -123,8 +123,10 @@ seen".
 | E-13 | in the hub, look round | the archive (west), the water ring (east) and the bell tower (north) stand over the walls |
 | E-14 | start; walk to the first orb of the west wing; take it; walk to the trench | TAB SWITCH WORLD at the bottom until Tab was used three times; a dot in the middle; the status line at the top left; E TAKE near the orb, E PUT DOWN while holding it, E PLACE in front of the socket; a blue column of light over the socket seen from across the hall; the outline of the bridge over the trench in both layers |
 | E-15 | in the west wing: the ramp down, the trench in A and in B, the hub's west wall; the title bar | steps on the ramp down (walked smoothly); water in the trench in A, gone in B; falling into it in A brings the body back at the entry of the hall; an orb put down over it floats; an arcade along the west wall of the hub; roofs over the wing corridors; the title bar shows a few dozen draws, not hundreds |
+| E-16 | B: west hall north wall, the passage, the north corridor; A: landing 1 of the north hall, the bridge, the lookout, the stairs; the lift by the north landing before and after the north seal | B: a breach with rubble in each end of the passage (in A a red panel); A: a walled bridge east to a lookout over the city and stairs into the east hall (in B its middle is gone); the lift stays down before the seal and afterwards carries the body up to the seal landing |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
+
 
 

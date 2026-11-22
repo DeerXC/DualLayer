@@ -4,9 +4,10 @@
 >
 > English: a 3D action puzzle about two overlapping worlds, red and blue, built without a game engine on C++20 / Direct3D 11.
 
-Status: in development (milestone M2). The whole map can be walked from the start to the top of the tower. The prologue
-and the west wing (an orb carried between the layers) are playable puzzles; the east and north wings and the tower stand
-as grey boxes, and their rooms are being built from the design in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+Status: in development (milestone M2). The whole map can be walked from the start to the top of the tower, and its parts
+form a ring: a passage that exists only in one world and a sky bridge that exists only in the other join the districts
+without the hub. The prologue and the west wing (an orb carried between the layers) are playable puzzles; the other
+districts and the tower stand as grey boxes, and their rooms are being built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
 
@@ -77,5 +78,6 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 
 Not decided yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but
 not reused.
+
 
 

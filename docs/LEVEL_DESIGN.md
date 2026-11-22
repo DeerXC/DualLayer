@@ -246,6 +246,7 @@ document as they are built, step by step):
 | Districts | west: market and sewers (the orb, going down); east: canal and locks (single-layer blocks, water); north-west: theatre and roofs (the prism as a change of scenery); north-east: graveyard and bell tower (prism and orb) |
 | New objects | water, only in A: a wall, not swimming (a body that falls in goes back to the room entry); things float on it. Lifts: shortcuts only, entered standing still |
 | Guidance | five levels: landmarks (far), light (middle), one look for everything that can be used (near), a safe first use of every object, and key prompts on the screen |
-| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); step 2, the vocabulary of shapes (done: stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts, with the static batch; used so far: stairs, water, an arcade and roofs); then the new skeleton, the districts, the cathedral |
+| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); step 2, the vocabulary of shapes (done: stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts, with the static batch; used so far: stairs, water, an arcade and roofs); step 3a, the ring on the present map (done: the passage of B under the ledge, the sky bridge of A to the east hall, the lift of the north hall); then 3b, the sunken square, the districts, the cathedral |
+
 
 

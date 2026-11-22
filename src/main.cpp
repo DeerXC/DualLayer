@@ -85,7 +85,7 @@ constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepes
 constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
 constexpr float kEyeEase = 30.0f;                   // UNITS: 1 / seconds; small changes of the eye height are eased over about 0.05 s
 constexpr float kEyeEaseMax = 0.5f;                 // UNITS: metres; a larger change (a respawn, a teleport) is followed at once
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates; // the puzzle's table, the doors, the gates
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount; // + doors, gates, lifts
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -228,14 +228,16 @@ struct Gpu
 
 /// Fills the drawn table with the map as it is now: the map, its state, then what it says without words. Returns the count.
 int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
-                    const dl::mech::MechanismSet& mech, const dl::Player& player, const dl::Vec3& look, const dl::Config& config,
-                    float sinceClear, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
+                    const dl::mech::MechanismSet& mech, const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts,
+                    const dl::Player& player, const dl::Vec3& look, const dl::Config& config, float sinceClear,
+                    dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
     namespace st = dl::stage;
     const bool cleared = sinceClear >= 0.0f;
     const bool ghosts = config.GetBool("hints", "ghosts", true); // the outlines of the other layer: [hints] ghosts = false turns them off
     int count = st::BuildDrawTable(puzzle, cleared, table);
     count = st::AddMapDraw(seals, table, count, st::kMaxDrawObjects);
+    count = st::AddLifts(lifts, table, count, st::kMaxDrawObjects);
     if (ghosts)
     {
         count = st::AddGhosts(table, count, st::kMaxDrawObjects);
@@ -268,8 +270,8 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
 
 /// The solid table of a body (or an orb) in `layer`: the puzzle's table (the boxes of the map, the block, the courtyard door
 /// while closed), the closed doors of the map and the gates of the wings that are there. Returns the count.
-int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::mech::MechanismSet& mech, int layer,
-                    dl::scene::SceneObject (&table)[kMaxSolids])
+int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::mech::MechanismSet& mech,
+                    const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts, int layer, dl::scene::SceneObject (&table)[kMaxSolids])
 {
     int count = 0;
     const dl::scene::SceneObject* solids = puzzle.Solids(layer, count);
@@ -278,6 +280,7 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
         table[i] = solids[i];
     }
     count = dl::stage::AddMapSolids(seals, table, count, kMaxSolids);
+    count = dl::stage::AddLifts(lifts, table, count, kMaxSolids);
     return mech.AddSolids(layer, table, count, kMaxSolids);
 }
 
@@ -372,6 +375,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     static dl::scene::SceneObject solidTable[kMaxSolids] = {};
     static dl::scene::SceneObject solidsA[kMaxSolids] = {}; // the solid tables of each layer, for the orbs
     static dl::scene::SceneObject solidsB[kMaxSolids] = {};
+    std::array<dl::shapes::Lift, dl::stage::kLiftCount> lifts = dl::stage::MakeLifts(); // the shortcuts that move
     dl::mech::MechanismSet mech; // the moving parts of the west wing (scene/WestWing.h)
     if (!mech.Init(dl::stage::WestWing()))
     {
@@ -582,7 +586,12 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // the layer whose objects are solid: the one the screen is going to show, or the old one while a refusal plays
         const int solidLayer = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
-        const int solidCount = BuildSolidTable(puzzle, seals, mech, solidLayer, solidTable);
+        if (walking)
+        {
+            // the lifts move first and carry a body that stands on one; then the solid table holds them where they are now
+            dl::stage::UpdateLifts(lifts, player, [&seals](int seal) { return seals.Taken(seal); }, dtf);
+        }
+        const int solidCount = BuildSolidTable(puzzle, seals, mech, lifts, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
@@ -615,8 +624,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                 action == dl::mech::Action::Took ? "taken" : (action == dl::mech::Action::Put ? "put down" : "not put down: something is in the way"));
                 }
             }
-            const int countA = dl::stage::AddWaterForOrbs(solidsA, BuildSolidTable(puzzle, seals, mech, 0, solidsA), kMaxSolids); // orbs float
-            const int countB = BuildSolidTable(puzzle, seals, mech, 1, solidsB);
+            const int countA = dl::stage::AddWaterForOrbs(solidsA, BuildSolidTable(puzzle, seals, mech, lifts, 0, solidsA), kMaxSolids); // orbs float
+            const int countB = BuildSolidTable(puzzle, seals, mech, lifts, 1, solidsB);
             mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
             for (int t = 0; t < mech.TriggerCount(); ++t)
             {
@@ -707,7 +716,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // ---- what is drawn: the map as it is now
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
-        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, player, camera.Forward(), config, static_cast<float>(sinceClear), drawTable);
+        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, player, camera.Forward(), config, static_cast<float>(sinceClear), drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();
         gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);
 
@@ -802,6 +811,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
     return RunApp(instance, __argc, __argv);
 }
+
 
 
 

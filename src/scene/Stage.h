@@ -26,6 +26,10 @@
 //              round its walls to a balcony on its south side, 12 m above the hub, which looks back over the whole map; the
 //              goal is there.
 // Landmarks:  one per wing (an archive of shelves, a turning water ring, a bell tower), outside the walls and drawn only.
+// Ring:       (step 3) the districts are joined without the hub, one way in each layer. B: a passage under the ledge from the
+//             west hall to the north corridor, with a breach at each end (in A both are shut). A: a sky bridge from landing 1
+//             of the north hall east over the city to a lookout, and stairs down into the east hall (in B the middle of the
+//             bridge is gone). A lift in the north hall goes from its floor to the landing of the seal once that seal is taken.
 // Vocabulary: pieces of scene/Shapes.h used in the map so far: the stairs over the ramp down of the west wing (the ramp is
 //             walked, the steps are drawn), the water of layer A in the trench of the west hall (in B it has gone), an arcade
 //             along the west wall of the hub, roofs over the corridors of the west and east wings. Drawn-only pieces (steps,
@@ -225,6 +229,22 @@ inline constexpr float kLedgeWest = -9.0f;           // the ledge, x -9 .. -5, z
 inline constexpr float kLedgeEast = -5.0f;           // north wall
 inline constexpr float kLedgeSouth = 37.0f;
 inline constexpr float kWindowTop = kNorthHighY + 2.5f; // the top of that window
+// the ring (step 3): the districts are joined without the hub, one way per layer
+inline constexpr float kPassageSouth = 40.5f;        // B: the passage under the ledge, west hall -> north corridor, z 40.5 .. 43.5
+inline constexpr float kPassageNorth = 43.5f;
+inline constexpr float kWestBreachX0 = -21.0f;       // its breach in the north wall of the west hall
+inline constexpr float kWestBreachX1 = -19.0f;
+inline constexpr float kNorthBreachZ0 = 41.5f;       // its breach in the west wall of the north corridor
+inline constexpr float kNorthBreachZ1 = 43.5f;
+inline constexpr float kBridgeY = kFloorY + 3.5f;    // 2.5, A: the sky bridge from landing 1 of the north hall, east
+inline constexpr float kBridgeSouth = 58.0f;         // z 58 .. 60, x 9 .. 18.5
+inline constexpr float kBridgeNorth = 60.0f;
+inline constexpr float kBridgeEast = 18.5f;
+inline constexpr float kBridgeGapX0 = 11.25f;        // its middle (A only): 4.5 m, more than a running jump
+inline constexpr float kBridgeGapX1 = 15.75f;
+inline constexpr float kLookoutTop = kBridgeY + kParapet; // the parapets of the lookout and the stairs
+inline constexpr float kStairsX0 = 19.0f;            // the stairs from the lookout (z 56) down into the east hall (z 42)
+inline constexpr float kStairsX1 = 21.0f;
 // the tower, in the middle of the hub
 inline constexpr float kTowerWest = -4.0f;
 inline constexpr float kTowerEast = 4.0f;
@@ -424,7 +444,6 @@ inline constexpr SceneObject kFixed[] = {
     Floor(-24.0f, kTrenchNorth, -15.0f, 40.0f, kFloorY),
     Floor(-24.0f, 22.0f, -15.0f, kTrenchSouth, kFloorY),
     Wall(-24.5f, kFloorY, 21.5f, -24.0f, kCityWallTop, 40.5f),
-    Wall(-24.5f, kFloorY, 40.0f, -14.5f, kCityWallTop, 40.5f),
     Wall(-15.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, kWingDoorZ0 - 0.5f),
     Wall(-15.0f, kFloorY, kWingDoorZ1 + 0.5f, -14.5f, kCityWallTop, 40.5f),
     Wall(-24.5f, kFloorY, 21.5f, -22.0f, kCityWallTop, 22.0f),
@@ -463,7 +482,9 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kHubEast + 0.5f, kFloorY, kWingDoorZ1, 15.0f, kCityWallTop, kWingDoorZ1 + 0.5f),
     Floor(15.0f, 22.0f, 24.0f, 40.0f, kFloorY),
     Wall(24.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 40.5f),
-    Wall(14.5f, kFloorY, 40.0f, 24.5f, kCityWallTop, 40.5f),
+    Wall(14.5f, kFloorY, 40.0f, kStairsX0, kCityWallTop, 40.5f),                                      // north, with the door of
+    Wall(kStairsX1, kFloorY, 40.0f, 24.5f, kCityWallTop, 40.5f),                                      // the stairs from the lookout
+    Wall(kStairsX0, kOpeningTop, 40.0f, kStairsX1, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 21.5f, 15.0f, kCityWallTop, kWingDoorZ0 - 0.5f),
     Wall(14.5f, kFloorY, kWingDoorZ1 + 0.5f, 15.0f, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 21.5f, 18.0f, kCityWallTop, 22.0f),
@@ -478,17 +499,44 @@ inline constexpr SceneObject kFixed[] = {
     Wall(22.5f, kEastHighY, kEastRoomNorth, 24.5f, kEastHighY + kParapet, kEastRoomNorth + 0.5f),
     // ---- the north wing (UP): the corridor, the hall, the two landings, the ledge through the window into the hub
     Floor(-1.0f, kHubNorth + 0.5f, 1.0f, 44.0f, kFloorY),
-    Wall(-1.5f, kFloorY, kHubNorth + 0.5f, -1.0f, kCityWallTop, 44.0f),
+    Wall(-1.5f, kFloorY, kHubNorth + 0.5f, -1.0f, kCityWallTop, kNorthBreachZ0),                       // its west wall, with the
+    Wall(-1.5f, kFloorY, kNorthBreachZ1, -1.0f, kCityWallTop, 44.0f),                                   // breach of the passage
+    Span(-1.5f, kFloorY, kNorthBreachZ0, -1.0f, kCityWallTop, kNorthBreachZ1, kRed, kLayerA),           // (A: a panel)
+    Span(-1.85f, kFloorY, kNorthBreachZ0, -0.65f, kFloorY + shapes::kRubble, kNorthBreachZ0 + 0.3f, kDark, kLayerB), // (B: rubble)
+    Span(-1.85f, kFloorY, kNorthBreachZ1 - 0.3f, -0.65f, kFloorY + shapes::kRubble, kNorthBreachZ1, kDark, kLayerB),
     Wall(1.0f, kFloorY, kHubNorth + 0.5f, 1.5f, kCityWallTop, 44.0f),
     Floor(-9.0f, 44.0f, 9.0f, 60.0f, kFloorY),
     Wall(-9.5f, kFloorY, 43.5f, -9.0f, kNorthWallTop, 60.5f),
-    Wall(9.0f, kFloorY, 43.5f, 9.5f, kNorthWallTop, 60.5f),
+    Wall(9.0f, kFloorY, 43.5f, 9.5f, kNorthWallTop, kBridgeSouth),                                     // east, with the door of the
+    Wall(9.0f, kFloorY, kBridgeSouth, 9.5f, kBridgeY - 0.2f, kBridgeNorth),                            // sky bridge from landing 1
+    Wall(9.0f, kLookoutTop, kBridgeSouth, 9.5f, kNorthWallTop, kBridgeNorth),
+    Wall(9.0f, kFloorY, kBridgeNorth, 9.5f, kNorthWallTop, 60.5f),
     Wall(-9.5f, kFloorY, 60.0f, 9.5f, kNorthWallTop, 60.5f),
     Wall(-9.0f, kFloorY, 43.5f, -1.5f, kCityWallTop, 44.0f),
     Wall(1.5f, kFloorY, 43.5f, 9.0f, kCityWallTop, 44.0f),
     Floor(-1.0f, 58.0f, 9.0f, 60.0f, kFloorY + 3.5f),                                                 // landing 1 (north)
     Floor(-9.0f, 44.0f, 4.0f, 46.0f, kNorthHighY),                                                    // landing 2 (south)
     Floor(kLedgeWest, kLedgeSouth, kLedgeEast, 44.0f, kNorthHighY),                                   // the ledge into the hub
+    // ---- the ring, B: the passage under the ledge from the west hall to the north corridor (both of its ends are breaches:
+    // closed in A, open in B; the breach in the west hall is a piece of scene/Shapes.h, kPieces)
+    Floor(kWestBreachX0, kPassageSouth, -1.5f, kPassageNorth, kFloorY),
+    Wall(kWestBreachX0 - 0.5f, kFloorY, kPassageSouth, kWestBreachX0, kCityWallTop, kPassageNorth),
+    Wall(kWestBreachX0 - 0.5f, kFloorY, kPassageNorth, -9.0f, kCityWallTop, kPassageNorth + 0.5f),
+    Wall(-14.5f, kFloorY, 40.0f, -9.5f, kCityWallTop, kPassageSouth),
+    // ---- the ring, A: the sky bridge from landing 1 of the north hall, east over the city to a lookout, and the stairs down
+    // into the east hall. Its ends are in both layers, its middle and its rails only in A: in B the bridge is broken.
+    Span(9.0f, kBridgeY - 0.3f, kBridgeSouth, kBridgeGapX0, kBridgeY, kBridgeNorth, kDark, kLayerBoth),
+    Span(kBridgeGapX0, kBridgeY - 0.3f, kBridgeSouth, kBridgeGapX1, kBridgeY, kBridgeNorth, kRed, kLayerA),
+    Span(kBridgeGapX1, kBridgeY - 0.3f, kBridgeSouth, kBridgeEast, kBridgeY, kBridgeNorth, kDark, kLayerBoth),
+    Span(9.5f, kBridgeY, kBridgeSouth, kBridgeEast, kLookoutTop, kBridgeSouth + 0.15f, kRed, kLayerA),  // its parapets (A: in B they fell with it)
+    Span(9.5f, kBridgeY, kBridgeNorth - 0.15f, kBridgeEast, kLookoutTop, kBridgeNorth, kRed, kLayerA),
+    Floor(kBridgeEast, 56.0f, 21.5f, kBridgeNorth, kBridgeY),                                           // the lookout
+    Wall(kBridgeEast - 0.5f, kBridgeY - 0.2f, 56.0f, kBridgeEast, kLookoutTop, kBridgeSouth),          // its parapets
+    Wall(kBridgeEast - 0.5f, kBridgeY - 0.2f, kBridgeNorth, 22.0f, kLookoutTop, kBridgeNorth + 0.5f),
+    Wall(21.5f, kBridgeY - 0.2f, 56.0f, 22.0f, kLookoutTop, kBridgeNorth),
+    Wall(kBridgeEast, kFloorY, kPassageSouth, kStairsX0, kLookoutTop, 56.0f),                           // the walls of the stairs
+    Wall(kStairsX1, kFloorY, kPassageSouth, 21.5f, kLookoutTop, 56.0f),
+    Floor(kStairsX0, kPassageSouth, kStairsX1, 42.0f, kFloorY),                                         // their foot
 };
 inline constexpr int kFixedCount = static_cast<int>(sizeof(kFixed) / sizeof(kFixed[0]));
 
@@ -525,7 +573,25 @@ inline std::array<SceneObject, kArcadeCount> BuildArcade()
 }
 inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
 
-inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount + kArcadeCount;
+/// Pieces of scene/Shapes.h in the ring: the breach in the north wall of the west hall (5 boxes) and the slope of the stairs
+/// from the lookout (1; its steps are drawn in kDecor).
+inline constexpr int kPieceCount = 5 + 1;
+inline std::array<SceneObject, kPieceCount> BuildPieces()
+{
+    std::vector<SceneObject> v;
+    shapes::BreachWall(-24.5f, -14.5f, 40.25f, 0.5f, kFloorY, kCityWallTop - kFloorY, kWestBreachX0, kWestBreachX1, v);
+    std::vector<SceneObject> steps;
+    shapes::Stairs(kStairsX0, kStairsX1, 56.0f, kBridgeY, 42.0f, kFloorY, shapes::kStoneLight, v, steps);
+    std::array<SceneObject, kPieceCount> out{};
+    for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
+    {
+        out[i] = v[i];
+    }
+    return out;
+}
+inline const std::array<SceneObject, kPieceCount> kPieces = BuildPieces();
+
+inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount + kArcadeCount + kPieceCount;
 
 /// Every box of the map in one table: the fixed boxes, the ramps, the walls of the courtyard (the indices are the ones that
 /// Puzzle::LastBlocker names).
@@ -546,6 +612,10 @@ inline std::array<SceneObject, kStageStaticCount> BuildStatics()
         all[static_cast<std::size_t>(n++)] = WallOf(r);
     }
     for (const SceneObject& o : kArcade)
+    {
+        all[static_cast<std::size_t>(n++)] = o;
+    }
+    for (const SceneObject& o : kPieces)
     {
         all[static_cast<std::size_t>(n++)] = o;
     }
@@ -610,6 +680,9 @@ inline constexpr Room kRooms[] = {
     {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 3.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
     {"hub", kHubWest, -2.0f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
     {"west landing", -12.0f, -2.0f, 22.0f, kHubWest, -0.5f, 25.0f, {-11.0f, kFloorY, 23.5f}, false},
+    {"west passage", kWestBreachX0, -2.0f, kPassageSouth, -1.5f, -0.5f, kPassageNorth, {-12.0f, kFloorY, 42.0f}, false},
+    {"sky bridge", 9.0f, 1.5f, kBridgeSouth, kBridgeEast, 3.5f, kBridgeNorth, {10.3f, kBridgeY, 59.0f}, false},
+    {"east stairs", kBridgeEast, -2.0f, kPassageSouth, 21.5f, 3.5f, kBridgeNorth, {20.0f, kBridgeY, 58.5f}, false},
     {"west hall", -24.0f, -2.0f, 22.0f, kHubWest, -0.5f, 40.0f, {-12.0f, kFloorY, 31.0f}, true},
     {"west vault", -24.0f, -6.0f, 2.0f, kVaultEast, -4.0f, kMezzNorth, {-21.5f, kWestLowY, 4.3f}, false},
     {"west mezzanine", -24.0f, -2.5f, 2.0f, kMezzEast, -1.0f, kMezzNorth, {-15.0f, kMezzY, 3.5f}, false},
@@ -850,6 +923,7 @@ inline std::vector<SceneObject> BuildDecor()
     std::vector<SceneObject> solid;
     std::vector<SceneObject> drawn;
     shapes::Stairs(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY, shapes::kStoneLight, solid, drawn); // the ramp itself is in kRamps
+    shapes::Stairs(kStairsX0, kStairsX1, 56.0f, kBridgeY, 42.0f, kFloorY, shapes::kStoneLight, solid, drawn); // (the slope: kPieces)
     for (const shapes::Water& w : kWaters)
     {
         drawn.push_back(shapes::WaterBox(w));
@@ -890,7 +964,61 @@ inline int AddWaterForOrbs(SceneObject* out, int count, int capacity)
     return count;
 }
 
-inline constexpr int kMaxDrawObjects = 320;
+// ---- the lifts: shortcuts, opened from their far end
+/// The lift of the north hall: from its floor up to landing 2 and the seal (x -9 .. -7, z 46 .. 48). It starts once the
+/// north seal is taken: the way up has been walked once, and from then on it is a shortcut.
+struct LiftDesc
+{
+    float x0, x1, z0, z1, bottom, top;
+    int openedBySeal; ///< the seal that opens it
+};
+inline constexpr LiftDesc kLifts[] = {
+    {-9.0f, -7.0f, 46.0f, 48.0f, kFloorY, kNorthHighY, 2},
+};
+inline constexpr int kLiftCount = static_cast<int>(sizeof(kLifts) / sizeof(kLifts[0]));
+
+inline std::array<shapes::Lift, kLiftCount> MakeLifts()
+{
+    std::array<shapes::Lift, kLiftCount> out{};
+    for (int i = 0; i < kLiftCount; ++i)
+    {
+        const LiftDesc& d = kLifts[i];
+        out[static_cast<std::size_t>(i)] = shapes::Lift(d.x0, d.x1, d.z0, d.z1, d.bottom, d.top);
+    }
+    return out;
+}
+
+/// Moves the lifts for one frame and carries a body that stands on one (call it before the body moves). `Body` needs Feet(),
+/// Grounded() and Carry() (scene/Player.h); `opened(seal)` says whether a seal is taken.
+template <class Body, class Opened>
+void UpdateLifts(std::array<shapes::Lift, kLiftCount>& lifts, Body& body, Opened opened, float dt)
+{
+    for (int i = 0; i < kLiftCount; ++i)
+    {
+        shapes::Lift& lift = lifts[static_cast<std::size_t>(i)];
+        const Vec3 f = body.Feet();
+        const float moved = lift.Update(f, body.Grounded(), dt, opened(kLifts[i].openedBySeal));
+        if (moved != 0.0f && lift.OnIt({f.x, f.y + moved, f.z}, body.Grounded()))
+        {
+            body.Carry({0.0f, moved, 0.0f});
+        }
+    }
+}
+
+/// Adds the platforms of the lifts to a solid or drawn table. Returns the new count.
+inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObject* out, int count, int capacity)
+{
+    for (const shapes::Lift& lift : lifts)
+    {
+        if (out != nullptr && count >= 0 && count < capacity)
+        {
+            out[count++] = lift.Platform();
+        }
+    }
+    return count;
+}
+
+inline constexpr int kMaxDrawObjects = 400;
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is
@@ -968,5 +1096,6 @@ static_assert(FixedIsSupported(), "scene/Stage.h: every box must have sizes abov
 static_assert(kPlateCell.x != 0 || kPlateCell.z != 0, "scene/Courtyard.h: the rows must hold a plate 'P'");
 
 } // namespace dl::stage
+
 
 
