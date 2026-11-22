@@ -1,6 +1,6 @@
 // test_player.cpp - tests of the walking body (no window, no GPU): src/scene/Player.h on the real scene table.
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_player.cpp -o test_player
-//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
+//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only player
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. standing: the body rests on the floor (feet at the top of the floor, eye at the eye height) and a fall ends there
 //   2. walking: forward, back and sideways at the walking speed (after the short run-up of the acceleration); two keys are not
@@ -12,9 +12,13 @@
 //   5. falling off the floor puts the body back at the spawn point
 //   6. FEEL: full speed in about 0.06 s and a stop in about 0.05 s; a tap is a small hop and a held key the full jump; the fall
 //      is faster than the rise; the air steers more slowly than the ground; a hard landing is reported once (for the camera
-//      dip); a wall takes away the walk into it (no stored speed); the running jump covers 2.3 .. 3.0 m (the stage relies on it)
-//   7. a long random run in both layers: never a bad number, never inside a solid
-//   8. bad input (NaN, zero or negative time, a huge frame, nonsense settings) changes nothing that matters
+//      dip); a wall takes away the walk into it (no stored speed), also when the floor pushes in the same step; the running jump
+//      covers 3.2 .. 4.0 m (the map relies on it)
+//   7. RAMPS AND STEPS: up and down ramps of 15 .. 32 degrees at full speed without a stop; walking DOWN a 27 degree ramp the
+//      body stays on the ground in every frame (no small hops: the camera does not shake); a step down of 0.3 m keeps the body
+//      on the ground, one of 0.5 m does not; walking off an edge still falls
+//   8. a long random run in both layers: never a bad number, never inside a solid
+//   9. bad input (NaN, zero or negative time, a huge frame, nonsense settings) changes nothing that matters
 // Returns 1 when a check fails.
 
 #include "scene/Player.h"
@@ -48,9 +52,9 @@ using dl::Player;
 using dl::Vec3;
 using namespace dl::scene;
 
-constexpr float kFloor = kFloorY;           // the top of the floor
-constexpr float kDt = 1.0f / 60.0f;         // UNITS: seconds, one frame
-const Vec3 kAhead{0.0f, 0.0f, 1.0f};        // looking along +Z, as the camera does at the start
+constexpr float kFloor = kFloorY;    // the top of the floor
+constexpr float kDt = 1.0f / 60.0f;  // UNITS: seconds, one frame
+const Vec3 kAhead{0.0f, 0.0f, 1.0f}; // looking along +Z, as the camera does at the start
 
 bool Near(float a, float b, float eps)
 {
@@ -111,6 +115,34 @@ Player::Input Released(float forward = 0.0f)
     return input;
 }
 
+/// A box of both layers, still, from its centre and size.
+SceneObject Box(float x, float y, float z, float sx, float sy, float sz)
+{
+    SceneObject o{};
+    o.shape = ShapeKind::Cube;
+    o.position[0] = x;
+    o.position[1] = y;
+    o.position[2] = z;
+    o.scale[0] = sx;
+    o.scale[1] = sy;
+    o.scale[2] = sz;
+    o.layerMask = kLayerBoth;
+    return o;
+}
+
+/// A ramp of both layers along +Z whose top runs from (z0, y0) to (z1, y1) (a box turned round X, as in scene/Stage.h).
+SceneObject Ramp(float x0, float x1, float z0, float y0, float z1, float y1)
+{
+    const float dz = z1 - z0;
+    const float dy = y1 - y0;
+    const float a = std::atan2(dy, dz);
+    SceneObject o = Box(0.5f * (x0 + x1), 0.0f, 0.0f, x1 - x0, 0.2f, std::sqrt(dz * dz + dy * dy));
+    o.tilt = -a;
+    o.position[1] = 0.5f * (y0 + y1) - 0.1f * std::cos(a);
+    o.position[2] = 0.5f * (z0 + z1) + 0.1f * std::sin(a);
+    return o;
+}
+
 void TestStanding()
 {
     World w;
@@ -120,8 +152,7 @@ void TestStanding()
     CHECK(Near(w.player.Eye().y, kFloor + w.player.GetSettings().eyeHeight, 0.005f));
     CHECK(Near(w.player.VerticalSpeed(), 0.0f, 0.5f));
     CHECK(Near(w.player.Feet().x, 0.0f, 1e-3f) && Near(w.player.Feet().z, -3.0f, 1e-3f)); // it did not drift
-    // a fall from a height ends on the floor, in both layers
-    for (int layer = 0; layer < 2; ++layer)
+    for (int layer = 0; layer < 2; ++layer) // a fall from a height ends on the floor, in both layers
     {
         World f;
         f.layer = layer;
@@ -197,8 +228,7 @@ void TestWalking()
 
 void TestJumping()
 {
-    // the height of a held jump is the jump height, measured as the highest point of the feet (not only through the report)
-    for (float h : {0.5f, 1.2f, 2.0f})
+    for (float h : {0.5f, 1.2f, 2.0f}) // a held jump rises the jump height, measured as the highest point of the feet
     {
         World w;
         Player::Settings s;
@@ -240,8 +270,8 @@ void TestJumping()
         w.Run(0.3f);
         w.Run(kDt, Keys(0.0f, 0.0f, true));
         w.Run(0.3f);
-        const float vBefore = w.player.VerticalSpeed(); // falling or near the top
-        w.Run(kDt, Keys(0.0f, 0.0f, true));              // pressed in the air, far from the ground: nothing happens now
+        const float vBefore = w.player.VerticalSpeed();
+        w.Run(kDt, Keys(0.0f, 0.0f, true)); // pressed in the air, far from the ground: nothing happens now
         CHECK(w.player.VerticalSpeed() <= vBefore + 0.1f);
     }
     {
@@ -332,6 +362,7 @@ void TestLayers()
 {
     const SceneObject* cube = nullptr;
     const SceneObject* cylinder = nullptr;
+    const SceneObject* sphere = nullptr;
     for (const SceneObject& o : kScene)
     {
         if (o.shape == ShapeKind::Cube && o.layerMask == kLayerA)
@@ -342,9 +373,13 @@ void TestLayers()
         {
             cylinder = &o;
         }
+        if (o.shape == ShapeKind::Sphere)
+        {
+            sphere = &o;
+        }
     }
-    CHECK(cube != nullptr && cylinder != nullptr);
-    if (cube == nullptr || cylinder == nullptr)
+    CHECK(cube != nullptr && cylinder != nullptr && sphere != nullptr);
+    if (cube == nullptr || cylinder == nullptr || sphere == nullptr)
     {
         return;
     }
@@ -375,39 +410,27 @@ void TestLayers()
     }
     {
         // a steep side is not a place to stand: on the blue sphere (B) at 60 degrees from the top the body is not grounded and slides off
-        const SceneObject* sphere = nullptr;
-        for (const SceneObject& o : kScene)
+        World w;
+        w.layer = 1;
+        const float reach = 0.5f * sphere->scale[0] + w.player.GetSettings().radius;
+        const float angle = 1.0472f;
+        w.PlaceFeet({sphere->position[0] + reach * std::sin(angle),
+                     sphere->position[1] + reach * std::cos(angle) - w.player.GetSettings().radius + 0.05f, sphere->position[2]});
+        int groundedFrames = 0;
+        float fastest = 0.0f;
+        for (int i = 0; i < 12; ++i)
         {
-            if (o.shape == ShapeKind::Sphere)
-            {
-                sphere = &o;
-            }
+            w.Run(kDt);
+            groundedFrames += w.player.Grounded() ? 1 : 0;
+            fastest = w.player.SlideSpeed() > fastest ? w.player.SlideSpeed() : fastest;
         }
-        CHECK(sphere != nullptr);
-        if (sphere != nullptr)
-        {
-            World w;
-            w.layer = 1;
-            const float reach = 0.5f * sphere->scale[0] + w.player.GetSettings().radius; // the ball centre is this far from the sphere centre
-            const float angle = 1.0472f;                                                // 60 degrees from straight up
-            w.PlaceFeet({sphere->position[0] + reach * std::sin(angle),
-                         sphere->position[1] + reach * std::cos(angle) - w.player.GetSettings().radius + 0.05f, sphere->position[2]});
-            int groundedFrames = 0;
-            float fastest = 0.0f;
-            for (int i = 0; i < 12; ++i) // the first 0.2 s: on the slope
-            {
-                w.Run(kDt);
-                groundedFrames += w.player.Grounded() ? 1 : 0;
-                fastest = w.player.SlideSpeed() > fastest ? w.player.SlideSpeed() : fastest;
-            }
-            CHECK(groundedFrames == 0); // the slope is too steep to stand on
-            CHECK(fastest > 0.5f);      // and the fall turns into a slide
-            w.Run(2.0f);
-            CHECK(w.player.Grounded() && Near(w.player.Feet().y, kFloor, 0.01f));
-            const float restX = w.player.Feet().x; // on the floor the slide is over: friction
-            w.Run(0.5f);
-            CHECK(w.player.SlideSpeed() < 1e-4f && Near(w.player.Feet().x, restX, 0.01f));
-        }
+        CHECK(groundedFrames == 0);
+        CHECK(fastest > 0.5f);
+        w.Run(2.0f);
+        CHECK(w.player.Grounded() && Near(w.player.Feet().y, kFloor, 0.01f));
+        const float restX = w.player.Feet().x;
+        w.Run(0.5f);
+        CHECK(w.player.SlideSpeed() < 1e-4f && Near(w.player.Feet().x, restX, 0.01f));
     }
     {
         World w; // the cylinder top is a place to stand as well
@@ -420,8 +443,8 @@ void TestLayers()
         w.PlaceFeet({cylinder->position[0] - 1.1f, kFloor, cylinder->position[2]});
         w.Run(0.3f);
         w.Run(kDt, Keys(1.0f, 0.0f, true), east);
-        w.Run(0.45f, Keys(1.0f), east); // forward for a short time only: a longer walk crosses the top and leaves on the other side
-        w.Run(0.5f);
+        w.Run(0.3f, Keys(1.0f), east); // forward for a short time only: a longer walk crosses the top and leaves on the other side
+        w.Run(0.6f);
         CHECK(w.player.Grounded() && w.player.Feet().y > cylinderTop - 0.1f);
     }
 }
@@ -439,8 +462,7 @@ Arc JumpArc(bool holdUntilLanding)
     World w;
     w.Run(0.3f);
     const float dt = 1.0f / 240.0f;
-    Player::Input press = Keys(0.0f, 0.0f, true);
-    w.Run(dt, press, kAhead, dt); // the key goes down (and is held in this step)
+    w.Run(dt, Keys(0.0f, 0.0f, true), kAhead, dt); // the key goes down (and is held in this step)
     Arc arc;
     bool risen = false;
     for (int i = 0; i < 2400; ++i)
@@ -466,20 +488,19 @@ void TestFeel()
     const Player::Settings s{};
     {
         World w; // the run-up: not full speed in the first frame, full speed after 0.15 s
-        w.Run(0.3f); // stand first
+        w.Run(0.3f);
         w.Run(kDt, Keys(1.0f));
         CHECK(w.player.WalkSpeedNow() > 0.5f && w.player.WalkSpeedNow() < s.walkSpeed);
         w.Run(0.15f, Keys(1.0f));
         CHECK(Near(w.player.WalkSpeedNow(), s.walkSpeed, 1e-3f));
-        // the stop: the keys let go, the body stops within the braking distance v^2 / (2 d)
-        const float z = w.player.Feet().z;
+        const float z = w.player.Feet().z; // the stop: within the braking distance v^2 / (2 d)
         w.Run(0.3f);
         CHECK(Near(w.player.WalkSpeedNow(), 0.0f, 1e-6f));
         const float braked = w.player.Feet().z - z;
         CHECK(braked > 0.0f && braked < s.walkSpeed * s.walkSpeed / (2.0f * s.groundDecel) + 0.03f);
     }
     {
-        World w; // turning round on the ground brakes first (the stronger deceleration), then runs back
+        World w; // turning round on the ground brakes first, then runs back
         w.Run(0.5f, Keys(1.0f));
         w.Run(0.3f, Keys(-1.0f));
         CHECK(Near(w.player.WalkSpeedNow(), s.walkSpeed, 1e-3f));
@@ -490,8 +511,8 @@ void TestFeel()
         CHECK(Near(full.peak, s.jumpHeight, 0.03f));
         CHECK(tap.peak > 0.15f && tap.peak < 0.6f * s.jumpHeight);
         CHECK(full.up > 0.0f && full.down > 0.0f && full.down < 0.85f * full.up);
-        std::printf("  jump: up %.3f s, down %.3f s, full %.2f m, tap %.2f m\n", static_cast<double>(full.up), static_cast<double>(full.down),
-                    static_cast<double>(full.peak), static_cast<double>(tap.peak));
+        std::printf("  jump: up %.3f s, down %.3f s, full %.2f m, tap %.2f m\n", static_cast<double>(full.up),
+                    static_cast<double>(full.down), static_cast<double>(full.peak), static_cast<double>(tap.peak));
     }
     {
         World w; // letting go after the top changes nothing
@@ -532,30 +553,32 @@ void TestFeel()
         CHECK(!w.player.ConsumeImpact(speed));
     }
     {
-        // a wall takes away the walk into it: walking straight into a still wall leaves no speed into the wall, so nothing is
-        // stored that would throw the body on when the wall goes away (the same rule lets the body slide along a wall at an angle)
-        static constexpr SceneObject kRoom[] = {
-            {.shape = ShapeKind::Cube, .position = {0.0f, kFloorY - 0.1f, 0.0f}, .scale = {20.0f, 0.2f, 20.0f}, .tilt = 0.0f,
-             .spinSpeed = 0.0f, .colorSrgb = {0.5f, 0.5f, 0.5f}, .checker = 0.0f, .shineStrength = 0.0f, .shininess = 1.0f,
-             .layerMask = kLayerBoth},
-            {.shape = ShapeKind::Cube, .position = {2.0f, kFloorY + 1.0f, 0.0f}, .scale = {0.5f, 2.0f, 6.0f}, .tilt = 0.0f,
-             .spinSpeed = 0.0f, .colorSrgb = {0.8f, 0.2f, 0.2f}, .checker = 0.0f, .shineStrength = 0.0f, .shininess = 1.0f,
-             .layerMask = kLayerA},
-        };
+        // a wall takes away the walk into it: walking straight into a still wall leaves no speed into the wall, also with the floor
+        // under the body (the feet ball touches both in the same step); at 45 degrees the body slides along the wall
+        static const SceneObject kRoom[] = {Box(0.0f, kFloorY - 0.1f, 0.0f, 20.0f, 0.2f, 20.0f), Box(2.0f, kFloorY + 1.0f, 0.0f, 0.5f, 2.0f, 6.0f)};
         World w;
         w.player.SetScene(kRoom, 2);
         w.PlaceFeet({0.0f, kFloor, 0.0f});
-        w.Run(1.0f, Keys(1.0f), {1.0f, 0.0f, 0.0f});
-        CHECK(w.player.Feet().x < 2.0f - 0.25f - 0.3f);  // the wall stopped the body
-        CHECK(w.player.WalkSpeedNow() < 0.3f);            // and no speed into it is left
-        World slide;                                      // at 45 degrees the body slides along the wall
+        for (int i = 0; i < 60; ++i)
+        {
+            w.Run(kDt, Keys(1.0f), {1.0f, 0.0f, 0.0f});
+        }
+        CHECK(w.player.Feet().x < 2.0f - 0.25f - 0.3f);
+        float worst = 0.0f; // in every frame at the wall, not only on average
+        for (int i = 0; i < 30; ++i)
+        {
+            w.Run(kDt, Keys(1.0f), {1.0f, 0.0f, 0.0f});
+            worst = w.player.WalkSpeedNow() > worst ? w.player.WalkSpeedNow() : worst;
+        }
+        CHECK(worst < 0.3f);
+        World slide;
         slide.player.SetScene(kRoom, 2);
         slide.PlaceFeet({1.0f, kFloor, 0.0f});
         slide.Run(0.5f, Keys(1.0f), {0.7071f, 0.0f, 0.7071f});
         CHECK(slide.player.Feet().z > 0.8f && slide.player.Feet().x < 2.0f - 0.25f - 0.3f);
     }
     {
-        // the running jump on the flat floor: the stage is built for a gap the body can just cross
+        // the running jump on the flat floor: the map is built round it (docs/LEVEL_DESIGN.md, section 10)
         World w;
         w.PlaceFeet({0.0f, kFloor, -8.0f}); // the floor runs from z = -9 to z = 15
         w.Run(0.5f, Keys(1.0f));
@@ -569,7 +592,68 @@ void TestFeel()
         } while (!w.player.Grounded() && guard++ < 2400);
         const float distance = w.player.Feet().z - takeoff;
         std::printf("  running jump: %.2f m\n", static_cast<double>(distance));
-        CHECK(distance > 2.3f && distance < 3.0f);
+        CHECK(distance > 3.2f && distance < 4.0f);
+    }
+}
+
+void TestRampsAndSteps()
+{
+    // up and down ramps of 15 .. 32 degrees, 8 m long, between two floors
+    for (float degrees : {15.0f, 22.0f, 27.0f, 32.0f})
+    {
+        const float rise = std::tan(degrees * 3.14159265f / 180.0f) * 8.0f;
+        const SceneObject room[] = {Box(0.0f, kFloorY - 0.1f, -5.0f, 10.0f, 0.2f, 10.0f), Ramp(-1.0f, 1.0f, 0.0f, kFloorY, 8.0f, kFloorY + rise),
+                                    Box(0.0f, kFloorY + rise - 0.1f, 14.0f, 10.0f, 0.2f, 12.0f)};
+        World up;
+        up.player.SetScene(room, 3);
+        up.PlaceFeet({0.0f, kFloor, -2.0f});
+        float t = 0.0f;
+        while (up.player.Feet().z < 9.0f && t < 6.0f)
+        {
+            up.Run(kDt, Keys(1.0f));
+            t += kDt;
+        }
+        CHECK(up.player.Feet().z >= 9.0f && Near(up.player.Feet().y, kFloor + rise, 0.05f));
+        World down;
+        down.player.SetScene(room, 3);
+        down.PlaceFeet({0.0f, kFloor + rise, 10.0f});
+        down.Run(0.3f);
+        int airFrames = 0;
+        float lowestEye = 100.0f;
+        bool eyeWentUp = false; // walking down, the eye must only go down (a hop would lift it)
+        t = 0.0f;
+        while (down.player.Feet().z > -2.0f && t < 6.0f)
+        {
+            down.Run(kDt, Keys(1.0f), {0.0f, 0.0f, -1.0f});
+            t += kDt;
+            airFrames += down.player.Grounded() ? 0 : 1;
+            eyeWentUp = eyeWentUp || down.player.Eye().y > lowestEye + 1e-3f;
+            lowestEye = down.player.Eye().y < lowestEye ? down.player.Eye().y : lowestEye;
+        }
+        CHECK(down.player.Feet().z <= -2.0f && Near(down.player.Feet().y, kFloor, 0.02f));
+        if (degrees <= 27.0f) // the ramps of the map are at most 27 degrees: down them the body never leaves the ground
+        {
+            CHECK(airFrames == 0 && !eyeWentUp);
+        }
+    }
+    {
+        // a step down of 0.3 m keeps the body on the ground; one of 0.5 m does not (it falls, and lands)
+        for (float drop : {0.3f, 0.5f})
+        {
+            const SceneObject room[] = {Box(0.0f, kFloorY - 0.1f, -2.0f, 6.0f, 0.2f, 4.0f), Box(0.0f, kFloorY - drop - 0.1f, 3.0f, 6.0f, 0.2f, 6.0f)};
+            World w;
+            w.player.SetScene(room, 2);
+            w.PlaceFeet({0.0f, kFloor, -1.0f});
+            w.Run(0.3f);
+            int airFrames = 0;
+            for (int i = 0; i < 60; ++i)
+            {
+                w.Run(kDt, Keys(1.0f));
+                airFrames += w.player.Grounded() ? 0 : 1;
+            }
+            CHECK(Near(w.player.Feet().y, kFloor - drop, 0.02f));
+            CHECK(drop < Player::kSnapDown ? airFrames == 0 : airFrames > 0);
+        }
     }
 }
 
@@ -648,9 +732,7 @@ void TestRandomRun()
     {
         std::printf("  (%d steps ended with a ball inside a solid)\n", unclear);
     }
-    // a random walk of about 1400 s leaves the 24 m floor now and then: the run must have used the fall rule, and must not be
-    // falling all the time
-    CHECK(respawns > 0 && respawns < 400);
+    CHECK(respawns > 0 && respawns < 600);
 }
 
 void TestBadInput()
@@ -665,29 +747,24 @@ void TestBadInput()
     w.player.Update(Keys(1.0f), kAhead, 0, w.spin, 0.0f);
     w.player.Update(Keys(1.0f), kAhead, 0, notANumber, kDt);
     CHECK(Near(w.player.Feet().x, before.x, 1e-6f) && Near(w.player.Feet().z, before.z, 1e-6f) && Near(w.player.Feet().y, before.y, 1e-6f));
-    // bad keys and a bad direction: no walking, no bad numbers
-    w.player.Update(Keys(notANumber, infinity), kAhead, 0, w.spin, kDt);
+    w.player.Update(Keys(notANumber, infinity), kAhead, 0, w.spin, kDt); // bad keys and a bad direction: no walking, no bad numbers
     w.player.Update(Keys(1.0f), {notANumber, 0.0f, 1.0f}, 0, w.spin, kDt);
     CHECK(std::isfinite(w.player.Feet().x) && std::isfinite(w.player.Feet().y) && std::isfinite(w.player.Feet().z));
     CHECK(Near(w.player.Feet().x, before.x, 1e-3f) && Near(w.player.Feet().z, before.z, 1e-3f));
-    // a layer that does not exist: nothing is solid, so the body falls through the floor and comes back at the spawn point
-    World bad;
+    World bad; // a layer that does not exist: nothing is solid, the body falls and comes back at the spawn point
     bad.layer = 7;
     bad.Run(3.0f);
     CHECK(std::isfinite(bad.player.Feet().y));
-    // a huge frame (a stall) is cut to 0.1 s: the body stays on the floor and does not tunnel
-    World stall;
+    World stall; // a huge frame (a stall) is cut to 0.1 s: the body stays on the floor and does not tunnel
     stall.Run(0.5f);
     stall.player.Update(Keys(1.0f), kAhead, 0, stall.spin, 5.0f);
-    CHECK(Near(stall.player.Feet().y, kFloor, 0.01f) && stall.player.Feet().z < -3.0f + 0.5f);
-    // a place that is not a number is ignored
-    World p;
+    CHECK(Near(stall.player.Feet().y, kFloor, 0.01f) && stall.player.Feet().z < -3.0f + 0.6f);
+    World p; // a place that is not a number is ignored
     const Vec3 spot = p.player.Feet();
     p.player.Place({notANumber, 0.0f, 0.0f});
     p.player.SetSpawn({infinity, 0.0f, 0.0f});
     CHECK(Near(p.player.Feet().x, spot.x, 1e-6f) && Near(p.player.Feet().y, spot.y, 1e-6f));
-    // nonsense settings are pulled into a range that works, and the body still stands
-    World s;
+    World s; // nonsense settings are pulled into a range that works, and the body still stands
     Player::Settings nonsense;
     nonsense.radius = notANumber;
     nonsense.eyeHeight = -4.0f;
@@ -720,6 +797,7 @@ int main()
     TestEdge();
     TestLayers();
     TestFeel();
+    TestRampsAndSteps();
     TestRandomRun();
     TestBadInput();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);

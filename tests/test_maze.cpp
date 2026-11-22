@@ -1,7 +1,7 @@
 // test_maze.cpp - proves the block puzzle of the courtyard (src/scene/Courtyard.h) with the solver of src/scene/BlockMaze.h,
 // and tests the solver itself on small grids whose answers are known by hand.
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_maze.cpp -o test_maze
-//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
+//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only maze
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. the solver: Parse; straight pushes; a block stopped by a wall of either layer; a body that must switch twice to get
 //      behind the block; climbing over the block; a dead end; a plate out of reach; the cells the block can be in
@@ -9,11 +9,11 @@
 //      stays in B; the solution that looks right from A (blue walls unseen) is much shorter, and its first push runs into a
 //      blue wall; at least one push of the real solution is made by a body standing where a wall of the other layer is; it
 //      has dead ends (a careless push costs an R), and most states are alive
-//   3. the frame that the finale needs: the red wall runs north from beside the plate to the north edge
 // Returns 1 when a check fails.
 
 #include "scene/Courtyard.h"
 
+#include <cstddef>
 #include <cstdio>
 
 namespace
@@ -110,8 +110,8 @@ void TestSolverSmall()
         CHECK(!Solve(g, Mode::OnlyB).solved); // stays in B: the blue wall
     }
     {
-        // the body climbs over the block: one row, the body between the block and the plate; the only way to the west
-        // side is over the block
+        // the body climbs over the block: one row, the body between the block and the plate; the only way to the west side
+        // is over the block
         const char* rows[] = {".KSP"};
         const Grid g = Make(rows, 1);
         const Result r = Solve(g, Mode::OnlyA);
@@ -167,16 +167,6 @@ void TestCourtyard()
     }
     CHECK(fromInsideAWall >= 1);
     CHECK(both.deadStates > 0 && both.deadStates * 2 < both.states);
-    // the finale: the plate is beside the south end of a red wall that runs north to the north edge
-    const int px = g.X(g.plate);
-    const int pz = g.Z(g.plate);
-    const int wx = dl::courtyard::kFinaleWallX;
-    CHECK(wx == px + 1 || wx == px - 1);
-    for (int z = pz; z < g.d; ++z)
-    {
-        CHECK(g.At(wx, z) == Cell::RedWall);
-    }
-    CHECK(g.At(wx, pz - 1) != Cell::RedWall);
 }
 
 } // namespace

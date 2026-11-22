@@ -256,8 +256,8 @@ else
             else { Add-Result "game starts (Q-1)" "WARN" ("not the NVIDIA adapter? title: {0}" -f $title) }
             Start-Sleep -Milliseconds 700
             $p0 = Get-CameraPos $proc
-            $onTerrace = $p0 -and [Math]::Abs($p0[1] - $standY) -lt 0.25 -and ((Get-Title $proc) -like "*part 1*")
-            Add-Result "starts on the terrace" (Verdict $onTerrace) ("eye height {0}, part 1 in the title bar" -f $(if ($p0) { "{0:N2}" -f $p0[1] } else { "?" }))
+            $onTerrace = $p0 -and [Math]::Abs($p0[1] - $standY) -lt 0.25 -and ((Get-Title $proc) -like "*terrace*")
+            Add-Result "starts on the terrace" (Verdict $onTerrace) ("eye height {0}, the terrace in the title bar" -f $(if ($p0) { "{0:N2}" -f $p0[1] } else { "?" }))
 
             # the keys only go to the game while its window is in front; otherwise they would land in another program
             $hwnd = $proc.MainWindowHandle
@@ -341,7 +341,7 @@ else
         $log = @(Get-Content $logPath)
         $errs = @($log | Where-Object { $_ -match "\[ERROR\]" })
         $warns = @($log | Where-Object { $_ -match "\[WARN \]" })
-        $falls = @($log | Where-Object { $_ -match "fell: back at checkpoint" })
+        $falls = @($log | Where-Object { $_ -match "fell: back at" })
         $hasRipple = @($log | Where-Object { $_ -match "ripple pictures: 2 x" }).Count -gt 0
         $hasShutdown = @($log | Where-Object { $_ -match "\[Main\] shutdown" }).Count -gt 0
         if ($errs.Count -gt 0)

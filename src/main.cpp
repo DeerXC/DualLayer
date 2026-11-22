@@ -1,13 +1,14 @@
 // main.cpp - entry point and the frame loop.
-// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, the stage, walking or collision) > Render
+// Frame:  PumpMessages > (F5: reload config) > (resize) > Update (camera, models, the map, walking or collision) > Render
 //         [GPU event "Frame" > "Opaque.Models" (> "Opaque.TestTriangle", when [test_triangle] show = 1)] > Present
-// Stage:  scene/Stage.h, the first stage: the fixed objects, the purple block, the plate and the door (scene/Puzzle.h). Every
-//         frame the drawn table goes to the renderer and the solid table of the layer of the body (Puzzle::Solids) to the
-//         body, so what is drawn and what is solid come from the same state. The drawn table also holds what the stage says
-//         without words (scene/StageHints.h: the outlines of the other layer, the frame of the door, the beacon over the
-//         goal and the rings of the clear) and the hidden light (scene/StageLights.h).
+// Map:    scene/Stage.h: the fixed boxes, the block puzzle of the courtyard (scene/Puzzle.h), the rooms, the seals of the
+//         wings and the doors they open. Every frame the drawn table goes to the renderer and the solid table of the layer
+//         of the body (Puzzle::Solids and the closed doors of the map) to the body, so what is drawn and what is solid come
+//         from the same state. The drawn table also holds what the map says without words (scene/StageHints.h) and the
+//         hidden lights (scene/StageLights.h).
 // Keys:   W A S D move, the mouse turns (click into the window to capture it; Esc gives it back, a second Esc quits), the arrow
-//         keys turn as well, R goes back to the last checkpoint (and puts the block back), F5 reloads config/default.ini
+//         keys turn as well, R goes back to the entry of the room the body is in (and puts back the puzzle of that room),
+//         F5 reloads config/default.ini
 //         Space jumps (walking; held = the full jump, a tap = a small hop), Q / E down / up (flying)
 //         F walking / flying (walking: gravity, the body stands on the floor and on objects; flying: a free camera)
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
@@ -16,12 +17,12 @@
 //         N collision on / off (off = fly through everything; walking needs collision, so N off also means flying)
 //         F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds them again: the test of the recovery
 // Walking: scene/Player.h. The camera is the eye of a body of three balls; the camera only turns, the body walks, falls and jumps.
-//         A hard landing lowers the eye for a moment ([camera] land_dip). A body that falls below the stage goes back to the
-//         last checkpoint it stood on.
+//         A hard landing lowers the eye for a moment ([camera] land_dip). A body that falls below the map goes back to the
+//         entry of the room it last stood in.
 // Flying: the camera is one ball ([collision] radius); after it has moved, the ball is pushed out of the solid objects of the layer
 //         that the screen is going to show (scene/Collision.h); the camera keeps its direction.
 // Lost device: Present reports it, the loop builds device, triangle and models again (Gpu::Recover); the layer, the spin, the
-//         stage and the camera stay as they were. After kMaxRecoveries tries the program says so and ends.
+//         map and the camera stay as they were. After kMaxRecoveries tries the program says so and ends.
 // Args:   --adapter N   choose the N-th adapter listed in the log (overrides [render] adapter)
 
 #define WIN32_LEAN_AND_MEAN
@@ -73,6 +74,9 @@ constexpr float kDefaultMouseSensitivity = 0.0022f; // UNITS: radians per count 
 constexpr float kDefaultLandDip = 0.012f;           // UNITS: metres of dip per m/s of landing speed. TUNE: [camera] land_dip, 0 = off
 constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepest dip. TUNE: [camera] land_dip_max
 constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
+constexpr float kEyeEase = 30.0f;                   // UNITS: 1 / seconds; small changes of the eye height are eased over about 0.05 s
+constexpr float kEyeEaseMax = 0.5f;                 // UNITS: metres; a larger change (a respawn, a teleport) is followed at once
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4; // the puzzle's table and the closed doors of the map
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -200,17 +204,20 @@ struct Gpu
     }
 };
 
-/// Fills the drawn table with the stage as it is now: the stage itself, then what it says without words. Returns the count.
-int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::LightSet& lights, const dl::Config& config,
-                    float sinceClear, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
+/// Fills the drawn table with the map as it is now: the map, its state, then what it says without words. Returns the count.
+int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
+                    const dl::Config& config, float sinceClear, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
     namespace st = dl::stage;
     const bool cleared = sinceClear >= 0.0f;
     int count = st::BuildDrawTable(puzzle, cleared, table);
+    count = st::AddMapDraw(seals, table, count, st::kMaxDrawObjects);
     if (config.GetBool("hints", "ghosts", true)) // the outlines of the other layer: [hints] ghosts = false turns them off
     {
         count = st::AddGhosts(table, count, st::kMaxDrawObjects);
     }
+    // a refused push: the outline of what was in the way, in both layers, for a moment
+    count = st::AddBlockedFlash(puzzle, table, count, st::kMaxDrawObjects);
     // the blue frame of the door, seen in A while the door is closed for a body in A: the plate shows what it does
     count = st::AddDoorFrame(table, count, st::kMaxDrawObjects, puzzle.DoorOpen(0));
     count = st::AddGoalBeacon(table, count, st::kMaxDrawObjects, sinceClear);
@@ -221,6 +228,19 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::LightSet&
         st::RecolourGoal(table, count); // every hidden light taken: the goal light turns cool white
     }
     return count;
+}
+
+/// The solid table of a body in `layer`: the puzzle's table (the boxes of the map, the block, the courtyard door while
+/// closed) and the closed doors of the map. Returns the count.
+int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, int layer, dl::scene::SceneObject (&table)[kMaxSolids])
+{
+    int count = 0;
+    const dl::scene::SceneObject* solids = puzzle.Solids(layer, count);
+    for (int i = 0; i < count; ++i)
+    {
+        table[i] = solids[i];
+    }
+    return dl::stage::AddMapSolids(seals, table, count, kMaxSolids);
 }
 
 int RunApp(HINSTANCE instance, int argc, char** argv)
@@ -254,25 +274,27 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         return 1;
     }
 
-    // ---- the stage: its puzzle, the guard of the layer switch, the checkpoint the body has reached, the hidden light
+    // ---- the map: its puzzle, the guard of the layer switch, the room the body is in, the seals, the hidden lights
     dl::puzzle::Puzzle puzzle;
     if (!puzzle.Init(dl::stage::MakeStage()))
     {
-        DL_LOG_ERROR("Main", "the stage could not be set up (scene/Stage.h)");
-        MessageBoxA(window.Handle(), "The stage could not be set up. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
+        DL_LOG_ERROR("Main", "the map could not be set up (scene/Stage.h)");
+        MessageBoxA(window.Handle(), "The map could not be set up. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
         gpu.Shutdown();
         return 1;
     }
     dl::puzzle::LayerGuard guard;
-    dl::stage::LightSet lights; // once taken, taken for the rest of the run
-    int checkpoint = 0;
-    // WHY static: the renderer keeps a pointer to the drawn table until the next SetObjects, and the table is too large for
+    dl::stage::SealSet seals;   // once taken, taken for the rest of the run
+    dl::stage::LightSet lights; // the same
+    int room = dl::stage::kStartRoom;
+    // WHY static: the renderer and the body keep pointers to these tables until the next frame, and they are too large for
     // the stack of a function that runs for the whole program
     static dl::scene::SceneObject drawTable[dl::stage::kMaxDrawObjects] = {};
+    static dl::scene::SceneObject solidTable[kMaxSolids] = {};
 
     dl::Player player;
     ApplyPlayerConfig(config, player);
-    player.SetSpawn(dl::stage::kCheckpoints[0].feet);
+    player.SetSpawn(dl::stage::kRooms[room].entry);
     player.Respawn();
     camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch()); // the first frame already looks from the start
 
@@ -284,6 +306,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     int fpsFrames = 0;
     float angle = 0.0f;           // radians
     float landDip = 0.0f;         // UNITS: metres the eye is lowered after a hard landing (it comes back up by itself)
+    float eyeY = player.Eye().y;  // UNITS: metres, the height of the eye as the camera shows it (eased, see kEyeEase)
     double stageSeconds = 0.0;    // UNITS: seconds since the start
     double clearSeconds = -1.0;   // the time of the clear; negative while the goal is not reached
     double sinceClear = -1.0;     // UNITS: seconds since the clear (the rings and the beacon use it); negative before
@@ -444,20 +467,23 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         const bool resetKeyDown = focused && IsDown('R');
         if (resetKeyDown && !resetKeyWasDown)
         {
+            const dl::stage::Room& here = dl::stage::kRooms[room];
             landDip = 0.0f;
-            puzzle.Reset(); // R also puts the block back: a block pushed into a dead end never ends the game
-            player.SetSpawn(dl::stage::kCheckpoints[checkpoint].feet);
+            if (here.puzzle)
+            {
+                puzzle.Reset(); // R in the courtyard also puts the block back: a block in a dead end never ends the game
+            }
+            player.SetSpawn(here.entry);
             player.Respawn();
             camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch());
-            DL_LOG_INFO("Main", "R: back to checkpoint %d, the block is back at its start", checkpoint);
+            DL_LOG_INFO("Main", "R: back to the entry of the %s%s", here.name, here.puzzle ? ", the block is back at its start" : "");
         }
         resetKeyWasDown = resetKeyDown;
         gpu.models.Update(dtf);
 
         // the layer whose objects are solid: the one the screen is going to show, or the old one while a refusal plays
         const int solidLayer = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
-        int solidCount = 0;
-        const dl::scene::SceneObject* solids = puzzle.Solids(solidLayer, solidCount);
+        const int solidCount = BuildSolidTable(puzzle, seals, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
@@ -467,29 +493,35 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             move.moveRight = keys.moveRight;
             move.jumpPressed = jumpPressed;
             move.jumpHeld = focused && IsDown(VK_SPACE);
-            player.SetScene(solids, solidCount);
+            player.SetScene(solidTable, solidCount);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
             puzzle.Update(player, dtf);
-            const int taken = lights.Collect(player);
-            if (taken >= 0)
+            const int seal = seals.Collect(player);
+            if (seal >= 0)
+            {
+                DL_LOG_INFO("Stage", "seal %d of %d: %s%s", seals.Count(), dl::stage::kSealCount, dl::stage::kSeals[seal].name,
+                            seals.TowerOpen() ? " - the tower is open" : "");
+            }
+            const int light = lights.Collect(player);
+            if (light >= 0)
             {
                 DL_LOG_INFO("Stage", "hidden light %d of %d: %s", lights.Count(), dl::stage::kHiddenLightCount,
-                            dl::stage::kHiddenLights[taken].name);
+                            dl::stage::kHiddenLights[light].name);
             }
 
-            // the checkpoint: reached by standing on something of a part; a fall below the stage goes back to it
-            const int reached = dl::stage::CheckpointFor(player.Feet(), player.Grounded(), checkpoint);
-            if (reached != checkpoint)
+            // the room: the one the body stands in; a fall below the map goes back to its entry
+            const int standing = dl::stage::CurrentRoom(player.Feet(), player.Grounded(), room);
+            if (standing != room)
             {
-                checkpoint = reached;
-                DL_LOG_INFO("Stage", "checkpoint %d", checkpoint);
+                room = standing;
+                DL_LOG_INFO("Stage", "room: %s", dl::stage::kRooms[room].name);
             }
             if (player.Feet().y < dl::stage::kFallY || player.JustRespawned())
             {
-                player.SetSpawn(dl::stage::kCheckpoints[checkpoint].feet);
+                player.SetSpawn(dl::stage::kRooms[room].entry);
                 player.Respawn();
                 landDip = 0.0f;
-                DL_LOG_INFO("Main", "fell: back at checkpoint %d", checkpoint);
+                DL_LOG_INFO("Main", "fell: back at the entry of the %s", dl::stage::kRooms[room].name);
             }
             if (clearSeconds < 0.0 && dl::stage::ReachedGoal(player))
             {
@@ -511,7 +543,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             }
             landDip *= std::exp(-kLandDipReturn * dtf); // back up, quickly at first and then softly
             dl::Vec3 eye = player.Eye();
-            eye.y -= landDip;
+            // the eye follows the body smoothly up and down ramps and steps, so that the many small corrections of the
+            // collision do not shake the picture; in the air (a jump, a fall) it follows at once
+            const float rise = eye.y - eyeY;
+            eyeY = (player.Grounded() && std::fabs(rise) < kEyeEaseMax) ? eyeY + rise * (1.0f - std::exp(-kEyeEase * dtf)) : eye.y;
+            eye.y = eyeY - landDip;
             camera.SetPose(eye, camera.Yaw(), camera.Pitch()); // only the place changes, not where it looks
         }
         else if (collide)
@@ -519,7 +555,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             landDip = 0.0f;
             const float radius = std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f);
             const dl::CollisionResult body =
-                dl::ResolveSphere(camera.Position(), radius, solidLayer, gpu.models.SpinSeconds(), solids, solidCount);
+                dl::ResolveSphere(camera.Position(), radius, solidLayer, gpu.models.SpinSeconds(), solidTable, solidCount);
             if (body.pushed)
             {
                 camera.SetPose(body.position, camera.Yaw(), camera.Pitch());
@@ -538,8 +574,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         }
         lastFlash = puzzle.BlockedFlash();
 
-        // ---- what is drawn: the stage as it is now
-        gpu.models.SetObjects(drawTable, BuildFrameTable(puzzle, lights, config, static_cast<float>(sinceClear), drawTable));
+        // ---- what is drawn: the map as it is now
+        gpu.models.SetObjects(drawTable, BuildFrameTable(puzzle, seals, lights, config, static_cast<float>(sinceClear), drawTable));
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
@@ -560,7 +596,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             const float aspect = static_cast<float>(gpu.device->Width()) / static_cast<float>(gpu.device->Height());
             {
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Opaque.Models");
-                gpu.models.Draw(gpu.device->GetContext(), view, dl::MakeProjection(aspect), DirectX::XMFLOAT3(pos.x, pos.y, pos.z));
+                gpu.models.Draw(gpu.device->GetContext(), view, dl::MakeProjection(aspect, config.GetFloat("camera", "fov_deg", dl::kDefaultFovYDegrees)), DirectX::XMFLOAT3(pos.x, pos.y, pos.z));
             }
             if (showTriangle)
             {
@@ -575,15 +611,15 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (fpsTimer >= 0.5)
         {
             const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
-            wchar_t stageText[96];
+            wchar_t stageText[128];
             if (clearSeconds >= 0.0)
             {
                 swprintf_s(stageText, L"CLEAR %.1f s | lights %d/%d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount);
             }
             else
             {
-                swprintf_s(stageText, L"part %d | %.0f s | lights %d/%d", checkpoint + 1, stageSeconds, lights.Count(),
-                           dl::stage::kHiddenLightCount);
+                swprintf_s(stageText, L"%hs | %.0f s | seals %d/%d | lights %d/%d", dl::stage::kRooms[room].name, stageSeconds,
+                           seals.Count(), dl::stage::kSealCount, lights.Count(), dl::stage::kHiddenLightCount);
             }
             wchar_t title[384];
             swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | %s%s",

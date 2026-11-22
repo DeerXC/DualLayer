@@ -1,23 +1,38 @@
-// Stage.h - the first stage: one place of about two to three minutes, walked from south to north (+Z).
-//   1 the gate          on a raised terrace (2.4 m above the courtyard), a red wall of layer A closes the way; in B it is not
-//                       there. A hidden light is buried in its top (scene/StageLights.h).
-//   2 the gap           a 4.4 m gap in the terrace. A blue stone of B lies in the middle; the strip on the far side exists only
-//                       in A. Jump from the stone in B and switch to A in the air. This is also the lesson the finale needs.
-//   3 the overlook      the strip ends over the courtyard: the whole puzzle is seen from above before it is touched, with the
-//                       outlines of the walls of the other layer (scene/StageHints.h) and the beacon over the goal.
-//   4 the courtyard     the block puzzle of scene/Courtyard.h, built cell by cell from the same rows the solver proved: the
-//                       block obeys the walls of both layers, the body those of one.
-//   5 the finale        the block on the plate opens the blue door (B) of the goal and is the step up onto the low red wall
-//                       (A) that ran along the puzzle. Along its top, a jump over the moat; in A there is nothing on the
-//                       other side, so the body switches to B in the air and lands on the blue apron before the open door.
-// Why it holds:      tests/test_stage.cpp plays every part with the real walking body and checks that each one needs the
-//                    layer switch, and that the courtyard cannot be skipped: the walls are too high to climb from the terrace,
-//                    from the block or from the low red wall; the apron cannot be reached from the block or the floor; the
-//                    door stays closed unless the block is on the plate.
-// Tables:     kStageStatics are the fixed objects (the puzzle copies them). The table that is DRAWN adds the block, the
-//             closed door, the plate and the goal light (BuildDrawTable); the SOLID table adds the block and the closed door
-//             (Puzzle::Solids). The plate and the goal light are not solid.
-// Space:      left-handed, +Y up; the courtyard floor at scene::kFloorY (-1), the terrace at kTerraceY (1.4). UNITS: metres.
+// Stage.h - the map (docs/LEVEL_DESIGN.md, step 1: the skeleton). A walled city in two layers round a hub, walked in about
+//            ten minutes when its rooms are filled; in this step the wings are grey boxes with their shapes, heights and
+//            ways in and out, so that the size and the flow of the whole map can be played before any room is built.
+//   prologue   the terrace with the red gate (the wall of one layer), the gap (a wide blue stone in B, then a switch to A in
+//              the air onto the red strip; a blue curtain at the end of the strip keeps B from flying over it), the overlook, and
+//              the courtyard with the proved block puzzle (scene/Courtyard.h). The block on the plate opens the blue door
+//              in the north wall of the courtyard: the way into the hub.
+//   hub        a square place, walled 10 m high, with the tower in the middle. The tower door carries three seal lamps; it
+//              opens when the three seals of the wings are taken. Three openings lead to the wings; a fourth, closed door in
+//              the west wall is the far end of a shortcut that is opened from the other side.
+//   west wing  going DOWN: a hall, a ramp down to a lower room 3.6 m below the hub, the seal at its far end, and a ramp up
+//              to the closed door in the hub wall, which opens when the seal is taken (a one-way shortcut).
+//   east wing  going UP: a hall, a ramp up to an upper room 5 m above the hub floor, east of the terrace and seen from it,
+//              and the top of the east wall of the courtyard - the wall that closed the courtyard is now a path. The seal
+//              is on it; its north end drops into the hub (a one-way shortcut).
+//   north wing going UP by two ramps to a landing 7 m above the hub floor, with the seal; a ledge runs south through a window
+//              in the hub wall and drops into the hub (a one-way shortcut).
+//   tower      the landmark of the map: 13 m high, gold pinnacles on its corners, the beacon over it. Inside, six ramps wind
+//              round its walls to a balcony on its south side, 12 m above the hub, which looks back over the whole map; the
+//              goal is there.
+// Heights:    every wall that a body must not climb is out of reach of a jump (2 m) from every place a body can stand next
+//             to it: the hub walls (9 m) from the ledge (6 m), the tower walls (12.2 m) from the ledge and from inside, the
+//             courtyard walls (4 m) from the terrace (1.4 m). tests/test_stage.cpp checks the numbers and tries the jumps.
+// Rooms:      kRooms says where each room is and where a body comes back in it after a fall or R. R also puts back the
+//             puzzle of a room that has one (docs/LEVEL_DESIGN.md, section 9).
+// Ramps:      boxes turned round X (SceneObject::tilt); they run along Z, at most 27 degrees (the body stands up to about
+//             53). Every other box is axis-aligned.
+// Tables:     kStageStatics are the fixed objects (the puzzle copies them). The DRAWN table adds the block, the closed
+//             courtyard door, the plate, the goal light and the state of the map (seals, seal lamps, closed doors:
+//             AddMapDraw); the SOLID table adds the block, the closed courtyard door (Puzzle::Solids) and the closed doors of
+//             the map (AddMapSolids). Plates, seals, lamps and lights are never solid.
+// Space:      left-handed, +Y up, the hub floor at scene::kFloorY (-1). UNITS: metres.
+// Proof:      tests/test_stage.cpp walks the whole map with the real walking body: every room reached, every shortcut
+//             taken, every closed door holding, every ramp climbed, every room entry standable in both layers, and the jumps
+//             that would skip a part tried.
 // Note:       no std::min / std::max here: windows.h may define them as macros (docs/CONVENTIONS.md).
 #pragma once
 
@@ -27,6 +42,7 @@
 #include "scene/SceneData.h"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 
 namespace dl::stage
@@ -39,7 +55,22 @@ using scene::kLayerBoth;
 using scene::SceneObject;
 using scene::ShapeKind;
 
-/// A box of the stage from its two corners (min, max), a colour (sRGB) and a layer mask. checker = 1 for the floors.
+// ---- colours (sRGB): red = layer A, blue = layer B, grey = both, gold = goal and seals
+struct Rgb
+{
+    float r;
+    float g;
+    float b;
+};
+inline constexpr Rgb kGrey{0.30f, 0.33f, 0.40f};
+inline constexpr Rgb kStone{0.52f, 0.54f, 0.58f};
+inline constexpr Rgb kDark{0.40f, 0.42f, 0.47f};
+inline constexpr Rgb kTowerStone{0.62f, 0.60f, 0.56f};
+inline constexpr Rgb kRed{0.82f, 0.24f, 0.22f};
+inline constexpr Rgb kBlue{0.22f, 0.46f, 0.90f};
+inline constexpr Rgb kGold{1.00f, 0.82f, 0.36f};
+
+/// A box from its two corners (min, max), a colour (sRGB) and a layer mask. checker = 1 for the floors.
 constexpr SceneObject Span(float x0, float y0, float z0, float x1, float y1, float z1, float r, float g, float b, unsigned mask,
                            float checker = 0.0f)
 {
@@ -61,55 +92,123 @@ constexpr SceneObject Span(float x0, float y0, float z0, float x1, float y1, flo
     return o;
 }
 
-// ---- colours (sRGB): red = layer A, blue = layer B, grey = both
-struct Rgb
-{
-    float r;
-    float g;
-    float b;
-};
-inline constexpr Rgb kGrey{0.30f, 0.33f, 0.40f};
-inline constexpr Rgb kStone{0.52f, 0.54f, 0.58f};
-inline constexpr Rgb kRed{0.82f, 0.24f, 0.22f};
-inline constexpr Rgb kBlue{0.22f, 0.46f, 0.90f};
-
 constexpr SceneObject Span(float x0, float y0, float z0, float x1, float y1, float z1, Rgb c, unsigned mask, float checker = 0.0f)
 {
     return Span(x0, y0, z0, x1, y1, z1, c.r, c.g, c.b, mask, checker);
 }
 
+/// A floor slab of both layers whose TOP is at `top`.
+constexpr SceneObject Floor(float x0, float z0, float x1, float z1, float top)
+{
+    return Span(x0, top - 0.2f, z0, x1, top, z1, kGrey, kLayerBoth, 1.0f);
+}
+
+/// A wall of both layers.
+constexpr SceneObject Wall(float x0, float y0, float z0, float x1, float y1, float z1)
+{
+    return Span(x0, y0, z0, x1, y1, z1, kStone, kLayerBoth);
+}
+
+/// A wall of the tower (both layers, a lighter stone: the landmark).
+constexpr SceneObject TowerWall(float x0, float y0, float z0, float x1, float y1, float z1)
+{
+    return Span(x0, y0, z0, x1, y1, z1, kTowerStone, kLayerBoth);
+}
+
+inline constexpr float kRampThickness = 0.2f;
+
+/// A ramp of both layers between x0 and x1, whose top surface runs from (z0, y0) to (z1, y1) in a straight line. It is a box
+/// turned round X: the top face of a box of size (x1 - x0, thickness, length), turned by -atan2(y1 - y0, z1 - z0), has
+/// exactly that slope. NOT constexpr: it needs std::atan2 (the table that holds ramps is built at start-up, see kRamps).
+inline SceneObject Ramp(float x0, float x1, float z0, float y0, float z1, float y1)
+{
+    if (z1 < z0) // the same ramp, described from its other end: the angle must stay within +-90 degrees, so that the top face
+    {            // of the box is the one on the line and not its bottom face
+        const float tz = z0;
+        const float ty = y0;
+        z0 = z1;
+        y0 = y1;
+        z1 = tz;
+        y1 = ty;
+    }
+    const float dz = z1 - z0;
+    const float dy = y1 - y0;
+    const float length = std::sqrt(dz * dz + dy * dy);
+    const float a = std::atan2(dy, dz);
+    // after RotationX(-a), local +Y (the normal of the top face) is (0, cos a, -sin a) in the world
+    const float ny = std::cos(a);
+    const float nz = -std::sin(a);
+    SceneObject o = Span(x0, 0.0f, 0.0f, x1, kRampThickness, length, kDark, kLayerBoth);
+    o.tilt = -a;
+    o.position[1] = 0.5f * (y0 + y1) - 0.5f * kRampThickness * ny;
+    o.position[2] = 0.5f * (z0 + z1) - 0.5f * kRampThickness * nz;
+    return o;
+}
+
 // ---- the measures (tests/test_stage.cpp checks what each one is for)
-inline constexpr float kTerraceY = kFloorY + 2.4f;   // the top of the raised terrace of parts 1 .. 3
-inline constexpr float kSlab = 0.2f;              // the thickness of a floor
-inline constexpr float kGateZ = 3.0f;             // part 1: the red gate wall, 3.5 m high
+inline constexpr float kTerraceY = kFloorY + 2.4f; // the top of the raised terrace of the prologue
+inline constexpr float kGateZ = 3.0f;              // the red gate wall, 3.5 m high
 inline constexpr float kGateHeight = 3.5f;
-inline constexpr float kTerraceEnd = 6.0f;           // part 2: the terrace ends here, the gap begins
-inline constexpr float kStoneNear = 7.7f;         // the blue stone: 1.7 m from each side
-inline constexpr float kStoneFar = 8.7f;
-inline constexpr float kStripNear = 10.4f;        // the red strip (A only), 4.4 m from the terrace
+inline constexpr float kTerraceEnd = 6.0f;         // the terrace ends here, the gap begins
+inline constexpr float kStoneNear = 7.0f;          // the blue stone (B): 1 m from the terrace, 3 m deep, so that a jump
+inline constexpr float kStoneFar = 10.0f;          // onto it needs no aim
+inline constexpr float kStripNear = 11.5f;         // the red strip (A only): 1.5 m from the stone, 5.5 m from the terrace (more
+                                                   // than a running jump, so A alone never crosses)
+inline constexpr float kCurtainZ = 13.0f;          // a blue curtain (B) at the end of the strip: in B, a jump from the stone
+                                                   // cannot fly over the strip into the courtyard
 // the courtyard: grid cell (x, z) of scene/Courtyard.h is the world cell (x + kCellX0, z + kCellZ0), 1 m each
 inline constexpr int kCellX0 = -3;
 inline constexpr int kCellZ0 = 14;
-inline constexpr float kCourtWest = static_cast<float>(kCellX0) - 0.5f;                                  // -3.5
-inline constexpr float kCourtEast = static_cast<float>(kCellX0 + courtyard::kWidth) - 0.5f;              // 3.5
-inline constexpr float kCourtSouth = static_cast<float>(kCellZ0) - 0.5f;                                 // 13.5: the strip ends here
-inline constexpr float kCourtNorth = static_cast<float>(kCellZ0 + courtyard::kRowCount) - 0.5f;          // 21.5
-inline constexpr float kWallHeight = 3.5f;        // a wall of the puzzle: too high from the top of the block (1 m + a 2 m jump)
-inline constexpr float kFinaleHeight = 2.5f;      // the low red wall: too high from the floor, low enough from the block
-inline constexpr float kBoundaryHeight = 5.0f;    // the walls round the courtyard: too high from the terrace (1.4 m + 2 m)
-// the finale
-inline constexpr float kFinaleTop = kFloorY + kFinaleHeight;  // 1.5: the top of the low red wall
-inline constexpr float kApronSouth = kCourtNorth + 2.0f;     // 23.5: a 2 m moat between the wall and the blue apron
-inline constexpr float kDoorSouth = 25.0f;                    // the wall with the doorway, 0.5 m thick
-inline constexpr float kDoorNorth = 25.5f;
-inline constexpr float kDoorwayLow = kFinaleTop;              // the sill: level with the apron and with the top of the low wall
-inline constexpr float kDoorwayHigh = 3.7f;
+inline constexpr float kCourtWest = static_cast<float>(kCellX0) - 0.5f;                         // -3.5
+inline constexpr float kCourtEast = static_cast<float>(kCellX0 + courtyard::kWidth) - 0.5f;     // 3.5
+inline constexpr float kCourtSouth = static_cast<float>(kCellZ0) - 0.5f;                        // 13.5: the strip ends here
+inline constexpr float kCourtNorth = static_cast<float>(kCellZ0 + courtyard::kRowCount) - 0.5f; // 21.5
+inline constexpr float kWallHeight = 3.5f;  // a wall of the puzzle: out of reach from the top of the block (1 m + a 2 m jump)
+inline constexpr float kCityWallTop = 4.0f; // world y of the top of the courtyard walls and the walls of the wings
+inline constexpr float kHubWallTop = 9.0f;  // world y of the top of the hub walls: out of reach from the ledge (6 m + 2 m)
+// the door from the courtyard into the hub (blue, layer B; a red panel fills it in A)
+inline constexpr float kDoorX = 0.0f;
 inline constexpr float kDoorwayHalfWidth = 0.7f;
-inline constexpr float kRoomNorth = 28.5f;                    // the goal room, 3 m deep
+inline constexpr float kDoorSouth = kCourtNorth;        // 21.5
+inline constexpr float kDoorNorth = kCourtNorth + 0.5f; // 22.0
+inline constexpr float kDoorwayLow = kFloorY;
+inline constexpr float kDoorwayHigh = kFloorY + 2.2f;
+// the hub
+inline constexpr float kHubWest = -9.0f;
+inline constexpr float kHubEast = 9.0f;
+inline constexpr float kHubSouth = kDoorNorth; // 22
+inline constexpr float kHubNorth = 40.0f;
+inline constexpr float kOpeningTop = kFloorY + 2.4f; // the openings into the wings, 2.4 m high
+inline constexpr float kWingDoorZ0 = 30.0f;          // the west and east openings, z 30 .. 32
+inline constexpr float kWingDoorZ1 = 32.0f;
+inline constexpr float kShortcutZ0 = 22.5f;          // the closed door at the end of the west shortcut, z 22.5 .. 24.5
+inline constexpr float kShortcutZ1 = 24.5f;
+// the wings
+inline constexpr float kWestLowY = kFloorY - 3.6f;   // -4.6: the lower room of the west wing
+inline constexpr float kEastHighY = kFloorY + 5.0f;  // 4: the upper room of the east wing = the top of the east wall
+inline constexpr float kNorthHighY = kFloorY + 7.0f; // 6: the landing of the north wing and its ledge
+inline constexpr float kNorthWallTop = 9.0f;         // the walls of the north hall: out of reach from the landing
+inline constexpr float kLedgeWest = -9.0f;           // the ledge, x -9 .. -5, z 37 .. 44, passes through a window of the hub
+inline constexpr float kLedgeEast = -5.0f;           // north wall
+inline constexpr float kLedgeSouth = 37.0f;
+inline constexpr float kWindowTop = kNorthHighY + 2.5f; // the top of that window
+// the tower, in the middle of the hub
+inline constexpr float kTowerWest = -4.0f;
+inline constexpr float kTowerEast = 4.0f;
+inline constexpr float kTowerSouth = 27.0f;
+inline constexpr float kTowerNorth = 35.0f;
+inline constexpr float kTowerWall = 0.5f;
+inline constexpr float kTowerDoorX0 = -3.2f; // its door, in the south wall, in front of the first ramp
+inline constexpr float kTowerDoorX1 = -1.8f;
+inline constexpr float kRampRise = 2.0f;     // each of its six ramps rises 2 m over 4 m (27 degrees)
+inline constexpr int kTowerRamps = 6;
+inline constexpr float kSummitY = kFloorY + static_cast<float>(kTowerRamps) * kRampRise; // 11: the balcony at the top
+inline constexpr float kTowerTop = kSummitY + 1.2f;                                       // 12.2: its parapet
+inline constexpr float kPinnacleTop = kTowerTop + 2.0f;                                   // the gold pinnacles on the corners
+inline constexpr float kFallY = kFloorY - 8.0f; // a body whose feet are this low has fallen (below the west wing)
 
-/// The world x of the column of the low red wall: the doorway, the apron and the goal are lined up with it.
-inline constexpr float kFinaleX = static_cast<float>(courtyard::kFinaleWallX + kCellX0); // 2
-inline constexpr Vec3 kGoal{kFinaleX, kDoorwayLow + 0.9f, 27.0f};                          // the goal light
+/// The goal light, over the middle of the balcony at the top of the tower.
+inline constexpr Vec3 kGoal{0.0f, kSummitY + 0.9f, 28.25f};
 inline constexpr float kGoalRadius = 0.25f;
 
 // ---- the walls of the courtyard, generated from the rows of scene/Courtyard.h: one box per run of the same wall in a column
@@ -131,23 +230,6 @@ constexpr bool IsWall(char c)
     return c == 'R' || c == 'B';
 }
 
-constexpr int CountRuns()
-{
-    int n = 0;
-    for (int x = 0; x < courtyard::kWidth; ++x)
-    {
-        for (int z = 0; z < courtyard::kRowCount; ++z)
-        {
-            const char c = RowCell(x, z);
-            if (IsWall(c) && (z == 0 || RowCell(x, z - 1) != c))
-            {
-                ++n;
-            }
-        }
-    }
-    return n;
-}
-
 /// Every row of scene/Courtyard.h is kWidth cells long (RowCell reads them without a bound).
 constexpr bool RowsAreWellFormed()
 {
@@ -167,6 +249,23 @@ constexpr bool RowsAreWellFormed()
 }
 static_assert(RowsAreWellFormed(), "scene/Courtyard.h: every row must be kWidth cells long");
 static_assert(puzzle::Puzzle::kBlockSize == 1.0f, "the cells of the courtyard are 1 m: the block must be as big as a cell");
+
+constexpr int CountRuns()
+{
+    int n = 0;
+    for (int x = 0; x < courtyard::kWidth; ++x)
+    {
+        for (int z = 0; z < courtyard::kRowCount; ++z)
+        {
+            const char c = RowCell(x, z);
+            if (IsWall(c) && (z == 0 || RowCell(x, z - 1) != c))
+            {
+                ++n;
+            }
+        }
+    }
+    return n;
+}
 
 inline constexpr int kRunCount = CountRuns();
 
@@ -195,68 +294,184 @@ constexpr std::array<Run, kRunCount> FindRuns()
 
 inline constexpr std::array<Run, kRunCount> kRuns = FindRuns();
 
-/// The low red wall of the finale: the red run in its column that reaches the north edge.
-constexpr bool IsFinaleRun(const Run& r)
-{
-    return r.kind == 'R' && r.x == courtyard::kFinaleWallX && r.z1 == courtyard::kRowCount - 1;
-}
-
 constexpr SceneObject WallOf(const Run& r)
 {
     const float x0 = static_cast<float>(r.x + kCellX0) - 0.5f;
     const float z0 = static_cast<float>(r.z0 + kCellZ0) - 0.5f;
     const float z1 = static_cast<float>(r.z1 + kCellZ0) + 0.5f;
-    const float height = IsFinaleRun(r) ? kFinaleHeight : kWallHeight;
-    return Span(x0, kFloorY, z0, x0 + 1.0f, kFloorY + height, z1, r.kind == 'R' ? kRed : kBlue, r.kind == 'R' ? kLayerA : kLayerB);
+    return Span(x0, kFloorY, z0, x0 + 1.0f, kFloorY + kWallHeight, z1, r.kind == 'R' ? kRed : kBlue, r.kind == 'R' ? kLayerA : kLayerB);
 }
 
-// ---- the fixed objects that are not walls of the courtyard
+// ---- the inside of the tower: three lanes along x, the ramps run between z 29 and z 33, the landings north and south of them.
+// Level k (0 .. 6) is at y = kFloorY + 2k. Ramps 1 .. 3 wind up lanes 1, 2, 3; ramps 4 .. 6 wind up the same lanes again, 6 m
+// higher (a body on a ramp has at least 3.8 m over its head).
+inline constexpr float kTowerInnerWest = kTowerWest + kTowerWall;   // -3.5
+inline constexpr float kTowerInnerEast = kTowerEast - kTowerWall;   // 3.5
+inline constexpr float kTowerInnerSouth = kTowerSouth + kTowerWall; // 27.5
+inline constexpr float kTowerInnerNorth = kTowerNorth - kTowerWall; // 34.5
+inline constexpr float kLane1 = kTowerInnerWest + (kTowerInnerEast - kTowerInnerWest) / 3.0f;       // -1.17
+inline constexpr float kLane2 = kTowerInnerWest + 2.0f * (kTowerInnerEast - kTowerInnerWest) / 3.0f; // 1.17
+inline constexpr float kRampSouth = 29.0f;
+inline constexpr float kRampNorth = 33.0f;
+
+constexpr float Level(int k)
+{
+    return kFloorY + static_cast<float>(k) * kRampRise;
+}
+
 inline constexpr SceneObject kFixed[] = {
-    // parts 1 and 2: the raised terrace
-    Span(-3.0f, kTerraceY - kSlab, -4.0f, 3.0f, kTerraceY, kTerraceEnd, kGrey, kLayerBoth, 1.0f),                        // the terrace
-    Span(-3.0f, kTerraceY, kGateZ - 0.25f, 3.0f, kTerraceY + kGateHeight, kGateZ + 0.25f, kRed, kLayerA),             // the gate (A)
-    Span(-1.0f, kTerraceY - kSlab, kStoneNear, 1.0f, kTerraceY, kStoneFar, kBlue, kLayerB),                           // the stone (B)
-    Span(-3.0f, kTerraceY - kSlab, kStripNear, 3.0f, kTerraceY, kCourtSouth, kRed, kLayerA, 1.0f),                     // the strip (A)
-    // part 4: the courtyard (its walls are generated from scene/Courtyard.h and follow this list)
-    Span(kCourtWest, kFloorY - kSlab, kCourtSouth, kCourtEast, kFloorY, kCourtNorth, kGrey, kLayerBoth, 1.0f),     // its floor
-    Span(kCourtWest, kFloorY, kCourtSouth - 0.5f, kCourtEast, kTerraceY - kSlab, kCourtSouth, kStone, kLayerBoth),  // under the strip
-    Span(kCourtWest - 0.5f, kFloorY, kCourtSouth - 0.5f, kCourtWest, kFloorY + kBoundaryHeight, kRoomNorth + 0.5f, kStone,
-         kLayerBoth),                                                                                            // west boundary
-    Span(kCourtEast, kFloorY, kCourtSouth - 0.5f, kCourtEast + 0.5f, kFloorY + kBoundaryHeight, kRoomNorth + 0.5f, kStone,
-         kLayerBoth),                                                                                            // east boundary
-    // part 5: the blue apron over the moat, the wall with the doorway, the goal room
-    Span(kFinaleX - 1.0f, kDoorwayLow - kSlab, kApronSouth, kFinaleX + 1.0f, kDoorwayLow, kDoorSouth, kBlue, kLayerB), // apron (B)
-    Span(kCourtWest, kDoorwayLow - 1.0f, kDoorSouth, kFinaleX - kDoorwayHalfWidth, 5.0f, kDoorNorth, kStone, kLayerBoth), // west of the door
-    Span(kFinaleX + kDoorwayHalfWidth, kDoorwayLow - 1.0f, kDoorSouth, kCourtEast, 5.0f, kDoorNorth, kStone, kLayerBoth), // east of it
-    Span(kFinaleX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kFinaleX + kDoorwayHalfWidth, 5.0f, kDoorNorth, kStone,
-         kLayerBoth),                                                                                            // above it
-    Span(kFinaleX - kDoorwayHalfWidth, kDoorwayLow - 1.0f, kDoorSouth, kFinaleX + kDoorwayHalfWidth, kDoorwayLow, kDoorNorth,
-         kStone, kLayerBoth),                                                                                    // the sill
-    Span(kCourtWest, kDoorwayLow - kSlab, kDoorNorth, kCourtEast, kDoorwayLow, kRoomNorth, kGrey, kLayerBoth, 1.0f), // goal room
-    Span(kCourtWest, kDoorwayLow, kRoomNorth, kCourtEast, 5.0f, kRoomNorth + 0.5f, kStone, kLayerBoth),         // its back wall
+    // ---- the prologue: the terrace, the gate (A), the stone (B), the strip (A)
+    Span(-3.0f, kTerraceY - 0.2f, -4.0f, 3.0f, kTerraceY, kTerraceEnd, kGrey, kLayerBoth, 1.0f),
+    Span(-3.0f, kTerraceY, kGateZ - 0.25f, 3.0f, kTerraceY + kGateHeight, kGateZ + 0.25f, kRed, kLayerA),
+    Span(-1.5f, kTerraceY - 0.2f, kStoneNear, 1.5f, kTerraceY, kStoneFar, kBlue, kLayerB),
+    Span(-3.0f, kTerraceY - 0.2f, kStripNear, 3.0f, kTerraceY, kCourtSouth, kRed, kLayerA, 1.0f),
+    Span(-3.5f, kTerraceY - 0.2f, kCurtainZ, 3.5f, kTerraceY + 4.6f, kCourtSouth, kBlue, kLayerB),
+    // ---- the courtyard: its floor, the wall under the strip, its west wall, and its east wall, 1.5 m thick: the path of
+    // the east wing runs on its top from the upper room (z 12) to its north end in the hub (z 23)
+    Floor(kCourtWest, kCourtSouth, kCourtEast, kCourtNorth, kFloorY),
+    Wall(kCourtWest, kFloorY, kCourtSouth - 0.5f, kCourtEast, kTerraceY - 0.2f, kCourtSouth),
+    Wall(kCourtWest - 0.5f, kFloorY, kCourtSouth - 0.5f, kCourtWest, kCityWallTop, kDoorNorth),
+    Span(kCourtEast, kFloorY, 12.0f, kCourtEast + 1.5f, kCityWallTop, 23.0f, kStone, kLayerBoth),
+    // its north wall with the doorway into the hub; the red panel fills the doorway in A (the blue door, in B, is kDoor)
+    Wall(kCourtWest, kFloorY, kDoorSouth, kDoorX - kDoorwayHalfWidth, kCityWallTop, kDoorNorth),
+    Wall(kDoorX + kDoorwayHalfWidth, kFloorY, kDoorSouth, kCourtEast, kCityWallTop, kDoorNorth),
+    Wall(kDoorX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kDoorX + kDoorwayHalfWidth, kCityWallTop, kDoorNorth),
+    Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth, kDoorwayHigh, kDoorNorth, kRed, kLayerA),
+    // ---- the hub: its floor and its walls, 10 m high (openings: the wings west, east and north; the closed shortcut door
+    // west; the window of the ledge north)
+    Floor(kHubWest, kHubSouth, kHubEast, kHubNorth, kFloorY),
+    Wall(kHubWest - 0.5f, kFloorY, kDoorSouth, kCourtWest - 0.5f, kHubWallTop, kHubSouth),            // south, west part
+    Wall(kCourtEast + 1.5f, kFloorY, kDoorSouth, kHubEast + 0.5f, kHubWallTop, kHubSouth),            // south, east part
+    Wall(kHubWest - 0.5f, kFloorY, kHubSouth, kHubWest, kHubWallTop, kShortcutZ0),                    // west
+    Wall(kHubWest - 0.5f, kFloorY, kShortcutZ1, kHubWest, kHubWallTop, kWingDoorZ0),
+    Wall(kHubWest - 0.5f, kFloorY, kWingDoorZ1, kHubWest, kHubWallTop, kHubNorth + 0.5f),
+    Wall(kHubWest - 0.5f, kOpeningTop, kShortcutZ0, kHubWest, kHubWallTop, kShortcutZ1),
+    Wall(kHubWest - 0.5f, kOpeningTop, kWingDoorZ0, kHubWest, kHubWallTop, kWingDoorZ1),
+    Wall(kHubEast, kFloorY, kHubSouth, kHubEast + 0.5f, kHubWallTop, kWingDoorZ0),                    // east
+    Wall(kHubEast, kFloorY, kWingDoorZ1, kHubEast + 0.5f, kHubWallTop, kHubNorth + 0.5f),
+    Wall(kHubEast, kOpeningTop, kWingDoorZ0, kHubEast + 0.5f, kHubWallTop, kWingDoorZ1),
+    Wall(kHubWest, kFloorY, kHubNorth, -1.0f, kNorthHighY - 0.2f, kHubNorth + 0.5f),                  // north, under the window
+    Wall(kLedgeEast, kNorthHighY - 0.2f, kHubNorth, -1.0f, kHubWallTop, kHubNorth + 0.5f),            // north, east of the window
+    Wall(kHubWest, kWindowTop, kHubNorth, kLedgeEast, kHubWallTop, kHubNorth + 0.5f),                 // north, over the window
+    Wall(1.0f, kFloorY, kHubNorth, kHubEast + 0.5f, kHubWallTop, kHubNorth + 0.5f),
+    Wall(-1.0f, kOpeningTop, kHubNorth, 1.0f, kHubWallTop, kHubNorth + 0.5f),
+    // ---- the tower: its walls (the door in the south wall), the pinnacles, the landings of its ramps, the balcony
+    TowerWall(kTowerWest, kFloorY, kTowerSouth, kTowerDoorX0, kTowerTop, kTowerInnerSouth),
+    TowerWall(kTowerDoorX1, kFloorY, kTowerSouth, kTowerEast, kTowerTop, kTowerInnerSouth),
+    TowerWall(kTowerDoorX0, kDoorwayHigh, kTowerSouth, kTowerDoorX1, kTowerTop, kTowerInnerSouth),
+    TowerWall(kTowerWest, kFloorY, kTowerInnerNorth, kTowerEast, kTowerTop, kTowerNorth),
+    TowerWall(kTowerWest, kFloorY, kTowerInnerSouth, kTowerInnerWest, kTowerTop, kTowerInnerNorth),
+    TowerWall(kTowerInnerEast, kFloorY, kTowerInnerSouth, kTowerEast, kTowerTop, kTowerInnerNorth),
+    Span(kTowerWest, kTowerTop, kTowerSouth, kTowerWest + 0.8f, kPinnacleTop, kTowerSouth + 0.8f, kGold, kLayerBoth),
+    Span(kTowerEast - 0.8f, kTowerTop, kTowerSouth, kTowerEast, kPinnacleTop, kTowerSouth + 0.8f, kGold, kLayerBoth),
+    Span(kTowerWest, kTowerTop, kTowerNorth - 0.8f, kTowerWest + 0.8f, kPinnacleTop, kTowerNorth, kGold, kLayerBoth),
+    Span(kTowerEast - 0.8f, kTowerTop, kTowerNorth - 0.8f, kTowerEast, kPinnacleTop, kTowerNorth, kGold, kLayerBoth),
+    Floor(kTowerInnerWest, kRampNorth, kLane2, kTowerInnerNorth, Level(1)),            // north, lanes 1-2
+    Floor(kLane1, kTowerInnerSouth, kTowerInnerEast, kRampSouth, Level(2)),            // south, lanes 2-3
+    Floor(kTowerInnerWest, kRampNorth, kTowerInnerEast, kTowerInnerNorth, Level(3)),   // north, lanes 1-3
+    Floor(kTowerInnerWest, kTowerInnerSouth, kLane2, kRampSouth, Level(4)),            // south, lanes 1-2
+    Floor(kLane1, kRampNorth, kTowerInnerEast, kTowerInnerNorth, Level(5)),            // north, lanes 2-3
+    Span(kTowerInnerWest, kSummitY - 0.2f, kTowerInnerSouth, kTowerInnerEast, kSummitY, kRampSouth, kGold, kLayerBoth, 1.0f), // the balcony
+    // ---- the west wing (DOWN): the corridor, the hall, the walls of the ramp down, the lower room, the shortcut up
+    Floor(-15.0f, kWingDoorZ0, kHubWest - 0.5f, kWingDoorZ1, kFloorY),
+    Wall(-15.0f, kFloorY, kWingDoorZ0 - 0.5f, kHubWest - 0.5f, kCityWallTop, kWingDoorZ0),
+    Wall(-15.0f, kFloorY, kWingDoorZ1, kHubWest - 0.5f, kCityWallTop, kWingDoorZ1 + 0.5f),
+    Floor(-24.0f, 22.0f, -15.0f, 40.0f, kFloorY),
+    Wall(-24.5f, kFloorY, 21.5f, -24.0f, kCityWallTop, 40.5f),
+    Wall(-24.5f, kFloorY, 40.0f, -14.5f, kCityWallTop, 40.5f),
+    Wall(-15.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, kWingDoorZ0 - 0.5f),
+    Wall(-15.0f, kFloorY, kWingDoorZ1 + 0.5f, -14.5f, kCityWallTop, 40.5f),
+    Wall(-24.5f, kFloorY, 21.5f, -22.0f, kCityWallTop, 22.0f),
+    Wall(-18.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, 22.0f),
+    Wall(-22.5f, kWestLowY, 12.0f, -22.0f, kFloorY + 1.0f, 21.5f),                                    // the sides of the ramp down
+    Wall(-18.0f, kWestLowY, 12.0f, -17.5f, kFloorY + 1.0f, 21.5f),
+    Floor(-24.0f, 2.0f, -10.0f, 12.0f, kWestLowY),                                                    // the lower room
+    Wall(-24.5f, kWestLowY, 1.5f, -24.0f, kFloorY + 1.0f, 12.0f),
+    Wall(-24.5f, kWestLowY, 1.5f, -9.5f, kFloorY + 1.0f, 2.0f),
+    Wall(-10.0f, kWestLowY, 2.0f, -9.5f, kFloorY + 1.0f, 12.0f),
+    Wall(-24.0f, kWestLowY, 12.0f, -22.5f, kFloorY + 1.0f, 12.5f),                                    // the north edge of the lower room,
+    Wall(-17.5f, kWestLowY, 12.0f, -12.5f, kFloorY + 1.0f, 12.5f),                                    // beside and between the ramps
+    Wall(-12.5f, kWestLowY, 12.0f, -12.0f, kCityWallTop, 25.5f),                                      // the sides of the shortcut up
+    Wall(-10.0f, kWestLowY, 12.0f, -9.5f, kFloorY + 1.0f, 22.0f),
+    Floor(-12.0f, 22.0f, kHubWest - 0.5f, 25.0f, kFloorY),                                            // the landing at its top
+    Wall(-12.0f, kFloorY, 25.0f, kHubWest - 0.5f, kCityWallTop, 25.5f),
+    // ---- the east wing (UP): the corridor, the hall, the walls of the ramp up, the upper room
+    Floor(kHubEast + 0.5f, kWingDoorZ0, 15.0f, kWingDoorZ1, kFloorY),
+    Wall(kHubEast + 0.5f, kFloorY, kWingDoorZ0 - 0.5f, 15.0f, kCityWallTop, kWingDoorZ0),
+    Wall(kHubEast + 0.5f, kFloorY, kWingDoorZ1, 15.0f, kCityWallTop, kWingDoorZ1 + 0.5f),
+    Floor(15.0f, 22.0f, 24.0f, 40.0f, kFloorY),
+    Wall(24.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 40.5f),
+    Wall(14.5f, kFloorY, 40.0f, 24.5f, kCityWallTop, 40.5f),
+    Wall(14.5f, kFloorY, 21.5f, 15.0f, kCityWallTop, kWingDoorZ0 - 0.5f),
+    Wall(14.5f, kFloorY, kWingDoorZ1 + 0.5f, 15.0f, kCityWallTop, 40.5f),
+    Wall(14.5f, kFloorY, 21.5f, 18.0f, kCityWallTop, 22.0f),
+    Wall(22.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 22.0f),
+    Wall(17.5f, kFloorY, 12.0f, 18.0f, kEastHighY + 1.0f, 21.5f),                                     // the sides of the ramp up
+    Wall(22.0f, kFloorY, 12.0f, 22.5f, kEastHighY + 1.0f, 21.5f),
+    Floor(kCourtEast, 2.0f, 24.0f, 12.0f, kEastHighY),                                                // the upper room
+    Wall(kCourtEast, kEastHighY, 1.5f, 24.5f, kEastHighY + 1.2f, 2.0f),                               // its parapet
+    Wall(24.0f, kEastHighY, 2.0f, 24.5f, kEastHighY + 1.2f, 12.0f),
+    Wall(kCourtEast - 0.5f, kEastHighY, 1.5f, kCourtEast, kEastHighY + 1.2f, 12.0f),
+    Wall(kCourtEast + 1.5f, kEastHighY, 12.0f, 17.5f, kEastHighY + 1.2f, 12.5f),
+    Wall(22.5f, kEastHighY, 12.0f, 24.5f, kEastHighY + 1.2f, 12.5f),
+    // ---- the north wing (UP): the corridor, the hall, the two landings, the ledge through the window into the hub
+    Floor(-1.0f, kHubNorth + 0.5f, 1.0f, 44.0f, kFloorY),
+    Wall(-1.5f, kFloorY, kHubNorth + 0.5f, -1.0f, kCityWallTop, 44.0f),
+    Wall(1.0f, kFloorY, kHubNorth + 0.5f, 1.5f, kCityWallTop, 44.0f),
+    Floor(-9.0f, 44.0f, 9.0f, 60.0f, kFloorY),
+    Wall(-9.5f, kFloorY, 43.5f, -9.0f, kNorthWallTop, 60.5f),
+    Wall(9.0f, kFloorY, 43.5f, 9.5f, kNorthWallTop, 60.5f),
+    Wall(-9.5f, kFloorY, 60.0f, 9.5f, kNorthWallTop, 60.5f),
+    Wall(-9.0f, kFloorY, 43.5f, -1.5f, kCityWallTop, 44.0f),
+    Wall(1.5f, kFloorY, 43.5f, 9.0f, kCityWallTop, 44.0f),
+    Floor(-1.0f, 58.0f, 9.0f, 60.0f, kFloorY + 3.5f),                                                 // landing 1 (north)
+    Floor(-9.0f, 44.0f, 4.0f, 46.0f, kNorthHighY),                                                    // landing 2 (south)
+    Floor(kLedgeWest, kLedgeSouth, kLedgeEast, 44.0f, kNorthHighY),                                   // the ledge into the hub
 };
 inline constexpr int kFixedCount = static_cast<int>(sizeof(kFixed) / sizeof(kFixed[0]));
-inline constexpr int kStageStaticCount = kFixedCount + kRunCount;
 
-constexpr std::array<SceneObject, kStageStaticCount> BuildStatics()
+/// The ramps (not constexpr: Ramp needs std::atan2).
+inline const SceneObject kRamps[] = {
+    Ramp(kTowerInnerWest, kLane1, kRampSouth, Level(0), kRampNorth, Level(1)), // tower 1: lane 1 north
+    Ramp(kLane1, kLane2, kRampNorth, Level(1), kRampSouth, Level(2)),          // tower 2: lane 2 south
+    Ramp(kLane2, kTowerInnerEast, kRampSouth, Level(2), kRampNorth, Level(3)), // tower 3: lane 3 north
+    Ramp(kTowerInnerWest, kLane1, kRampNorth, Level(3), kRampSouth, Level(4)), // tower 4: lane 1 south
+    Ramp(kLane1, kLane2, kRampSouth, Level(4), kRampNorth, Level(5)),          // tower 5: lane 2 north
+    Ramp(kLane2, kTowerInnerEast, kRampNorth, Level(5), kRampSouth, Level(6)), // tower 6: lane 3 south, to the balcony
+    Ramp(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY),                    // west: down
+    Ramp(-12.0f, -10.0f, 12.0f, kWestLowY, 22.0f, kFloorY),                    // west: the shortcut up
+    Ramp(18.0f, 22.0f, 22.0f, kFloorY, 12.0f, kEastHighY),                     // east: up
+    Ramp(5.0f, 9.0f, 46.0f, kFloorY, 58.0f, kFloorY + 3.5f),                   // north: 1
+    Ramp(0.0f, 4.0f, 58.0f, kFloorY + 3.5f, 46.0f, kNorthHighY),               // north: 2
+};
+inline constexpr int kRampCount = static_cast<int>(sizeof(kRamps) / sizeof(kRamps[0]));
+inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount;
+
+/// Every box of the map in one table: the fixed boxes, the ramps, the walls of the courtyard (the indices are the ones that
+/// Puzzle::LastBlocker names).
+inline std::array<SceneObject, kStageStaticCount> BuildStatics()
 {
     std::array<SceneObject, kStageStaticCount> all{};
-    for (int i = 0; i < kFixedCount; ++i)
+    int n = 0;
+    for (const SceneObject& o : kFixed)
     {
-        all[static_cast<std::size_t>(i)] = kFixed[i];
+        all[static_cast<std::size_t>(n++)] = o;
     }
-    for (int i = 0; i < kRunCount; ++i)
+    for (const SceneObject& o : kRamps)
     {
-        all[static_cast<std::size_t>(kFixedCount + i)] = WallOf(kRuns[static_cast<std::size_t>(i)]);
+        all[static_cast<std::size_t>(n++)] = o;
+    }
+    for (const Run& r : kRuns)
+    {
+        all[static_cast<std::size_t>(n++)] = WallOf(r);
     }
     return all;
 }
+inline const std::array<SceneObject, kStageStaticCount> kStageStatics = BuildStatics();
+inline constexpr int kGateIndex = 1; ///< the red gate in kStageStatics (scene/StageLights.h hides a light in it)
 
-/// THE FIXED OBJECTS (the indices are the ones that Puzzle::LastBlocker names).
-inline constexpr std::array<SceneObject, kStageStaticCount> kStageStatics = BuildStatics();
-
-/// The blue door (layer B) in the doorway.
-inline constexpr SceneObject kDoor = Span(kFinaleX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kFinaleX + kDoorwayHalfWidth,
+/// The blue door (layer B) in the doorway from the courtyard into the hub.
+inline constexpr SceneObject kDoor = Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth,
                                           kDoorwayHigh, kDoorNorth, kBlue, kLayerB);
 
 // ---- the cells of the puzzle in the world
@@ -292,41 +507,181 @@ inline puzzle::StageDesc MakeStage()
     return d;
 }
 
-// ---- where the body comes back after a fall: the start of the part it has reached
-struct Checkpoint
+// ---- the rooms: where a body is, and where it comes back after a fall or R
+struct Room
 {
-    float fromZ; ///< reached when the body stands on something at this z or beyond
-    Vec3 feet;   ///< where it comes back, standing
+    const char* name;
+    float x0, y0, z0; // the box in which a body standing on the ground is "in" the room
+    float x1, y1, z1;
+    Vec3 entry;       // where it comes back, standing; a place to stand in both layers
+    bool puzzle;      // R also puts back the block puzzle
 };
-inline constexpr Checkpoint kCheckpoints[] = {
-    {-100.0f, {0.0f, kTerraceY, -3.0f}},               // the start
-    {4.0f, {0.0f, kTerraceY, 5.0f}},                   // past the gate, in front of the gap
-    {kCourtSouth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}}, // the south-west corner of the courtyard: a
-                                                    // cell the block can never be in (tests/test_stage.cpp)
-};
-inline constexpr int kCheckpointCount = static_cast<int>(sizeof(kCheckpoints) / sizeof(kCheckpoints[0]));
-inline constexpr float kFallY = kFloorY - 4.0f; ///< UNITS: metres; a body whose feet are this low has fallen
 
-/// The checkpoint for a body standing at `feet`, never below `reached` (a checkpoint, once reached, stays).
-inline int CheckpointFor(const Vec3& feet, bool grounded, int reached)
+/// The rooms, the most specific first (the tower stands inside the hub).
+inline constexpr Room kRooms[] = {
+    {"tower", kTowerInnerWest, -2.0f, kTowerInnerSouth, kTowerInnerEast, 14.0f, kTowerInnerNorth, {-2.5f, kFloorY, 28.0f}, false},
+    {"terrace", -3.2f, 0.0f, -4.0f, 3.2f, 6.0f, 4.2f, {0.0f, kTerraceY, -3.0f}, false},
+    {"gap", -3.2f, 0.0f, 4.2f, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 5.0f}, false},
+    {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 1.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
+    {"hub", kHubWest, -2.0f, kHubSouth, kHubEast, 1.0f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
+    {"west hall", -24.0f, -2.0f, 22.0f, kHubWest, 1.0f, 40.0f, {-12.0f, kFloorY, 31.0f}, false},
+    {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, 0.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, false},
+    {"east hall", kHubEast, -2.0f, 22.0f, 24.0f, 1.0f, 40.0f, {12.0f, kFloorY, 31.0f}, false},
+    {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 6.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
+    {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
+};
+inline constexpr int kRoomCount = static_cast<int>(sizeof(kRooms) / sizeof(kRooms[0]));
+inline constexpr int kStartRoom = 1; ///< the terrace
+
+/// The room a body standing at `feet` is in, or -1.
+inline int RoomAt(const Vec3& feet)
 {
-    int best = reached < 0 ? 0 : reached;
-    if (!grounded)
+    for (int i = 0; i < kRoomCount; ++i)
     {
-        return best;
-    }
-    for (int i = 0; i < kCheckpointCount; ++i)
-    {
-        if (feet.z >= kCheckpoints[i].fromZ && i > best)
+        const Room& r = kRooms[i];
+        if (feet.x >= r.x0 && feet.x <= r.x1 && feet.y >= r.y0 && feet.y <= r.y1 && feet.z >= r.z0 && feet.z <= r.z1)
         {
-            best = i;
+            return i;
         }
     }
-    return best;
+    return -1;
 }
 
-/// True when one of the three balls of `body` touches the goal light, or the body stands in the goal room. `Body` needs
-/// Ball(i), Feet(), Grounded() and GetSettings().radius (scene/Player.h).
+/// The room a body is in now: the room it stands in, or the last one when it stands in none or is in the air.
+inline int CurrentRoom(const Vec3& feet, bool grounded, int last)
+{
+    if (!grounded)
+    {
+        return last;
+    }
+    const int room = RoomAt(feet);
+    return room >= 0 ? room : last;
+}
+
+// ---- the seals: one at the far end of each wing; the three of them open the tower
+struct Seal
+{
+    Vec3 centre;
+    const char* name; ///< for the log
+};
+inline constexpr Seal kSeals[] = {
+    {{-22.0f, kWestLowY + 1.0f, 4.0f}, "west"},
+    {{kCourtEast + 0.75f, kEastHighY + 1.0f, 20.0f}, "east"},
+    {{-7.0f, kNorthHighY + 1.0f, 45.0f}, "north"},
+};
+inline constexpr int kSealCount = static_cast<int>(sizeof(kSeals) / sizeof(kSeals[0]));
+inline constexpr int kWestSeal = 0; ///< it also opens the door at the end of the west shortcut
+inline constexpr float kSealRadius = 0.35f;
+
+/// Which seals are taken. A seal is taken when one of the three balls of the body touches it; it stays taken.
+class SealSet
+{
+  public:
+    /// `Body` needs Ball(i) for i = 0, 1, 2 and GetSettings().radius (scene/Player.h). Returns a seal taken now, or -1.
+    template <class Body>
+    int Collect(const Body& body)
+    {
+        const float reach = body.GetSettings().radius + kSealRadius;
+        for (int i = 0; i < kSealCount; ++i)
+        {
+            if (m_taken[i])
+            {
+                continue;
+            }
+            for (int b = 0; b < 3; ++b)
+            {
+                const Vec3 p = body.Ball(b);
+                const float dx = p.x - kSeals[i].centre.x;
+                const float dy = p.y - kSeals[i].centre.y;
+                const float dz = p.z - kSeals[i].centre.z;
+                if (dx * dx + dy * dy + dz * dz < reach * reach)
+                {
+                    m_taken[i] = true;
+                    ++m_count;
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    bool Taken(int i) const
+    {
+        return i >= 0 && i < kSealCount && m_taken[i];
+    }
+
+    int Count() const
+    {
+        return m_count;
+    }
+
+    bool TowerOpen() const
+    {
+        return m_count == kSealCount;
+    }
+
+    bool ShortcutOpen() const
+    {
+        return m_taken[kWestSeal];
+    }
+
+  private:
+    bool m_taken[kSealCount] = {};
+    int m_count = 0;
+};
+
+/// The door of the tower (both layers) and the door at the end of the west shortcut (both layers), while they are closed.
+inline constexpr SceneObject kTowerDoor = Span(kTowerDoorX0, kFloorY, kTowerSouth, kTowerDoorX1, kDoorwayHigh, kTowerInnerSouth, kGold.r * 0.6f,
+                                               kGold.g * 0.6f, kGold.b * 0.6f, kLayerBoth);
+inline constexpr SceneObject kShortcutDoor = Span(kHubWest - 0.5f, kFloorY, kShortcutZ0, kHubWest, kOpeningTop, kShortcutZ1, kDark, kLayerBoth);
+
+/// Adds the closed doors of the map to a SOLID table. Returns the new count.
+inline int AddMapSolids(const SealSet& seals, SceneObject* out, int count, int capacity)
+{
+    if (out == nullptr || count < 0)
+    {
+        return count;
+    }
+    if (!seals.TowerOpen() && count < capacity)
+    {
+        out[count++] = kTowerDoor;
+    }
+    if (!seals.ShortcutOpen() && count < capacity)
+    {
+        out[count++] = kShortcutDoor;
+    }
+    return count;
+}
+
+/// Adds the state of the map to a DRAWN table: the closed doors, the seals not yet taken, and the three seal lamps over the
+/// door of the tower (gold when their seal is taken). Returns the new count.
+inline int AddMapDraw(const SealSet& seals, SceneObject* out, int count, int capacity)
+{
+    count = AddMapSolids(seals, out, count, capacity);
+    for (int i = 0; i < kSealCount && count < capacity; ++i)
+    {
+        if (seals.Taken(i))
+        {
+            continue;
+        }
+        const Vec3 c = kSeals[i].centre;
+        SceneObject s = Span(c.x - 0.25f, c.y - 0.25f, c.z - 0.25f, c.x + 0.25f, c.y + 0.25f, c.z + 0.25f, kGold, kLayerBoth);
+        s.spinSpeed = 1.2f; // it turns with the spin time of the renderer
+        s.shineStrength = 1.0f;
+        s.shininess = 100.0f;
+        out[count++] = s;
+    }
+    for (int i = 0; i < kSealCount && count < capacity; ++i)
+    {
+        const float x = kTowerDoorX0 + 0.2f + 0.5f * static_cast<float>(i);
+        const Rgb c = seals.Taken(i) ? kGold : kDark;
+        out[count++] = Span(x - 0.15f, kDoorwayHigh + 0.3f, kTowerSouth - 0.1f, x + 0.15f, kDoorwayHigh + 0.6f, kTowerSouth, c, kLayerBoth);
+    }
+    return count;
+}
+
+/// True when the body touches the goal light, or stands on the balcony at the top of the tower. `Body` needs Ball(i), Feet(),
+/// Grounded() and GetSettings().radius (scene/Player.h).
 template <class Body>
 bool ReachedGoal(const Body& body)
 {
@@ -342,16 +697,17 @@ bool ReachedGoal(const Body& body)
             return true;
         }
     }
-    const Vec3 feet = body.Feet();
-    return body.Grounded() && feet.z > kDoorNorth && feet.y > kDoorwayLow - 0.2f;
+    const Vec3 f = body.Feet();
+    return body.Grounded() && f.y > kSummitY - 0.2f && f.y < kSummitY + 0.5f && f.x > kTowerInnerWest && f.x < kTowerInnerEast &&
+           f.z > kTowerInnerSouth && f.z < kRampSouth;
 }
 
-inline constexpr int kMaxDrawObjects = 128;
+inline constexpr int kMaxDrawObjects = 320;
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
-/// closed for a body in B, the plate (brighter while pressed) and, until it is taken, the goal light. While a refused push
-/// flashes, the object that was in the way is drawn in BOTH layers and lighter, because it may be in the layer that is not
-/// on the screen. Returns how many objects were written.
+/// closed for a body in B, the plate (brighter while pressed) and, until it is taken, the goal light. A refused push is
+/// shown by StageHints::AddBlockedFlash (the outline of what was in the way), not by drawing it in the wrong layer. Returns
+/// how many objects were written.
 inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObject (&out)[kMaxDrawObjects])
 {
     int n = 0;
@@ -359,18 +715,13 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
     {
         out[n++] = o;
     }
-    const float flash = puzzle.BlockedFlash();
-    if (flash > 0.0f && puzzle.LastBlocker() >= 0 && puzzle.LastBlocker() < kStageStaticCount)
-    {
-        SceneObject& b = out[puzzle.LastBlocker()];
-        const float t = flash / puzzle::Puzzle::kFlashSeconds; // 1 at the start of the flash, 0 at its end
-        for (float& c : b.colorSrgb)
-        {
-            c += (1.0f - c) * 0.6f * t;
-        }
-        b.layerMask = kLayerBoth;
-    }
-    out[n++] = puzzle.BlockObject();
+    SceneObject block = puzzle.BlockObject();
+    block.colorSrgb[0] = 0.62f;
+    block.colorSrgb[1] = 0.32f;
+    block.colorSrgb[2] = 0.86f;
+    block.shineStrength = 0.30f;
+    block.shininess = 40.0f;
+    out[n++] = block;
     if (!puzzle.DoorOpen(1))
     {
         out[n++] = kDoor;
@@ -402,11 +753,11 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
     return n;
 }
 
-/// What the collision and the puzzle can handle: every stage object is a box with sizes above 0, and every layer mask is
-/// A, B or both. Checked when the program is compiled.
-constexpr bool StageIsSupported()
+/// What the collision and the puzzle can handle: every fixed box has sizes above 0 and a layer mask of A, B or both; the
+/// map fits the puzzle. Checked when the program is compiled (the ramps are checked by tests/test_stage.cpp).
+constexpr bool FixedIsSupported()
 {
-    for (const SceneObject& o : kStageStatics)
+    for (const SceneObject& o : kFixed)
     {
         if (o.shape != ShapeKind::Cube || !(o.scale[0] > 0.0f && o.scale[1] > 0.0f && o.scale[2] > 0.0f) || o.layerMask == 0u ||
             (o.layerMask & ~kLayerBoth) != 0u)
@@ -416,7 +767,7 @@ constexpr bool StageIsSupported()
     }
     return kStageStaticCount <= puzzle::Puzzle::kMaxSolids - 2;
 }
-static_assert(StageIsSupported(), "scene/Stage.h: every stage object must be a box with sizes above 0 and a layer mask of A, B or both");
+static_assert(FixedIsSupported(), "scene/Stage.h: every box must have sizes above 0 and a layer mask of A, B or both, and the map must fit Puzzle::kMaxSolids");
 static_assert(kPlateCell.x != 0 || kPlateCell.z != 0, "scene/Courtyard.h: the rows must hold a plate 'P'");
 
 } // namespace dl::stage

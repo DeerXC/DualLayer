@@ -1,20 +1,25 @@
-// StageHints.h - what the stage shows without words: the outlines of the other layer, the frame of the blue door, the beacon
-//            over the goal, and the rings that answer the goal.
-// Outlines:  every fixed object of the stage that exists in one layer only leaves a thin outline in the other layer: four
-//            narrow bars round its footprint, in its own colour made lighter. A flat object (a terrace, a stone, an apron: up
-//            to kFlatHeight thick) is outlined at its TOP, where the body would stand; a tall one (a wall) at its BASE, on the
-//            floor. In the courtyard this is how the player reads where the block can go: the block is stopped by the walls
-//            of both layers, and the walls of the other layer are only these outlines. The list is not kept by hand: it is
-//            every single-layer box of scene/Stage.h, so a new wall is outlined by itself.
+// StageHints.h - what the map shows without words: the outlines of the other layer, the outline of what stopped a push, the
+//            frame of the blue door of the courtyard, the beacon over the goal, and the rings that answer the goal.
+// Outlines:  every fixed box of the map that exists in one layer only leaves a thin outline in the other layer: four narrow
+//            bars round its footprint, in its own colour made lighter. A flat object (a floor, a stone, a strip: up to
+//            kFlatHeight thick) is outlined at its TOP, where the body would stand; a tall one (a wall) at its BASE. In the
+//            courtyard this is how the player reads where the block can go. The list is not kept by hand: it is every
+//            single-layer box of scene/Stage.h.
+// Blocked:   a refused push names what was in the way (Puzzle::LastBlocker). For kFlashSeconds its outline is drawn in BOTH
+//            layers, wide and bright, fading out. Only the outline: the thing itself stays in its own layer, so a blue wall is
+//            never seen as a solid box in layer A (the first version drew the whole box in both layers, which looked like a
+//            wall that should not be there).
 // Door:      the plate is in layer A and the door it opens is in layer B. AddDoorFrame draws, in A, a thin blue frame round
 //            the doorway while the door is closed for a body in A; standing on the plate makes it vanish.
-// Beacon:    a thin column of light over the goal, seen from the start over every wall of both layers.
+// Beacon:    a thin column of light over the goal on the top of the tower, seen from the start over every wall of both
+//            layers: the goal is the first thing seen and the last thing reached.
 // Clear:     when the goal is reached, three rings spread from the goal light and the beacon grows (AddClearRings,
 //            AddGoalBeacon with the seconds since the clear).
 // Solid:     never. All of this goes into the DRAWN table only.
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_hints.cpp). UNITS: metres, seconds.
 #pragma once
 
+#include "scene/Puzzle.h"
 #include "scene/SceneData.h"
 #include "scene/Stage.h"
 
@@ -28,13 +33,13 @@ inline constexpr float kFlatHeight = 0.5f;  // UNITS: metres; an object up to th
 inline constexpr float kGhostLight = 0.35f; // how much of the way to white the colour goes: the outline glows a little
 inline constexpr int kBarsPerGhost = 4;
 
-/// True when `o` leaves an outline in the other layer: a box of one layer only.
+/// True when `o` leaves an outline in the other layer: an axis-aligned box of one layer only.
 constexpr bool HasGhost(const SceneObject& o)
 {
-    return o.shape == ShapeKind::Cube && (o.layerMask == kLayerA || o.layerMask == kLayerB);
+    return o.shape == ShapeKind::Cube && o.tilt == 0.0f && (o.layerMask == kLayerA || o.layerMask == kLayerB);
 }
 
-constexpr int CountGhosts()
+inline int CountGhosts()
 {
     int n = 0;
     for (const SceneObject& o : kStageStatics)
@@ -43,7 +48,7 @@ constexpr int CountGhosts()
     }
     return n;
 }
-inline constexpr int kGhostCount = CountGhosts();
+inline const int kGhostCount = CountGhosts();
 
 /// The height at which the outline of `o` is drawn: the top of a flat object, the base of a tall one (plus a small lift).
 constexpr float GhostY(const SceneObject& o)
@@ -70,11 +75,11 @@ constexpr SceneObject HintBar(float x0, float y0, float z0, float x1, float y1, 
     return o;
 }
 
-/// Writes the four bars of the outline of `o` into out[0 .. 3]: the two long sides along x, then the two short sides along
-/// z between them, so that no corner is drawn twice.
-inline void MakeGhost(const SceneObject& o, SceneObject* out)
+/// Writes the four bars of an outline of the footprint of `o` into out[0 .. 3]: the two long sides along x, then the two short
+/// sides along z between them, so that no corner is drawn twice. `bar` is the width of a bar, `lighten` how close to white
+/// the colour of `o` goes, `mask` the layers.
+inline void MakeOutline(const SceneObject& o, float bar, float lighten, unsigned mask, SceneObject* out)
 {
-    const unsigned other = o.layerMask == kLayerA ? kLayerB : kLayerA;
     const float y0 = GhostY(o) - 0.5f * kGhostThick;
     const float y1 = y0 + kGhostThick;
     const float x0 = o.position[0] - 0.5f * o.scale[0];
@@ -84,11 +89,17 @@ inline void MakeGhost(const SceneObject& o, SceneObject* out)
     float r = 0.0f;
     float g = 0.0f;
     float b = 0.0f;
-    Lighten(o, kGhostLight, r, g, b);
-    out[0] = HintBar(x0, y0, z0, x1, y1, z0 + kGhostBar, r, g, b, other);
-    out[1] = HintBar(x0, y0, z1 - kGhostBar, x1, y1, z1, r, g, b, other);
-    out[2] = HintBar(x0, y0, z0 + kGhostBar, x0 + kGhostBar, y1, z1 - kGhostBar, r, g, b, other);
-    out[3] = HintBar(x1 - kGhostBar, y0, z0 + kGhostBar, x1, y1, z1 - kGhostBar, r, g, b, other);
+    Lighten(o, lighten, r, g, b);
+    out[0] = HintBar(x0, y0, z0, x1, y1, z0 + bar, r, g, b, mask);
+    out[1] = HintBar(x0, y0, z1 - bar, x1, y1, z1, r, g, b, mask);
+    out[2] = HintBar(x0, y0, z0 + bar, x0 + bar, y1, z1 - bar, r, g, b, mask);
+    out[3] = HintBar(x1 - bar, y0, z0 + bar, x1, y1, z1 - bar, r, g, b, mask);
+}
+
+/// The outline of `o` in the other layer (the hint that is always there).
+inline void MakeGhost(const SceneObject& o, SceneObject* out)
+{
+    MakeOutline(o, kGhostBar, kGhostLight, o.layerMask == kLayerA ? kLayerB : kLayerA, out);
 }
 
 /// Adds the outlines to the drawn table `out`, which holds `count` objects and has room for `capacity`. Returns the new
@@ -110,6 +121,30 @@ inline int AddGhosts(SceneObject* out, int count, int capacity)
     return count;
 }
 
+// ---- the outline of what stopped a push
+inline constexpr float kBlockedBar = 0.14f; // UNITS: metres: wider than the hint, so that it is seen as an answer to the push
+
+/// Adds, while a refused push flashes, the outline of the fixed object that was in the way, in both layers, from almost white
+/// fading back to its colour. Nothing for a refusal by the door or the edge of the board (they have no single footprint to
+/// show). Returns the new count.
+inline int AddBlockedFlash(const puzzle::Puzzle& puzzle, SceneObject* out, int count, int capacity)
+{
+    const int blocker = puzzle.LastBlocker();
+    const float flash = puzzle.BlockedFlash();
+    if (out == nullptr || count < 0 || capacity - count < kBarsPerGhost || flash <= 0.0f || blocker < 0 || blocker >= kStageStaticCount)
+    {
+        return count;
+    }
+    const SceneObject& o = kStageStatics[static_cast<std::size_t>(blocker)];
+    if (o.tilt != 0.0f)
+    {
+        return count;
+    }
+    const float t = flash / puzzle::Puzzle::kFlashSeconds; // 1 at the start of the flash, 0 at its end
+    MakeOutline(o, kBlockedBar, kGhostLight + (1.0f - kGhostLight) * 0.8f * t, kLayerBoth, out + count);
+    return count + kBarsPerGhost;
+}
+
 // ---- the frame of the blue door, drawn in layer A while the door is closed for a body in A
 inline constexpr float kFrameDepth = 0.03f; // UNITS: metres, in front of the south face of the wall
 inline constexpr float kFrameGap = 0.01f;   // UNITS: metres between the frame and the wall, so that they never flicker
@@ -123,8 +158,8 @@ inline int AddDoorFrame(SceneObject* out, int count, int capacity, bool doorOpen
     {
         return count;
     }
-    const float x0 = kFinaleX - kDoorwayHalfWidth;
-    const float x1 = kFinaleX + kDoorwayHalfWidth;
+    const float x0 = kDoorX - kDoorwayHalfWidth;
+    const float x1 = kDoorX + kDoorwayHalfWidth;
     const float y0 = kDoorwayLow;
     const float y1 = kDoorwayHigh;
     const float z1 = kDoorSouth - kFrameGap;
@@ -143,11 +178,11 @@ inline int AddDoorFrame(SceneObject* out, int count, int capacity, bool doorOpen
 }
 
 // ---- the beacon over the goal, and what happens when the goal is reached
-inline constexpr float kBeaconWidth = 0.12f;      // UNITS: metres
+inline constexpr float kBeaconWidth = 0.12f;     // UNITS: metres
 inline constexpr float kBeaconBottom = kGoal.y + kGoalRadius + 0.05f;
-inline constexpr float kBeaconTop = 14.0f;        // UNITS: metres (world y): seen over every wall from the start
-inline constexpr float kClearSeconds = 1.6f;      // UNITS: seconds that the rings spread
-inline constexpr float kClearBeaconWidth = 0.6f;  // UNITS: metres: the beacon after the clear
+inline constexpr float kBeaconTop = 30.0f;       // UNITS: metres (world y): seen over every wall from the start
+inline constexpr float kClearSeconds = 1.6f;     // UNITS: seconds that the rings spread
+inline constexpr float kClearBeaconWidth = 0.6f; // UNITS: metres: the beacon after the clear
 inline constexpr int kClearRings = 3;
 
 /// Adds the beacon (both layers, drawn only). `clearSeconds` < 0 while the goal is not reached; after it, the beacon grows

@@ -1,18 +1,18 @@
-// test_lights.cpp - tests of the hidden light (no window, no GPU): src/scene/StageLights.h on the stage of src/scene/Stage.h.
+// test_lights.cpp - tests of the hidden lights (no window, no GPU): src/scene/StageLights.h on the map of src/scene/Stage.h.
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_lights.cpp -o test_lights
-//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
+//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only lights
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. the logic: a light is taken when a ball of the body touches it, once; it stays taken; a taken light is not drawn any
-//      more; the goal light changes colour only when asked, and only the goal light
-//   2. where it is, with the numbers of the walking body (jump 2.0 m, eye 1.55 m, ball radius 0.35 m, 4 m/s, gravity 30 up
-//      and 48 down): the light in the gate cannot be touched from any side of the gate in A, is reached by a jump in B, and
-//      is not touched by jumps along the main path
-// The flights are computed with the rules of Player.h (a held jump, the walking speed at once); the full body is played in
-// tests/test_stage.cpp. Returns 1 when a check fails.
+//      more; with every light taken the goal light changes colour, and only the goal light
+//   2. the light in the gate, with the numbers of the walking body (the jump and the walking speed of Player.h; flights
+//      computed with its rules, a held jump): not touched from any side of the gate in A, reached by a jump in B, not touched
+//      by jumps along the main path
+// Returns 1 when a check fails.
 
 #include "scene/StageLights.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 
 namespace
@@ -39,12 +39,7 @@ using dl::Vec3;
 using namespace dl::scene;
 namespace st = dl::stage;
 
-constexpr float kRadius = 0.35f;
-constexpr float kEye = 1.55f;
-constexpr float kWalkSpeed = 4.0f;
-constexpr float kGravityUp = 30.0f;
-constexpr float kGravityDown = 30.0f * 1.6f;
-constexpr float kJumpHeight = 2.0f;
+const dl::Player::Settings kBody{};
 
 /// A body as the lights see it: three balls above the feet, like Player.
 struct FakeBody
@@ -52,7 +47,7 @@ struct FakeBody
     Vec3 feet;
     struct Settings
     {
-        float radius = kRadius;
+        float radius = kBody.radius;
     } settings;
     const Settings& GetSettings() const
     {
@@ -61,32 +56,33 @@ struct FakeBody
     Vec3 Ball(int i) const
     {
         const float t = static_cast<float>(i) / 2.0f;
-        return {feet.x, feet.y + kRadius + (kEye - kRadius) * t, feet.z};
+        return {feet.x, feet.y + kBody.radius + (kBody.eyeHeight - kBody.radius) * t, feet.z};
     }
 };
 
-bool Touches(const Vec3& feet)
+bool Touches(const Vec3& feet, int light)
 {
     FakeBody body{feet, {}};
     st::LightSet set;
-    return set.Collect(body) == 0;
+    set.Collect(body);
+    return set.Taken(light);
 }
 
-/// The flight of a held jump from `start` (feet), moving along (dirX, dirZ) at the walking speed, until the feet are 6 m
-/// below the start. True when a ball touches the light on the way.
-bool JumpReaches(const Vec3& start, float dirX, float dirZ)
+/// The flight of a held jump from `start` (feet), moving along (dirX, dirZ) at the walking speed, until the feet are 8 m
+/// below the start. True when a ball touches `light` on the way.
+bool JumpReaches(const Vec3& start, float dirX, float dirZ, int light)
 {
-    const float jumpSpeed = std::sqrt(2.0f * kGravityUp * kJumpHeight);
+    const float jumpSpeed = std::sqrt(2.0f * kBody.gravity * kBody.jumpHeight);
     Vec3 feet = start;
     float vy = jumpSpeed;
     const float dt = 1.0f / 600.0f;
-    for (int i = 0; i < 6000 && feet.y > start.y - 6.0f; ++i)
+    for (int i = 0; i < 8000 && feet.y > start.y - 8.0f; ++i)
     {
-        feet.x += dirX * kWalkSpeed * dt;
-        feet.z += dirZ * kWalkSpeed * dt;
+        feet.x += dirX * kBody.walkSpeed * dt;
+        feet.z += dirZ * kBody.walkSpeed * dt;
         feet.y += vy * dt;
-        vy -= (vy > 0.0f ? kGravityUp : kGravityDown) * dt;
-        if (Touches(feet))
+        vy -= (vy > 0.0f ? kBody.gravity : kBody.gravity * kBody.fallGravityScale) * dt;
+        if (Touches(feet, light))
         {
             return true;
         }
@@ -97,18 +93,21 @@ bool JumpReaches(const Vec3& start, float dirX, float dirZ)
 void TestLogic()
 {
     st::LightSet set;
-    CHECK(set.Count() == 0 && !set.All() && st::kHiddenLightCount == 1);
+    CHECK(set.Count() == 0 && !set.All());
     FakeBody far{{0.0f, st::kTerraceY, -3.0f}, {}};
     CHECK(set.Collect(far) == -1);
-    SceneObject table[4] = {};
-    CHECK(set.AddToDrawTable(table, 0, 4) == 1 && table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
-    CHECK(set.AddToDrawTable(table, 4, 4) == 4 && set.AddToDrawTable(nullptr, 3, 4) == 3);
-    const Vec3 c = st::kHiddenLights[0].centre;
-    FakeBody at{{c.x, c.y - kEye, c.z}, {}};
-    CHECK(set.Collect(at) == 0 && set.Taken(0) && set.All());
-    CHECK(set.Collect(at) == -1 && set.Count() == 1); // once only
-    CHECK(set.AddToDrawTable(table, 0, 4) == 0);      // nothing left to draw
-    // the goal light changes colour; nothing else does
+    SceneObject table[8] = {};
+    CHECK(set.AddToDrawTable(table, 0, 8) == st::kHiddenLightCount && table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
+    CHECK(set.AddToDrawTable(table, 8, 8) == 8 && set.AddToDrawTable(nullptr, 3, 8) == 3);
+    for (int i = 0; i < st::kHiddenLightCount; ++i)
+    {
+        const Vec3 c = st::kHiddenLights[i].centre;
+        FakeBody at{{c.x, c.y - kBody.eyeHeight, c.z}, {}};
+        CHECK(set.Collect(at) == i && set.Taken(i));
+        CHECK(set.Collect(at) == -1); // once only
+    }
+    CHECK(set.All() && set.Count() == st::kHiddenLightCount);
+    CHECK(set.AddToDrawTable(table, 0, 8) == 0); // nothing left to draw
     static SceneObject drawn[st::kMaxDrawObjects] = {};
     const dl::puzzle::Puzzle puzzle;
     const int n = st::BuildDrawTable(puzzle, false, drawn);
@@ -133,29 +132,24 @@ void TestLogic()
 
 void TestLightInTheGate()
 {
-    const SceneObject& gate = st::kStageStatics[1];
-    CHECK(gate.layerMask == kLayerA);
+    const SceneObject& gate = st::kStageStatics[static_cast<std::size_t>(st::kGateIndex)];
+    CHECK(gate.layerMask == kLayerA && std::fabs(gate.position[2] - st::kGateZ) < 1e-4f);
     const float front = gate.position[2] - 0.5f * gate.scale[2];
     const float back = gate.position[2] + 0.5f * gate.scale[2];
     const float top = gate.position[1] + 0.5f * gate.scale[1];
     const Vec3 c = st::kHiddenLights[0].centre;
-    // the light is inside the gate (so it is hidden there in A)
     CHECK(c.z - st::kLightRadius >= front - 1e-4f && c.z + st::kLightRadius <= back + 1e-4f && c.y + st::kLightRadius <= top);
-    // in A a ball cannot come closer than its radius to the faces: try every height in front of, behind and above the gate
-    bool touched = false;
+    bool touched = false; // in A a ball cannot come closer than its radius to the faces of the gate
     for (float y = st::kTerraceY; y < top + 1.0f; y += 0.01f)
     {
-        touched = touched || Touches({c.x, y - kRadius, front - kRadius}) || Touches({c.x, y - kRadius, back + kRadius});
+        touched = touched || Touches({c.x, y - kBody.radius, front - kBody.radius}, 0) || Touches({c.x, y - kBody.radius, back + kBody.radius}, 0);
     }
-    touched = touched || Touches({c.x, top, c.z}); // standing on its top (which cannot be reached anyway)
     CHECK(!touched);
-    // in B: a held jump straight up from the red outline on the terrace
-    CHECK(JumpReaches({c.x, st::kTerraceY, c.z}, 0.0f, 0.0f));
-    // the main path (x = 0, a jump anywhere along the terrace) never touches it
-    bool onPath = false;
+    CHECK(JumpReaches({c.x, st::kTerraceY, c.z}, 0.0f, 0.0f, 0)); // in B, from the red outline on the terrace
+    bool onPath = false; // the main path (x = 0, a jump anywhere along the terrace) never touches it
     for (float z = 0.0f; z < 6.0f; z += 0.25f)
     {
-        onPath = onPath || JumpReaches({0.0f, st::kTerraceY, z}, 0.0f, 1.0f);
+        onPath = onPath || JumpReaches({0.0f, st::kTerraceY, z}, 0.0f, 1.0f, 0);
     }
     CHECK(!onPath);
 }

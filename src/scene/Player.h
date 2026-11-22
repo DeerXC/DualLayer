@@ -6,7 +6,7 @@
 // Layers:    only the objects of the given layer are solid (scene/Collision.h). The layer is a parameter of every Update, so a body
 //            standing on an object that is not in the new layer falls at once.
 // Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h). SetScene
-//            gives the body another one (a test, or the solids of a puzzle, whose block moves and whose door opens).
+//            gives the body another one (a test, or the solids of the map, whose block moves and whose doors open).
 // Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06 s, a stop in
 //            about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is stronger while the
 //            body falls than while it rises, so a jump goes up softly and comes down firmly. Letting the jump key go while the body
@@ -14,9 +14,13 @@
 //            for 0.08 s after the body left an edge; jump buffer: a jump pressed 0.1 s before the landing happens at the landing.
 // Method:    per small step: the speed on the ground moves toward the wish of the keys; gravity; jump; move; push the three balls out
 //            of the solids (ResolveSphere). The direction of the push is the normal of what was hit: the part of the speed that goes
-//            into it is removed and the rest stays, so a wall stops the walk into it, a floor ends a fall and a slope that is too
-//            steep turns the fall into a slide. Then a probe a few centimetres below the feet tells whether the body stands on
-//            something (the surface must face up: a slope limit of about 53 degrees); only a body that stands has no slide left.
+//            into it is removed and the rest stays, so a floor ends a fall and a slope that is too steep turns the fall into a
+//            slide. The walk is taken away only by the solids that are not ground (AddWallPush): a ramp keeps the walk, a wall
+//            takes the part into it, also when the floor pushes in the same step. Then a probe a few centimetres below the feet
+//            tells whether the body stands on something (the surface must face up: a slope limit of about 53 degrees).
+// Snap:      a body that stood in the last step and did not jump is kept on the ground when the ground drops away by at most
+//            kSnapDown in one step (walking down a ramp or off a low step), so that it does not fly off in small hops: that was the
+//            shaking of the camera on the way down.
 // Time:      Update takes the real frame time, limited to 0.1 s, and cuts it into steps that move the body by less than the radius,
 //            so that nothing is jumped over (the floor is only 0.2 m thick).
 // Falling:   a body that falls kFallDepth below the floor goes back to the spawn point (JustRespawned tells it).
@@ -39,16 +43,16 @@ class Player
   public:
     struct Settings
     {
-        float radius = 0.35f;           ///< UNITS: metres, the radius of the three balls
-        float eyeHeight = 1.55f;        ///< UNITS: metres, from the feet to the eye (the camera)
-        float walkSpeed = 4.0f;         ///< UNITS: metres per second
-        float groundAccel = 70.0f;      ///< UNITS: m/s^2 toward the wished speed on the ground (4 m/s in about 0.06 s)
-        float groundDecel = 90.0f;      ///< UNITS: m/s^2 when the keys are let go or point back (a stop in about 0.05 s)
-        float airAccel = 30.0f;         ///< UNITS: m/s^2 toward the wished speed in the air (steering, not turning on the spot)
-        float gravity = 30.0f;          ///< UNITS: m/s^2 while rising (a snappy jump, not the real 9.8)
-        float fallGravityScale = 1.6f;  ///< gravity is this many times stronger while the body falls
-        float jumpHeight = 2.0f;        ///< UNITS: metres that the feet rise in a full jump (the objects are up to 1.8 m high)
-        float jumpCut = 0.45f;          ///< the part of the upward speed that is kept when the jump key is let go early (1 = no cut)
+        float radius = 0.35f;          ///< UNITS: metres, the radius of the three balls
+        float eyeHeight = 1.55f;       ///< UNITS: metres, from the feet to the eye (the camera)
+        float walkSpeed = 5.5f;        ///< UNITS: metres per second
+        float groundAccel = 95.0f;     ///< UNITS: m/s^2 toward the wished speed on the ground (5.5 m/s in about 0.06 s)
+        float groundDecel = 120.0f;    ///< UNITS: m/s^2 when the keys are let go or point back (a stop in about 0.05 s)
+        float airAccel = 40.0f;        ///< UNITS: m/s^2 toward the wished speed in the air (steering, not turning on the spot)
+        float gravity = 30.0f;         ///< UNITS: m/s^2 while rising (a snappy jump, not the real 9.8)
+        float fallGravityScale = 1.6f; ///< gravity is this many times stronger while the body falls
+        float jumpHeight = 2.0f;       ///< UNITS: metres that the feet rise in a full jump
+        float jumpCut = 0.45f;         ///< the part of the upward speed that is kept when the jump key is let go early (1 = no cut)
     };
 
     struct Input
@@ -58,6 +62,10 @@ class Player
         bool jumpPressed = false; ///< true for the frame in which the key went down
         bool jumpHeld = true;     ///< false while the jump key is up; a caller that does not track the key gets the full jump
     };
+
+    static constexpr float kGroundFacing = 0.6f; ///< the push of the ground points up by at least this part (about 53 degrees)
+    static constexpr float kSnapDown = 0.35f;    ///< UNITS: metres the ground may drop away in one step and still hold the body
+    static constexpr float kSnapStep = 0.025f;   ///< UNITS: metres; the snap looks for the ground in steps this small
 
     /// Values that make no sense are pulled back into a range that works (NaN gets the default).
     void SetSettings(const Settings& settings)
@@ -263,7 +271,6 @@ class Player
     static constexpr float kCoyoteSeconds = 0.08f;
     static constexpr float kJumpBufferSeconds = 0.10f;
     static constexpr float kProbe = 0.03f;             // UNITS: metres, how far below the feet the ground is looked for
-    static constexpr float kGroundFacing = 0.6f;       // the push of the ground must point up by at least this part (0.6 = about 53 degrees)
     static constexpr float kFallDepth = 20.0f;         // UNITS: metres below the floor of the scene
     static constexpr float kMinAirSeconds = 0.05f;     // a jump cannot end in the first 0.05 s
     static constexpr float kImpactMin = 2.0f;          // UNITS: metres per second; a softer landing is not reported
@@ -311,9 +318,36 @@ class Player
         return ResolveSphere(centre, m_s.radius, layer, spinSeconds, m_objects, m_objectCount);
     }
 
+    /// Adds to the wall push the part of the push on the ball at `centre` that comes from solids which are not ground: each
+    /// solid of `layer` is asked on its own, so that a floor and a wall touched together are told apart.
+    void AddWallPush(const Vec3& centre, int layer, float spinSeconds)
+    {
+        const unsigned bit = 1u << layer;
+        for (int j = 0; j < m_objectCount; ++j)
+        {
+            if ((m_objects[j].layerMask & bit) == 0u)
+            {
+                continue;
+            }
+            Vec3 p = centre;
+            if (collision_detail::PushOutOf(m_objects[j], p, m_s.radius, spinSeconds) <= collision_detail::kTouch)
+            {
+                continue;
+            }
+            const float dx = p.x - centre.x;
+            const float dy = p.y - centre.y;
+            const float dz = p.z - centre.z;
+            if (dy < kGroundFacing * std::sqrt(dx * dx + dy * dy + dz * dz))
+            {
+                m_wallX += dx;
+                m_wallZ += dz;
+            }
+        }
+    }
+
     /// Pushes the three balls out of the solids of `layer`; each push moves the whole body. A few rounds, because a push of
-    /// one ball can put another one into something.
-    void ResolveBody(int layer, float spinSeconds)
+    /// one ball can put another one into something. `wall`: add the wall part of every push to m_wallX / m_wallZ.
+    void ResolveBody(int layer, float spinSeconds, bool wall)
     {
         for (int round = 0; round < 8; ++round)
         {
@@ -324,6 +358,10 @@ class Player
                 const CollisionResult r = ResolveBall(centre, layer, spinSeconds);
                 if (r.pushed)
                 {
+                    if (wall)
+                    {
+                        AddWallPush(centre, layer, spinSeconds);
+                    }
                     m_feet.x += r.position.x - centre.x;
                     m_feet.y += r.position.y - centre.y;
                     m_feet.z += r.position.z - centre.z;
@@ -355,6 +393,29 @@ class Player
         return dy > 0.005f && dy > kGroundFacing * length;
     }
 
+    /// Keeps a body that stood in the last step on the ground when the ground dropped away by at most kSnapDown: the feet are
+    /// lowered straight down in small steps until the probe finds ground that faces up, then settled on it. When there is no such
+    /// ground within kSnapDown, nothing changes (an edge: the body falls).
+    bool SnapToGround(int layer, float spinSeconds)
+    {
+        const Vec3 before = m_feet;
+        for (float down = kSnapStep; down <= kSnapDown + 1.0e-4f; down += kSnapStep)
+        {
+            m_feet.y = before.y - down;
+            if (StandsOnSomething(layer, spinSeconds))
+            {
+                ResolveBody(layer, spinSeconds, false); // settle on it: the probe found it a few centimetres below
+                if (StandsOnSomething(layer, spinSeconds) && m_feet.y < before.y)
+                {
+                    return true;
+                }
+                break;
+            }
+        }
+        m_feet = before;
+        return false;
+    }
+
     /// Moves the speed on the ground toward (targetX, targetZ) by at most the acceleration of this moment.
     void Steer(float targetX, float targetZ, float h)
     {
@@ -381,6 +442,8 @@ class Player
 
     void Step(float h, float wishX, float wishZ, float jumpSpeed, int layer, float spinSeconds)
     {
+        const bool stood = m_grounded;
+        bool jumpedNow = false;
         m_coyote = m_coyote > h ? m_coyote - h : 0.0f;
         m_jumpBuffer = m_jumpBuffer > h ? m_jumpBuffer - h : 0.0f;
         if (m_jumpBuffer > 0.0f && m_coyote > 0.0f && jumpSpeed > 0.0f)
@@ -394,6 +457,7 @@ class Player
             m_airSeconds = 0.0f;
             m_takeoffY = m_feet.y;
             m_peakY = m_feet.y;
+            jumpedNow = true;
         }
         if (m_jumping)
         {
@@ -420,10 +484,12 @@ class Player
         const float vyBeforeContact = m_vy;
 
         const Vec3 moved = m_feet;
-        ResolveBody(layer, spinSeconds);
+        m_wallX = 0.0f;
+        m_wallZ = 0.0f;
+        ResolveBody(layer, spinSeconds, true);
 
-        // the push points away from what was hit: take the part of the speed that goes into it away (a wall stops the walk into
-        // it, a floor ends a fall, a ceiling ends a rise, a slope turns the fall into a slide)
+        // the push points away from what was hit: take the part of the speed that goes into it away (a floor ends a fall, a ceiling
+        // ends a rise, a slope turns the fall into a slide)
         const float px = m_feet.x - moved.x;
         const float py = m_feet.y - moved.y;
         const float pz = m_feet.z - moved.z;
@@ -441,13 +507,12 @@ class Player
                 m_vz -= into * nz;
             }
         }
-        // the walk is on the ground: only the part of the push along the ground counts (the floor pushes up in the same step, and
-        // a mixed direction would leave a part of the walk into the wall)
-        const float flatPush = std::sqrt(px * px + pz * pz);
-        if (flatPush > 1.0e-5f)
+        // the walk: only the pushes of solids that are not ground (AddWallPush) take the part into them away
+        const float wallPush = std::sqrt(m_wallX * m_wallX + m_wallZ * m_wallZ);
+        if (wallPush > 1.0e-5f)
         {
-            const float hx = px / flatPush;
-            const float hz = pz / flatPush;
+            const float hx = m_wallX / wallPush;
+            const float hz = m_wallZ / wallPush;
             const float walkInto = m_moveX * hx + m_moveZ * hz;
             if (walkInto < 0.0f)
             {
@@ -456,12 +521,17 @@ class Player
             }
         }
         m_grounded = m_vy <= 0.01f && StandsOnSomething(layer, spinSeconds);
+        if (!m_grounded && stood && !jumpedNow && m_vy <= 0.01f && SnapToGround(layer, spinSeconds))
+        {
+            m_grounded = true;
+            m_vy = 0.0f; // it walked down: no fall speed is gathered, so there is no landing and no dip
+        }
         if (m_grounded)
         {
             m_coyote = kCoyoteSeconds;
             m_vx = 0.0f; // standing: the friction of the ground stops a slide
             m_vz = 0.0f;
-            if (vyBeforeContact < -kImpactMin) // a body that already stood has no such speed: this is the moment of contact
+            if (vyBeforeContact < -kImpactMin && !stood) // a body that already stood has no such speed: this is the moment of contact
             {
                 m_impactSpeed = -vyBeforeContact;
                 m_impactPending = true;
@@ -492,6 +562,8 @@ class Player
     Settings m_s;
     float m_moveX = 0.0f; // UNITS: metres per second, the speed on the ground that comes from the keys
     float m_moveZ = 0.0f;
+    float m_wallX = 0.0f; // UNITS: metres, the push of this step from solids that are not ground (AddWallPush)
+    float m_wallZ = 0.0f;
     float m_vx = 0.0f; // UNITS: metres per second, the slide on the ground that does not come from the keys
     float m_vy = 0.0f;
     float m_vz = 0.0f;

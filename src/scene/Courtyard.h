@@ -13,8 +13,8 @@
 // Seen from A, the block is one west push and one north push from the plate. It is not: the cell west of the block is a
 // blue wall, and the block obeys both layers. The real way is ten pushes round the blue walls, and four of them are made by
 // a body standing where a blue wall is, which it can only do in layer A. A body that never switches cannot solve it in
-// either layer (tests/test_maze.cpp proves all of this with src/scene/BlockMaze.h).
-// The red wall from beside the plate to the north edge is low: it is the finale (src/scene/Stage.h).
+// either layer (tests/test_maze.cpp proves all of this with src/scene/BlockMaze.h). The block on the plate opens the blue
+// door in the north wall of the courtyard, the way to the hub (src/scene/Stage.h).
 // The layout was chosen by tools/maze_search.cpp (seed 73): fewest walls among layouts of 9 .. 14 pushes with these proofs.
 #pragma once
 
@@ -36,7 +36,6 @@ inline constexpr const char* kRows[] = {
 inline constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 inline constexpr int kWidth = 7;
 
-inline constexpr int kPushes = 10;     ///< the fewest pushes (tests/test_maze.cpp checks it)
-inline constexpr int kFinaleWallX = 5; ///< the column of the low red wall that runs from beside the plate to the north edge
+inline constexpr int kPushes = 10; ///< the fewest pushes (tests/test_maze.cpp checks it)
 
 } // namespace dl::courtyard

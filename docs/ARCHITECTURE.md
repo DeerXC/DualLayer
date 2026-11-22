@@ -1,117 +1,96 @@
 # Architecture
 
-Covers milestones M0, M1 and M2 so far (layers, ripple, collision, walking, puzzle logic).
-
 ## One frame
 
 ```
-WinMain
- └─ RunApp
-     ├─ Log.OpenFile, Config.LoadFile            (once)
-     ├─ Window.Create                            (DPI awareness first)
-     ├─ Gpu.Init (main.cpp: Device, Triangle and Models together, so that they can be made again together)
-     │   ├─ Device.Init  → adapter list → D3D11 device (+ debug layer) → flip swap chain → back-buffer sRGB view
-     │   ├─ Triangle.Init → CompileShader(shaders/test_triangle.hlsl) → buffers
-     │   ├─ Models.Init   → CompileShader(shaders/models.hlsl, shaders/ripple.hlsl) → input layout → render states → MeshData (CPU) → vertex + index buffers (GPU)
-     │   └─ Models.LoadThemes                    (the looks of layer A and B and the ripple settings: built in, changed by the config)
-     ├─ Player.SetSettings, SetSpawn, Respawn     (the walking body: [player] and [collision] in the config)
-     └─ loop, per frame:
-         1. Window.PumpMessages        (WM_SIZE / F5 / Esc set flags; the loop reads them)
-         2. lost device (or F9 test) → Gpu.Recover: everything on the GPU is released and made again on a new Device; the models keep layer, ripple and spin; after 5 tries the program says so and ends
-         3. F5      → reload config.ini, Models.LoadThemes, Player settings, apply vsync
-         4. resized → Device.Resize     (release view → ResizeBuffers → create view)
-         5. minimised → sleep, skip
-         6. Update  → time step, spin angle, keys Z X C Tab N F Space (wireframe, detail, spin, layer, collision, walk / fly, jump),
-                      camera (walking: it only turns; flying: it also moves), Models.Update (spin, ripple clock), then
-                      walking: Player.Update, the camera takes the eye of the body
-                      flying + collision: ResolveSphere pushes the camera ball out of the solid objects of the layer the screen is going to show
-         7. Render  → Models.ClearColor (the background of the layer on the screen), GpuEvent "Frame"
-                         Device.BeginFrame     bind RTV + DEPTH, viewport, clear colour (linear, written as sRGB) and depth (1.0)
-                         GpuEvent "Opaque.Models"
-                             Models.Draw       idle:   FrameCB (V*P, eye, light and sky of the layer) → per object of that layer: World = S*R*T, normal matrix → ObjectCB → DrawIndexed
-                                               ripple: the same twice into two off-screen pictures, then one triangle on the back buffer that picks a picture per pixel
-                         GpuEvent "Opaque.TestTriangle"      (only with [test_triangle] show = 1)
-                             Triangle.Draw     W*V*P → constant buffer → IA/VS/PS state → Draw(3)
-         8. Device.EndFrame → Present(vsync) → device-lost check (sets Lost(); step 2 of the next frame handles it)
-     └─ shutdown: Gpu.Shutdown = Models.Shutdown → Triangle.Shutdown → Device.Shutdown (reports leaked objects in Debug) → Log.Close
+WinMain > RunApp
+  once:   log file, config, window (DPI aware), Gpu::Init (Device, Triangle, Models), the map (Puzzle::Init from
+          Stage::MakeStage), the walking body at the entry of the start room
+  frame:  1. Window::PumpMessages
+          2. lost device (or F9)   > Gpu::Recover: every GPU object made again on a new Device; the map and the body stay
+          3. F5                    > reload the config, the themes of the layers, the settings of the body
+          4. resize                > Device::Resize
+          5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something is refused)
+          6. Models::Update        > the spin clock and the ripple clock
+          7. the solid table       > Puzzle::Solids(layer) + Stage::AddMapSolids (the closed doors)
+          8. walking               > Player::Update, Puzzle::Update, seals and hidden lights, the room, a fall, the goal;
+             flying                > ResolveSphere on the camera ball
+          9. the drawn table       > Stage::BuildDrawTable + AddMapDraw + the hints + the lights > Models::SetObjects
+         10. render                > Device::BeginFrame, Models::Draw (one layer, or the ripple), Device::EndFrame (Present)
+  end:    Gpu::Shutdown (Models, Triangle, Device: the debug layer reports leaks), log closed
 ```
 
-## Device recovery
+What is drawn and what is solid come from the same state in the same frame, so they cannot disagree.
 
-`Present` reports a removed or reset device (driver update, a driver reset after a long GPU stall, a GPU that is switched off). `Device` only sets `Lost()`; it never repairs itself. `main.cpp` owns the three GPU users in a `Gpu` struct: on `Lost()` it shuts all of them down, makes a **new** `Device` object (a lost one is never reused) and initialises all three again. The camera, the layer, the ripple, the spin, the wireframe switch and the walking body live outside the GPU objects or are not touched by `Init`, so the player sees a flicker and the same scene. The two ripple pictures are made again the next time a ripple needs them. The level of detail goes back to `[models] segments`. The `F9` key (config `[debug] device_reset_key = 1`) runs the same path without a real device loss, so that it can be tested.
-
-## Layers and the ripple (M2)
-
-Every object of the scene has a mask (A = 1, B = 2, both = 3). A draw call is skipped when the mask does not contain the layer that is being drawn. The objects are not moved or copied, and each layer is always drawn with its own theme (light, sky, background).
-
-`LayerRipple` (header only, no Direct3D) keeps the timing: which layer is outside the circle, which one is inside, and how far the circle has opened. `Tab` starts a ripple from the idle state; `Tab` during a ripple turns it round, so the circle closes again and the old layer stays. The state has no jump in any case, because the circle radius is the only thing that changes.
-
-While the circle is closed (idle) the layer is drawn straight to the back buffer: no extra cost. During a ripple, `Models::DrawRipple` does three passes:
-
-1. the outer layer into picture 0 (its own background colour, its own depth buffer),
-2. the inner layer into picture 1,
-3. back on the back buffer: `ripple.hlsl` draws one triangle that covers the screen and takes each pixel from picture 1 inside the circle and from picture 0 outside, with a bright ring and a small bend of the picture at the ring.
-
-The two pictures are made the first time they are needed and made again when the window size changes. If they cannot be made, the layer is shown without a ripple and the log says why. `StateGuard` puts back the render target, the viewport and every other state that the ripple changes.
-
-## Collision (M2)
-
-The solid body is a ball (the camera, radius 0.35 m by default). `ResolveSphere` (`scene/Collision.h`) moves only the place of the ball out of everything that is solid in the given layer. There is no speed or physics inside it: one call, one correction. The objects come from a table: the short form uses the scene table of the program, the long form takes any table (a test, or the puzzle, whose block moves and whose door opens).
-
-The solids are the objects of the scene table `scene/SceneData.h`. The renderer (`Models.cpp`) reads the same table, so what is drawn and what is solid cannot disagree. An object is solid only in the layers of its mask, so the red cube and the grey cylinder exist for the ball only in A, the blue sphere and the yellow torus only in B, and the floor in both.
-
-Every shape is exact: a box that can be stretched and turned, a ball, a cylinder with flat ends, and a torus (a tube bent into a ring, so that the hole can be flown through). For each solid the ball centre is moved into the local space of the object (the inverse of the world matrix of the renderer), pushed out along the shortest way, and moved back. The shapes turn with time, so the collision takes `Models::SpinSeconds()`, the same time that the renderer uses. Up to 16 rounds settle a ball that sits between two solids.
-
-During a ripple the NEW layer is already the solid one (`Models::CollisionLayer()`). In the current game a ball that is inside an object of the new layer when `Tab` is pressed is pushed to its surface; with the puzzle in the game this case is refused instead (see "Puzzle logic").
-
-## Walking (M2)
-
-`Player` (`scene/Player.h`, header only, no Windows) is a body of three balls of the collision radius, one at the feet, one at the eye and one halfway; the camera is the eye. Walking is the default; `F` switches to the free-flying camera, and `N` (collision off) also means flying, because a body needs something to stand on.
-
-Per frame the time is cut into steps that move the body by less than a part of the radius (the floor is only 0.2 m thick). In each step: the horizontal speed comes from the keys and from where the camera looks (only its direction on the ground counts, so looking up does not slow the walk); gravity changes the vertical speed; a jump sets it; the body moves; `ResolveBody` pushes the three balls out of the solids, calling `ResolveSphere` for each ball and moving the whole body by each push. The direction of the push is the normal of what was hit: the part of the speed that goes into it is removed and the rest stays, so a floor ends a fall and a slope that is too steep turns the fall into a slide. Then a probe a few centimetres below the feet tells whether the body stands: the push must point up by at least 0.6 of its length (about 53 degrees). A standing body has no slide speed left (friction).
-
-Feel: a jump still works for 0.08 s after leaving an edge (coyote time), and a jump pressed 0.1 s before the landing happens at the landing (jump buffer). A body that falls 20 m below the floor goes back to the spawn point.
-
-The layer is a parameter of every `Update`, so a body that stands on an object that does not exist in the new layer falls at once. The turning shapes do not carry the body along; they only push it away.
-
-## Puzzle logic (M2, not in the game yet)
-
-`scene/Puzzle.h` (header only, no Windows) holds the pieces of the stage. All of them are tied to the two layers:
-
-- **Purple block**: a 1 m cube on a 1 m grid, solid in BOTH layers. Walking straight at one of its faces for 0.2 s moves it one cell in 0.25 s. The next cell must be free in both layers, so a wall that is not even on the screen can stop it; a refused push names what was in the way and makes it flash.
-- **Plate and door**: the plate is in layer A and is pressed by the block resting on it, or by the body standing on it while the body is in A. The door is in layer B and is open while the plate is pressed. A body that switches to B leaves the plate, so it cannot hold the door open by itself: the block can.
-- **Solids**: `Puzzle::Solids(layer)` builds, every frame, the table that the collision and the walking body use: the fixed objects, the block, and the door while it is closed.
-- **Switch guard**: `Puzzle::BodyFits` tells whether the body would be free in the other layer; `LayerGuard` turns `Tab` into Switch, Refuse (the ripple opens for 0.15 s and turns back, the old layer stays solid) or Ignore. The push-out of the collision stays only as a safety net.
-
-## The first stage (M2)
-
-`scene/Stage.h` holds the stage as data: the fixed objects, the door, the plate cell, the block start, the checkpoints, the fall line and the goal. The puzzle copies the fixed objects. Every frame `main.cpp` builds two tables from the same state: the solid table of the layer of the body (`Puzzle::Solids`: fixed objects, block, closed door), which goes to `Player::SetScene` (or to `ResolveSphere` while flying), and the drawn table (`Stage::BuildDrawTable`: the same, plus the plate and the goal light, with a blocker of a refused push shown in both layers), which goes to `Models::SetObjects`. `Tab` goes through `LayerGuard`: a switch into something is refused, the ripple opens and turns back, and the old layer stays solid meanwhile. `tests/test_stage.cpp` plays the stage with the real body and shows that every part needs the layer switch.
-
-Hint: `scene/StageHints.h` adds to the drawn table a thin outline, in the other layer, of each listed object that exists in one layer only (a platform at its top, a wall at its base). The outlines never reach the solid table.
-
-Hidden lights: `scene/StageLights.h` keeps which of the three lights are taken (a ball of the body touching one) and adds the others to the drawn table; they are never solid. With all three the goal light is recoloured.
-
-## The courtyard (M2)
-
-`scene/Courtyard.h` holds the block puzzle as rows of text; `scene/BlockMaze.h` solves it (breadth-first over the cell of the block and the region the body can reach, the body passing through the union of the two layers and over the block, the block only through their intersection). `scene/Stage.h` builds the walls of the courtyard from the same rows at compile time, so the proof and the game are one source. `tests/test_maze.cpp` proves the puzzle on the grid; `tests/test_stage.cpp` plays it with the walking body in the built geometry, and tries the ways round it.
-
-## Modules and the allowed direction of dependencies
+## Modules
 
 ```
 main
- ├─ render   (Device, Triangle, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug)   → core, scene (SceneData only)
- ├─ scene    (Camera, SceneData, Collision, Player, Puzzle)                                            → standard library only
- └─ core     (Log, Assert, Config, Window)  → standard library and Windows only
+ +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle   > core, scene (data only)
+ +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
+             StageHints, StageLights                                                               > standard library only
+ +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
-`core` must never include `render` or anything above it. `render` is the only place that talks to Direct3D. New layers (`game`, `audio`, `ui`) are added by the milestone that needs them, always on top.
+A dependency only points down. `render` is the only place that talks to Direct3D. Everything in `scene` and the pure parts
+of `core` and `render` (`MeshData`, `LayerRipple`) have no Windows or Direct3D dependency and are tested without a window.
 
-Pure-logic code (`Config`, `Log`, `Assert`, `Camera`, `MeshData`, `LayerRipple`, `SceneData`, `Collision`, `Player`, `Puzzle`) has no Windows or Direct3D dependency and can be tested without a window.
+## Layers and the ripple
 
-`MeshData` makes the shapes on the CPU; `Models` only copies them to the GPU and draws them. `Projection.h` is the one lens that every pass uses, and `ShaderCompiler` the one place that knows the compile flags of the shaders.
+Every object carries a layer mask (A = 1, B = 2, both = 3); a draw call and a collision skip an object whose mask does not
+hold the layer. Each layer has its own theme (light, sky, background), never mixed.
 
-## Debugging facilities that exist since M0
+`LayerRipple` keeps the timing of a switch. While no ripple runs, one layer is drawn straight to the back buffer. During a
+ripple, `Models::DrawRipple` draws the outer layer and the inner layer into two off-screen pictures (sRGB colour and their
+own depth), then one screen-covering triangle (`shaders/ripple.hlsl`) takes each pixel from one picture or the other and
+draws a glowing ring. Tab during a ripple turns it round: only the radius changes, so nothing jumps. `StateGuard` puts back
+every pipeline state the ripple changes.
 
-- Every GPU object has a name `<System>.<Resource>` (the ripple ones: `Models.Ripple.*`); every pass is wrapped in a `GpuEvent` (RenderDoc / PIX / VS Graphics Debugger show them).
-- Debug builds: D3D11 + DXGI debug layers, break on error when a debugger is attached, a leak report at exit.
-- `logs/dual.log` and the ring buffer (`log::Recent()`, shown by a debug panel planned for a later milestone).
+## Collision and the walking body
+
+`ResolveSphere` (`scene/Collision.h`) pushes a ball out of every solid of a layer, exactly for boxes (also turned ones,
+such as ramps), spheres, cylinders and tori, in the local space of each object, in a few rounds. It only moves the ball;
+speed is the job of the body.
+
+`Player` is three balls of the collision radius (feet, halfway, eye); the camera is the eye. A frame is cut into steps
+shorter than the radius. In each step: the ground speed moves toward the keys with an acceleration; gravity (stronger while
+falling); the jump (its rise is cut when Space is let go); the move; the push-out. The push removes the part of the speed
+that goes into what was hit, so a floor ends a fall and a too steep slope turns it into a slide. The walk is taken away
+only by solids that are not ground (`AddWallPush`, per solid): a ramp keeps the walk, a wall stops it. A probe below the
+feet decides whether the body stands (up to about 53 degrees). A body that stood and did not jump is kept on the ground when
+the ground drops by up to 0.35 m in one step (`SnapToGround`), so it walks down ramps and low steps without small hops.
+Coyote time and a jump buffer make the timing forgiving. `main.cpp` eases small changes of the eye height and dips the eye
+on a hard landing.
+
+## The block puzzle
+
+`Puzzle` holds the purple block (both layers), the plate (layer A) and the door it opens (layer B). The first push needs
+a short walk into a face; held, the block goes on cell after cell, a little slower than the walk so the body stays at its
+face. A push is refused when the next cell is not free in both layers; the refusal names the blocker. `LayerGuard` refuses
+a layer switch that would put the body inside something.
+
+`BlockMaze` is the same puzzle as a grid: a breadth-first search over (the cell of the block, the region the body can
+reach), where the body moves through the union of the two layers and over the block, and the block only through their
+intersection. `Courtyard` holds the rows of the courtyard; `tools/maze_search.cpp` chose them.
+
+## The map
+
+`Stage` is the map as data: fixed boxes, ramps (boxes turned round X), the walls of the courtyard generated at compile
+time from the rows of `Courtyard`, the rooms (bounds, entry, whether R resets a puzzle), the seals of the wings and the
+doors they open. Every frame `main.cpp` builds the solid table of the layer of the body and the drawn table from it.
+
+`StageHints` adds to the drawn table what the map says without words: an outline in the other layer for every
+single-layer box, the outline of a refused push's blocker in both layers, the frame of the courtyard door, the beacon over
+the goal and the rings of the clear. `StageLights` keeps the hidden lights. None of these is ever solid.
+
+## Device recovery
+
+`Present` reports a removed or reset device; `Device` only sets `Lost()`. `main.cpp` keeps every GPU object in one `Gpu`
+struct, shuts it down, makes a new `Device` and initialises everything again, at most five times per run. The map, the body
+and the camera live outside it and are kept. F9 runs the same path for testing.
+
+## Debugging
+
+- Every GPU object is named `<System>.<Resource>`; every pass is a `GpuEvent` (RenderDoc, PIX, the VS graphics debugger).
+- Debug builds: the D3D11 and DXGI debug layers, a break on error under a debugger, a leak report at exit.
+- `logs/dual.log`: rooms, seals, block moves, refused pushes and switches, falls, jump heights, the clear.

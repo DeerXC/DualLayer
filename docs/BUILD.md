@@ -1,16 +1,69 @@
 # Build
 
-## Needed on every development machine
+## Requirements
 
 1. Visual Studio 2026 with the workload **Desktop development with C++**, toolset v145.
-2. **Windows SDK 10.0.26100.0** (the project pins this version).
-3. For the Debug build's GPU debug layer: Windows **Settings > System > Optional features > Graphics Tools**. Without it the game still runs; the log says "debug layer is not available".
+2. **Windows SDK 10.0.26100.0** (the project pins this version; install it rather than retargeting).
+3. For the GPU debug layer of the Debug build: Windows **Settings > System > Optional features > Graphics Tools**. Without it
+   the game still runs and the log says that the debug layer is not available.
 
 ## Build and run
 
-1. Open `DualLayer.slnx` (or the `.vcxproj`), choose `Debug | x64`, press **F5**. The debugger's working directory is the project folder, so `shaders/` and `config/` are found.
-2. `build\x64\<Config>\DualLayer.exe` also runs when started from Explorer: a post-build step copies `shaders\` and `config\` next to it.
-3. Logic tests: `.\tests\run_tests.ps1` in a *Developer PowerShell for VS* (Config / Log / Assert, the camera, the shapes of the models, the collision, the layer ripple, the walking body, the puzzle, the solver of the courtyard, the stage, its hints and its hidden light). `tools\check.ps1` runs them (see "One command" below).
+1. Open `DualLayer.slnx` (or `DualLayer.vcxproj`), choose `Debug | x64`, press **F5**. The working directory of the debugger
+   is the project folder, so `shaders/` and `config/` are found.
+2. `build\x64\<Config>\DualLayer.exe` also runs from Explorer: a post-build step copies `shaders\` and `config\` next to it.
+3. The logic tests alone: `.\tests\run_tests.ps1` in a Developer PowerShell for VS; one test: `.\tests\run_tests.ps1 -Only stage`.
+
+## Keys
+
+| Key | Action |
+|---|---|
+| Click | capture the mouse for mouse look |
+| Esc | give the mouse back; a second Esc quits |
+| W A S D | walk (flying: move) |
+| Mouse, arrow keys | turn |
+| Space | jump; held = the full jump, a tap = a small hop |
+| Tab | switch the layer (A red, B blue); a switch into something is refused and the ripple turns back |
+| R | back to the entry of the current room; in the courtyard it also puts the block back |
+| F | walking / flying |
+| Q / E | down / up (flying) |
+| N | collision on / off (off also means flying) |
+| Z / X / C | wireframe / level of detail / turning shapes on or off |
+| F5 | reload `config/default.ini` |
+| F9 | rebuild every GPU object (only with `[debug] device_reset_key = 1`): the test of the device recovery |
+
+Command line: `--adapter N` chooses the N-th adapter listed in `logs/dual.log`.
+
+The title bar shows the adapter, the frame time, the camera, the layer, the movement mode, the room, the time, the seals and
+the hidden lights; `CLEAR` and the time at the goal.
+
+## Configuration
+
+`config/default.ini` is read at start and on F5. Every key is optional; the code has a default for each, and values that make
+no sense are pulled into a working range.
+
+| Section | Keys (default) | Meaning |
+|---|---|---|
+| `[window]` | `width` (1600), `height` (900) | the client size in physical pixels |
+| `[render]` | `vsync` (true), `adapter` (-1) | -1: the first hardware GPU in high-performance order |
+| `[log]` | `level` (info) | trace, info, warn or error |
+| `[camera]` | `fov_deg` (70) | vertical field of view, 40 .. 100 degrees |
+| | `land_dip` (0.012), `land_dip_max` (0.15) | metres the eye dips per m/s of landing speed, and at most; 0 turns it off |
+| | `move_speed` (3), `turn_speed` (1.5) | flying speed (m/s) and arrow-key turn speed (rad/s) |
+| `[mouse]` | `sensitivity` (0.0022), `invert_y` (false) | radians per count of the mouse |
+| `[player]` | `walk` (true) | start walking (false: flying) |
+| | `walk_speed` (5.5) | m/s |
+| | `ground_accel` (95), `ground_decel` (120), `air_accel` (40) | m/s^2 toward the walking speed, to a stop, and in the air |
+| | `gravity` (30), `fall_gravity_scale` (1.6) | m/s^2 while rising; times this while falling |
+| | `jump_height` (2.0), `jump_cut` (0.45) | metres with Space held; the part of the rise kept when it is let go early |
+| | `eye_height` (1.55) | metres from the feet to the eye |
+| `[collision]` | `enabled` (true), `radius` (0.35) | the body is solid; the radius of its three balls |
+| `[ripple]` | `seconds` (0.9), `width` (0.07), `distortion` (0.012), `center_x` / `center_y` (0.5) | the layer switch; `seconds = 0` is a cut |
+| `[layer_a]`, `[layer_b]` | `clear_r/g/b`, `light_r/g/b`, `light_x/y/z`, `sky_r/g/b` | the background, the light and the sky of each layer (linear colour) |
+| `[hints]` | `ghosts` (true) | the outlines of the other layer |
+| `[models]` | `segments` (32) | how round the round shapes are |
+| `[debug]` | `device_reset_key` (false) | F9 tests the device recovery |
+| `[test_triangle]` | `show` (false), `spin_deg_per_sec` (0) | the first test triangle |
 
 ## One command
 
@@ -18,121 +71,52 @@
 .\tools\check.ps1
 ```
 
-It can be started from any PowerShell and finds the project and the Visual Studio build tools by itself. It runs, in this order:
+It starts from any PowerShell, finds the project and the Visual Studio build tools by itself, and runs in this order:
 
-1. the logic tests (`tests\run_tests.ps1`): every test of the table in that script, then a build-only pass over the tools that are not part of the game (`tools\maze_search.cpp`), so that they cannot rot unseen. A compiler warning in a test is reported as WARN;
-2. a full rebuild of `Debug | x64` and `Release | x64`, counting errors and warnings (Release treats warnings as errors), and a check that the exe was written by this build and is newer than every source file. WHY: an unzipped file can carry an old time stamp; an incremental build then keeps the old exe and the game run tests the previous version. `-Fast` builds incrementally; the time check still runs;
-3. the game, with a fresh `logs\dual.log`: it starts on the terrace of the stage (eye height about 2.95 m, `part 1` in the title bar), walks ahead with `W` for 0.8 s (short of the red gate), jumps with `Space` held, switches walking and flying with `F`, presses `Tab` and `N`, resizes the window during a ripple, closes it, and reads the title bar and the log (no `[ERROR]`, the ripple pictures were made, the game ended normally, no fall, the jump rose the jump height). This part presses keys for about 35 seconds, during which the keyboard and the mouse must stay untouched; no key is left down even when the script is stopped. If the game window is not in front, the keys are skipped and the table says so;
-4. the repository: nothing that must not be uploaded (build output, logs, private local files, `config/local.ini`, one-time scripts `tools\apply_*.ps1` / `fix_*` / `docs_*` / `add_*`, files over 50 MB), and whether the hooks are on.
+1. the logic tests (`tests\run_tests.ps1`), then a build-only pass over `tools\maze_search.cpp`; a compiler warning in a test
+   is reported as WARN;
+2. a full rebuild of `Debug | x64` and `Release | x64` (Release treats warnings as errors), then a check that the exe was
+   written by this build and is newer than every source file. An unzipped file can carry an old time stamp, and an
+   incremental build would then keep the old exe. `-Fast` builds incrementally; the time check still runs;
+3. the game, with a fresh `logs\dual.log`: it starts on the terrace, walks, jumps with Space held, switches walking and
+   flying, switches layers (also during a resize), turns collision off and on, closes, and reads the title bar and the log
+   (no error, the ripple pictures were made, a normal end, no fall, the jump height). It presses keys for about 35 seconds:
+   the keyboard and the mouse must stay untouched. No key is left down, even when the script is stopped;
+4. the repository: nothing that must not be uploaded (build output, logs, private files, `config/local.ini`, one-time
+   scripts `tools\apply_*` / `fix_*` / `docs_*` / `add_*`, files over 50 MB), and whether the hooks are on.
 
-The last table says `OK`, `WARN`, `SKIP` or `FAIL` for every step; the exit code is 0 unless something failed. Switches: `-Fast`, `-SkipBuild`, `-SkipSmoke`. One test alone: `.\tests\run_tests.ps1 -Only stage`.
+The table at the end says `OK`, `WARN`, `SKIP` or `FAIL` per step; the exit code is 0 unless something failed. Switches:
+`-Fast`, `-SkipBuild`, `-SkipSmoke`.
 
-To check and, only when everything passed, commit (and push) in one go:
+To check and, only when everything passed, commit and push:
 
 ```powershell
-.\tools\check.ps1 -Commit "feat(scene): add a walking body" -Push
+.\tools\check.ps1 -Commit "feat(stage): add the west wing" -Push
 ```
 
-The message must be `type(scope): subject`, at most 72 characters, without a final period or a double quote; then `git add -A`, `git audit` (at most 90 s), `git commit` (at most 120 s) and, with `-Push`, `git push` (at most 180 s) run one after the other and stop at the first failure. A command that does not answer in its time is stopped and reported, instead of leaving the script silent. `--no-verify` is never used.
+The message must be `type(scope): subject`, at most 72 characters, without a final period or a double quote. `git add -A`,
+`git audit` (at most 90 s), `git commit` (120 s) and `git push` (180 s) run in turn and stop at the first failure; a command
+that does not answer in its time is stopped and reported. `--no-verify` is never used.
 
-## Keys
+## Checked by eye
 
-`Esc` quit, `F5` reload `config/default.ini`. `W A S D` move, arrow keys turn, `R` puts the camera back (walking: the body goes back to the start). `Space` jumps (walking). `F` switches between walking (gravity; the body stands on the floor and on objects) and flying (a free camera; `Q E` down and up). `Z` wireframe on / off, `X` the next level of detail (8, 16, 32, 64 segments), `C` the shapes stop / turn. `N` collision on / off (off: fly through everything; walking needs collision, so `N` off also means flying). `Tab` goes to the other layer with a ripple from the centre of the screen (A: warm light, red cube and grey cylinder; B: cool light, blue sphere and yellow torus; the floor is in both); `Tab` again during the ripple turns it round. `F9` (only with `[debug] device_reset_key = 1`) builds the GPU objects again: the test of the device recovery. Command line: `--adapter N` (see the adapter list in `logs/dual.log`).
+What `check.ps1` cannot see. Run in Debug after a change that touches it; write a result as "E-3 ok" or "E-3 fails: what was
+seen".
 
-The title bar ends with the movement mode: `collide | walk`, `collide | fly` or `noclip`.
-
-## Mouse and jump
-
-A click into the window captures the mouse for mouse look; `Esc` gives it back, and a second `Esc` quits. `Space` held is the full jump, a tap a small hop. New config keys: `[player]` `ground_accel`, `ground_decel`, `air_accel`, `fall_gravity_scale`, `jump_cut`; `[mouse]` `sensitivity`, `invert_y`; `[camera]` `land_dip`, `land_dip_max` (all optional).
-
-## The first stage
-
-The game starts in the first stage (`scene/Stage.h`), walked from south to north. `R` goes back to the last checkpoint and puts the purple block back at its start. The title bar shows the part and the time, and `CLEAR` with the time at the goal. A switch that would put the body inside something is refused: the ripple opens a little and turns back.
-
-| No. | By | Do | Expected |
-|---|---|---|---|
-| Q-25 | eye | walk north in A, then `Tab` | the red wall stops the body; in B it is not there |
-| Q-26 | eye | the gap: in B jump onto the blue stone, jump on and press `Tab` in the air | the body lands on the red strip of A; a fall comes back in front of the gap |
-| Q-27 | eye | push the purple block onto the red plate; push it against something of the other layer | the block moves one cell per push; a blocked push makes the blocker flash in both layers; on the plate the blue door opens in B |
-| Q-28 | eye | in B climb the block, jump onto the blue ledge and walk through the doorway; stand inside the red wall's place in B and press `Tab` | the title bar says `CLEAR` with the time; the refused switch opens the ripple a little and turns it back, the body is not moved |
-
-| Q-29 | eye | look at the gap in A, and at the corridor in B | a thin blue outline floats where the stone of B is; a thin red outline lies on the floor where the wall of A is; the body falls through an outline; `[hints] ghosts = false` and F5 removes them |
-
-| Q-30 | eye | in B jump at the red outline of the wall; push the block under the high light on the west and jump from it; jump east off the north floor at the light beside it | each light disappears when touched and the title bar counts `lights n/3`; a fall or `R` does not bring a light back; with all three the goal light is white |
-
-## The courtyard stage
-
-Since 2026-11-21 the stage is the courtyard (`scene/Stage.h`). The rows Q-25 .. Q-31 above describe the earlier stage and are kept as a record.
-
-| No. | By | Do | Expected |
-|---|---|---|---|
-| Q-32 | eye | at the start look north | a thin column of light over the goal, seen over the red gate |
-| Q-33 | eye | through the gate (B), over the gap (B onto the stone, jump, switch to A in the air), walk off the red strip | the courtyard is seen from above before the drop: the purple block, the red plate, the low red wall, and the outlines of the blue walls (in A) |
-| Q-34 | eye | push the block west, the way that looks right in A | it is refused and the blue wall flashes: the block obeys both layers |
-| Q-35 | eye | hold the key at a face of the block; let go during a move | the block goes on cell after cell without a stop and the body stays at its face; let go, it stops at the next cell |
-| Q-36 | eye | solve the puzzle (10 pushes; some from inside a blue wall, in A); climb the block and the low red wall in A; run along it, jump over the moat and switch to B in the air | the body lands on the blue apron and walks through the open door; at the goal the light is taken, rings spread, the beacon widens and the title bar says `CLEAR` with the time |
-| Q-37 | eye | fall into the moat; press R in the courtyard | the body comes back in the south-west corner of the courtyard; after R the block is back at its start |
-
-## Optional keys in `config/default.ini`
-
-The program has built-in values for all of them, so the file may leave them out.
-
-| Section | Keys | Meaning |
+| No. | Do | Expected |
 |---|---|---|
-| `[models]` | `segments = 32` | how round the sphere, cylinder and torus are |
-| `[test_triangle]` | `show = 0` | show the M0 test triangle |
-| `[collision]` | `enabled = 1` | 1: the camera is solid and cannot go into objects; 0: it flies through (the `N` key switches it while running) |
-| | `radius = 0.35` | radius of the ball (flying) and of the three balls of the walking body, in metres (0.05 .. 1) |
-| `[player]` | `walk = 1` | 1: start walking; 0: start flying (the `F` key switches it while running) |
-| | `walk_speed = 4` | metres per second (0 .. 20) |
-| | `gravity = 30` | metres per second squared (1 .. 100) |
-| | `jump_height = 2.0` | metres that the feet rise in a jump (0 .. 5); the objects are up to 1.8 m high, so 2.0 reaches their tops |
-| | `eye_height = 1.55` | metres from the feet to the camera |
-| `[debug]` | `device_reset_key = 0` | 1: the `F9` key tests the recovery from a lost device |
-| `[ripple]` | `seconds = 0.9` | time for the circle to cover the screen; 0 is a cut without a ripple |
-| | `width = 0.07` | width of the bright ring, in screen heights (0.005 .. 0.5) |
-| | `distortion = 0.012` | how far the ring bends the picture (0 .. 0.1; 0 is flat) |
-| | `center_x`, `center_y` = 0.5 | where the circle opens, 0 .. 1 over the screen, (0, 0) = top left |
-| `[layer_a]`, `[layer_b]` | `clear_r/g/b` | background colour (linear) |
-| | `light_r/g/b` | colour of the light (linear) |
-| | `light_x/y/z` | direction from a surface to the light (any length except 0) |
-| | `sky_r/g/b` | sky light on a surface that looks up (linear); the ground light is derived from it |
+| E-1 | start, look north | the beacon over the tower is seen over the red gate; the view is wide; no D3D11 / DXGI message in the output window |
+| E-2 | Tab, then Tab again during the ripple | a ring opens from the centre and the other layer shows inside it; the second Tab turns it round without a jump |
+| E-3 | through the gate in B; onto the blue stone; jump, Tab in the air | the body lands on the red strip of A; at the end of the strip the courtyard is seen from above |
+| E-4 | in the courtyard, in A, push the block west | refused; the outline of the blue wall flashes on the floor in both layers; no blue box appears in A |
+| E-5 | push the block onto the plate; walk through the north door in B | the hub, with the tower and three dark seal lamps |
+| E-6 | walk up and down the ramps of the wings and the tower, turning with the mouse | the picture does not shake; the walk does not stop at the foot of a ramp |
+| E-7 | west wing down to the seal, up the shortcut | one lamp lights; the door at the top opens into the hub |
+| E-8 | east wing up to the courtyard wall top, the seal, off its north end | the body drops into the hub |
+| E-9 | north wing up to the seal, along the ledge through the window, off it; on the ledge jump toward the tower | the body drops into the hub; nothing higher is reached from the ledge |
+| E-10 | with three seals, up the six ramps of the tower | the balcony looks back over the map; `CLEAR` with the time |
+| E-11 | fall off a ramp; press R in the courtyard | the body comes back at the entry of the room; R puts the block back |
+| E-12 | close the window | the live-object report lists only the device |
 
-`[render] clear_r/g/b` and `[layers] fade_seconds` are no longer read: the background belongs to the layer, and the ripple replaced the fade.
-
-## Quick check
-
-Since the first stage replaced the test scene, the rows Q-10 .. Q-13 and Q-19 .. Q-21 that name the cube, the sphere, the cylinder or the torus are kept as a record of what was checked on 2026-11-18 / 19; the stage rows Q-25 .. Q-28 check the same rules in the stage.
-
-Run it in Debug after a change. The long list of M0, M1 and the first M2 checks passed on 2026-11-17 (see the CHANGELOG). The column "By" says who does a check: `script` = `tools\check.ps1` does it; `eye` = checked by looking at the screen. A result is written as "Q-2 ok" or "Q-2 fails: what was seen".
-
-| No. | By | Do | Expected |
-|---|---|---|---|
-| Q-1 | script, eye | F5 | the title bar shows the **NVIDIA RTX 5060** and `layer A`; the stage stands in front of the camera, with the red wall across the corridor; the output window has no D3D11 / DXGI warning or error (the script checks the first two and the log; the output window is for the eye) |
-| Q-2 | script, eye | `Tab` once | a ring opens from the centre of the screen and spreads in about one second; inside it layer B in cool light, without the red wall; the ring bends the picture a little and glows; at the end the title bar says `layer B` and nothing flickers (the script checks the title bar and that the ripple pictures were made; the look is for the eye) |
-| Q-3 | script | `Tab` again | the same, from the centre, back to `layer A` |
-| Q-4 | script | `Tab`, then `Tab` again after about 0.3 s | the circle stops and closes again; the end is layer A (that it does so without a jump is for the eye) |
-| Q-5 | script | `Tab` and resize the window during the ripple | no crash; the ripple fills the new size; no `[ERROR]` in the log |
-| Q-6 | eye | `W A S D`, `Z`, `X`, `C` while a ripple runs | the camera, the wireframe, the detail and the spin all work inside and outside the circle |
-| Q-7 | eye | Edit `[ripple]` `seconds` to `0` and then `3` in the config, F5 | 0 is a cut, 3 is a slow ripple |
-| Q-8 | eye | Close the window in Debug | the live-object report in the output window lists only the device (no `Models.*`) |
-| Q-9 | script | Build `Release \| x64` | no error and no warning that stops the build |
-| Q-10 | eye | Layer A, walking: walk into the red cube and into the grey cylinder | the body stops at their surface and slides along it; the shapes turn and push it gently aside; the title bar ends with `collide \| walk` |
-| Q-11 | eye | `Tab`, then walk to where the red cube stood | in layer B the cube is not there and nothing stops the body; the blue sphere and the yellow torus are solid now |
-| Q-12 | eye | `F` (flying), layer B: fly through the hole of the torus (it is 1 m wide, the ball 0.7 m) | the camera passes through the hole; the ring itself is solid |
-| Q-13 | eye | `F` (flying), then `Tab` while the camera is inside the other layer's object | the camera is pushed out to its surface, no jump to a far place, no flicker |
-| Q-14 | script | `N` | the title bar ends with `noclip` and the camera flies through everything; `N` again, it is solid again (that it really passes through is for the eye) |
-| Q-15 | script | start | the title bar says `walk`: walking is the default |
-| Q-16 | script | hold `W` for 0.8 s | the eye moves about 3 m ahead, short of the red gate, and stays at standing height on the terrace (about 2.95 in the title bar) |
-| Q-17 | script | `Space` | the log has `jump peak` with about 2.0 m (the jump height) |
-| Q-18 | script | `F`, `F` | the title bar says `fly`, then `walk` again |
-| Q-19 | eye | walk to the edge of the floor and over it | the body falls; after about 1.5 s it is back at the start, standing; the log has `fell off the floor` |
-| Q-20 | eye | layer A: walk up to the grey cylinder, jump onto its top (`Space` while walking toward it) and stand there; press `Tab` | the body stands on the top; at `Tab` the cylinder is gone in layer B and the body falls to the floor |
-| Q-22 | eye | click into the window, move the mouse; `Esc`, move the mouse; `Esc` | the view turns with the mouse and the cursor is hidden; after the first `Esc` the cursor is back; the second `Esc` closes the game; Alt + Tab also gives the cursor back |
-| Q-23 | eye | walk, let go; tap `Space`, then hold `Space` | the start and the stop are quick but not instant; a tap is a small hop, a held key the full jump; the fall is quicker than the rise |
-| Q-24 | eye | jump down from the top of the grey cylinder | the eye dips a little at the landing and comes back up at once; walking on the floor gives no dip |
-| Q-21 | eye | layer B: walk onto the side of the blue sphere | the body slides off a slope that is too steep and stands on a gentle one near the top; a jump feels immediate and the landing is not heavy |
-
-What is left for the eye after a green `check.ps1`: the look of Q-2, Q-4 and Q-6 to Q-8, the collision and walking feel of Q-10 to Q-13, and Q-19 to Q-21 (about five minutes). The puzzle has no quick check yet: it is not in the game.
-
-Only when the device recovery has been touched: put `[debug]` `device_reset_key = 1` in the config, F5, press `F9` during a ripple. The picture goes on after a short flicker, the log says `recovered (1 of at most 5)`, and `Tab` still works.
+Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
+after a short flicker and the log says `recovered (1 of at most 5)`.
