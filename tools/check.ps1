@@ -5,7 +5,7 @@
 #   .\tools\check.ps1 -Commit "feat(stage): ..." -Push  ... and git push
 # Run it from any PowerShell in any folder: it finds the project and the Visual Studio build tools by itself.
 # Steps:  1 build tools   2 logic tests (tests\run_tests.ps1)   3 full rebuild of Debug and Release, and a check that the exe
-#         is the one just built   4 the game: it starts on the terrace of the stage, walks, jumps, switches walking / flying,
+#         is the one just built   4 the game: it starts in the guardhouse, walks, jumps, switches walking / flying,
 #         switches layers (also during a resize), turns collision off and on, closes; its title bar and a fresh log are read
 #         5 repository safety   6 commit / push (only on request; every git command has a time limit)
 # Step 4 presses keys in the game window for about 35 seconds: do not touch the keyboard or the mouse until it says it is done.
@@ -221,7 +221,7 @@ function Wait-Title($proc, [string]$text, [double]$seconds)
     return $false
 }
 
-# the stage starts on the terrace: the eye at 1.4 + 1.55 m (scene/Stage.h kTerraceY, Player eye height)
+# the stage starts in the guardhouse, on the terrace level: the eye at 1.4 + 1.55 m (scene/Stage.h kTerraceY, Player eye height)
 $standY = 2.95
 Write-Host "== 4. the game (do not touch the keyboard or the mouse)" -ForegroundColor Cyan
 $jumpTried = $false
@@ -256,8 +256,8 @@ else
             else { Add-Result "game starts (Q-1)" "WARN" ("not the NVIDIA adapter? title: {0}" -f $title) }
             Start-Sleep -Milliseconds 700
             $p0 = Get-CameraPos $proc
-            $onTerrace = $p0 -and [Math]::Abs($p0[1] - $standY) -lt 0.25 -and ((Get-Title $proc) -like "*terrace*")
-            Add-Result "starts on the terrace" (Verdict $onTerrace) ("eye height {0}, the terrace in the title bar" -f $(if ($p0) { "{0:N2}" -f $p0[1] } else { "?" }))
+            $onTerrace = $p0 -and [Math]::Abs($p0[1] - $standY) -lt 0.25 -and ((Get-Title $proc) -like "*guardhouse*")
+            Add-Result "starts in the guardhouse" (Verdict $onTerrace) ("eye height {0}, the guardhouse in the title bar" -f $(if ($p0) { "{0:N2}" -f $p0[1] } else { "?" }))
 
             # the keys only go to the game while its window is in front; otherwise they would land in another program
             $hwnd = $proc.MainWindowHandle
@@ -271,16 +271,16 @@ else
             {
                 # ---- walking (Q-15 .. Q-18)
                 Add-Result "walking is the default (Q-15)" (Verdict ((Get-Title $proc) -like "*walk*")) "the title bar says walk"
-                Hold-Key 0x57 800    # W held for 0.8 s: about 3 m ahead along x = 0, short of the red gate (5.4 m away)
+                Hold-Key 0x57 800    # W held for 0.8 s: about 3.5 m ahead along x = 0, out through the arch, short of the gate (9 m away)
                 Start-Sleep -Milliseconds 700
                 $p1 = Get-CameraPos $proc
                 if ($p0 -and $p1)
                 {
                     $ahead = $p1[2] - $p0[2]
                     $ok = ($ahead -gt 1.8) -and ([Math]::Abs($p1[1] - $standY) -lt 0.25)
-                    Add-Result "W walks on the terrace (Q-16)" (Verdict $ok) ("{0:N1} m ahead, eye height {1:N2} m (about {2} standing)" -f $ahead, $p1[1], $standY)
+                    Add-Result "W walks out of the guardhouse (Q-16)" (Verdict $ok) ("{0:N1} m ahead, eye height {1:N2} m (about {2} standing)" -f $ahead, $p1[1], $standY)
                 }
-                else { Add-Result "W walks on the terrace (Q-16)" "FAIL" "no camera position in the title bar" }
+                else { Add-Result "W walks out of the guardhouse (Q-16)" "FAIL" "no camera position in the title bar" }
                 Hold-Key 0x20 600    # Space held for 0.6 s: the full jump (a tap is a small hop); the height is read from the log
                 $jumpTried = $true
                 Start-Sleep -Milliseconds 1500
@@ -353,7 +353,7 @@ else
         elseif (-not $hasRipple) { Add-Result "log" "WARN" "no 'ripple pictures' line: the ripple did not run on the GPU (keys skipped?)" }
         elseif ($warns.Count -gt 0) { Add-Result "log" "WARN" ("0 errors, {0} warning(s): read them in logs\dual.log" -f $warns.Count) }
         else { Add-Result "log" "OK" "0 errors, 0 warnings, the ripple pictures were made" }
-        Add-Result "no fall on the terrace" (Verdict ($falls.Count -eq 0)) ("{0} fall(s) in the log" -f $falls.Count)
+        Add-Result "no fall in the prologue" (Verdict ($falls.Count -eq 0)) ("{0} fall(s) in the log" -f $falls.Count)
         if ($jumpTried)
         {
             $peaks = @($log | Where-Object { $_ -match "jump peak [0-9.]+ m" })

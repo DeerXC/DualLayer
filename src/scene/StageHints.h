@@ -1,10 +1,12 @@
 // StageHints.h - what the map shows without words: the outlines of the other layer, the outline of what stopped a push, the
 //            frame of the blue door of the courtyard, the beacon over the goal, and the rings that answer the goal.
 // Outlines:  every fixed box of the map that exists in one layer only leaves a thin outline in the other layer: four narrow
-//            bars round its footprint, in its own colour made lighter. A flat object (a floor, a stone, a strip: up to
+//            bars round its footprint, in the colour of its world (red A, blue B) made lighter. A flat object (a floor, a stone, a strip: up to
 //            kFlatHeight thick) is outlined at its TOP, where the body would stand; a tall one (a wall) at its BASE. In the
 //            courtyard this is how the player reads where the block can go. The list is not kept by hand: it is every
 //            single-layer box of scene/Stage.h.
+// Worlds:    a single-layer box is drawn in its material (wood or iron in A, fallen masonry in B); red and blue are only
+//            its outlines: in the other world (the hint above, MakeGhost) and a thin edge in its own world (AddWorldEdges).
 // Blocked:   a refused push names what was in the way (Puzzle::LastBlocker). For kFlashSeconds its outline is drawn in BOTH
 //            layers, wide and bright, fading out. Only the outline: the thing itself stays in its own layer, so a blue wall is
 //            never seen as a solid box in layer A (the first version drew the whole box in both layers, which looked like a
@@ -102,10 +104,82 @@ inline void MakeOutline(const SceneObject& o, float bar, float lighten, unsigned
     out[3] = HintBar(x1 - bar, y0, z0 + bar, x1, y1, z1 - bar, r, g, b, mask);
 }
 
-/// The outline of `o` in the other layer (the hint that is always there).
+/// `o` in the colour of its world: red for a box of A, blue for B (both layers: unchanged). Red and blue mean only "this
+/// exists in one world"; the box itself is drawn in its material (docs/LEVEL_DESIGN.md, 14.3).
+inline SceneObject WorldTinted(const SceneObject& o)
+{
+    SceneObject t = o;
+    if (o.layerMask == kLayerA || o.layerMask == kLayerB)
+    {
+        const Rgb c = o.layerMask == kLayerA ? kRed : kBlue;
+        t.colorSrgb[0] = c.r;
+        t.colorSrgb[1] = c.g;
+        t.colorSrgb[2] = c.b;
+    }
+    return t;
+}
+
+/// The outline of `o` in the other layer (the hint that is always there), in the colour of the world of `o`.
 inline void MakeGhost(const SceneObject& o, SceneObject* out)
 {
-    MakeOutline(o, kGhostBar, kGhostLight, o.layerMask == kLayerA ? kLayerB : kLayerA, out);
+    MakeOutline(WorldTinted(o), kGhostBar, kGhostLight, o.layerMask == kLayerA ? kLayerB : kLayerA, out);
+}
+
+inline constexpr float kEdgeBar = 0.05f;   ///< UNITS: metres: the edge of a box of one world, in its own world
+inline constexpr float kEdgeLight = 0.1f;
+
+/// The thin edge of `o` in its OWN world, in the colour of that world: the box is wood or fallen masonry, its edge says which
+/// world it belongs to.
+inline void MakeEdge(const SceneObject& o, SceneObject* out)
+{
+    MakeOutline(WorldTinted(o), kEdgeBar, kEdgeLight, o.layerMask, out);
+}
+
+/// Adds the edge of every single-layer box of the map, in its own world. Returns the new count; a table without room for all
+/// of them gets none.
+inline int AddWorldEdges(SceneObject* out, int count, int capacity)
+{
+    if (out == nullptr || count < 0 || capacity - count < kGhostCount * kBarsPerGhost)
+    {
+        return count;
+    }
+    for (const SceneObject& o : kStageStatics)
+    {
+        if (HasGhost(o))
+        {
+            MakeEdge(o, out + count);
+            count += kBarsPerGhost;
+        }
+    }
+    return count;
+}
+
+/// The same for objects[0 .. n - 1] (the moving parts of a wing). `objects` may point into `out` before `count`.
+inline int AddOwnEdges(const SceneObject* objects, int n, SceneObject* out, int count, int capacity)
+{
+    if (objects == nullptr || out == nullptr || n < 0 || count < 0)
+    {
+        return count;
+    }
+    int needed = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        needed += HasGhost(objects[i]) ? kBarsPerGhost : 0;
+    }
+    if (capacity - count < needed)
+    {
+        return count;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        if (HasGhost(objects[i]))
+        {
+            const SceneObject o = objects[i];
+            MakeEdge(o, out + count);
+            count += kBarsPerGhost;
+        }
+    }
+    return count;
 }
 
 /// Adds the outlines to the drawn table `out`, which holds `count` objects and has room for `capacity`. Returns the new
@@ -182,7 +256,7 @@ inline int AddGatePreviews(const mech::MechanismSet& mech, SceneObject* out, int
     {
         if (mech.GateAt(i).presentWhenOpen && !mech.GatePresent(i))
         {
-            MakeOutline(mech.GateAt(i).box, kPreviewBar, kPreviewLight, kLayerBoth, out + count);
+            MakeOutline(WorldTinted(mech.GateAt(i).box), kPreviewBar, kPreviewLight, kLayerBoth, out + count);
             for (int b = 0; b < kBarsPerGhost; ++b)
             {
                 out[count + b].glow = 0.7f;
@@ -213,7 +287,7 @@ inline int AddBlockedFlash(const puzzle::Puzzle& puzzle, SceneObject* out, int c
         return count;
     }
     const float t = flash / puzzle::Puzzle::kFlashSeconds; // 1 at the start of the flash, 0 at its end
-    MakeOutline(o, kBlockedBar, kGhostLight + (1.0f - kGhostLight) * 0.8f * t, kLayerBoth, out + count);
+    MakeOutline(WorldTinted(o), kBlockedBar, kGhostLight + (1.0f - kGhostLight) * 0.8f * t, kLayerBoth, out + count);
     return count + kBarsPerGhost;
 }
 
@@ -240,7 +314,7 @@ inline int AddDoorFrame(SceneObject* out, int count, int capacity, bool doorOpen
     float r = 0.0f;
     float g = 0.0f;
     float b = 0.0f;
-    Lighten(kDoor, kGhostLight, r, g, b);
+    Lighten(WorldTinted(kDoor), kGhostLight, r, g, b);
     SceneObject* f = out + count;
     f[0] = HintBar(x0, y1 - w, z0, x1, y1, z1, r, g, b, kLayerA);         // top
     f[1] = HintBar(x0, y0, z0, x1, y0 + w, z1, r, g, b, kLayerA);         // bottom

@@ -7,6 +7,9 @@
 //                         a body that goes in comes back at the entry before it gets there (main.cpp takes the lights only
 //                         after that check). In B the pool is dry and the stairs lead down to it: the water of the west
 //                         trench, used a second time.
+//   2 "the bed of the canal"   in the west corner of the canal of the east district, under the quay. In A it lies under the
+//                         water at either level; in B the canal is dry, and its bed is walked from the stairs at its east
+//                         end: the lesson of the pool, again in the district of water.
 // A light is taken when one of the three balls of the body touches it. Taken lights stay taken for the rest of the run (R
 // and a fall do not bring them back). With every light taken, the goal light changes its colour.
 // Drawn:     every light not yet taken, in both layers, as a small turning sphere. Never solid.
@@ -36,6 +39,7 @@ inline constexpr float kLightReach = 0.20f;  ///< UNITS: metres; a ball of the b
 inline constexpr HiddenLight kHiddenLights[] = {
     {{-0.9f, kTerraceY + 3.0f, kGateZ}, "inside the gate"},
     {{0.0f, kSquareLowY + 0.3f, 36.25f}, "the floor of the pool"},
+    {{15.7f, kCanalBed + 0.25f, kCanalSouth + 0.6f}, "the bed of the canal"},
 };
 inline constexpr int kHiddenLightCount = static_cast<int>(sizeof(kHiddenLights) / sizeof(kHiddenLights[0]));
 

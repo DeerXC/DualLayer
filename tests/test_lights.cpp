@@ -9,6 +9,7 @@
 //      by jumps along the main path
 //   3. the light on the floor of the pool: under the water of A (every pose that touches it is under water), taken standing in
 //      B, not reached from the rim
+//   4. the light on the bed of the canal: under the water of A at either level, taken standing in B, not reached from the quay
 // Returns 1 when a check fails.
 
 #include "scene/StageLights.h"
@@ -149,7 +150,7 @@ void TestLightInTheGate()
     CHECK(!touched);
     CHECK(JumpReaches({c.x, st::kTerraceY, c.z}, 0.0f, 0.0f, 0)); // in B, from the red outline on the terrace
     bool onPath = false; // the main path (x = 0, a jump anywhere along the terrace) never touches it
-    for (float z = 0.0f; z < 6.0f; z += 0.25f)
+    for (float z = st::kGateZ - 4.0f; z < st::kGateZ + 4.0f; z += 0.25f)
     {
         onPath = onPath || JumpReaches({0.0f, st::kTerraceY, z}, 0.0f, 1.0f, 0);
     }
@@ -176,8 +177,54 @@ void TestLightInThePool()
         }
     }
     CHECK(!dryTouch);
-    // nothing reaches it from the rim without going into the pool: the nearest place to stand on the rim is far
+    // nothing reaches it from the rim without going into the pool
     CHECK(!Touches({c.x, kFloorY, st::kPoolNorth + 0.1f}, 1) && !JumpReaches({c.x, kFloorY, st::kPoolNorth + 0.3f}, 0.0f, 0.0f, 1));
+}
+
+void TestLightInTheCanal()
+{
+    const Vec3 c = st::kHiddenLights[2].centre;
+    const dl::canal::Desc d = st::MakeCanal();
+    CHECK(c.x > d.x0 && c.x < d.x1 && c.z > d.z0 && c.z < d.z1);
+    CHECK(Touches({c.x, d.bed, c.z}, 2)); // in B a body standing on the dry bed takes it
+    // in A, at either level of the water, every pose that touches it is in the water
+    for (int high = 0; high < 2; ++high)
+    {
+        dl::canal::Canal canal;
+        canal.Init(d);
+        if (high == 1)
+        {
+            struct Hand
+            {
+                Vec3 at;
+                Vec3 Ball(int) const { return at; }
+                Vec3 Feet() const { return at; }
+                bool Grounded() const { return false; }
+                void Carry(const Vec3&) {}
+            } hand{d.wheel};
+            canal.Update(hand, 0, 0.01f);
+            for (int i = 0; i < 1000; ++i)
+            {
+                canal.Update(hand, 0, 0.01f);
+            }
+            CHECK(canal.High());
+        }
+        bool dryTouch = false;
+        for (float dx = -1.0f; dx <= 1.0f; dx += 0.05f)
+        {
+            for (float dz = -1.0f; dz <= 1.0f; dz += 0.05f)
+            {
+                for (float y = d.bed; y < kFloorY + 1.0f; y += 0.02f)
+                {
+                    const Vec3 feet{c.x + dx, y, c.z + dz};
+                    dryTouch = dryTouch || (Touches(feet, 2) && !canal.Submerged(feet, 0));
+                }
+            }
+        }
+        CHECK(!dryTouch);
+    }
+    // nothing reaches it from the quay or the hall floor without going into the canal
+    CHECK(!JumpReaches({c.x, st::kQuayY, st::kCanalSouth - 0.3f}, 0.0f, 0.0f, 2) && !Touches({c.x, st::kQuayY, st::kCanalSouth - 0.1f}, 2));
 }
 
 } // namespace
@@ -187,6 +234,7 @@ int main()
     TestLogic();
     TestLightInTheGate();
     TestLightInThePool();
+    TestLightInTheCanal();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

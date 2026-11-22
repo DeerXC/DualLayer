@@ -81,7 +81,7 @@ It starts from any PowerShell, finds the project and the Visual Studio build too
 2. a full rebuild of `Debug | x64` and `Release | x64` (Release treats warnings as errors), then a check that the exe was
    written by this build and is newer than every source file. An unzipped file can carry an old time stamp, and an
    incremental build would then keep the old exe. `-Fast` builds incrementally; the time check still runs;
-3. the game, with a fresh `logs\dual.log`: it starts on the terrace, walks, jumps with Space held, switches walking and
+3. the game, with a fresh `logs\dual.log`: it starts in the guardhouse, walks out through its arch, jumps with Space held, switches walking and
    flying, switches layers (also during a resize), turns collision off and on, closes, and reads the title bar and the log
    (no error, the ripple pictures were made, a normal end, no fall, the jump height). It presses keys for about 35 seconds:
    the keyboard and the mouse must stay untouched. No key is left down, even when the script is stopped;
@@ -108,9 +108,9 @@ seen".
 
 | No. | Do | Expected |
 |---|---|---|
-| E-1 | start, look north; Tab | the beacon over the cathedral is seen over the town wall; the view is wide; no D3D11 / DXGI message in the output window. A: a warm evening, sandstone, a light haze, the gate shut. B: a cold grey light, dark wet stone with moss on top faces, a thick fog, the wall broken open where the gate was, with rubble |
+| E-1 | start, look north; Tab | in the guardhouse; its arch frames the cathedral and the beacon; no D3D11 / DXGI message in the output window. A: a warm evening, sandstone, a light haze, the iron gate shut. B: a cold grey light, dark wet stone with moss on top faces, a thick fog, the wall broken open where the gate was |
 | E-2 | Tab, then Tab again during the ripple | a ring opens from the centre and the other layer shows inside it; the second Tab turns it round without a jump |
-| E-3 | through the breach in B; onto the blue stone; jump, Tab in the air | the body lands on the red strip of A; at the end of the strip the courtyard is seen from above |
+| E-3 | at the gap: onto the beam of B; jump, Tab in the air | the body lands on the planks of A; at their end the courtyard is seen from above |
 | E-4 | in the courtyard, in A, push the block west | refused; the outline of the blue wall flashes on the floor in both layers; no blue box appears in A |
 | E-5 | push the block onto the plate; walk through the north door in B | the sunken square: the causeway straight ahead to the portal of the cathedral, its three dark seal lamps, the rose window over it, the spire; in A the pool is water, in B it is dry |
 | E-6 | walk up and down the ramps of the wings and the tower, turning with the mouse | the picture does not shake; the walk does not stop at the foot of a ramp |
@@ -125,6 +125,12 @@ seen".
 | E-15 | in the west wing: the ramp down, the trench in A and in B, the west wall of the square; the title bar | steps on the ramp down (walked smoothly); water in the trench in A, gone in B; falling into it in A brings the body back at the entry of the hall; an orb put down over it floats; an arcade along the west wall of the hub; roofs over the wing corridors; the title bar shows a few dozen draws, not hundreds |
 | E-16 | B: west hall north wall, the passage, the north corridor; A: landing 1 of the north hall, the bridge, the lookout, the stairs; the lift by the north landing before and after the north seal | B: a breach with rubble in each end of the passage (in A a red panel); A: a walled bridge east to a lookout over the city and stairs into the east hall (in B its middle is gone); the lift stays down before the seal and afterwards carries the body up to the seal landing |
 | E-17 | the square: walk off the rim into the pool in A; in B down the south-east stairs, round the cathedral, up the north-west stairs; behind the cathedral in B; jump out of the pool | A: the body comes back at the entry of the square; B: the stairs are walked without a hop, the pool is walked round between the cathedral, its buttresses and the stairs; a hidden light lies on the floor behind the cathedral (in A it is under the water and cannot be taken); a jump climbs out of the pool anywhere |
+| E-18 | the silhouette: from the terrace, the square, the gallery, the sky bridge and the balcony, look round in A and in B; the title bar | battlements along the tops of the city walls, none on a walkway or under the ledge; a city of roofs and towers all round, nothing floating, no house close enough to jump at; in B most of it is lost in the fog; the spire is seen from every district; the draw count in the title bar is as before (the city is baked) |
+| E-19 | the prologue: walk from the guardhouse; past the lamp; the gate in A and in B; the heap in B; Tab; the ditch: onto the beam in B, jump, Tab; then fall into the ditch on purpose | the lamp lights as the body passes; in B the heap closes the way and in A it is gone; the switch in the air lands on the planks; from the ditch floor the stairs lead back up; nothing else climbs out |
+| E-20 | fall off the terrace after the first lamp; press R; fall off a room without a lamp | the body comes back beside the lamp with a ring of light; in a room without a lamp, on the carved tile of its entry; the lamp looks the same in A and in B |
+| E-21 | the east hall: try to jump the canal in A and in B; turn the wheel in B, then in A; the crate; the quay; R | nothing crosses; the wheel turns only in A, the water rises and the crate with it; from the crate to the quay and up the ramp; R puts the water down again |
+| E-22 | in B, down the stairs at the east end of the canal, along the bed | the bed is dry, the crate lies on it, a hidden light waits in the west corner; the stairs lead back up |
+| E-23 | anywhere: boxes of one world | wood or iron in A, fallen masonry in B, never plain red or blue; a thin red (A) or blue (B) edge at their base in their own world and an outline in the other; the aqueduct over the east of the square, its waterfall into the pool in A, fallen in B |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

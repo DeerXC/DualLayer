@@ -6,7 +6,8 @@
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   0. the tables: the walls of the courtyard are exactly the rows of scene/Courtyard.h; every ramp is at most 27 degrees;
 //      the heights against the body (every wall out of reach from every place next to it); the drawn and solid tables fit
-//   1. the prologue: the gate (A stops, B passes); the gap (neither layer alone crosses it, even with the running jump; from
+//   1. the prologue: the guardhouse, the gate (A stops, B passes), the heap of B, the ditch (one layer never crosses, B
+//      never climbs round the heap, the stairs lead back); the gap (neither layer alone crosses it, even with the running jump; from
 //      the stone in B alone the curtain stops every jump; the stone in B and a switch to A in the air crosses it at most of
 //      the tried moments); the overlook lands in the courtyard
 //   2. the courtyard: the 10 pushes of the proved solution played by the body; the push that looks right from A is refused
@@ -21,11 +22,14 @@
 //   5. no way round: the tower door; the shortcut door from both sides; the east wing from the terrace; the courtyard wall
 //      top and the ledge from the hub; from the ledge, no jump in any direction lands on the tower or on the hub walls; from
 //      the landing of the north wing, no jump lands on its walls; from the courtyard wall top, none lands on the hub walls
+//   7. the east canal: crossed only on the raised crate; the wheel turns only in A; the crate carries a body; B walks the bed
+//   8. the anchor lamps, the fall line of every room, and the water: every water fed downhill from the aqueduct, broken in B
 //   6. the rooms: every entry is in its own room and is a place to stand in both layers; the courtyard entry is a cell the
 //      block can never be in
 // The walks between the points of a path are played frame by frame (the body steers to each point). Returns 1 when a check
 // fails.
 
+#include "scene/Anchors.h"
 #include "scene/Stage.h"
 #include "scene/WestWing.h"
 
@@ -94,7 +98,7 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1;
 
 int Room(const char* name)
 {
@@ -115,6 +119,7 @@ struct World
     st::SealSet seals;
     dl::mech::MechanismSet mech;
     std::array<dl::shapes::Lift, st::kLiftCount> lifts = st::MakeLifts();
+    dl::canal::Canal canal;
     Player player;
     int layer = 0;
     float spin = 0.0f;
@@ -123,6 +128,7 @@ struct World
 
     World()
     {
+        canal.Init(st::MakeCanal());
         if (!puzzle.Init(st::MakeStage()) || !mech.Init(st::WestWing()))
         {
             ++g_failed;
@@ -132,7 +138,8 @@ struct World
         player.Respawn();
     }
 
-    World(const World& o) : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), player(o.player), layer(o.layer), spin(o.spin)
+    World(const World& o)
+        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), player(o.player), layer(o.layer), spin(o.spin)
     {
     }
 
@@ -149,6 +156,7 @@ struct World
             }
             count = st::AddMapSolids(seals, solids[l], count, kMaxSolids);
             count = st::AddLifts(lifts, solids[l], count, kMaxSolids);
+            count = canal.AddSolids(l, solids[l], count, kMaxSolids);
             counts[l] = mech.AddSolids(l, solids[l], count, kMaxSolids);
         }
     }
@@ -174,6 +182,7 @@ struct World
     void Frame(const Player::Input& input, const Vec3& look)
     {
         st::UpdateLifts(lifts, player, [this](int seal) { return seals.Taken(seal); }, kDt);
+        canal.Update(player, layer, kDt);
         BuildSolids();
         player.SetScene(solids[layer], counts[layer]);
         spin += kDt;
@@ -204,6 +213,11 @@ struct World
     bool Fallen() const
     {
         return player.Feet().y < st::kFallY;
+    }
+    /// In the water of A (the pool, the trench, the canal): the program would bring the body back.
+    bool InWater() const
+    {
+        return st::Submerged(player.Feet(), layer) || canal.Submerged(player.Feet(), layer);
     }
 
     /// Steers the body to (x, z) on foot: it looks at the point and walks until it is within 0.3 m or `limit` seconds
@@ -287,6 +301,39 @@ struct World
             if (Fallen())
             {
                 return false;
+            }
+        }
+        return false;
+    }
+
+    /// Walks along `dir` (flat, unit) until the feet pass `jumpAt` along it, jumps, keeps walking until they pass `stopAt`, then
+    /// lets go (the air brakes), and returns true when the body landed on solid ground (not fallen, not in water).
+    bool JumpAlong(const Vec3& dir, float jumpAt, float stopAt)
+    {
+        const auto along = [&]() { return player.Feet().x * dir.x + player.Feet().z * dir.z; };
+        int guard = 0;
+        while (along() < jumpAt && player.Grounded() && guard++ < 2000)
+        {
+            Frame(Keys(1.0f), dir);
+        }
+        if (!player.Grounded())
+        {
+            return false;
+        }
+        Frame(Keys(1.0f, true), dir);
+        float air = 0.0f;
+        for (int i = 0; i < 900; ++i)
+        {
+            Frame(Keys(along() < stopAt ? 1.0f : 0.0f), dir);
+            air += kDt;
+            if (InWater() || Fallen())
+            {
+                return false;
+            }
+            if (player.Grounded() && air > 0.1f)
+            {
+                Run(0.3f);
+                return !Fallen() && !InWater() && player.Grounded();
             }
         }
         return false;
@@ -376,6 +423,9 @@ void TestTables()
     CHECK(st::kCurtainTop > st::kEastHighY + jump + margin);                             // the curtain, from the east path
     CHECK(st::kCurtainTop > st::kTerraceY + jump + margin);                              // and from the strip
     CHECK(st::kParapet > jump + margin);                                                 // a parapet, from its floor
+    CHECK(st::kRubbleTop > st::kTerraceY + jump + margin);                               // the heap of beat 3, from the terrace
+    CHECK(st::kGuardWallTop > st::kTerraceY + jump + margin && st::kArchTop < st::kGuardWallTop); // the guardhouse
+    CHECK(st::kTerraceY - kFloorY > jump + margin);                                      // the ditch, from its floor
     CHECK(st::kGalleryY - kFloorY > jump + margin);                                      // the gallery, from the hub floor
     CHECK(st::kEastHighY - st::kGalleryY > jump + margin);                               // the east path, from the gallery
     CHECK(st::kEastHighY > st::kTerraceY + jump + margin);                               // the east wing, from the terrace
@@ -394,21 +444,93 @@ void TestTables()
     CHECK(n <= st::kMaxDrawObjects);
 }
 
+/// The height of the stairs of the ditch at `z` (their top at kDitchStairsTop, their foot at kDitchEdge).
+float DitchStairsY(float z)
+{
+    return kFloorY + (st::kTerraceY - kFloorY) * (z - st::kDitchEdge) / (st::kDitchStairsTop - st::kDitchEdge);
+}
+
 void TestPrologue()
 {
-    World a; // the gate: A stops, B passes
-    a.Run(3.0f, Keys(1.0f), kNorth);
-    CHECK(a.player.Feet().z < st::kGateZ - 0.25f - 0.3f);
-    World b;
-    CHECK(b.Switch(1));
-    b.Run(1.2f, Keys(1.0f), kNorth);
+    const float T = st::kTerraceY;
+    World a; // beats 0 and 2: out of the guardhouse through its arch; in A the gate stops the body
+    CHECK(std::string_view(st::kRooms[st::RoomAt(a.player.Feet())].name) == "guardhouse");
+    a.Run(4.0f, Keys(1.0f), kNorth);
+    CHECK(a.player.Feet().z > st::kGuardNorth && a.player.Feet().z < st::kGateZ - 0.25f - 0.3f && Near(a.player.Feet().y, T, 0.02f));
+    World b; // in B the gate has fallen; the heap of beat 3 stops the body beyond it
+    b.layer = 1;
+    b.PlaceFeet({0.0f, T, st::kGateZ - 2.0f});
+    b.Run(2.0f, Keys(1.0f), kNorth);
     b.Run(0.3f);
-    CHECK(b.player.Feet().z > st::kGateZ + 0.5f && b.player.Feet().z < st::kTerraceEnd && Near(b.player.Feet().y, st::kTerraceY, 0.02f));
+    CHECK(b.player.Feet().z > st::kGateZ + 0.5f && b.player.Feet().z < st::kRubbleSouth - 0.3f && Near(b.player.Feet().y, T, 0.02f));
+    World c; // beat 3 the other way round: in A the way is clear
+    c.PlaceFeet({0.0f, T, st::kGateZ + 1.0f});
+    c.Run(1.15f, Keys(1.0f), kNorth);
+    c.Run(0.3f);
+    CHECK(c.player.Feet().z > st::kRubbleNorth + 0.5f && c.player.Feet().z < st::kDitchEdge && Near(c.player.Feet().y, T, 0.02f));
     World side; // the town wall beside the breach holds in B too: only the breach is a way
     side.layer = 1;
-    side.PlaceFeet({2.4f, st::kTerraceY, -1.0f});
+    side.PlaceFeet({2.4f, T, st::kGateZ - 3.0f});
     side.Run(2.0f, Keys(1.0f), kNorth);
     CHECK(side.player.Feet().z < st::kGateZ - 0.25f - 0.3f);
+    // B round the heap: from the stairs of the ditch, no jump lands on the terrace beyond the heap (the wall between holds)
+    for (float z : {-9.6f, -8.8f, -8.0f, -7.2f, -6.4f})
+    {
+        World r;
+        r.layer = 1;
+        const float y = r.JumpFrom({4.5f, DitchStairsY(z) + 0.02f, z}, {-1.0f, 0.0f, 0.0f}, 0.15f);
+        CHECK(!(y > T - 0.1f && r.player.Feet().x < 3.0f && r.player.Feet().z > st::kRubbleNorth));
+    }
+    // beat 4, the ditch: one layer alone never crosses it, two jumps in a row, from several jump points
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        for (float at : {-7.0f, -6.6f, -6.2f, -5.9f, -5.7f, -5.5f})
+        {
+            World w;
+            w.layer = layer;
+            w.PlaceFeet({0.0f, T, -7.6f});
+            bool beyond = false;
+            if (w.RunJump(at))
+            {
+                beyond = w.player.Feet().z > st::kDitchStripFar && Near(w.player.Feet().y, T, 0.05f);
+                const bool onBeam = layer == 1 && Near(w.player.Feet().y, T, 0.05f) && w.player.Feet().z < st::kDitchStoneFar + 0.4f;
+                if (onBeam && w.RunJump(w.player.Feet().z + 0.05f))
+                {
+                    beyond = w.player.Feet().z > st::kDitchStripFar && Near(w.player.Feet().y, T, 0.05f);
+                }
+            }
+            CHECK(!beyond);
+        }
+    }
+    int ditchWays = 0; // the way: B, onto the beam, then on with a switch to A in the air onto the planks
+    int ditchTried = 0;
+    for (float at : {-6.4f, -6.0f, -5.7f})
+    {
+        World w;
+        w.layer = 1;
+        w.PlaceFeet({0.0f, T, -7.6f});
+        if (!w.RunJump(at) || !Near(w.player.Feet().y, T, 0.05f) || w.player.Feet().z > st::kDitchStoneFar + 0.4f)
+        {
+            continue;
+        }
+        for (float after : {0.10f, 0.20f, 0.30f, 0.40f})
+        {
+            World t = w;
+            ++ditchTried;
+            if (t.RunJump(t.player.Feet().z + 0.05f, after, 0) && t.layer == 0 && t.player.Feet().z > st::kDitchStripNear &&
+                Near(t.player.Feet().y, T, 0.02f))
+            {
+                ++ditchWays;
+            }
+        }
+    }
+    std::printf("  ditch: %d of %d tried timings cross it\n", ditchWays, ditchTried);
+    CHECK(ditchTried >= 8 && ditchWays * 4 >= ditchTried * 3);
+    World miss; // a miss costs a walk: from the floor of the ditch, the stairs lead back up to the terrace
+    miss.PlaceFeet({0.0f, kFloorY, -3.0f});
+    CHECK(miss.player.Grounded() && st::RoomAt(miss.player.Feet()) == Room("ditch"));
+    CHECK(miss.WalkPath({{4.5f, kFloorY, -4.9f}, {4.5f, kFloorY, -11.2f}}) && miss.At(4.5f, T, -11.2f, 0.4f));
+    CHECK(st::RoomAt(miss.player.Feet()) == Room("terrace"));
     // the gap: one layer alone never crosses it, two jumps in a row, from several jump points
     const float points[] = {4.6f, 5.0f, 5.4f, 5.6f, 5.8f, 6.0f, 6.2f};
     for (int layer = 0; layer < 2; ++layer)
@@ -750,11 +872,17 @@ void TestWings()
         CHECK(under.player.Feet().x < st::kHubWest - 0.4f);
     }
     {
-        // the east wing: up to the top of the courtyard wall, the seal, the drop into the hub
+        // the east wing: the lock wheel, the crate across the canal, the quay, up to the top of the courtyard wall, the seal,
+        // the drop into the hub
         World w = hub;
         w.layer = 0;
-        CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {20.0f, kFloorY, 31.0f},
-                          {20.0f, kFloorY, 23.0f}, {20.0f, kFloorY, 8.0f}}));
+        CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {16.4f, kFloorY, 33.1f}}));
+        CHECK(w.canal.Open());
+        w.Run(3.0f);
+        CHECK(w.canal.High());
+        CHECK(w.WalkPath({{20.0f, kFloorY, 31.0f}}) && w.JumpAlong(kSouth, -29.8f, -27.3f) && w.At(20.0f, kFloorY, 27.2f, 0.7f));
+        CHECK(w.JumpAlong(kSouth, -26.8f, -23.6f) && st::RoomAt(w.player.Feet()) == Room("east quay"));
+        CHECK(w.WalkPath({{20.0f, kFloorY, 23.0f}, {20.0f, kFloorY, 8.0f}}));
         CHECK(w.At(20.0f, st::kEastHighY, 8.0f) && st::RoomAt(w.player.Feet()) == Room("east upper"));
         CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 8.0f}, {st::kCourtEast + 0.75f, kFloorY, 20.0f}}));
         CHECK(w.seals.Taken(1) && w.At(st::kCourtEast + 0.75f, st::kEastHighY, 20.0f));
@@ -898,19 +1026,15 @@ void TestSquare()
         World j = hub;
         j.layer = 1;
         CHECK(j.JumpFrom({5.6f, st::kSquareLowY, 31.0f}, kEast, 0.2f) > kFloorY - 0.05f);
-        // the stairs are drawn as steps of at most one rise and walked as their slope
         CHECK(st::kFloorY - st::kSquareLowY < Player::Settings{}.jumpHeight - 0.3f);
     }
+    for (int layer = 0; layer < 2; ++layer) // the causeway: from the south rim to the portal, in both layers, without a jump
     {
-        // the causeway: from the south rim to the portal, in both layers, without a jump
-        for (int layer = 0; layer < 2; ++layer)
-        {
-            World c = hub;
-            c.layer = layer;
-            c.TakeAllSeals();
-            CHECK(c.WalkPath({{-2.5f, kFloorY, 23.5f}, {-2.5f, kFloorY, 28.5f}}));
-            CHECK(c.player.Grounded() && st::RoomAt(c.player.Feet()) == Room("cathedral"));
-        }
+        World c = hub;
+        c.layer = layer;
+        c.TakeAllSeals();
+        CHECK(c.WalkPath({{-2.5f, kFloorY, 23.5f}, {-2.5f, kFloorY, 28.5f}}));
+        CHECK(c.player.Grounded() && st::RoomAt(c.player.Feet()) == Room("cathedral"));
     }
 }
 
@@ -940,6 +1064,290 @@ void TestTower()
         CHECK(w.At(x, st::Level(ramp + 1), z, 0.5f));
     }
     CHECK(st::ReachedGoal(w.player));
+}
+
+/// A point that touches the lock wheel, as a body would (for the test of the carry, which needs the wheel turned while the
+/// body stands on the crate).
+struct WheelHand
+{
+    Vec3 at;
+    Vec3 Ball(int) const
+    {
+        return at;
+    }
+    Vec3 Feet() const
+    {
+        return {at.x, at.y - 1.0f, at.z};
+    }
+    bool Grounded() const
+    {
+        return false;
+    }
+    void Carry(const Vec3&)
+    {
+    }
+};
+
+void TestEastCanal()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const dl::canal::Desc d = st::MakeCanal();
+    const float quayTop = st::kQuayY;
+    // the numbers: the canal is wider than a running jump; low, the crate is out of reach of the quay; high, it is a step
+    CHECK(st::kCanalNorth - st::kCanalSouth > 3.6f + 1.0f);
+    CHECK(quayTop - (d.lowTop + d.draft) >= 2.3f && quayTop - (d.highTop + d.draft) <= 1.2f + 1e-4f);
+    CHECK(quayTop - (d.bed + d.crateSize) >= 2.3f && kFloorY - (d.bed + d.crateSize) >= 0.0f); // B: on the bed, under the floor
+    CHECK(d.highTop < kFloorY && d.lowTop + d.draft - d.crateSize > d.bed);
+    // without the wheel: no jump from the hall floor, in either layer, with or without a switch, ends on the quay
+    const Vec3 S = kSouth;
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        for (float x : {16.0f, 20.0f, 23.0f})
+        {
+            for (float at : {29.9f, 29.7f})
+            {
+                for (float after : {-1.0f, 0.3f})
+                {
+                    World w = hub;
+                    w.layer = layer;
+                    w.PlaceFeet({x, kFloorY, 32.0f});
+                    int guard = 0;
+                    while (w.player.Feet().z > at && w.player.Grounded() && guard++ < 2000)
+                    {
+                        w.Frame(Keys(1.0f), S);
+                    }
+                    w.Frame(Keys(1.0f, true), S);
+                    bool switched = false;
+                    for (int i = 0; i < 240 && !w.InWater() && !w.Fallen(); ++i)
+                    {
+                        if (after > 0.0f && !switched && static_cast<float>(i) * kDt >= after)
+                        {
+                            switched = w.Switch(1 - layer);
+                        }
+                        w.Frame(Keys(1.0f), S);
+                    }
+                    CHECK(!(w.player.Grounded() && w.player.Feet().y > quayTop - 0.1f && w.player.Feet().z < st::kCanalSouth));
+                }
+            }
+        }
+    }
+    {
+        World w = hub; // in A, onto the low crate: from there the quay is out of reach (and the floor is a jump back)
+        w.layer = 0;
+        w.PlaceFeet({20.0f, kFloorY, 31.0f});
+        CHECK(w.JumpAlong(S, -29.8f, -27.3f) && Near(w.player.Feet().y, d.lowTop + d.draft, 0.05f));
+        const World onCrate = w;
+        for (float at : {26.9f, 26.7f})
+        {
+            World t = onCrate;
+            t.JumpAlong(S, -at, -22.0f);
+            CHECK(!(t.player.Grounded() && t.player.Feet().y > quayTop - 0.1f));
+        }
+        World back = onCrate;
+        CHECK(back.JumpAlong(kNorth, 27.5f, 31.0f) && back.At(20.0f, kFloorY, 30.5f, 1.0f));
+    }
+    {
+        World w = hub; // the wheel is machinery of A: in B it does not turn
+        w.layer = 1;
+        w.PlaceFeet({16.4f, kFloorY, 33.1f});
+        w.Run(1.0f);
+        CHECK(!w.canal.Open() && !w.canal.High());
+        w.layer = 0;
+        w.Run(0.1f);
+        CHECK(w.canal.Open());
+        int frames = 0;
+        while (!w.canal.High() && frames++ < 1200)
+        {
+            w.Frame({}, kNorth);
+        }
+        CHECK(w.canal.High() && static_cast<float>(frames) * kDt < 3.0f);
+        w.canal.Reset(); // R: the water and the crate are put back
+        CHECK(!w.canal.Open() && !w.canal.High() && Near(w.canal.WaterTop(), d.lowTop, 1e-5f));
+    }
+    {
+        World w = hub; // a body on the crate while the water rises is carried up, never in the air
+        w.layer = 0;
+        w.PlaceFeet({20.0f, d.lowTop + d.draft, d.crateZ});
+        CHECK(w.player.Grounded());
+        WheelHand hand{d.wheel};
+        w.canal.Update(hand, 0, kDt);
+        CHECK(w.canal.Open());
+        int air = 0;
+        for (int i = 0; i < 600 && !w.canal.High(); ++i)
+        {
+            w.Frame({}, kNorth);
+            air += w.player.Grounded() ? 0 : 1;
+        }
+        w.Run(0.2f);
+        CHECK(air == 0 && Near(w.player.Feet().y, d.highTop + d.draft, 0.03f));
+    }
+    for (int high = 0; high < 2; ++high) // in A the canal is water at either level: a body that goes in is in the water
+    {
+        World w = hub;
+        w.layer = 0;
+        if (high == 1)
+        {
+            WheelHand hand{d.wheel};
+            w.canal.Update(hand, 0, kDt);
+            w.Run(3.0f);
+        }
+        w.PlaceFeet({17.0f, kFloorY, 30.4f});
+        bool wet = false;
+        for (int i = 0; i < 240 && !wet; ++i)
+        {
+            w.Frame(Keys(1.0f), S);
+            wet = w.InWater();
+        }
+        CHECK(wet);
+    }
+    {
+        World w = hub; // in B the canal is dry: down the stairs at its east end, along the bed, and back up
+        w.layer = 1;
+        w.PlaceFeet({23.2f, kFloorY, 31.0f});
+        CHECK(w.WalkPath({{23.2f, kFloorY, 29.3f}, {23.2f, kFloorY, 25.15f}}) && w.At(23.2f, d.bed, 25.15f, 0.4f));
+        CHECK(!w.InWater());
+        CHECK(w.WalkPath({{16.0f, kFloorY, 25.4f}}) && w.At(16.0f, d.bed, 25.4f, 0.4f));
+        CHECK(w.WalkPath({{23.2f, kFloorY, 25.15f}, {23.2f, kFloorY, 29.3f}, {23.2f, kFloorY, 31.0f}}) && w.At(23.2f, kFloorY, 31.0f, 0.4f));
+        World up = w; // from the bed no jump reaches the quay
+        for (float z : {25.4f, 26.4f, 27.4f})
+        {
+            CHECK(up.JumpFrom({17.0f, d.bed, z}, S, 0.3f) < quayTop - 1.0f);
+        }
+    }
+}
+
+void TestAnchors()
+{
+    for (int i = 0; i < st::kAnchorCount; ++i)
+    {
+        const st::AnchorDesc& a = st::kAnchors[i];
+        const int room = st::RoomIndex(a.room);
+        CHECK(room >= 0 && st::RoomAt(a.stand) == room);
+        // not on the board of the courtyard: the pedestal would change the proved puzzle
+        CHECK(!(a.base.x > st::kCourtWest - 0.5f && a.base.x < st::kCourtEast + 0.5f && a.base.z > st::kCourtSouth - 0.5f &&
+                a.base.z < st::kCourtNorth + 0.5f));
+        for (int layer = 0; layer < 2; ++layer)
+        {
+            World w;
+            w.TakeAllSeals();
+            w.layer = layer;
+            w.PlaceFeet(a.stand);
+            CHECK(w.player.Grounded() && Near(w.player.Feet().y, a.stand.y, 0.02f) && w.puzzle.BodyFits(w.player, layer, w.spin));
+        }
+    }
+    // the first lamp is on the way: walking out of the guardhouse lights it; then a fall on the terrace comes back to it
+    World w;
+    st::AnchorSet anchors;
+    const int terrace = Room("terrace");
+    CHECK(st::AnchorSet::AnchorOf(terrace) == 0 && Near(anchors.RespawnPoint(terrace).z, st::kRooms[terrace].entry.z, 1e-5f));
+    int lit = -1;
+    for (int i = 0; i < 360 && lit < 0; ++i)
+    {
+        w.Frame(Keys(1.0f), kNorth);
+        lit = anchors.Update(w.player);
+    }
+    CHECK(lit == 0 && anchors.Lit(0) && !anchors.Lit(1));
+    CHECK(Near(anchors.RespawnPoint(terrace).x, st::kAnchors[0].stand.x, 1e-5f) && Near(anchors.RespawnPoint(terrace).z, st::kAnchors[0].stand.z, 1e-5f));
+    CHECK(Near(anchors.RespawnPoint(Room("courtyard")).x, st::kRooms[Room("courtyard")].entry.x, 1e-5f)); // a room without a lamp
+    SceneObject table[8] = {};
+    CHECK(anchors.AddDraw(table, 0, 8) == st::kAnchorCount && table[0].glow > 1.0f && table[1].glow < 0.5f);
+    CHECK(table[0].layerMask == kLayerBoth && st::AddRespawnRing({0, 0, 0}, 0.2f, table, 0, 8) == 1 && st::AddRespawnRing({0, 0, 0}, -1.0f, table, 0, 8) == 0);
+    // a pedestal is the same in both layers (both, and a trace of light: not the stone of the layer)
+    int pedestals = 0;
+    for (const SceneObject& o : st::kStageStatics)
+    {
+        pedestals += (o.layerMask == kLayerBoth && o.glow > 0.0f && st::SameRgb(o, st::kAnchorStone)) ? 1 : 0;
+    }
+    CHECK(pedestals == st::kAnchorCount);
+}
+
+void TestFallLines()
+{
+    for (int i = 0; i < st::kRoomCount; ++i)
+    {
+        const st::Room& r = st::kRooms[i];
+        CHECK(st::FallLine(i) <= r.y0 - 3.0f && r.entry.y > st::FallLine(i) + 3.0f);
+        CHECK(st::FallLine(i) >= r.y0 - st::kFallBelowRoom - 0.01f); // and not far below it: a fall is noticed at once
+    }
+    CHECK(st::FallLine(Room("west lower")) < st::kWestLowY - 3.0f && st::FallLine(Room("west vault")) < st::kWestLowY - 3.0f);
+    for (const st::AnchorDesc& a : st::kAnchors)
+    {
+        CHECK(a.stand.y > st::FallLine(st::RoomIndex(a.room)) + 3.0f);
+    }
+    // the drops of the map land above the fall line of the room they start from
+    CHECK(kFloorY > st::FallLine(Room("gap")) && kFloorY > st::FallLine(Room("gallery")) && kFloorY > st::FallLine(Room("north hall")));
+    CHECK(st::kSquareLowY > st::FallLine(Room("square")) && st::kCanalBed > st::FallLine(Room("east hall")));
+    CHECK(kFloorY > st::FallLine(Room("ditch")) + 3.0f);
+}
+
+/// The top of the water called `name`, or a very low number.
+float WaterTopOf(std::string_view name)
+{
+    if (name == "the pool")
+    {
+        return st::kWaters[st::kPoolWater].top;
+    }
+    if (name == "the trench")
+    {
+        return st::kWaters[st::kTrenchWater].top;
+    }
+    if (name == "the canal")
+    {
+        return st::MakeCanal().highTop;
+    }
+    if (name == "the aqueduct")
+    {
+        return st::kAqueductBottom;
+    }
+    return -1000.0f;
+}
+
+void TestWater()
+{
+    // every water of A is fed, through a chain, by the aqueduct; each feed runs downhill
+    CHECK(st::kWaterFeedCount == st::kWaterCount + 1); // the static waters and the canal
+    for (const st::WaterFeed& f : st::kWaterFeeds)
+    {
+        CHECK(Near(f.top, WaterTopOf(f.water), 1e-4f));
+        std::string_view at = f.water;
+        int steps = 0;
+        while (at != "the aqueduct" && steps++ < st::kWaterFeedCount)
+        {
+            std::string_view from;
+            for (const st::WaterFeed& g : st::kWaterFeeds)
+            {
+                from = g.water == at ? std::string_view(g.from) : from;
+            }
+            CHECK(!from.empty() && WaterTopOf(from) >= WaterTopOf(at));
+            at = from;
+        }
+        CHECK(at == "the aqueduct");
+    }
+    // the aqueduct: whole in A from its spout to its source; in B broken by more than a running jump. No water in B anywhere
+    float coveredA = 0.0f;
+    float coveredB = 0.0f;
+    int waterInB = 0;
+    int fallsInA = 0;
+    for (const SceneObject& o : st::kDecor)
+    {
+        const bool channelFloor = Near(o.position[1] - 0.5f * o.scale[1], st::kAqueductBottom, 1e-4f) && Near(o.scale[1], 0.2f, 1e-4f) &&
+                                  Near(o.position[2], 0.5f * (st::kAqueductZ0 + st::kAqueductZ1), 1e-3f);
+        if (channelFloor)
+        {
+            coveredA += (o.layerMask & kLayerA) != 0u ? o.scale[0] : 0.0f;
+            coveredB += (o.layerMask & kLayerB) != 0u ? o.scale[0] : 0.0f;
+        }
+        const bool water = st::SameRgb(o, st::kWaterRgb);
+        waterInB += (water && (o.layerMask & kLayerB) != 0u) ? 1 : 0;
+        fallsInA += (water && o.layerMask == kLayerA && o.scale[1] > 5.0f) ? 1 : 0;
+    }
+    CHECK(Near(coveredA, st::kAqueductEast - st::kAqueductWest, 1e-3f));
+    CHECK(coveredB < coveredA - 3.6f - 1.0f && st::kAqueductBreakX1 - st::kAqueductBreakX0 > 3.6f + 1.0f);
+    CHECK(waterInB == 0 && fallsInA == 1);
+    // the aqueduct is out of reach of every floor near it (it rests on the walls of the square)
+    CHECK(st::kAqueductBottom > st::kHubWallTop && st::kAqueductBottom > st::kGalleryY + 2.3f + 1.55f && st::kLedgeEast < st::kAqueductWest - 0.8f - 5.0f);
 }
 
 /// True when a jump from `feet` along `look` (with a run-up of 0, 0.15 or 0.4 s) ever ends higher than `ceiling` or on
@@ -1051,6 +1459,10 @@ int main()
     TestWings();
     TestWestWing();
     TestRing();
+    TestEastCanal();
+    TestAnchors();
+    TestFallLines();
+    TestWater();
     TestSquare();
     TestTower();
     TestNoWayRound();

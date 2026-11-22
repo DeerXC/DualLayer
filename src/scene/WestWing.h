@@ -38,8 +38,8 @@ inline constexpr int kW2Door = 1;
 inline constexpr int kW3Bars = 2;
 
 inline constexpr mech::Gate kWestGates[] = {
-    {Span(-21.0f, kFloorY - 0.2f, kTrenchSouth, -18.0f, kFloorY, kTrenchNorth, kBlue, kLayerB), kW1Socket, -1, true, "W1 bridge"},
-    {Span(-22.0f, kWestLowY, kWestDoorSouth, -18.0f, kWestDoorTop, kWestDoorNorth, kBlue, kLayerB), kW2Plate, kW2Lever, false, "W2 door"},
+    {Span(-21.0f, kFloorY - 0.2f, kTrenchSouth, -18.0f, kFloorY, kTrenchNorth, kDebris, kLayerB), kW1Socket, -1, true, "W1 bridge"},
+    {Span(-22.0f, kWestLowY, kWestDoorSouth, -18.0f, kWestDoorTop, kWestDoorNorth, kDebris, kLayerB), kW2Plate, kW2Lever, false, "W2 door"},
     {Span(-24.0f, kWestLowY, kMezzNorth, kVaultEast, kMezzY - 0.2f, kMezzNorth + 0.5f, kDark, kLayerBoth), kW3Socket, -1, false, "W3 bars"},
 };
 

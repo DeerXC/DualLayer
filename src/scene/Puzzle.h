@@ -65,7 +65,7 @@ inline constexpr int kBlockerBounds = -1; ///< (0 and above: the index of a fixe
 class Puzzle
 {
   public:
-    static constexpr int kMaxSolids = 220;          ///< fixed objects + the block + the door
+    static constexpr int kMaxSolids = 320;          ///< fixed objects + the block + the door
     static constexpr float kPushSeconds = 0.15f;   ///< UNITS: seconds of walking against the block before the FIRST move
     static constexpr float kSlideSpeed = 3.6f;     ///< UNITS: metres per second; the walk is 4, so the body keeps contact
     static constexpr float kFlashSeconds = 0.6f;   ///< UNITS: seconds that a refused push shows what was in the way

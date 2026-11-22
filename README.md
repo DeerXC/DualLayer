@@ -4,12 +4,12 @@
 >
 > English: a 3D action puzzle about two overlapping worlds, red and blue, built without a game engine on C++20 / Direct3D 11.
 
-Status: in development (milestone M2). The whole map can be walked from the start to the top of the cathedral. Its centre
-is a sunken square: a rim at street level, a pool round the cathedral that is water in one world and dry in the other, and
-a causeway to the portal. Its parts form a ring: a passage that exists only in one world and a sky bridge that exists only
-in the other join the districts without the square. The prologue and the west wing (an orb carried between the layers) are
-playable puzzles; the other districts stand as grey boxes, and their rooms are being built from
-[docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+Status: in development (milestone M2). The whole map can be walked from the start to the top of the cathedral. It begins
+in a guardhouse on the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square: a pool
+round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in the
+other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers) and the
+lock of the east district (a crate that floats on water of one world) are playable puzzles; the other districts stand as
+grey boxes, and their rooms are being built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
 
@@ -21,13 +21,17 @@ playable puzzles; the other districts stand as grey boxes, and their rooms are b
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
   cannot drift apart.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
-  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4600 places to
-  stand, about 74000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
+  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4700 places to
+  stand, about 108000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
 - **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
   falls through a floor that exists only in the other layer. The west wing is built on that: an orb that lays a bridge of
   the other layer, an orb that holds a door open in a world the body has left, an orb dropped through a hole that is closed
   in one world and open in the other.
+- **Rules that hold in both worlds.** What exists only in A is made by people (wood, iron), what exists only in B was left
+  by the storm (fallen masonry); red and blue are only thin edges. Every water is fed downhill from an aqueduct that is broken
+  in B, so every water is dry there; machinery turns only in A; a thing that moves exists in both worlds, only its place
+  differs. Tests check each rule against the map data.
 - **Layer switch as a ripple.** Both layers are rendered into their own off-screen pictures and a circle opens from the
   centre of the screen; pressed again, it turns round without a jump.
 - **Guidance without a tutorial.** Every object of one layer leaves a thin outline in the other; a column of light stands
@@ -35,7 +39,7 @@ playable puzzles; the other districts stand as grey boxes, and their rooms are b
   outlines what was in the way; a beacon over the goal is seen from the first step. The only words are key prompts,
   drawn with a bitmap font written for the project, chosen by the same code that runs the key, and dimmed once learned.
 - **Hand-written engine layer.** Direct3D 11 device and swap chain, depth, constant buffers, HLSL compiled at run time, a
-  static batch that draws the whole fixed city of a layer in one call (about 150 boxes),
+  static batch that draws the whole fixed city of a layer in one call (about 1550 boxes),
   procedural meshes with winding tests, collision of boxes, spheres, cylinders and tori, a walking body with tuned feel
   (acceleration, variable jump height, coyote time, jump buffer, ground snap on ramps), recovery from a lost GPU device.
 - **One command checks everything.** `tools/check.ps1` runs the logic tests, a full Debug and Release rebuild (and proves the

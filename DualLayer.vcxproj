@@ -113,7 +113,9 @@
     <ClInclude Include="src\render\ShaderCompiler.h" />
     <ClInclude Include="src\render\StaticBatch.h" />
     <ClInclude Include="src\render\Triangle.h" />
+    <ClInclude Include="src\scene\Anchors.h" />
     <ClInclude Include="src\scene\BlockMaze.h" />
+    <ClInclude Include="src\scene\Canal.h" />
     <ClInclude Include="src\scene\Camera.h" />
     <ClInclude Include="src\scene\Collision.h" />
     <ClInclude Include="src\scene\Player.h" />

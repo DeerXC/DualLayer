@@ -83,13 +83,22 @@ Each room states its purpose, layout, solution, its "of course!", failure and re
 
 ### 6.1 Prologue
 
-- Gate: a red wall of A across the terrace; in B it is not there. A hidden light is buried in its top.
-- Gap: a blue stone of B, 3 m deep and 1 m from the terrace (a jump onto it needs no aim); the red strip of A 1.5 m beyond
-  it; a blue curtain of B at the end of the strip. The way: onto the stone in B, jump, switch to A in the air. Neither layer
-  alone crosses (the strip is out of reach from the terrace; in B the curtain stops the flight over the strip). It is the
-  one place where the switch in the air is taught.
-- Courtyard: the proved puzzle (10 pushes). The block on the plate opens the door in the north wall into the hub. The tops
-  of the puzzle walls (2.5 m) can be stood on from the strip; the walls round the courtyard (5 m) are out of reach from them.
+Rebuilt in 2026-11 as seven beats without a word of text (section 14.6): the start is a guardhouse on the town wall, and
+each beat teaches one thing, first where a mistake costs nothing.
+
+| Beat | Place | What is learnt | A miss costs |
+|---|---|---|---|
+| 0 | the guardhouse; its arch, 4 m high, frames the cathedral and the beacon | walking, looking; where the goal is | nothing |
+| 1 | the first anchor lamp, beside the path | a place that is safe; the one thing the switch does not change | nothing |
+| 2 | the town wall: an iron gate in A; in B it has fallen, a breach with rubble | the switch | nothing |
+| 3 | a heap of fallen masonry closes the terrace in B (2.6 m, out of reach); in A the way is clear | neither world is "the better one" | nothing |
+| 4 | a shallow ditch (2.4 m): a beam of B, planks of A 1.5 m beyond, as at the gap; stairs lead back up | the switch in the air | a walk of a few seconds |
+| 5 | the gap: the beam of B, the planks of A, the curtain of B | the same, where a miss is a fall | back to the second lamp |
+| 6 | the courtyard: the proved puzzle (10 pushes) | the first "of course!" | R |
+
+A hidden light is buried in the top of the gate. The stairs of the ditch are walled off from the terrace, so that B does not
+climb round the heap of beat 3. The tops of the puzzle walls (2.5 m) can be stood on from the planks of the gap; the walls
+round the courtyard (5 m) are out of reach from them.
 
 ### 6.2 Hub: the sunken square
 
@@ -122,7 +131,7 @@ left for the polish of step 6.
 ### 6.4 East wing: the water garden (single-layer blocks, channels)
 
 Theme: a block obeys only its own world. The wing goes up and ends on the top of the courtyard wall. Every push puzzle is
-proved by the solver.
+proved by the solver. The district becomes the canal and locks of section 14; its first room, the lock, is built (14.8).
 
 | Room | Moment |
 |---|---|
@@ -170,8 +179,9 @@ socket; the orb dropped elsewhere; under the gap; a dead end of E2; the wall top
 jump at the bell tower; the orb dropped by the prism in another order; the hub after all three shortcuts; the tower
 parapet. With all twelve the goal light changes colour.
 
-Built so far: in the gate (the other layer), and on the floor of the pool of the square, behind the cathedral (under water
-in A; in B the pool is dry: the water of the west trench used a second time).
+Built so far: in the gate (the other layer); on the floor of the pool of the square, behind the cathedral (under water
+in A; in B the pool is dry: the water of the west trench used a second time); on the bed of the canal of the east district
+(the same lesson in the district of water).
 
 ## 9. Guidance without words
 
@@ -248,7 +258,7 @@ Agreed on 2026-11-22: the structure (hub, three wings, tower); the four new obje
 R resets the current room.
 
 Decided on 2026-11-22, after playing the west wing (the next design; it replaces the hub, the wings and the tower of this
-document as they are built, step by step):
+document as they are built, step by step). Where section 14 differs from this table, section 14 decides:
 
 | Item | Decision |
 |---|---|
@@ -257,9 +267,77 @@ document as they are built, step by step):
 | Districts | west: market and sewers (the orb, going down); east: canal and locks (single-layer blocks, water); north-west: theatre and roofs (the prism as a change of scenery); north-east: graveyard and bell tower (prism and orb) |
 | New objects | water, only in A: a wall, not swimming (a body that falls in goes back to the room entry); things float on it. Lifts: shortcuts only, entered standing still |
 | Guidance | five levels: landmarks (far), light (middle), one look for everything that can be used (near), a safe first use of every object, and key prompts on the screen |
-| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); step 2, the vocabulary of shapes (done: stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts, with the static batch; used so far: stairs, water, an arcade and roofs); step 3a, the ring on the present map (done: the passage of B under the ledge, the sky bridge of A to the east hall, the lift of the north hall); step 3b, the sunken square and the cathedral (done: the rim, the pool of A, the causeway, the stairs, the cathedral with its spire, a hidden light on the floor of the pool) |
+| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); step 2, the vocabulary of shapes (done: stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts, with the static batch; used so far: stairs, water, an arcade and roofs); step 3a, the ring on the present map (done: the passage of B under the ledge, the sky bridge of A to the east hall, the lift of the north hall); step 3b, the sunken square and the cathedral (done: the rim, the pool of A, the causeway, the stairs, the cathedral with its spire, a hidden light on the floor of the pool); the silhouette of the city (done: battlements on the city walls, the skyline of houses and towers round and between the played parts, all drawn only) |
 | Districts, when | the districts are rebuilt with their rooms, not before (decided 2026-11-22, in step 3b): the shape of a district follows from its puzzles, and a shape built first would be built twice. The east wing becomes the canal and locks with steps 3 and 4 of section 12, together with the cellar of B that joins it to the west under the courtyard (the fourth link of the ring); the north hall is split into the theatre (north-west) and the graveyard and bell tower (north-east) with the north rooms |
+| Silhouette | drawn only, generated from the map, never where a body can be: merlons only on wall tops out of reach and never under a floor or a ceiling; a house never within 4.5 m of a room (more than a running jump from an open edge). Everything of it is static and baked (one draw call per layer) |
 
+## 14. The vertical city
 
+Decided on 2026-11-22 after playing the greybox of step 3b: the rooms were boxes joined to the hub by doors, all on one
+level, and red and blue were the colours of whole boxes. This section gives the rules the districts are built by.
 
+### 14.1 Height
 
+Each district leaves the square in one direction and from its own height: the west goes down, the east climbs in terraces,
+the north-west is one large inner space, the north-east goes up. A way is first seen from above, then walked. Districts meet
+by lanes, stairs and arches, not by corridors and doors.
+
+### 14.2 The aqueduct
+
+The water of the city comes in from the east on an aqueduct that rests on the walls of the square and spouts into its pool.
+In B the storm has broken it: a part of it has fallen, so every water of the city is dry in B.
+
+### 14.3 Worlds by material
+
+| Exists in | Looks like | Examples |
+|---|---|---|
+| A only | made by people, whole: wood, iron | the gate, planks, door panels, crates, the deck of the sky bridge |
+| B only | left by the storm: fallen masonry | the beams over the gaps, the heap of beat 3, the walls of the courtyard puzzle |
+| both | stone of the city | walls, floors |
+| key objects | their material, with a thin red (A) or blue (B) edge in their own world and an outline in the other | every single-layer box |
+
+Whole red or blue boxes are gone; red and blue are only edges and outlines.
+
+### 14.4 Logic of the moving parts
+
+| Rule | How |
+|---|---|
+| All water comes from the aqueduct | each water is fed by a chain that starts at it, and each feed runs downhill (`Stage::kWaterFeeds`) |
+| Things that move exist in both worlds | only where they are differs: the crate of the canal floats in A and lies on the bed in B |
+| Machinery works in A only | in B it has rusted: the lock wheel turns only for a body in A |
+| R puts back the room | the block, the orbs, and the water and the crate of the canal |
+| Orbs never get stuck | still open: an orb that falls where its world cannot reach should go back to its start |
+
+### 14.5 Anchor lamps
+
+A stone lamp that looks the same in both worlds. It is lit the first time a body passes it; from then on a fall or R in its
+room comes back beside it, and a ring spreads from where the body appears. Rooms without a lamp have a carved tile at their
+entry. Six lamps: the terrace, before the gap, the square, the archive, the canal, the bell tower.
+
+### 14.6 The prologue
+
+Section 6.1.
+
+### 14.7 Checks
+
+| Rule | Checked by |
+|---|---|
+| A room has its own fall line, close under its floors, so a deep room is never taken for a fall | `TestFallLines` |
+| Every lamp stands in its room, is a place to stand in both worlds, and is off the board of the courtyard | `TestAnchors` |
+| Every water is fed downhill from the aqueduct; the aqueduct is broken in B by more than a running jump; no water in B | `TestWater` |
+| The canal is crossed only on the raised crate; the low crate, the bed and the floor do not reach the quay | `TestEastCanal` |
+| Neither world alone crosses the ditch; B does not climb round the heap | `TestPrologue` |
+| No jump ends higher in a room not joined by walking | `tests/test_reach.cpp` |
+| Drawn-only things stand where no body is (houses, merlons, the aqueduct) | `TestSilhouette`, `Stage::PlotIsFree` |
+
+### 14.8 Build order
+
+| Step | Content | State |
+|---|---|---|
+| 1 | anchor lamps; a fall line per room | done |
+| 2 | the prologue in seven beats | done |
+| 3 | worlds by material, edges and outlines; the aqueduct and the feeds of the water | done |
+| 4 | the square entered from different heights; the east district as the first sample | the lock of the canal is built: the hall is cut by a canal, its quay 1.2 m higher is the foot of the ramp up, and the crate on the raised water is the step. The other entrances wait for their districts (section 13, "Districts, when") |
+
+The canal: 4.8 m wide; the lock wheel raises the water by 1.2 m in 2.4 s; low, the crate is 2.4 m under the quay, high,
+1.2 m (the step of the main path); in B the crate lies on the bed and the bed is walked from stairs at its east end.

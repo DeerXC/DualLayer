@@ -49,7 +49,7 @@ inline constexpr Rgb kStoneDark{0.40f, 0.41f, 0.44f};
 inline constexpr Rgb kWood{0.42f, 0.30f, 0.20f};
 inline constexpr Rgb kRoofTile{0.55f, 0.24f, 0.18f};
 inline constexpr Rgb kWaterColour{0.16f, 0.42f, 0.62f};
-inline constexpr Rgb kPanelRed{0.82f, 0.24f, 0.22f};
+inline constexpr Rgb kPanelWood{0.52f, 0.36f, 0.22f}; // a door panel of A: whole, made by people (docs/LEVEL_DESIGN.md, 14.3)
 
 /// A box from its two corners.
 inline SceneObject Box(float x0, float y0, float z0, float x1, float y1, float z1, Rgb c, unsigned mask)
@@ -199,7 +199,7 @@ inline int BreachWall(float x0, float x1, float z, float t, float y, float heigh
     const float zb = z + 0.5f * t;
     solid.push_back(Box(x0, y, za, bx0, y + height, zb, kStoneLight, kLayerBoth));
     solid.push_back(Box(bx1, y, za, x1, y + height, zb, kStoneLight, kLayerBoth));
-    solid.push_back(Box(bx0, y, za, bx1, y + height, zb, kPanelRed, kLayerA));
+    solid.push_back(Box(bx0, y, za, bx1, y + height, zb, kPanelWood, kLayerA));
     solid.push_back(Box(bx0, y, za - 0.35f, bx0 + 0.3f, y + kRubble, zb + 0.35f, kStoneDark, kLayerB));
     solid.push_back(Box(bx1 - 0.3f, y, za - 0.35f, bx1, y + kRubble, zb + 0.35f, kStoneDark, kLayerB));
     return 5;

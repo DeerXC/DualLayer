@@ -27,6 +27,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 namespace
 {
@@ -110,9 +111,10 @@ void TestGhosts()
                  Near(bar.position[1] - 0.5f * bar.scale[1], surface + st::kGhostLift) && bx0 >= minX - 1e-4f && bx1 <= maxX + 1e-4f &&
                  bz0 >= minZ - 1e-4f && bz1 <= maxZ + 1e-4f &&
                  (Near(bx0, minX) || Near(bx1, maxX) || Near(bz0, minZ) || Near(bz1, maxZ));
+            const SceneObject world = st::WorldTinted(o); // red for a box of A, blue for B, made lighter
             for (int c = 0; c < 3; ++c)
             {
-                ok = ok && bar.colorSrgb[c] >= o.colorSrgb[c] && bar.colorSrgb[c] <= 1.0f;
+                ok = ok && Near(bar.colorSrgb[c], world.colorSrgb[c] + (1.0f - world.colorSrgb[c]) * st::kGhostLight, 1e-4f);
             }
             area += bar.scale[0] * bar.scale[2];
         }
@@ -125,6 +127,46 @@ void TestGhosts()
     const int need = st::kGhostCount * st::kBarsPerGhost; // no room: no outline at all
     CHECK(st::AddGhosts(table, st::kMaxDrawObjects - need + 1, st::kMaxDrawObjects) == st::kMaxDrawObjects - need + 1);
     CHECK(st::AddGhosts(nullptr, 3, st::kMaxDrawObjects) == 3 && st::AddGhosts(table, -1, st::kMaxDrawObjects) == -1);
+}
+
+void TestWorldEdges()
+{
+    // a box of one world is drawn in its material, never as a plain red or blue box; its edge in its own world is red or blue
+    for (const SceneObject& o : st::kStageStatics)
+    {
+        if (st::HasGhost(o))
+        {
+            CHECK(!st::SameRgb(o, st::kRed) && !st::SameRgb(o, st::kBlue));
+        }
+    }
+    static SceneObject table[st::kMaxDrawObjects] = {};
+    const int n = st::AddWorldEdges(table, 0, st::kMaxDrawObjects);
+    CHECK(n == st::kGhostCount * st::kBarsPerGhost);
+    int g = 0;
+    for (const SceneObject& o : st::kStageStatics)
+    {
+        if (!st::HasGhost(o))
+        {
+            continue;
+        }
+        const SceneObject world = st::WorldTinted(o);
+        bool ok = true;
+        for (int b = 0; b < st::kBarsPerGhost; ++b)
+        {
+            const SceneObject& bar = table[g * st::kBarsPerGhost + b];
+            ok = ok && bar.layerMask == o.layerMask && std::fmin(bar.scale[0], bar.scale[2]) <= st::kEdgeBar + 1e-4f &&
+                 std::fabs(bar.position[0] - o.position[0]) <= 0.5f * o.scale[0] + 1e-4f &&
+                 std::fabs(bar.position[2] - o.position[2]) <= 0.5f * o.scale[2] + 1e-4f && bar.colorSrgb[0] >= world.colorSrgb[0] - 1e-4f &&
+                 bar.colorSrgb[2] >= world.colorSrgb[2] - 1e-4f;
+            const bool redder = bar.colorSrgb[0] > bar.colorSrgb[2];
+            ok = ok && (o.layerMask == kLayerA ? redder : !redder);
+        }
+        CHECK(ok);
+        ++g;
+    }
+    CHECK(st::AddWorldEdges(table, st::kMaxDrawObjects - 3, st::kMaxDrawObjects) == st::kMaxDrawObjects - 3); // no room: none
+    SceneObject both = st::kStageStatics[0];
+    CHECK(st::SameRgb(st::WorldTinted(both), st::kGrey)); // a box of both worlds keeps its colour
 }
 
 void TestBlockedFlash()
@@ -243,6 +285,13 @@ bool SeenFromStart(const float point[3], int layer)
     const float eye[3] = {start.x, start.y + dl::Player::Settings{}.eyeHeight, start.z};
     const unsigned bit = 1u << layer;
     for (const SceneObject& o : st::kStageStatics)
+    {
+        if (o.tilt == 0.0f && (o.layerMask & bit) != 0u && SegmentHitsBox(eye, point, o))
+        {
+            return false;
+        }
+    }
+    for (const SceneObject& o : st::kDecor) // the drawn-only city: battlements, the skyline, the cathedral
     {
         if (o.tilt == 0.0f && (o.layerMask & bit) != 0u && SegmentHitsBox(eye, point, o))
         {
@@ -403,12 +452,102 @@ void TestPreviews()
     CHECK(st::AddGatePreviews(set, table, 0, 32) == bridges * st::kBarsPerGhost);
 }
 
+void TestSilhouette()
+{
+    // battlements: each merlon stands on the top of a wall that has them, inside its footprint, and in no other box of the map
+    int merlons = 0;
+    bool onWall = true;
+    bool free = true;
+    for (const SceneObject& m : st::kDecor)
+    {
+        if (!(st::SameRgb(m, st::kStone) && Near(m.scale[1], st::kMerlonHeight) &&
+              (Near(m.scale[0], st::kMerlonWidth) || Near(m.scale[2], st::kMerlonWidth))))
+        {
+            continue;
+        }
+        ++merlons;
+        const float bottom = m.position[1] - 0.5f * m.scale[1];
+        bool found = false;
+        for (const SceneObject& w : st::kStageStatics)
+        {
+            found = found || (st::HasBattlements(w) && Near(bottom, w.position[1] + 0.5f * w.scale[1]) &&
+                              std::fabs(m.position[0] - w.position[0]) <= 0.5f * w.scale[0] + 1e-3f &&
+                              std::fabs(m.position[2] - w.position[2]) <= 0.5f * w.scale[2] + 1e-3f);
+        }
+        onWall = onWall && found;
+        for (const SceneObject& o : st::kStageStatics)
+        {
+            free = free && !st::BoxesOverlap(m, o);
+        }
+    }
+    std::printf("  silhouette: %d merlons, %zu drawn-only boxes in all\n", merlons, st::kDecor.size());
+    CHECK(merlons > 150 && onWall && free);
+    // none on the ledge of the north wing: its floor lies on the wall under the window
+    bool onLedge = false;
+    for (const SceneObject& m : st::kDecor)
+    {
+        onLedge = onLedge || (Near(m.scale[1], st::kMerlonHeight) && m.position[0] > st::kLedgeWest && m.position[0] < st::kLedgeEast &&
+                              m.position[2] > st::kLedgeSouth && m.position[2] < 44.0f && m.position[1] < st::kNorthHighY + 1.0f);
+    }
+    CHECK(!onLedge);
+    // the skyline: every house and tower stands apart from every room by more than a running jump, and in no box of the map
+    std::vector<SceneObject> skyline;
+    st::Skyline(skyline);
+    bool apart = true;
+    for (const SceneObject& o : skyline)
+    {
+        if (o.tilt != 0.0f)
+        {
+            continue; // a roof slope lies on its house
+        }
+        for (const st::Room& r : st::kRooms)
+        {
+            apart = apart && st::FootprintGap(o.position[0] - 0.5f * o.scale[0], o.position[2] - 0.5f * o.scale[2], o.position[0] + 0.5f * o.scale[0],
+                                              o.position[2] + 0.5f * o.scale[2], r.x0, r.z0, r.x1, r.z1) > dl::Player::Settings{}.walkSpeed * 0.75f;
+        }
+        for (const SceneObject& m : st::kStageStatics)
+        {
+            apart = apart && !st::BoxesOverlap(o, m);
+        }
+    }
+    std::printf("  skyline: %zu boxes\n", skyline.size());
+    CHECK(apart && skyline.size() > 300);
+    // the spire is seen from every district, over the walls and the battlements (the cathedral itself not counted)
+    const float tip[3] = {0.0f, st::kSpireTop - 0.5f, 0.5f * (st::kTowerInnerNorth + st::kTowerNorth)};
+    const float eyeY = dl::Player::Settings{}.eyeHeight;
+    const float eyes[][3] = {
+        {0.0f, kFloorY + eyeY, 15.0f},   // the courtyard
+        {-20.0f, kFloorY + eyeY, 36.0f}, // the west hall
+        {20.0f, kFloorY + eyeY, 36.0f},  // the east hall
+        {0.0f, kFloorY + eyeY, 52.0f},   // the north hall
+        {20.0f, st::kEastHighY + eyeY, 6.0f}, // the upper room of the east wing
+    };
+    for (const auto& eye : eyes)
+    {
+        bool seen = true;
+        for (const SceneObject& o : st::kStageStatics)
+        {
+            seen = seen && !(o.tilt == 0.0f && !st::SameRgb(o, st::kTowerStone) && SegmentHitsBox(eye, tip, o));
+        }
+        for (const SceneObject& o : st::kDecor)
+        {
+            seen = seen && !(o.tilt == 0.0f && !st::SameRgb(o, st::kTowerStone) && !st::SameRgb(o, st::kGold) && SegmentHitsBox(eye, tip, o));
+        }
+        if (!seen)
+        {
+            std::printf("  the spire is not seen from (%.1f %.1f %.1f)\n", static_cast<double>(eye[0]), static_cast<double>(eye[1]), static_cast<double>(eye[2]));
+        }
+        CHECK(seen);
+    }
+}
+
 void TestWholeFrameFits()
 {
     const dl::mech::WingDesc west = st::WestWing();
     const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, the orbs with their marks,
                                                            // a column per trigger, the previews of the gates
-    const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost +
+    const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + 2 * st::kGhostCount * st::kBarsPerGhost +
+                        6 /* the canal */ + st::kAnchorCount + 1 /* the respawn ring */ + moving * st::kBarsPerGhost /* own edges */ +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
                         st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
@@ -420,6 +559,7 @@ void TestWholeFrameFits()
 int main()
 {
     TestGhosts();
+    TestWorldEdges();
     TestBlockedFlash();
     TestDoorFrame();
     TestBeacon();
@@ -427,10 +567,12 @@ int main()
     TestClearRings();
     TestOutlines();
     TestPreviews();
+    TestSilhouette();
     TestWholeFrameFits();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+
 
 
 

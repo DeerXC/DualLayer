@@ -4,7 +4,8 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only reach
 // Header-only: there is no .cpp to add to the project.
 // The search:
-//   1. every place to stand: the top of every axis-aligned box and of every ramp of the map is sampled on a grid of
+//   1. every place to stand: the top of every axis-aligned box and of every ramp of the map (also the pedestals of the anchor
+//      lamps, which belong to the room they stand in) is sampled on a grid of
 //      kSpacing metres, in each layer in which it exists; a sample counts when a body put there stands still on it
 //   2. from every sample that a jump could lift to something higher (a surface 0.3 .. 2.4 m above it within kReach metres),
 //      the body jumps in 16 directions, from a stand and after a short run-up, once in its own layer and once switching to
@@ -62,9 +63,9 @@ constexpr int kDirections = 16;
 
 /// Pairs of rooms (names of Stage::kRooms) that are joined by walking: a jump from one to the other is not a way round.
 const char* const kWalkJoined[][2] = {
-    {"terrace", "gap"},          {"gap", "courtyard"},        {"square", "west hall"},          {"west hall", "west lower"},
+    {"guardhouse", "terrace"},   {"terrace", "ditch"},        {"ditch", "gap"},                 {"gap", "courtyard"},        {"square", "west hall"},          {"west hall", "west lower"},
     {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"square", "west landing"},
-    {"square", "east hall"},        {"east hall", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
+    {"square", "east hall"},        {"east hall", "east quay"},  {"east quay", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
     {"west hall", "west passage"}, {"west passage", "north hall"}, {"north hall", "sky bridge"}, {"sky bridge", "east stairs"},
     {"east stairs", "east hall"},
 };
@@ -348,6 +349,26 @@ int RampRooms(const Vec3& f, int& other)
     return -1;
 }
 
+/// The room of a place to stand: the room it is in, or, on the top of the pedestal of an anchor lamp, the room of the lamp (a
+/// pedestal stands inside its room; a body on it is in that room).
+int PlaceRoom(const Vec3& f)
+{
+    const int room = st::RoomAt(f);
+    if (room >= 0)
+    {
+        return room;
+    }
+    for (const st::AnchorDesc& a : st::kAnchors)
+    {
+        if (std::fabs(f.x - a.base.x) < st::kAnchorHalf + 0.4f && std::fabs(f.z - a.base.z) < st::kAnchorHalf + 0.4f &&
+            std::fabs(f.y - (a.base.y + st::kAnchorHeight)) < 0.2f)
+        {
+            return st::RoomIndex(a.room);
+        }
+    }
+    return -1;
+}
+
 bool OnBalcony(const Vec3& f)
 {
     return f.y > st::kSummitY - 0.2f && f.x > st::kTowerInnerWest && f.x < st::kTowerInnerEast && f.z > st::kTowerInnerSouth &&
@@ -377,7 +398,7 @@ void TestNoSkip()
             for (const Vec3& f : TopPoints(o))
             {
                 ++tops;
-                const int room = st::RoomAt(f);
+                const int room = PlaceRoom(f);
                 if (room < 0 || OnBalcony(f))
                 {
                     continue;
@@ -416,7 +437,7 @@ void TestNoSkip()
                 {
                     continue;
                 }
-                const int room = st::RoomAt(end);
+                const int room = PlaceRoom(end);
                 int rampOther = -1;
                 const int rampRoom = RampRooms(end, rampOther);
                 if (rampRoom >= 0 || rampOther >= 0)

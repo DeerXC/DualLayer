@@ -12,9 +12,11 @@ WinMain > RunApp
           4. resize                > Device::Resize
           5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something is refused)
           6. Models::Update        > the spin clock and the ripple clock
-          7. the solid table       > Puzzle::Solids(layer) + Stage::AddMapSolids (the closed doors) + the gates of the wings
+          7. the solid table       > the lifts and the canal move; Puzzle::Solids(layer) + Stage::AddMapSolids (the closed
+                                     doors) + the lifts + the crate of the canal + the gates of the wings
           8. walking               > Player::Update, Puzzle::Update, E (take or put an orb), MechanismSet::Update with the
-                                     solid table of each layer, seals and hidden lights, the room, a fall, the goal;
+                                     solid table of each layer, the room, a fall (below the fall line of the room or in
+                                     water: back to its lamp or entry), anchor lamps, seals and hidden lights, the goal;
              flying                > ResolveSphere on the camera ball
           9. the drawn table       > Stage::BuildDrawTable + AddMapDraw + the hints + the lights > Models::SetObjects
          10. render                > Device::BeginFrame, Models::Draw (one layer, or the ripple), Overlay::Draw (prompts,
@@ -31,7 +33,7 @@ main
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle,
              Overlay, OverlayBatch, Font5x7, StaticBatch                                           > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
-             StageHints, StageLights, Mechanisms, WestWing, Prompts, Shapes                        > standard library only
+             StageHints, StageLights, Mechanisms, WestWing, Prompts, Shapes, Anchors, Canal        > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -111,6 +113,11 @@ The hub is a sunken square: a rim at street level holds every opening, and a poo
 takes seals or lights, so nothing under the surface of A can be taken. The cathedral (the tower) stands on a plinth in the
 pool; its rose window and spire are drawn only, above every place a body reaches.
 
+The silhouette of the city is drawn only and generated from the map (`Stage::Battlements`, `Stage::Skyline`): merlons on
+every thin stone wall at the height of the city walls, left out where a floor or a ceiling is near; houses and towers on
+every plot of a grid round the map that is far enough from every room and box. All of it is part of `kDecor` and so of the
+static batch.
+
 The map is a ring: besides the square, a passage of B joins the west hall to the north corridor and a sky bridge of A joins the
 north hall to the east hall. Lifts (`Stage::kLifts`) are moved by `UpdateLifts` before the solid tables are built, so the
 body stands on them where they are in this frame; a lift is opened by a seal.
@@ -118,6 +125,15 @@ body stands on them where they are in this frame; a lift is opened by a seal.
 `Shapes` is the vocabulary the map is built from: stairs (walked as a ramp, drawn as steps), railings, arcades, bridges whole
 or broken in B, breach walls, roofs, water of layer A (a body under it goes back to the room entry; orbs float on it) and
 lifts (a platform that carries what stands on it, `Player::Carry`).
+
+Every room has its own fall line (`Stage::FallLine`), a few metres under its floors. `Anchors` keeps the anchor lamps: a lit
+lamp is where a fall or R in its room comes back (`AnchorSet::RespawnPoint`), else the entry of the room. `Canal` is the lock
+of the east district: water of layer A whose level a wheel raises (only in A), and a crate that floats on it in A and lies on
+the bed in B; it moves before the solid tables are built, like a lift, and carries a body that stands on it.
+
+Single-layer boxes are drawn in their material (wood or iron in A, fallen masonry in B); red and blue are only their edges
+in their own layer and their outlines in the other (`StageHints::WorldTinted`, `AddWorldEdges`). The water of A is fed by the
+aqueduct (`Stage::kWaterFeeds`, drawn by `AqueductDecor`), which is broken in B.
 
 `StageHints` adds to the drawn table what the map says without words: an outline in the other layer for every
 single-layer box, the outline of a refused push's blocker in both layers, the frame of the courtyard door, the beacon over

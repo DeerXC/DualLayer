@@ -1,9 +1,11 @@
 // Stage.h - the map (docs/LEVEL_DESIGN.md, step 1: the skeleton). A walled city in two layers round a hub, walked in about
 //            ten minutes when its rooms are filled; in this step the wings are grey boxes with their shapes, heights and
 //            ways in and out, so that the size and the flow of the whole map can be played before any room is built.
-//   prologue   the terrace with the town wall across it: in A (the whole city) its gate is shut; in B (the city after the
-//              storm) the wall is broken open where the gate was, with rubble at the edges of the breach - the first lesson,
-//              "in A the structure is the way, in B the breach is"; the gap (a wide blue stone in B, then a switch to A in
+//   prologue   (docs/LEVEL_DESIGN.md, 6.1: seven beats) a guardhouse, the start, whose arch frames the cathedral; the first
+//              anchor lamp; the town wall across the terrace: in A (the whole city) its iron gate is shut; in B (the city after
+//              the storm) the wall is broken open where the gate was - "in A the structure is the way, in B the breach is";
+//              a heap of fallen masonry that closes B where A is clear; a shallow ditch that teaches the switch in the air
+//              where a miss is a walk back up its stairs; the gap (a wide blue stone in B, then a switch to A in
 //              the air onto the red strip; a blue curtain at the end of the strip keeps B from flying over it), the overlook, and
 //              the courtyard with the proved block puzzle (scene/Courtyard.h). The block on the plate opens the blue door
 //              in the north wall of the courtyard: the way into the hub.
@@ -20,7 +22,8 @@
 //              the orb is let fall through a hole that is open only in B onto a socket in the vault below, which opens its
 //              bars. W4, the vault: the seal, and a ramp up to the closed door in the hub wall, which the seal opens (a
 //              one-way shortcut).
-//   east wing  going UP: a hall, a ramp up to an upper room 6 m above the hub floor, east of the terrace and seen from it,
+//   east wing  going UP: a hall cut by a canal (scene/Canal.h: in A the lock wheel raises the water and the crate on it
+//              becomes the step onto the quay 1.2 m higher; in B the canal is dry), a ramp up from the quay to an upper room 6 m above the hub floor, east of the terrace and seen from it,
 //              and the top of the east wall of the courtyard - the wall that closed the courtyard is now a path. The seal
 //              is on it; its north end drops onto the gallery of the hub, and the gallery drops into the hub (one way).
 //   north wing going UP by two ramps to a landing 7 m above the hub floor, with the seal; a ledge runs south through a window
@@ -59,6 +62,7 @@
 #pragma once
 
 #include "scene/Camera.h" // Vec3
+#include "scene/Canal.h"
 #include "scene/Courtyard.h"
 #include "scene/Puzzle.h"
 #include "scene/SceneData.h"
@@ -91,6 +95,13 @@ inline constexpr Rgb kTowerStone{0.62f, 0.60f, 0.56f};
 inline constexpr Rgb kRed{0.82f, 0.24f, 0.22f};
 inline constexpr Rgb kBlue{0.22f, 0.46f, 0.90f};
 inline constexpr Rgb kGold{1.00f, 0.82f, 0.36f};
+// the materials of one world (docs/LEVEL_DESIGN.md, 14.3): what exists only in A is made by people and whole (wood, iron),
+// what exists only in B was left by the storm (fallen masonry). Red and blue are only the thin edges of such objects
+// (scene/StageHints.h, AddWorldEdges) and the outlines in the other world.
+inline constexpr Rgb kWood{0.52f, 0.36f, 0.22f};
+inline constexpr Rgb kIron{0.30f, 0.32f, 0.36f};
+inline constexpr Rgb kDebris{0.34f, 0.32f, 0.30f};
+inline constexpr Rgb kGuardStone{0.58f, 0.53f, 0.47f}; // the guardhouse of the prologue (no battlements: it has a roof)
 
 /// A box from its two corners (min, max), a colour (sRGB) and a layer mask. checker = 1 for the floors.
 constexpr SceneObject Span(float x0, float y0, float z0, float x1, float y1, float z1, float r, float g, float b, unsigned mask,
@@ -169,9 +180,27 @@ inline SceneObject Ramp(float x0, float x1, float z0, float y0, float z1, float 
 
 // ---- the measures (tests/test_stage.cpp checks what each one is for)
 inline constexpr float kTerraceY = kFloorY + 2.4f; // the top of the raised terrace of the prologue
-inline constexpr float kGateZ = 3.0f;              // the town wall across the terrace, 3.5 m high, 0.5 m thick
+// the prologue (docs/LEVEL_DESIGN.md, 14.6), from the south: the guardhouse (beat 0), the first anchor lamp (1), the town wall
+// with its gate (2), the rubble of B (3), the shallow ditch (4), the gap (5), the courtyard (6)
+inline constexpr float kTerraceSouth = -24.5f;     // the terrace runs north from here
+inline constexpr float kGuardNorth = -19.0f;       // the guardhouse: x -3 .. 3, z -24.5 .. -19, its arch in the north wall
+inline constexpr float kGuardWallTop = kTerraceY + 5.0f;
+inline constexpr float kArchHalf = 0.9f;           // the arch, x -0.9 .. 0.9, 4 m high: it frames the cathedral and the beacon
+inline constexpr float kArchTop = kTerraceY + 4.0f;
+inline constexpr float kGateZ = -14.0f;            // the town wall across the terrace, 3.5 m high, 0.5 m thick
 inline constexpr float kGateHeight = 3.5f;
 inline constexpr float kGateHalf = 1.5f;           // its gate (A) and its breach (B), x -1.5 .. 1.5
+inline constexpr float kRubbleSouth = -9.5f;       // beat 3: a heap of fallen masonry across the terrace in B, out of reach
+inline constexpr float kRubbleNorth = -8.0f;
+inline constexpr float kRubbleTop = kTerraceY + 2.6f;
+inline constexpr float kDitchEdge = -5.5f;         // beat 4: the terrace ends; the ditch floor is 2.4 m below (kFloorY)
+inline constexpr float kDitchStoneNear = -4.5f;    // the beam of B, 1 m from the edge (as at the gap)
+inline constexpr float kDitchStoneFar = -1.5f;
+inline constexpr float kDitchStripNear = 0.0f;     // the planks of A, 1.5 m beyond the beam, 5.5 m from the edge
+inline constexpr float kDitchStripFar = 3.0f;      // the terrace goes on from here: 4.5 m from the beam (more than a jump)
+inline constexpr float kDitchStairsX0 = 3.6f;      // the stairs from the ditch floor back up to the terrace, east of it,
+inline constexpr float kDitchStairsX1 = 5.4f;      // from z -5.5 (the floor) south to z -10.5 (the terrace)
+inline constexpr float kDitchStairsTop = -10.5f;
 inline constexpr float kTerraceEnd = 6.0f;         // the terrace ends here, the gap begins
 inline constexpr float kStoneNear = 7.0f;          // the blue stone (B): 1 m from the terrace, 3 m deep, so that a jump
 inline constexpr float kStoneFar = 10.0f;          // onto it needs no aim
@@ -249,12 +278,22 @@ inline constexpr float kBridgeGapX1 = 15.75f;
 inline constexpr float kLookoutTop = kBridgeY + kParapet; // the parapets of the lookout and the stairs
 inline constexpr float kStairsX0 = 19.0f;            // the stairs from the lookout (z 56) down into the east hall (z 42)
 inline constexpr float kStairsX1 = 21.0f;
+// the east district, the sample of step 4 (docs/LEVEL_DESIGN.md, 14.8): the hall is cut by a canal; its far side is a quay
+// 1.2 m higher, the foot of the ramp up. In A the canal holds water and a crate floats on it; a lock wheel (A: iron
+// machinery; in B it has rusted) raises the water, and the crate with it, until it is the step across. In B the canal is dry:
+// the crate lies on its bed, and the bed is walked (stairs at its east end) to a hidden light (scene/Canal.h)
+inline constexpr float kCanalSouth = 24.8f;          // the canal, x 15 .. 24, z 24.8 .. 29.6: 4.8 m, more than a running jump
+inline constexpr float kCanalNorth = 29.6f;
+inline constexpr float kCanalBed = kFloorY - 2.5f;   // -3.5
+inline constexpr float kQuayY = kFloorY + 1.2f;      // 0.2: the quay south of the canal, the foot of the ramp up
+inline constexpr float kCanalStairsX0 = 22.4f;       // the stairs out of the dry canal, up to the hall floor (B); the bed lies
+inline constexpr float kCanalStairsFoot = 25.4f;     // in front of their foot, so that they are walked onto from the bed
 // the square (step 3b): the hub is a sunken square. A rim at the level of the streets (kFloorY) runs along its walls and
 // holds every opening; inside it a pool 1.5 m deep surrounds the cathedral. In A the pool is full (water: a body that goes
 // in comes back at the entry of the square); in B the storm has drained it and its floor can be walked. A causeway crosses
 // the pool from the south rim to the portal of the cathedral; two stairs lead down into the pool (used in B).
-inline constexpr float kSquareLowY = kFloorY - 1.5f; // -2.5: the floor of the pool. Out of reach of nothing: a jump (2 m)
-                                                     // climbs back onto the rim, so a body in B is never trapped
+inline constexpr float kSquareLowY = kFloorY - 1.5f; // -2.5: the floor of the pool; a jump (2 m) climbs back onto the rim,
+                                                     // so a body in B is never trapped
 inline constexpr float kPoolWest = -6.5f;            // the pool, x -6.5 .. 6.5, z 24.5 .. 37.5 (the rim is 2.5 m wide)
 inline constexpr float kPoolEast = 6.5f;
 inline constexpr float kPoolSouth = 24.5f;
@@ -277,7 +316,8 @@ inline constexpr int kTowerRamps = 6;
 inline constexpr float kSummitY = kFloorY + static_cast<float>(kTowerRamps) * kRampRise; // 11: the balcony at the top
 inline constexpr float kTowerTop = kSummitY + 1.2f;                                       // 12.2: its parapet
 inline constexpr float kPinnacleTop = kTowerTop + 2.0f;                                   // the gold pinnacles on the corners
-inline constexpr float kFallY = kFloorY - 8.0f; // a body whose feet are this low has fallen (below the west wing)
+inline constexpr float kFallY = kFloorY - 8.0f; // an ORB whose centre is this low has fallen (a body: FallLine of its room)
+inline constexpr float kFallBelowRoom = 6.0f;   // UNITS: metres: a body this far below the bottom of its room has fallen
 
 /// The goal light, over the middle of the balcony at the top of the tower.
 inline constexpr Vec3 kGoal{0.0f, kSummitY + 0.9f, 28.25f};
@@ -371,7 +411,7 @@ constexpr SceneObject WallOf(const Run& r)
     const float x0 = static_cast<float>(r.x + kCellX0) - 0.5f;
     const float z0 = static_cast<float>(r.z0 + kCellZ0) - 0.5f;
     const float z1 = static_cast<float>(r.z1 + kCellZ0) + 0.5f;
-    return Span(x0, kFloorY, z0, x0 + 1.0f, kFloorY + kWallHeight, z1, r.kind == 'R' ? kRed : kBlue, r.kind == 'R' ? kLayerA : kLayerB);
+    return Span(x0, kFloorY, z0, x0 + 1.0f, kFloorY + kWallHeight, z1, r.kind == 'R' ? kWood : kDebris, r.kind == 'R' ? kLayerA : kLayerB);
 }
 
 // ---- the inside of the tower: three lanes along x, the ramps run between z 29 and z 33, the landings north and south of them.
@@ -392,17 +432,38 @@ constexpr float Level(int k)
 }
 
 inline constexpr SceneObject kFixed[] = {
-    // ---- the prologue: the terrace, the gate (A, shut), the stone (B), the strip (A), the curtain (B); the town wall and the
-    // rubble of its breach (B) follow the curtain
-    Span(-3.0f, kTerraceY - 0.2f, -4.0f, 3.0f, kTerraceY, kTerraceEnd, kGrey, kLayerBoth, 1.0f),
-    Span(-kGateHalf, kTerraceY, kGateZ - 0.25f, kGateHalf, kTerraceY + kGateHeight, kGateZ + 0.25f, kRed, kLayerA),
-    Span(-1.5f, kTerraceY - 0.2f, kStoneNear, 1.5f, kTerraceY, kStoneFar, kBlue, kLayerB),
-    Span(-3.0f, kTerraceY - 0.2f, kStripNear, 3.0f, kTerraceY, kCourtSouth, kRed, kLayerA, 1.0f),
-    Span(-3.5f, kTerraceY - 0.2f, kCurtainZ, 3.5f, kCurtainTop, kCourtSouth, kBlue, kLayerB),
-    Wall(-3.0f, kTerraceY, kGateZ - 0.25f, -kGateHalf, kTerraceY + kGateHeight, kGateZ + 0.25f), // the town wall, both layers
+    // ---- the prologue (docs/LEVEL_DESIGN.md, 14.6). Index 0 is the terrace, index 1 the gate (kGateIndex)
+    Span(-3.0f, kTerraceY - 0.2f, kTerraceSouth, 3.0f, kTerraceY, kDitchEdge, kGrey, kLayerBoth, 1.0f),
+    Span(-kGateHalf, kTerraceY, kGateZ - 0.25f, kGateHalf, kTerraceY + kGateHeight, kGateZ + 0.25f, kIron, kLayerA),
+    // beat 0, the guardhouse: walls 5 m high and an arch 4 m high in its north wall (the roof is drawn: kDecor)
+    Span(-3.0f, kTerraceY, kTerraceSouth, 3.0f, kGuardWallTop, kTerraceSouth + 0.5f, kGuardStone, kLayerBoth),
+    Span(-3.0f, kTerraceY, kTerraceSouth + 0.5f, -2.5f, kGuardWallTop, kGuardNorth, kGuardStone, kLayerBoth),
+    Span(2.5f, kTerraceY, kTerraceSouth + 0.5f, 3.0f, kGuardWallTop, kGuardNorth, kGuardStone, kLayerBoth),
+    Span(-3.0f, kTerraceY, kGuardNorth - 0.5f, -kArchHalf, kGuardWallTop, kGuardNorth, kGuardStone, kLayerBoth),
+    Span(kArchHalf, kTerraceY, kGuardNorth - 0.5f, 3.0f, kGuardWallTop, kGuardNorth, kGuardStone, kLayerBoth),
+    Span(-kArchHalf, kArchTop, kGuardNorth - 0.5f, kArchHalf, kGuardWallTop, kGuardNorth, kGuardStone, kLayerBoth),
+    // beat 2, the town wall (both layers) beside the gate; in B the gate has fallen: a breach with rubble at its edges
+    Wall(-3.0f, kTerraceY, kGateZ - 0.25f, -kGateHalf, kTerraceY + kGateHeight, kGateZ + 0.25f),
     Wall(kGateHalf, kTerraceY, kGateZ - 0.25f, 3.0f, kTerraceY + kGateHeight, kGateZ + 0.25f),
-    Span(-kGateHalf, kTerraceY, kGateZ - 0.6f, -kGateHalf + 0.3f, kTerraceY + 0.4f, kGateZ + 0.6f, kDark, kLayerB), // the rubble of
-    Span(kGateHalf - 0.3f, kTerraceY, kGateZ - 0.6f, kGateHalf, kTerraceY + 0.4f, kGateZ + 0.6f, kDark, kLayerB),   // the breach (B)
+    Span(-kGateHalf, kTerraceY, kGateZ - 0.6f, -kGateHalf + 0.3f, kTerraceY + shapes::kRubble, kGateZ + 0.6f, kDebris, kLayerB),
+    Span(kGateHalf - 0.3f, kTerraceY, kGateZ - 0.6f, kGateHalf, kTerraceY + shapes::kRubble, kGateZ + 0.6f, kDebris, kLayerB),
+    // beat 3, the other way round: in B a heap of fallen masonry closes the terrace (wider than it, out of reach); in A the
+    // way is clear. Low stones in front of it are walked over
+    Span(-3.5f, kTerraceY, kRubbleSouth, 3.5f, kRubbleTop, kRubbleNorth, kDebris, kLayerB),
+    Span(-2.4f, kTerraceY, kRubbleSouth - 0.7f, -1.0f, kTerraceY + 0.2f, kRubbleSouth, kDebris, kLayerB),
+    // beat 4, the shallow ditch: the switch in the air taught where a miss costs a walk. Its floor (both layers), the beam of
+    // B, the planks of A, the terrace beyond; the stairs back up are a piece (kPieces), walled off from the terrace so that B
+    // does not climb round the heap of beat 3
+    Floor(-3.0f, kDitchEdge, kDitchStairsX1, kDitchStripFar, kFloorY),
+    Span(-1.5f, kTerraceY - 0.2f, kDitchStoneNear, 1.5f, kTerraceY, kDitchStoneFar, kDebris, kLayerB),
+    Span(-3.0f, kTerraceY - 0.2f, kDitchStripNear, 3.0f, kTerraceY, kDitchStripFar, kWood, kLayerA, 1.0f),
+    Span(-3.0f, kTerraceY - 0.2f, kDitchStripFar, 3.0f, kTerraceY, kTerraceEnd, kGrey, kLayerBoth, 1.0f),
+    Floor(3.0f, kDitchStairsTop - 1.5f, kDitchStairsX1, kDitchStairsTop, kTerraceY),             // the landing at their top
+    Wall(3.0f, kFloorY, kDitchStairsTop, kDitchStairsX0 - 0.1f, kTerraceY + kParapet, kDitchEdge), // between them and the terrace
+    // beat 5, the gap: the beam of B (no aim needed), the planks of A, and a curtain of fallen masonry (B) at their end
+    Span(-1.5f, kTerraceY - 0.2f, kStoneNear, 1.5f, kTerraceY, kStoneFar, kDebris, kLayerB),
+    Span(-3.0f, kTerraceY - 0.2f, kStripNear, 3.0f, kTerraceY, kCourtSouth, kWood, kLayerA, 1.0f),
+    Span(-3.5f, kTerraceY - 0.2f, kCurtainZ, 3.5f, kCurtainTop, kCourtSouth, kDebris, kLayerB),
     // ---- the courtyard: its floor, the wall under the strip, its west wall, and its east wall, 1.5 m thick: the path of
     // the east wing runs on its top from the upper room (z 10) to its north end over the gallery of the hub (z 23)
     Floor(kCourtWest, kCourtSouth, kCourtEast, kCourtNorth, kFloorY),
@@ -413,7 +474,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kCourtWest, kFloorY, kDoorSouth, kDoorX - kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
     Wall(kDoorX + kDoorwayHalfWidth, kFloorY, kDoorSouth, kCourtEast, kCourtWallTop, kDoorNorth),
     Wall(kDoorX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kDoorX + kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
-    Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth, kDoorwayHigh, kDoorNorth, kRed, kLayerA),
+    Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth, kDoorwayHigh, kDoorNorth, kWood, kLayerA),
     // ---- the square: the rim (solid down to the floor of the pool, so the edge of the pool is a wall of 1.5 m), the floor of
     // the pool, the plinth of the cathedral (its top is the floor inside it), the causeway to its portal
     Span(kHubWest, kSquareLowY - 0.2f, kHubSouth, kHubEast, kFloorY, kPoolSouth, kGrey, kLayerBoth, 1.0f),  // south rim
@@ -484,7 +545,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(-22.5f, kWestLowY, kWestDoorNorth, -22.0f, kCityWallTop, 21.5f),
     Wall(-18.0f, kWestLowY, kWestDoorNorth, -17.5f, kCityWallTop, 21.5f),
     // W2's door at its foot: the red panel in A (the blue door, in B, is a gate of scene/WestWing.h); a lintel over it
-    Span(-22.0f, kWestLowY, kWestDoorSouth, -18.0f, kWestDoorTop, kWestDoorNorth, kRed, kLayerA),
+    Span(-22.0f, kWestLowY, kWestDoorSouth, -18.0f, kWestDoorTop, kWestDoorNorth, kWood, kLayerA),
     Wall(-22.0f, kWestDoorTop, kWestDoorSouth, -18.0f, kCityWallTop, kWestDoorNorth),
     // W3, the lower room: its floor and its walls
     Floor(-24.0f, 2.0f, -10.0f, kWestDoorSouth, kWestLowY),
@@ -500,7 +561,7 @@ inline constexpr SceneObject kFixed[] = {
     Floor(kHoleX + kHoleHalf, 2.0f, kMezzEast, kMezzNorth, kMezzY),
     Floor(kHoleX - kHoleHalf, 2.0f, kHoleX + kHoleHalf, kHoleZ - kHoleHalf, kMezzY),
     Floor(kHoleX - kHoleHalf, kHoleZ + kHoleHalf, kHoleX + kHoleHalf, kMezzNorth, kMezzY),
-    Span(kHoleX - kHoleHalf, kMezzY - 0.2f, kHoleZ - kHoleHalf, kHoleX + kHoleHalf, kMezzY, kHoleZ + kHoleHalf, kRed, kLayerA), // the lid (A)
+    Span(kHoleX - kHoleHalf, kMezzY - 0.2f, kHoleZ - kHoleHalf, kHoleX + kHoleHalf, kMezzY, kHoleZ + kHoleHalf, kWood, kLayerA), // the lid (A)
     // W4, the vault under the mezzanine: the seal; its east wall (the bars on its north side are a gate of scene/WestWing.h)
     Wall(kVaultEast, kWestLowY, 2.0f, kVaultEast + 0.5f, kMezzY - 0.2f, kMezzNorth + 0.5f),
     // the shortcut up from the lower room to the door in the hub wall, which the seal opens
@@ -512,12 +573,15 @@ inline constexpr SceneObject kFixed[] = {
     Floor(kHubEast + 0.5f, kWingDoorZ0, 15.0f, kWingDoorZ1, kFloorY),
     Wall(kHubEast + 0.5f, kFloorY, kWingDoorZ0 - 0.5f, 15.0f, kCityWallTop, kWingDoorZ0),
     Wall(kHubEast + 0.5f, kFloorY, kWingDoorZ1, 15.0f, kCityWallTop, kWingDoorZ1 + 0.5f),
-    Floor(15.0f, 22.0f, 24.0f, 40.0f, kFloorY),
-    Wall(24.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 40.5f),
+    // the hall, cut by the canal (scene/Canal.h): the floor north of it and the quay south of it are solid down to its bed
+    Span(15.0f, kCanalBed - 0.2f, kCanalNorth, 24.0f, kFloorY, 40.0f, kGrey, kLayerBoth, 1.0f),
+    Span(15.0f, kCanalBed - 0.2f, 22.0f, 24.0f, kQuayY, kCanalSouth, kGrey, kLayerBoth, 1.0f),
+    Floor(15.0f, kCanalSouth, 24.0f, kCanalNorth, kCanalBed),
+    Wall(24.0f, kCanalBed - 0.2f, 21.5f, 24.5f, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 40.0f, kStairsX0, kCityWallTop, 40.5f),                                      // north, with the door of
     Wall(kStairsX1, kFloorY, 40.0f, 24.5f, kCityWallTop, 40.5f),                                      // the stairs from the lookout
     Wall(kStairsX0, kOpeningTop, 40.0f, kStairsX1, kCityWallTop, 40.5f),
-    Wall(14.5f, kFloorY, 21.5f, 15.0f, kCityWallTop, kWingDoorZ0 - 0.5f),
+    Wall(14.5f, kCanalBed - 0.2f, 21.5f, 15.0f, kCityWallTop, kWingDoorZ0 - 0.5f),
     Wall(14.5f, kFloorY, kWingDoorZ1 + 0.5f, 15.0f, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 21.5f, 18.0f, kCityWallTop, 22.0f),
     Wall(22.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 22.0f),
@@ -533,9 +597,9 @@ inline constexpr SceneObject kFixed[] = {
     Floor(-1.0f, kHubNorth + 0.5f, 1.0f, 44.0f, kFloorY),
     Wall(-1.5f, kFloorY, kHubNorth + 0.5f, -1.0f, kCityWallTop, kNorthBreachZ0),                       // its west wall, with the
     Wall(-1.5f, kFloorY, kNorthBreachZ1, -1.0f, kCityWallTop, 44.0f),                                   // breach of the passage
-    Span(-1.5f, kFloorY, kNorthBreachZ0, -1.0f, kCityWallTop, kNorthBreachZ1, kRed, kLayerA),           // (A: a panel)
-    Span(-1.85f, kFloorY, kNorthBreachZ0, -0.65f, kFloorY + shapes::kRubble, kNorthBreachZ0 + 0.3f, kDark, kLayerB), // (B: rubble)
-    Span(-1.85f, kFloorY, kNorthBreachZ1 - 0.3f, -0.65f, kFloorY + shapes::kRubble, kNorthBreachZ1, kDark, kLayerB),
+    Span(-1.5f, kFloorY, kNorthBreachZ0, -1.0f, kCityWallTop, kNorthBreachZ1, kWood, kLayerA),           // (A: a panel)
+    Span(-1.85f, kFloorY, kNorthBreachZ0, -0.65f, kFloorY + shapes::kRubble, kNorthBreachZ0 + 0.3f, kDebris, kLayerB), // (B: rubble)
+    Span(-1.85f, kFloorY, kNorthBreachZ1 - 0.3f, -0.65f, kFloorY + shapes::kRubble, kNorthBreachZ1, kDebris, kLayerB),
     Wall(1.0f, kFloorY, kHubNorth + 0.5f, 1.5f, kCityWallTop, 44.0f),
     Floor(-9.0f, 44.0f, 9.0f, 60.0f, kFloorY),
     Wall(-9.5f, kFloorY, 43.5f, -9.0f, kNorthWallTop, 60.5f),
@@ -558,10 +622,10 @@ inline constexpr SceneObject kFixed[] = {
     // ---- the ring, A: the sky bridge from landing 1 of the north hall, east over the city to a lookout, and the stairs down
     // into the east hall. Its ends are in both layers, its middle and its rails only in A: in B the bridge is broken.
     Span(9.0f, kBridgeY - 0.3f, kBridgeSouth, kBridgeGapX0, kBridgeY, kBridgeNorth, kDark, kLayerBoth),
-    Span(kBridgeGapX0, kBridgeY - 0.3f, kBridgeSouth, kBridgeGapX1, kBridgeY, kBridgeNorth, kRed, kLayerA),
+    Span(kBridgeGapX0, kBridgeY - 0.3f, kBridgeSouth, kBridgeGapX1, kBridgeY, kBridgeNorth, kWood, kLayerA),
     Span(kBridgeGapX1, kBridgeY - 0.3f, kBridgeSouth, kBridgeEast, kBridgeY, kBridgeNorth, kDark, kLayerBoth),
-    Span(9.5f, kBridgeY, kBridgeSouth, kBridgeEast, kLookoutTop, kBridgeSouth + 0.15f, kRed, kLayerA),  // its parapets (A: in B they fell with it)
-    Span(9.5f, kBridgeY, kBridgeNorth - 0.15f, kBridgeEast, kLookoutTop, kBridgeNorth, kRed, kLayerA),
+    Span(9.5f, kBridgeY, kBridgeSouth, kBridgeEast, kLookoutTop, kBridgeSouth + 0.15f, kWood, kLayerA),  // its parapets (A: in B they fell with it)
+    Span(9.5f, kBridgeY, kBridgeNorth - 0.15f, kBridgeEast, kLookoutTop, kBridgeNorth, kWood, kLayerA),
     Floor(kBridgeEast, 56.0f, 21.5f, kBridgeNorth, kBridgeY),                                           // the lookout
     Wall(kBridgeEast - 0.5f, kBridgeY - 0.2f, 56.0f, kBridgeEast, kLookoutTop, kBridgeSouth),          // its parapets
     Wall(kBridgeEast - 0.5f, kBridgeY - 0.2f, kBridgeNorth, 22.0f, kLookoutTop, kBridgeNorth + 0.5f),
@@ -583,7 +647,7 @@ inline const SceneObject kRamps[] = {
     Ramp(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY),                    // west: down
     Ramp(-12.0f, -10.0f, 12.0f, kWestLowY, 22.0f, kFloorY),                    // west: the shortcut up
     Ramp(-16.0f, kMezzEast, 11.0f, kWestLowY, kMezzNorth, kMezzY),             // west: up to the mezzanine (W3)
-    Ramp(18.0f, 22.0f, 22.0f, kFloorY, kEastRoomNorth, kEastHighY),            // east: up
+    Ramp(18.0f, 22.0f, 22.0f, kQuayY, kEastRoomNorth, kEastHighY),             // east: up, from the quay
     Ramp(5.0f, 9.0f, 46.0f, kFloorY, 58.0f, kFloorY + 3.5f),                   // north: 1
     Ramp(0.0f, 4.0f, 58.0f, kFloorY + 3.5f, 46.0f, kNorthHighY),               // north: 2
 };
@@ -607,13 +671,23 @@ inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
 
 /// Pieces of scene/Shapes.h: the breach in the north wall of the west hall (5 boxes), the slope of the stairs from the lookout
 /// (1), and the slopes of the two stairs down into the pool of the square (2). Their steps are drawn in kDecor.
-inline constexpr int kPieceCount = 5 + 1 + 2;
+inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1;
 /// The two stairs down into the pool: south-east (from the south rim, beside the east rim) and north-west (from the north rim,
 /// beside the west rim), so that the pool is entered at its two opposite corners.
 inline void PoolStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
 {
     shapes::Stairs(kPoolEast - kStairWidth, kPoolEast, kPoolSouth, kFloorY, kPoolSouth + kStairRun, kSquareLowY, shapes::kStoneLight, solid, drawn);
     shapes::Stairs(kPoolWest, kPoolWest + kStairWidth, kPoolNorth, kFloorY, kPoolNorth - kStairRun, kSquareLowY, shapes::kStoneLight, solid, drawn);
+}
+/// The stairs from the floor of the ditch of the prologue back up to the terrace (beat 4: a miss costs a short walk).
+inline void DitchStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
+{
+    shapes::Stairs(kDitchStairsX0, kDitchStairsX1, kDitchEdge, kFloorY, kDitchStairsTop, kTerraceY, shapes::kStoneLight, solid, drawn);
+}
+/// The stairs at the east end of the canal: from its bed up to the floor of the hall (walked in B; in A they go into the water).
+inline void CanalStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
+{
+    shapes::Stairs(kCanalStairsX0, 24.0f, kCanalStairsFoot, kCanalBed, kCanalNorth, kFloorY, shapes::kStoneLight, solid, drawn);
 }
 inline std::array<SceneObject, kPieceCount> BuildPieces()
 {
@@ -622,6 +696,8 @@ inline std::array<SceneObject, kPieceCount> BuildPieces()
     std::vector<SceneObject> steps;
     shapes::Stairs(kStairsX0, kStairsX1, 56.0f, kBridgeY, 42.0f, kFloorY, shapes::kStoneLight, v, steps);
     PoolStairs(v, steps);
+    DitchStairs(v, steps);
+    CanalStairs(v, steps);
     std::array<SceneObject, kPieceCount> out{};
     for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
     {
@@ -631,7 +707,39 @@ inline std::array<SceneObject, kPieceCount> BuildPieces()
 }
 inline const std::array<SceneObject, kPieceCount> kPieces = BuildPieces();
 
-inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount + kArcadeCount + kPieceCount;
+// ---- the anchor lamps (docs/LEVEL_DESIGN.md, 14.5): a stone lamp that looks exactly the same in both layers (the one thing
+// in the city that the switch does not change). It is lit the first time a body comes near it; from then on a fall or R in
+// its room brings the body back beside it. Its pedestal is solid; its light is drawn (scene/Anchors.h).
+struct AnchorDesc
+{
+    Vec3 base;        ///< the centre of the foot of the pedestal, on the floor
+    Vec3 stand;       ///< where a body comes back, standing (a place to stand in both layers)
+    const char* room; ///< the room (kRooms) whose falls and R come back here
+    const char* name; ///< for the log
+};
+inline constexpr AnchorDesc kAnchors[] = {
+    {{2.0f, kTerraceY, -16.6f}, {0.8f, kTerraceY, -16.6f}, "terrace", "the first lamp"},
+    {{2.4f, kTerraceY, 4.6f}, {1.1f, kTerraceY, 4.6f}, "gap", "before the gap"},
+    {{-5.0f, kFloorY, 22.6f}, {-5.0f, kFloorY, 23.7f}, "square", "the square"},
+    {{-16.0f, kFloorY, 38.6f}, {-16.0f, kFloorY, 37.3f}, "west hall", "the archive"},
+    {{23.2f, kFloorY, 33.0f}, {21.9f, kFloorY, 33.0f}, "east hall", "the canal"},
+    {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the bell tower"},
+};
+inline constexpr int kAnchorCount = static_cast<int>(sizeof(kAnchors) / sizeof(kAnchors[0]));
+inline constexpr float kAnchorHalf = 0.25f;   ///< UNITS: metres: the pedestal is 0.5 m square
+inline constexpr float kAnchorHeight = 0.9f;  ///< UNITS: metres: the pedestal (its lamp is drawn on top)
+inline constexpr Rgb kAnchorStone{0.70f, 0.66f, 0.58f};
+/// The pedestal of an anchor: both layers, with a trace of light of its own, so that the model shader does not give it the
+/// stone of the layer: it looks the same in A and in B.
+constexpr SceneObject AnchorPedestal(const AnchorDesc& a)
+{
+    SceneObject o = Span(a.base.x - kAnchorHalf, a.base.y, a.base.z - kAnchorHalf, a.base.x + kAnchorHalf, a.base.y + kAnchorHeight,
+                         a.base.z + kAnchorHalf, kAnchorStone, kLayerBoth);
+    o.glow = 0.02f;
+    return o;
+}
+
+inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount + kArcadeCount + kPieceCount + kAnchorCount;
 
 /// Every box of the map in one table: the fixed boxes, the ramps, the walls of the courtyard (the indices are the ones that
 /// Puzzle::LastBlocker names).
@@ -659,6 +767,10 @@ inline std::array<SceneObject, kStageStaticCount> BuildStatics()
     {
         all[static_cast<std::size_t>(n++)] = o;
     }
+    for (const AnchorDesc& a : kAnchors)
+    {
+        all[static_cast<std::size_t>(n++)] = AnchorPedestal(a);
+    }
     return all;
 }
 inline const std::array<SceneObject, kStageStaticCount> kStageStatics = BuildStatics();
@@ -666,7 +778,7 @@ inline constexpr int kGateIndex = 1; ///< the gate (A) in kStageStatics (scene/S
 
 /// The blue door (layer B) in the doorway from the courtyard into the hub.
 inline constexpr SceneObject kDoor = Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth,
-                                          kDoorwayHigh, kDoorNorth, kBlue, kLayerB);
+                                          kDoorwayHigh, kDoorNorth, kDebris, kLayerB);
 
 // ---- the cells of the puzzle in the world
 constexpr puzzle::Cell FindCell(char wanted)
@@ -715,8 +827,10 @@ struct Room
 /// The rooms, the most specific first (the tower stands inside the hub).
 inline constexpr Room kRooms[] = {
     {"cathedral", kTowerInnerWest, -2.0f, kTowerInnerSouth, kTowerInnerEast, 14.0f, kTowerInnerNorth, {-2.5f, kFloorY, 28.0f}, false},
-    {"terrace", -3.2f, 0.0f, -4.0f, 3.2f, 6.0f, 4.2f, {0.0f, kTerraceY, -3.0f}, false},
-    {"gap", -3.2f, 0.0f, 4.2f, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 5.0f}, false},
+    {"guardhouse", -2.5f, 0.0f, kTerraceSouth + 0.5f, 2.5f, 6.0f, kGuardNorth, {0.0f, kTerraceY, -23.2f}, false},
+    {"terrace", -3.2f, 0.0f, kGuardNorth, kDitchStairsX1 + 0.2f, 6.0f, kDitchEdge, {0.0f, kTerraceY, -18.2f}, false},
+    {"ditch", -3.2f, -2.0f, kDitchStairsTop, kDitchStairsX1 + 0.2f, 2.5f, kDitchStripFar, {4.4f, kFloorY, -4.6f}, false},
+    {"gap", -3.2f, 0.0f, kDitchStripFar, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 4.0f}, false},
     {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 3.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
     {"square", kHubWest, kSquareLowY - 0.5f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
     {"west landing", -12.0f, -2.0f, 22.0f, kHubWest, -0.5f, 25.0f, {-11.0f, kFloorY, 23.5f}, false},
@@ -727,7 +841,8 @@ inline constexpr Room kRooms[] = {
     {"west vault", -24.0f, -6.0f, 2.0f, kVaultEast, -4.0f, kMezzNorth, {-21.5f, kWestLowY, 4.3f}, false},
     {"west mezzanine", -24.0f, -2.5f, 2.0f, kMezzEast, -1.0f, kMezzNorth, {-15.0f, kMezzY, 3.5f}, false},
     {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, -4.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, true},
-    {"east hall", kHubEast, -2.0f, 22.0f, 24.0f, -0.5f, 40.0f, {12.0f, kFloorY, 31.0f}, false},
+    {"east hall", kHubEast, -2.0f, kCanalNorth, 24.0f, -0.5f, 40.0f, {12.0f, kFloorY, 31.0f}, true},
+    {"east quay", 15.0f, -0.5f, 22.0f, 24.0f, 1.5f, kCanalSouth, {16.5f, kQuayY, 23.4f}, false},
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
     {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
@@ -753,7 +868,15 @@ constexpr int RoomIndex(const char* name)
     }
     return -1;
 }
-inline constexpr int kStartRoom = 1; ///< the terrace
+inline constexpr int kStartRoom = 1; ///< the guardhouse
+
+/// The fall line of a room: a body of that room whose feet are below it has fallen (it goes back to the room entry or to the
+/// lit anchor lamp of the room). Each room has its own, so that a deep room is never taken for a fall (docs/LEVEL_DESIGN.md,
+/// 14.7). Below every floor of the room by kFallBelowRoom, because the bottom of a room is kept close to its floors.
+constexpr float FallLine(int room)
+{
+    return room >= 0 && room < kRoomCount ? kRooms[room].y0 - kFallBelowRoom : kFallY;
+}
 
 /// The room a body standing at `feet` is in, or -1.
 inline int RoomAt(const Vec3& feet)
@@ -954,11 +1077,93 @@ inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / size
 /// The water in the trench of the west hall (W1): layer A only. A body that goes under it comes back at the entry of the room;
 /// an orb floats on it.
 inline constexpr shapes::Water kWaters[] = {
-    {-24.0f, kTrenchSouth, -15.0f, kTrenchNorth, kFloorY - 0.5f, 3.0f},                                   // the trench (W1)
-    {kPoolWest, kPoolSouth, kPoolEast, kPoolNorth, kFloorY - 0.45f, kFloorY - 0.45f - kSquareLowY},      // the pool of the square
+    {-24.0f, kTrenchSouth, -15.0f, kTrenchNorth, kFloorY - 0.5f, 3.0f},                              // the trench (W1)
+    {kPoolWest, kPoolSouth, kPoolEast, kPoolNorth, kFloorY - 0.45f, kFloorY - 0.45f - kSquareLowY}, // the pool of the square
 };
 inline constexpr int kTrenchWater = 0;
 inline constexpr int kPoolWater = 1;
+
+/// The canal of the east district (scene/Canal.h): the crate floats 0.5 m out of the water; low, its top is 2.4 m under the
+/// quay (out of reach), high, 1.2 m under it (the step of the main path) and level with the hall floor.
+inline canal::Desc MakeCanal()
+{
+    canal::Desc d;
+    d.x0 = 15.0f;
+    d.x1 = 24.0f;
+    d.z0 = kCanalSouth;
+    d.z1 = kCanalNorth;
+    d.bed = kCanalBed;
+    d.lowTop = kFloorY - 1.7f;  // -2.7
+    d.highTop = kFloorY - 0.5f; // -1.5
+    d.wheel = {16.0f, kFloorY + 1.1f, 33.5f};
+    d.crateX = 20.0f;
+    d.crateZ = 0.5f * (kCanalSouth + kCanalNorth);
+    d.crateSize = 1.2f;
+    d.draft = 0.5f;
+    return d;
+}
+
+// ---- where the water comes from (docs/LEVEL_DESIGN.md, 14.4): every water of A is fed, through a chain of feeds, by the
+// aqueduct that comes into the city from the east. In B the storm has broken the aqueduct, so all of it is dry. A feed runs
+// downhill: the water it fills lies lower than what it comes from. tests/test_stage.cpp checks the chain and the heights.
+inline constexpr float kAqueductZ0 = 36.4f;   ///< the channel, along x, over the hall of the east district and the east rim
+inline constexpr float kAqueductZ1 = 37.2f;
+inline constexpr float kAqueductBottom = kHubWallTop + 0.2f; ///< 9.2: it rests on the walls, out of reach of every floor
+inline constexpr float kAqueductTop = kAqueductBottom + 0.8f;
+inline constexpr float kAqueductWest = 6.4f;  ///< its spout, over the pool
+inline constexpr float kAqueductEast = 44.0f; ///< where it comes in from the hills
+inline constexpr float kAqueductBreakX0 = 30.5f; ///< in B this part has fallen: 5 m, more than a running jump
+inline constexpr float kAqueductBreakX1 = 35.5f;
+inline constexpr float kAqueductPiers[] = {30.0f, 36.0f, 42.0f};
+inline constexpr Rgb kAqueductStone{0.60f, 0.57f, 0.52f};
+inline constexpr Rgb kWaterRgb{shapes::kWaterColour.r, shapes::kWaterColour.g, shapes::kWaterColour.b};
+struct WaterFeed
+{
+    const char* water; ///< "the trench", "the pool", "the canal"
+    const char* from;  ///< "the aqueduct" or another water
+    float top;         ///< world y of the highest surface of the water it fills
+};
+inline constexpr WaterFeed kWaterFeeds[] = {
+    {"the pool", "the aqueduct", kFloorY - 0.45f},   // the spout over the east rim falls into the pool
+    {"the trench", "the pool", kFloorY - 0.5f},      // a drain under the arcade, out through a culvert into the west trench
+    {"the canal", "the aqueduct", kFloorY - 0.5f},   // the sluice of the lock, opened by the wheel
+};
+inline constexpr int kWaterFeedCount = static_cast<int>(sizeof(kWaterFeeds) / sizeof(kWaterFeeds[0]));
+
+/// The aqueduct as drawn boxes: the channel in three parts (the middle one in A only), the water in it (A), the piers, the
+/// waterfall from its spout into the pool (A), and the mouth of the culvert in the west trench with its spill (A).
+inline void AqueductDecor(std::vector<SceneObject>& drawn)
+{
+    const float b = kAqueductBottom;
+    const float t = kAqueductTop;
+    const float z0 = kAqueductZ0;
+    const float z1 = kAqueductZ1;
+    const float parts[3][2] = {{kAqueductWest, kAqueductBreakX0}, {kAqueductBreakX0, kAqueductBreakX1}, {kAqueductBreakX1, kAqueductEast}};
+    for (int i = 0; i < 3; ++i)
+    {
+        const unsigned mask = i == 1 ? kLayerA : kLayerBoth;
+        const Rgb c = i == 1 ? kWood : kAqueductStone; // (the part of A: a timber trough that the storm took)
+        drawn.push_back(Span(parts[i][0], b, z0, parts[i][1], b + 0.2f, z1, c, mask));
+        drawn.push_back(Span(parts[i][0], b + 0.2f, z0, parts[i][1], t, z0 + 0.15f, c, mask));
+        drawn.push_back(Span(parts[i][0], b + 0.2f, z1 - 0.15f, parts[i][1], t, z1, c, mask));
+    }
+    SceneObject water = Span(kAqueductWest, b + 0.2f, z0 + 0.15f, kAqueductEast, t - 0.15f, z1 - 0.15f, kWaterRgb, kLayerA);
+    water.glow = 0.12f;
+    drawn.push_back(water);
+    for (float x : kAqueductPiers)
+    {
+        drawn.push_back(Span(x - 0.4f, kFloorY, z0, x + 0.4f, b, z1, kAqueductStone, kLayerBoth));
+    }
+    drawn.push_back(Span(kAqueductEast - 1.0f, kFloorY, z0 - 0.6f, kAqueductEast + 1.0f, t + 1.0f, z1 + 0.6f, kAqueductStone, kLayerBoth));
+    SceneObject fall = Span(kAqueductWest - 0.8f, kFloorY - 0.45f, z0 + 0.15f, kAqueductWest, b, z1 - 0.15f, kWaterRgb, kLayerA);
+    fall.glow = 0.2f;
+    drawn.push_back(fall);
+    // the culvert in the east wall of the west trench (its drain runs under the arcade from the pool)
+    drawn.push_back(Span(-15.02f, kFloorY - 1.0f, 26.4f, -15.0f, kFloorY - 0.3f, 27.6f, kDark, kLayerBoth));
+    SceneObject spill = Span(-15.4f, kFloorY - 0.55f, 26.5f, -15.0f, kFloorY - 0.45f, 27.5f, kWaterRgb, kLayerA);
+    spill.glow = 0.12f;
+    drawn.push_back(spill);
+}
 
 // ---- the cathedral, drawn only: a rose window over the portal and a spire on the north wall, the highest point of the
 // map, seen from every district. Above every place a body can reach inside (the spire starts 13 m up), so the camera never
@@ -1003,6 +1208,201 @@ inline void CathedralDecor(std::vector<SceneObject>& drawn)
 }
 inline constexpr int kWaterCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0]));
 
+// ---- the silhouette of the city, drawn only (a greybox pass: scale and outline, not detail)
+// Battlements: merlons on the top of every thin stone wall of both layers that ends at the height of the city walls or above,
+// generated from kStageStatics (no list kept by hand). A merlon that would stand in or on any other box of the map (a floor
+// laid on the wall, a lintel, the wall next to it) is left out, so none pokes through a walkway. They sit on wall tops that
+// no body can reach (tests/test_reach.cpp), so being drawn only changes nothing a body can do.
+inline constexpr float kMerlonWidth = 0.5f;   ///< UNITS: metres along the wall
+inline constexpr float kMerlonSpacing = 1.1f; ///< UNITS: metres from one merlon to the next
+inline constexpr float kMerlonHeight = 0.6f;  ///< UNITS: metres
+inline constexpr float kMerlonWallThin = 0.6f; ///< walls up to this thick get merlons (a thicker one is a walkway: the east path)
+
+constexpr bool SameRgb(const SceneObject& o, Rgb c)
+{
+    return o.colorSrgb[0] == c.r && o.colorSrgb[1] == c.g && o.colorSrgb[2] == c.b;
+}
+/// True when the axis-aligned boxes overlap with a positive volume (a touch is not an overlap).
+inline bool BoxesOverlap(const SceneObject& a, const SceneObject& b)
+{
+    for (int k = 0; k < 3; ++k)
+    {
+        if (std::fabs(a.position[k] - b.position[k]) >= 0.5f * (a.scale[k] + b.scale[k]) - 1.0e-4f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+/// True when `o` gets merlons.
+inline bool HasBattlements(const SceneObject& o)
+{
+    const float top = o.position[1] + 0.5f * o.scale[1];
+    const float thin = o.scale[0] < o.scale[2] ? o.scale[0] : o.scale[2];
+    const float along = o.scale[0] < o.scale[2] ? o.scale[2] : o.scale[0];
+    return o.shape == ShapeKind::Cube && o.tilt == 0.0f && o.layerMask == kLayerBoth && o.checker < 0.5f && SameRgb(o, kStone) &&
+           o.scale[1] >= 2.0f && top >= kCityWallTop - 0.1f && thin <= kMerlonWallThin && along >= 1.5f;
+}
+inline void Battlements(std::vector<SceneObject>& drawn)
+{
+    for (const SceneObject& w : kStageStatics)
+    {
+        if (!HasBattlements(w))
+        {
+            continue;
+        }
+        const bool alongX = w.scale[0] >= w.scale[2];
+        const float length = alongX ? w.scale[0] : w.scale[2];
+        const int n = static_cast<int>(std::floor((length - kMerlonWidth) / kMerlonSpacing)) + 1;
+        const float first = -0.5f * static_cast<float>(n - 1) * kMerlonSpacing; // centred on the wall
+        const float top = w.position[1] + 0.5f * w.scale[1];
+        for (int i = 0; i < n; ++i)
+        {
+            const float c = first + static_cast<float>(i) * kMerlonSpacing;
+            const float x = alongX ? w.position[0] + c : w.position[0];
+            const float z = alongX ? w.position[2] : w.position[2] + c;
+            const float hx = alongX ? 0.5f * kMerlonWidth : 0.5f * w.scale[0];
+            const float hz = alongX ? 0.5f * w.scale[2] : 0.5f * kMerlonWidth;
+            const SceneObject m = Span(x - hx, top, z - hz, x + hx, top + kMerlonHeight, z + hz, kStone, kLayerBoth);
+            // the test box reaches a little below the wall top (a floor laid exactly on it counts as in the way) and 2 m over
+            // it (a merlon under a ceiling, such as the ledge over the north hall, would look like a mistake)
+            SceneObject probe = Span(x - hx, top - 0.05f, z - hz, x + hx, top + 2.0f, z + hz, kStone, kLayerBoth);
+            bool clear = true;
+            for (const SceneObject& o : kStageStatics)
+            {
+                if (&o != &w && (o.layerMask & kLayerBoth) != 0u && BoxesOverlap(probe, o))
+                {
+                    clear = false;
+                    break;
+                }
+            }
+            if (clear)
+            {
+                drawn.push_back(m);
+            }
+        }
+    }
+}
+
+// The skyline: the rest of the city round and between the parts that are played, as blocks of houses with roofs and a few
+// towers, drawn only. It fills every plot that is far enough from the map, so the map reads as a quarter of a city and not as
+// boxes in the void; the fog of B swallows most of it, which is the storm. A plot is left empty when it comes within
+// kSkylineFromRoom of a room (a running jump is 3.6 m: a body that jumps off an open edge never lands in a house it would
+// fall through) or within kSkylineFromBox of any box of the map or a landmark. A fixed seed: the same city every run.
+inline constexpr float kSkylineFromRoom = 4.5f; ///< UNITS: metres
+inline constexpr float kSkylineFromBox = 1.0f;  ///< UNITS: metres
+inline constexpr float kSkylineX0 = -62.0f;     ///< the area that is filled
+inline constexpr float kSkylineX1 = 62.0f;
+inline constexpr float kSkylineZ0 = -40.0f;
+inline constexpr float kSkylineZ1 = 100.0f;
+inline constexpr float kSkylineCell = 7.0f;     ///< UNITS: metres: one plot, a street of kSkylineStreet included
+inline constexpr float kSkylineStreet = 1.2f;
+inline constexpr Rgb kHouse{0.50f, 0.47f, 0.44f};
+
+/// The horizontal gap between two footprints (0 when they overlap).
+inline float FootprintGap(float ax0, float az0, float ax1, float az1, float bx0, float bz0, float bx1, float bz1)
+{
+    const float dx = ax1 < bx0 ? bx0 - ax1 : (bx1 < ax0 ? ax0 - bx1 : 0.0f);
+    const float dz = az1 < bz0 ? bz0 - az1 : (bz1 < az0 ? az0 - bz1 : 0.0f);
+    return std::sqrt(dx * dx + dz * dz);
+}
+/// True when a house may stand on the footprint (x0 .. x1, z0 .. z1).
+inline bool PlotIsFree(float x0, float z0, float x1, float z1)
+{
+    for (const Room& r : kRooms)
+    {
+        if (FootprintGap(x0, z0, x1, z1, r.x0, r.z0, r.x1, r.z1) < kSkylineFromRoom)
+        {
+            return false;
+        }
+    }
+    const auto clearOf = [&](const SceneObject& o, float margin) {
+        // a turned box (a ramp) is measured by the box round it
+        const float c = std::fabs(std::cos(o.tilt));
+        const float sn = std::fabs(std::sin(o.tilt));
+        const float hx = o.shape == ShapeKind::Torus ? (scene::kTorusMajor + scene::kTorusMinor) * o.scale[0] : 0.5f * o.scale[0];
+        const float hz = o.shape == ShapeKind::Torus ? hx : 0.5f * (o.scale[1] * sn + o.scale[2] * c);
+        return FootprintGap(x0, z0, x1, z1, o.position[0] - hx, o.position[2] - hz, o.position[0] + hx, o.position[2] + hz) >= margin;
+    };
+    for (const SceneObject& o : kStageStatics)
+    {
+        if (!clearOf(o, kSkylineFromBox))
+        {
+            return false;
+        }
+    }
+    for (const SceneObject& o : kLandmarks)
+    {
+        if (!clearOf(o, kSkylineFromBox))
+        {
+            return false;
+        }
+    }
+    // the aqueduct crosses the roofs: no house stands under it
+    return FootprintGap(x0, z0, x1, z1, kAqueductWest, kAqueductZ0 - 0.6f, kAqueductEast + 1.0f, kAqueductZ1 + 0.6f) >= kSkylineFromBox;
+}
+inline void Skyline(std::vector<SceneObject>& drawn)
+{
+    unsigned state = 2026u;
+    const auto next = [&state]() {
+        state = state * 1664525u + 1013904223u;
+        return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f;
+    };
+    for (float x = kSkylineX0; x < kSkylineX1; x += kSkylineCell)
+    {
+        for (float z = kSkylineZ0; z < kSkylineZ1; z += kSkylineCell)
+        {
+            const float x0 = x + 0.5f * kSkylineStreet;
+            const float z0 = z + 0.5f * kSkylineStreet;
+            const float x1 = x + kSkylineCell - 0.5f * kSkylineStreet;
+            const float z1 = z + kSkylineCell - 0.5f * kSkylineStreet;
+            const float roll = next(); // drawn for every plot, so that one change of the map does not reshuffle the whole city
+            const float height = 3.0f + 6.0f * next();
+            const float towerRoll = next();
+            const float towerSize = 1.2f + 0.6f * next();
+            const float towerHeight = 5.0f + 6.0f * next();
+            if (roll < 0.12f || !PlotIsFree(x0, z0, x1, z1)) // a few empty plots: squares and gardens
+            {
+                continue;
+            }
+            drawn.push_back(Span(x0, kFloorY, z0, x1, kFloorY + height, z1, kHouse, kLayerBoth));
+            if (towerRoll < 0.15f) // now and then a tower over the roofs
+            {
+                const float cx = 0.5f * (x0 + x1);
+                const float cz = 0.5f * (z0 + z1);
+                drawn.push_back(Span(cx - towerSize, kFloorY, cz - towerSize, cx + towerSize, kFloorY + height + towerHeight, cz + towerSize, kStone,
+                                     kLayerBoth));
+            }
+            else
+            {
+                shapes::Roof(x0, x1, z0, z1, kFloorY + height, kFloorY + height + 0.3f * (z1 - z0) + 0.4f, drawn);
+            }
+        }
+    }
+}
+
+/// A carved tile at the entry of every room that has no anchor lamp: the place where a body comes back is a place, not a
+/// point on an empty floor. Both layers, drawn only, flush on the floor.
+inline void EntryTiles(std::vector<SceneObject>& drawn)
+{
+    for (int i = 0; i < kRoomCount; ++i)
+    {
+        bool anchored = false;
+        for (const AnchorDesc& a : kAnchors)
+        {
+            anchored = anchored || RoomIndex(a.room) == i;
+        }
+        if (anchored)
+        {
+            continue;
+        }
+        const Vec3 e = kRooms[i].entry;
+        SceneObject tile = Span(e.x - 0.6f, e.y, e.z - 0.6f, e.x + 0.6f, e.y + 0.02f, e.z + 0.6f, kAnchorStone, kLayerBoth);
+        tile.glow = 0.05f;
+        drawn.push_back(tile);
+    }
+}
+
 inline std::vector<SceneObject> BuildDecor()
 {
     std::vector<SceneObject> solid;
@@ -1016,7 +1416,14 @@ inline std::vector<SceneObject> BuildDecor()
     shapes::Roof(-15.0f, kHubWest - 0.5f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
     shapes::Roof(kHubEast + 0.5f, 15.0f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
     PoolStairs(solid, drawn); // (the slopes: kPieces)
+    DitchStairs(solid, drawn);
+    CanalStairs(solid, drawn);
+    shapes::Roof(-3.0f, 3.0f, kTerraceSouth, kGuardNorth, kGuardWallTop, kGuardWallTop + 1.6f, drawn); // the guardhouse
+    EntryTiles(drawn);
+    AqueductDecor(drawn);
     CathedralDecor(drawn);
+    Battlements(drawn);
+    Skyline(drawn);
     return drawn;
 }
 inline const std::vector<SceneObject> kDecor = BuildDecor();
@@ -1105,7 +1512,7 @@ inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObje
     return count;
 }
 
-inline constexpr int kMaxDrawObjects = 480;
+inline constexpr int kMaxDrawObjects = 3000; ///< most of it is the static city (baked into one call per layer)
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is
