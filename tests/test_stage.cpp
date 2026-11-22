@@ -24,12 +24,17 @@
 //      the landing of the north wing, no jump lands on its walls; from the courtyard wall top, none lands on the hub walls
 //   7. the east canal: crossed only on the raised crate; the wheel turns only in A; the crate carries a body; B walks the bed
 //   8. the anchor lamps, the fall line of every room, and the water: every water fed downhill from the aqueduct, broken in B
+//   9. the undercroft (E2): the weir, the drift, the breach of B over the crate, the lever and the bars; the ways round
+//  10. the prism (N1): neither world crosses the gap without it, A walks over with it
+//  11. orbs: an orb at rest out of reach of its world goes back to its start, one in reach stays
 //   6. the rooms: every entry is in its own room and is a place to stand in both layers; the courtyard entry is a cell the
 //      block can never be in
 // The walks between the points of a path are played frame by frame (the body steers to each point). Returns 1 when a check
 // fails.
 
 #include "scene/Anchors.h"
+#include "scene/CityParts.h"
+#include "scene/OrbReturn.h"
 #include "scene/Stage.h"
 #include "scene/WestWing.h"
 
@@ -98,7 +103,7 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 3;
 
 int Room(const char* name)
 {
@@ -123,13 +128,14 @@ struct World
     Player player;
     int layer = 0;
     float spin = 0.0f;
+    int orbsReturned = 0; ///< how many times an orb came back to its start (scene/OrbReturn.h, or a fall)
     SceneObject solids[2][kMaxSolids] = {};
     int counts[2] = {0, 0};
 
     World()
     {
         canal.Init(st::MakeCanal());
-        if (!puzzle.Init(st::MakeStage()) || !mech.Init(st::WestWing()))
+        if (!puzzle.Init(st::MakeStage()) || !mech.Init(st::CityParts()))
         {
             ++g_failed;
             std::printf("FAIL: the stage does not Init\n");
@@ -139,7 +145,8 @@ struct World
     }
 
     World(const World& o)
-        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), player(o.player), layer(o.layer), spin(o.spin)
+        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), player(o.player), layer(o.layer), spin(o.spin),
+          orbsReturned(o.orbsReturned)
     {
     }
 
@@ -189,8 +196,14 @@ struct World
         player.Update(input, look, layer, spin, kDt);
         puzzle.Update(player, kDt);
         BuildSolids();
-        const int orbCountA = st::AddWaterForOrbs(solids[0], counts[0], kMaxSolids); // the orbs float on the water of A
+        const int bodyA = counts[0];
+        const int orbCountA = canal.AddWaterForOrbs(solids[0], st::AddWaterForOrbs(solids[0], bodyA, kMaxSolids), kMaxSolids); // orbs float
         mech.Update(player, layer, solids[0], orbCountA, solids[1], counts[1], kDt);
+        st::ReturnStrandedOrbs(mech, solids[0], bodyA, solids[1], counts[1], canal);
+        for (int i = 0; i < mech.OrbCount(); ++i)
+        {
+            orbsReturned += mech.ConsumeReturned(i) ? 1 : 0;
+        }
         seals.Collect(player);
     }
 
@@ -299,6 +312,44 @@ struct World
                 return !Fallen();
             }
             if (Fallen())
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// RunJump along any flat direction: runs along `dir` until the feet pass `jumpAt` along it, jumps, switches to `switchTo`
+    /// `switchAfter` seconds into the jump, keeps running until the body lands or falls. Returns true when it landed.
+    bool RunJumpAlong(const Vec3& dir, float jumpAt, float switchAfter, int switchTo)
+    {
+        const auto along = [&]() { return player.Feet().x * dir.x + player.Feet().z * dir.z; };
+        int guard = 0;
+        while (along() < jumpAt && player.Grounded() && guard++ < 2000)
+        {
+            Frame(Keys(1.0f), dir);
+        }
+        if (!player.Grounded())
+        {
+            return false;
+        }
+        Frame(Keys(1.0f, true), dir);
+        float air = 0.0f;
+        bool switched = false;
+        for (int i = 0; i < 900; ++i)
+        {
+            if (!switched && air >= switchAfter)
+            {
+                switched = Switch(switchTo);
+            }
+            Frame(Keys(1.0f), dir);
+            air += kDt;
+            if (player.Grounded() && air > 0.1f)
+            {
+                Run(0.2f);
+                return !Fallen();
+            }
+            if (Fallen() || player.Feet().y < -20.0f)
             {
                 return false;
             }
@@ -908,6 +959,7 @@ void TestWings()
         CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, kNorthRim}, {0.0f, kFloorY, kNorthRim}, {0.0f, kFloorY, 43.0f},
                           {7.0f, kFloorY, 45.0f}, {7.0f, kFloorY, 59.0f}, {2.0f, kFloorY, 59.0f}, {2.0f, kFloorY, 45.0f}}));
         CHECK(w.At(2.0f, st::kNorthHighY, 45.0f));
+        CHECK(w.WalkPath({{2.6f, kFloorY, 45.0f}}) && w.mech.Active(st::kNorthPrism)); // N1: the prism
         CHECK(w.WalkPath({{-7.0f, kFloorY, 45.0f}}));
         CHECK(w.seals.Taken(2));
         CHECK(w.WalkPath({{-7.0f, kFloorY, 40.25f}})); // in the window
@@ -986,8 +1038,8 @@ void TestRing()
             air += (i > 60 && !w.player.Grounded()) ? 1 : 0;
         }
         CHECK(w.lifts[0].AtTop() && air == 0);
-        CHECK(w.WalkPath({{-8.0f, kFloorY, 45.0f}, {-4.0f, kFloorY, 45.0f}}));
-        CHECK(w.At(-4.0f, st::kNorthHighY, 45.0f));
+        CHECK(w.WalkPath({{-8.0f, kFloorY, 45.0f}, {-6.6f, kFloorY, 45.0f}}));
+        CHECK(w.At(-6.6f, st::kNorthHighY, 45.0f));
     }
 }
 
@@ -1064,6 +1116,225 @@ void TestTower()
         CHECK(w.At(x, st::Level(ramp + 1), z, 0.5f));
     }
     CHECK(st::ReachedGoal(w.player));
+}
+
+
+/// The east district played to the quay in A (the lock wheel, the crate across the canal), as in TestWings.
+World ToTheQuay(const World& hub)
+{
+    World w = hub;
+    w.layer = 0;
+    CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {16.4f, kFloorY, 33.1f}}));
+    w.Run(3.0f);
+    CHECK(w.canal.High());
+    CHECK(w.WalkPath({{20.0f, kFloorY, 31.0f}}) && w.JumpAlong(kSouth, -29.8f, -27.3f));
+    CHECK(w.JumpAlong(kSouth, -26.8f, -23.6f) && st::RoomAt(w.player.Feet()) == Room("east quay"));
+    return w;
+}
+
+/// A jump that starts along `first` and turns to `second` after `turnAfter` seconds in the air (a player steering round a
+/// parapet): returns true when it ends in the undercroft.
+bool SteeredJumpReachesUndercroft(const World& base, const Vec3& feet, const Vec3& first, const Vec3& second, float turnAfter, int layer)
+{
+    World w = base;
+    w.layer = layer;
+    w.PlaceFeet(feet);
+    w.Run(0.25f, Keys(1.0f), first);
+    w.Frame(Keys(1.0f, true), first);
+    const int undercroft = Room("undercroft");
+    float air = 0.0f;
+    for (int i = 0; i < 300 && !w.Fallen() && !w.InWater(); ++i)
+    {
+        w.Frame(Keys(1.0f), air < turnAfter ? first : second);
+        air += kDt;
+        if (w.player.Grounded() && air > 0.1f)
+        {
+            break;
+        }
+    }
+    return w.player.Grounded() && st::RoomAt(w.player.Feet()) == undercroft;
+}
+
+void TestUndercroft()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const dl::canal::Desc d = st::MakeCanal();
+    const Vec3 W{-1.0f, 0.0f, 0.0f};
+    // the numbers: the breach is out of reach from the bed; from the crate of B on the bed it is a step
+    CHECK(st::kUndercroftY - d.bed >= 2.3f && st::kUndercroftY - (d.bed + d.crateSize) <= 1.3f + 1e-4f);
+    CHECK(st::kBreachTop - st::kUndercroftY > Player::Settings{}.eyeHeight + 0.35f + 0.3f);
+    // E2, played: the weir on the quay, the crate drifts west under the breach; in B down to the bed, onto the crate, into the breach,
+    // through the undercroft (the lever, the light), out through the bars onto the east rim
+    World w = ToTheQuay(hub);
+    CHECK(!w.canal.WeirOpen() && Near(w.canal.CrateX(), d.crateX, 1e-5f));
+    {
+        World b = w; // the weir is machinery of A: in B it does not turn
+        CHECK(b.Switch(1) && b.WalkPath({{16.4f, kFloorY, 23.2f}}));
+        b.Run(1.0f);
+        CHECK(!b.canal.WeirOpen() && Near(b.canal.CrateX(), d.crateX, 1e-5f));
+    }
+    CHECK(w.WalkPath({{16.4f, kFloorY, 23.2f}}) && w.canal.WeirOpen());
+    w.Run(4.0f);
+    CHECK(w.canal.Drifted() && Near(w.canal.CrateX(), st::kDriftX, 1e-5f));
+    {
+        World a = w; // in A the crate is a step at the west end too, but the iron panel closes the breach
+        a.PlaceFeet({16.4f, d.highTop + d.draft, 27.2f}); // (on the drifted crate of A)
+        CHECK(a.player.Grounded() && Near(a.player.Feet().y, d.highTop + d.draft, 0.05f));
+        a.JumpAlong(W, -16.5f, -13.0f);
+        CHECK(a.player.Feet().x > 15.0f && st::RoomAt(a.player.Feet()) != Room("undercroft"));
+    }
+    CHECK(w.WalkPath({{19.6f, kFloorY, 24.3f}}) && w.Switch(1)); // B: off the quay (east of its parapet) into the dry canal
+    CHECK(w.JumpAlong(kNorth, 24.4f, 26.5f) && st::RoomAt(w.player.Feet()) == Room("canal bed"));
+    CHECK(w.WalkPath({{17.6f, kFloorY, 27.2f}}) && w.JumpAlong(W, -17.3f, -16.0f) && Near(w.player.Feet().y, d.bed + d.crateSize, 0.05f));
+    CHECK(w.WalkPath({{16.45f, kFloorY, 27.2f}}) && w.JumpAlong(W, -16.5f, -14.0f) && st::RoomAt(w.player.Feet()) == Room("undercroft"));
+    CHECK(!w.mech.Active(st::kUndercroftLever) && w.mech.GatePresent(st::kUndercroftBars));
+    CHECK(w.WalkPath({{12.5f, kFloorY, 27.2f}, {10.0f, kFloorY, 27.2f}}) && w.mech.Active(st::kUndercroftLever));
+    CHECK(!w.mech.GatePresent(st::kUndercroftBars) && !w.mech.GatePresent(st::kUndercroftBars + 3));
+    CHECK(w.WalkPath({{7.8f, kFloorY, 27.2f}}) && st::RoomAt(w.player.Feet()) == Room("square"));
+    {
+        World s = w; // the shortcut stays open, in both layers
+        s.layer = 0;
+        CHECK(s.WalkPath({{11.0f, kFloorY, 27.2f}}) && st::RoomAt(s.player.Feet()) == Room("undercroft"));
+    }
+    // R in the hall puts back the water, the weir and the crate
+    w.canal.Reset();
+    CHECK(!w.canal.WeirOpen() && Near(w.canal.CrateX(), d.crateX, 1e-5f));
+    // the bars hold from the square before the lever, in both layers; the light and the lever are out of reach through them
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World b = hub;
+        b.layer = layer;
+        b.PlaceFeet({kEastRim, kFloorY, 27.2f});
+        b.Run(2.0f, Keys(1.0f), kEast);
+        CHECK(b.player.Feet().x < st::kHubEast - 0.3f && !b.mech.Active(st::kUndercroftLever));
+    }
+    // without the drift: from the bed no jump reaches the breach (the crate of B lies in the middle of the canal)
+    {
+        World bed = hub;
+        bed.layer = 1;
+        for (float z : {26.8f, 27.2f, 27.6f})
+        {
+            CHECK(bed.JumpFrom({15.5f, d.bed, z}, W, 0.0f) < st::kUndercroftY - 1.0f);
+            CHECK(bed.JumpFrom({17.4f, d.bed, z}, W, 0.25f) < st::kUndercroftY - 1.0f);
+        }
+    }
+    // the ways round: from the hall floor and from the quay, a jump that turns in the air does not end in the breach
+    World quay = ToTheQuay(hub);
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        for (float x : {15.4f, 16.2f, 17.0f, 17.8f, 18.8f, 19.4f, 20.2f})
+        {
+            for (float turn : {0.1f, 0.2f, 0.3f})
+            {
+                CHECK(!SteeredJumpReachesUndercroft(hub, {x, kFloorY, 30.3f}, kSouth, W, turn, layer));
+                CHECK(!SteeredJumpReachesUndercroft(quay, {x, st::kQuayY, 24.3f}, kNorth, W, turn, layer));
+            }
+        }
+    }
+}
+
+void TestPrism()
+{
+    bool ok = false;
+    World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const Vec3 W{-1.0f, 0.0f, 0.0f};
+    const float y = st::kNorthHighY;
+    // the gap of N1 is wider than a running jump; the portcullis is out of reach over the landing and reaches past it
+    CHECK(st::kPrismGapX1 - st::kPrismGapX0 > 3.6f + 1.0f && st::kPortcullisZ0 < 44.0f - 2.0f && st::kPortcullisZ1 > 46.0f + 2.0f);
+    // without the prism: in A the portcullis stops the walk over the bridge; in B there is no bridge
+    {
+        World a = hub;
+        a.layer = 0;
+        a.PlaceFeet({-0.5f, y, 45.0f});
+        a.Run(2.5f, Keys(1.0f), W);
+        CHECK(a.player.Feet().x > st::kPortcullisX1 + 0.3f && Near(a.player.Feet().y, y, 0.05f));
+        World b = hub;
+        b.layer = 1;
+        b.PlaceFeet({-0.5f, y, 45.0f});
+        b.Run(1.5f, Keys(1.0f), W);
+        CHECK(b.player.Feet().y < y - 1.0f);
+    }
+    // nor a running jump in B with a switch to A in the air: the bridge beyond the portcullis is out of reach
+    for (float after : {0.15f, 0.3f, 0.45f, 0.6f})
+    {
+        for (float z : {44.4f, 45.0f, 45.6f})
+        {
+            World j = hub;
+            j.layer = 1;
+            j.PlaceFeet({2.0f, y, z});
+            CHECK(!(j.RunJumpAlong(W, -(st::kPrismGapX1 + 0.1f), after, 0) && j.player.Feet().x < st::kPortcullisX0 && Near(j.player.Feet().y, y, 0.05f)));
+        }
+    }
+    // the prism: stepped on (in B as well), the portcullis is in B; then A walks over the bridge to the seal
+    World w = hub;
+    w.layer = 1;
+    w.PlaceFeet({2.6f, y, 45.0f});
+    CHECK(w.mech.Active(st::kNorthPrism) && w.mech.GateBox(st::kPortcullis).layerMask == kLayerB);
+    CHECK(w.Switch(0));
+    CHECK(w.WalkPath({{-7.5f, kFloorY, 45.0f}}) && w.At(-7.5f, y, 45.0f) && w.seals.Taken(2));
+    World back = w; // and back over the bridge
+    CHECK(back.WalkPath({{1.5f, kFloorY, 45.0f}}) && back.At(1.5f, y, 45.0f));
+}
+
+void TestOrbReturn()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const Vec3 start = hub.mech.StartOf(0);
+    {
+        // the orb of W1, carried to the east hall and put down over the canal in A: it floats on the low water, out of reach
+        // of every place to stand, and goes back to its start
+        World w = hub;
+        w.layer = 0;
+        w.PlaceFeet({-21.0f, kFloorY, 35.8f});
+        CHECK(w.Use(kNorth) == dl::mech::Action::Took);
+        w.PlaceFeet({21.0f, kFloorY, 30.05f});
+        const int before = w.orbsReturned;
+        CHECK(w.Use(kSouth) == dl::mech::Action::Put);
+        w.Run(1.5f);
+        const dl::mech::MechanismSet::Orb& o = w.mech.OrbAt(0);
+        CHECK(w.orbsReturned == before + 1 && o.resting && Near(o.centre.x, start.x, 1e-3f) && Near(o.centre.z, start.z, 1e-3f));
+    }
+    {
+        // in B the canal is dry: the orb falls onto the bed, which is walked; it stays
+        World w = hub;
+        w.layer = 0;
+        w.PlaceFeet({-21.0f, kFloorY, 35.8f});
+        CHECK(w.Use(kNorth) == dl::mech::Action::Took);
+        CHECK(w.Switch(1));
+        w.PlaceFeet({21.0f, kFloorY, 30.05f});
+        const int before = w.orbsReturned;
+        CHECK(w.Use(kSouth) == dl::mech::Action::Put);
+        w.Run(1.5f);
+        CHECK(w.orbsReturned == before && w.mech.OrbAt(0).resting && Near(w.mech.OrbAt(0).centre.y, st::kCanalBed + dl::mech::kOrbRadius, 0.03f));
+    }
+    {
+        // high water: the orb floats beside the edge of the floor and is in reach: it stays
+        World w = hub;
+        w.layer = 0;
+        w.PlaceFeet({16.4f, kFloorY, 33.1f});
+        w.Run(3.0f);
+        CHECK(w.canal.High());
+        w.PlaceFeet({-21.0f, kFloorY, 35.8f});
+        CHECK(w.Use(kNorth) == dl::mech::Action::Took);
+        w.PlaceFeet({21.0f, kFloorY, 30.05f});
+        const int before = w.orbsReturned;
+        CHECK(w.Use(kSouth) == dl::mech::Action::Put);
+        w.Run(1.0f);
+        CHECK(w.orbsReturned == before && w.mech.OrbAt(0).resting && w.mech.OrbAt(0).centre.y > st::MakeCanal().highTop);
+        CHECK(w.Use(kSouth) == dl::mech::Action::Took);
+    }
+    // the rule itself: an orb on a floor is in reach; one on the top of a wall of the square is not
+    World w = hub;
+    w.BuildSolids();
+    CHECK(!st::OrbStranded({0.0f, kFloorY + dl::mech::kOrbRadius, 23.0f}, 0, w.solids[0], w.counts[0], w.canal));
+    CHECK(st::OrbStranded({st::kHubEast + 0.25f, st::kHubWallTop + dl::mech::kOrbRadius, 24.0f}, 0, w.solids[0], w.counts[0], w.canal));
+    CHECK(st::OrbStranded({0.0f, st::kSquareLowY + dl::mech::kOrbRadius, 31.0f}, 0, w.solids[0], w.counts[0], w.canal)); // in the pool, A
+    CHECK(!st::OrbStranded({5.6f, st::kSquareLowY + dl::mech::kOrbRadius, 31.0f}, 1, w.solids[1], w.counts[1], w.canal)); // dry, B
 }
 
 /// A point that touches the lock wheel, as a body would (for the test of the carry, which needs the wheel turned while the
@@ -1193,7 +1464,7 @@ void TestEastCanal()
             w.canal.Update(hand, 0, kDt);
             w.Run(3.0f);
         }
-        w.PlaceFeet({17.0f, kFloorY, 30.4f});
+        w.PlaceFeet({21.0f, kFloorY, 30.4f}); // (east of the parapet at the west end of the floor)
         bool wet = false;
         for (int i = 0; i < 240 && !wet; ++i)
         {
@@ -1460,6 +1731,9 @@ int main()
     TestWestWing();
     TestRing();
     TestEastCanal();
+    TestUndercroft();
+    TestPrism();
+    TestOrbReturn();
     TestAnchors();
     TestFallLines();
     TestWater();

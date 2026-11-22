@@ -305,8 +305,9 @@ Whole red or blue boxes are gone; red and blue are only edges and outlines.
 | All water comes from the aqueduct | each water is fed by a chain that starts at it, and each feed runs downhill (`Stage::kWaterFeeds`) |
 | Things that move exist in both worlds | only where they are differs: the crate of the canal floats in A and lies on the bed in B |
 | Machinery works in A only | in B it has rusted: the lock wheel turns only for a body in A |
-| R puts back the room | the block, the orbs, and the water and the crate of the canal |
-| Orbs never get stuck | still open: an orb that falls where its world cannot reach should go back to its start |
+| R puts back the room | the block, the orbs, and the water, the weir and the crate of the canal |
+| Orbs never get stuck | an orb that comes to rest where no body of its world can take it back (no place to stand within reach, in a room, out of the water) goes back to its start with a ring of light (`scene/OrbReturn.h`); one that falls out of the map does too |
+| A thing changes world, not the body | the prism moves the gates linked to it into the other layer, for good (14.9) |
 
 ### 14.5 Anchor lamps
 
@@ -327,6 +328,9 @@ Section 6.1.
 | Every water is fed downhill from the aqueduct; the aqueduct is broken in B by more than a running jump; no water in B | `TestWater` |
 | The canal is crossed only on the raised crate; the low crate, the bed and the floor do not reach the quay | `TestEastCanal` |
 | Neither world alone crosses the ditch; B does not climb round the heap | `TestPrologue` |
+| The breach of the undercroft is reached only from the drifted crate of B; no jump from the floor or the quay, even one that turns in the air, ends in it; the bars hold until the lever | `TestUndercroft` |
+| Without the prism neither world crosses the gap of N1, also with a switch in the air | `TestPrism` |
+| An orb is sent back only where its world cannot take it | `TestOrbReturn` |
 | No jump ends higher in a room not joined by walking | `tests/test_reach.cpp` |
 | Drawn-only things stand where no body is (houses, merlons, the aqueduct) | `TestSilhouette`, `Stage::PlotIsFree` |
 
@@ -338,6 +342,36 @@ Section 6.1.
 | 2 | the prologue in seven beats | done |
 | 3 | worlds by material, edges and outlines; the aqueduct and the feeds of the water | done |
 | 4 | the square entered from different heights; the east district as the first sample | the lock of the canal is built: the hall is cut by a canal, its quay 1.2 m higher is the foot of the ramp up, and the crate on the raised water is the step. The other entrances wait for their districts (section 13, "Districts, when") |
+| 5 | orbs never get stuck | done |
+| 6 | E2: moved in A, used in B | done: the weir and the drift of the crate; the breach of B over it |
+| 7 | a passage of B seen before it is reached | done as the undercroft: from the canal to the east rim of the square. Still open: the cellar under the courtyard between the west and the east districts (the fourth link of the ring) |
+| 8 | the north district: the prism | done: N1. Still open: N2 .. N4, the theatre and the graveyard |
+| 9 | the end | done: the end screen. Still open: the last puzzle of the cathedral (the master sluice of the aqueduct, 14.10) |
 
 The canal: 4.8 m wide; the lock wheel raises the water by 1.2 m in 2.4 s; low, the crate is 2.4 m under the quay, high,
 1.2 m (the step of the main path); in B the crate lies on the bed and the bed is walked from stairs at its east end.
+
+E2 and the undercroft: the weir, a second wheel on the west end of the quay (A only, like the lock), lets the current through,
+and the crate drifts west to the end of the canal. In the west wall of the canal, 2.5 m over the bed, a breach of B opens (in A
+an iron panel); from the bed it is out of reach, from the crate of B (which lies under the crate of A) it is a step. Behind it
+the undercroft runs west under the gallery to the east rim of the square, where four bars close it. From the rim the bars,
+the hidden light and the column of light over the lever are seen long before the way in is known; the lever inside opens the
+bars for good, a shortcut from the square to the canal. Parapets on the west end of the hall floor and of the quay keep every
+other way out of the breach.
+
+### 14.9 The prism (N1)
+
+Theme: not the body changes world, a thing does. Landing 2 of the north hall is cut by a gap of 5 m between the top of ramp 2
+and the seal. A bridge of A spans it, and at its far end a portcullis of A, 2.6 m high, closes it; in B there is no bridge.
+The prism on the near part (a crystal, the same in both layers) moves the portcullis into B when the body stands on it, in
+either layer, and it stays there: then a body in A walks over. The portcullis stands at the far end, so a jump in B with a
+switch to A in the air lands at best in front of it, and it reaches 2 m past the landing on both sides, so no jump goes round
+it.
+
+### 14.10 Still open
+
+| Item | Idea |
+|---|---|
+| The cellar | the fourth link of the ring: from the west lower room to the east district under the courtyard, dry in B. It must not lie under the gap, where a fall has to stay a fall |
+| North | N2 one prism moves two things, N3 the bell tower, N4 the ledge; the theatre (north-west) and the graveyard (north-east) |
+| The cathedral | the last puzzle: in A the master sluice of the aqueduct is closed, every water of the city changes at once, and the pool rises to carry the body to a high window |

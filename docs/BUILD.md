@@ -130,6 +130,11 @@ seen".
 | E-20 | fall off the terrace after the first lamp; press R; fall off a room without a lamp | the body comes back beside the lamp with a ring of light; in a room without a lamp, on the carved tile of its entry; the lamp looks the same in A and in B |
 | E-21 | the east hall: try to jump the canal in A and in B; turn the wheel in B, then in A; the crate; the quay; R | nothing crosses; the wheel turns only in A, the water rises and the crate with it; from the crate to the quay and up the ramp; R puts the water down again |
 | E-22 | in B, down the stairs at the east end of the canal, along the bed | the bed is dry, the crate lies on it, a hidden light waits in the west corner; the stairs lead back up |
+| E-24 | carry an orb to the east hall and put it down over the canal in A, then in B | in A it floats out of reach and goes back to its start with a ring of light; in B it lies on the dry bed |
+| E-25 | the east rim of the square, at the bars under the gallery | through the bars: a passage, a hidden light, a column of light over a lever; the bars hold in A and in B |
+| E-26 | E2: lock, crate, quay; the weir at the west end of the quay; in B into the canal east of the parapet, onto the crate, into the breach; the lever; out onto the rim | the weir turns only in A and the crate drifts west; in B the crate lies under the breach; the bars open and stay open; R in the hall puts the crate back |
+| E-27 | the north hall, landing 2: walk west in A, in B; the crystal; then west in A | A: the portcullis stops the walk on the bridge; B: no bridge; on the crystal the portcullis moves into B (its outline shows in A); A walks to the seal |
+| E-28 | reach the goal | after the rings, a panel: CLEAR, the time, the hidden lights, the falls |
 | E-23 | anywhere: boxes of one world | wood or iron in A, fallen masonry in B, never plain red or blue; a thin red (A) or blue (B) edge at their base in their own world and an outline in the other; the aqueduct over the east of the square, its waterfall into the pool in A, fallen in B |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on

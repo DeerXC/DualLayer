@@ -45,7 +45,10 @@
 #include "render/Triangle.h"
 #include "scene/Anchors.h"
 #include "scene/Camera.h"
+#include "scene/CityParts.h"
 #include "scene/Collision.h"
+#include "scene/EndScreen.h"
+#include "scene/OrbReturn.h"
 #include "scene/Player.h"
 #include "scene/Prompts.h"
 #include "scene/Puzzle.h"
@@ -53,7 +56,6 @@
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
-#include "scene/WestWing.h"
 
 #include <DirectXMath.h>
 
@@ -236,7 +238,7 @@ struct Respawn
 
 int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
                     const dl::mech::MechanismSet& mech, const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts,
-                    const dl::canal::Canal& canal, const dl::stage::AnchorSet& anchors, const Respawn& respawn,
+                    const dl::canal::Canal& canal, const dl::stage::AnchorSet& anchors, const Respawn& respawn, const Respawn& orbReturn,
                     const dl::Player& player, const dl::Vec3& look, const dl::Config& config, float sinceClear,
                     dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
@@ -249,6 +251,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = canal.AddDraw(table, count, st::kMaxDrawObjects);
     count = anchors.AddDraw(table, count, st::kMaxDrawObjects);
     count = st::AddRespawnRing(respawn.at, respawn.since, table, count, st::kMaxDrawObjects);
+    count = st::AddRespawnRing(orbReturn.at, orbReturn.since, table, count, st::kMaxDrawObjects);
     if (ghosts)
     {
         count = st::AddGhosts(table, count, st::kMaxDrawObjects);
@@ -302,7 +305,8 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
 
 /// The overlay of one frame: the dot in the middle, the prompts at the bottom, the status line at the top left. Sizes follow
 /// the height of the window, so the text is as big on a laptop as on a desktop screen.
-void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl::prompt::Shown, 2>& prompts, const char* status)
+void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl::prompt::Shown, 2>& prompts, const char* status,
+              const dl::endscreen::Screen* end)
 {
     namespace pr = dl::prompt;
     hud.Clear();
@@ -338,6 +342,31 @@ void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl:
         hud.AddText(x + pad, y, unit, text.key, {1.0f, 0.86f, 0.45f, a});
         hud.AddText(x + keyWidth + 3.0f * unit, y, unit, text.verb, {1.0f, 1.0f, 1.0f, a});
         y -= rowHeight + 2.0f * unit;
+    }
+    // the end screen: a panel in the middle, the first line large
+    if (end != nullptr && end->count > 0)
+    {
+        const float big = unit * 2.0f;
+        float panelWidth = dl::OverlayBatch::TextWidth(end->lines[0], big);
+        float panelHeight = dl::OverlayBatch::TextHeight(big);
+        for (int i = 1; i < end->count; ++i)
+        {
+            panelWidth = std::max(panelWidth, dl::OverlayBatch::TextWidth(end->lines[i], unit));
+            panelHeight += dl::OverlayBatch::TextHeight(unit) + 3.0f * unit;
+        }
+        const float pad = 8.0f * unit;
+        const float px = std::floor(0.5f * (w - panelWidth) - pad);
+        const float py = std::floor(0.5f * (h - panelHeight) - pad);
+        hud.AddRect(px, py, panelWidth + 2.0f * pad, panelHeight + 2.0f * pad, {0.0f, 0.0f, 0.0f, 0.6f});
+        hud.AddFrame(px, py, panelWidth + 2.0f * pad, panelHeight + 2.0f * pad, std::max(1.0f, std::floor(unit * 0.5f)), {1.0f, 0.86f, 0.45f, 0.9f});
+        float ty = py + pad;
+        hud.AddText(std::floor(0.5f * (w - dl::OverlayBatch::TextWidth(end->lines[0], big))), ty, big, end->lines[0], {1.0f, 0.86f, 0.45f, 1.0f});
+        ty += dl::OverlayBatch::TextHeight(big) + 3.0f * unit;
+        for (int i = 1; i < end->count; ++i)
+        {
+            hud.AddText(std::floor(0.5f * (w - dl::OverlayBatch::TextWidth(end->lines[i], unit))), ty, unit, end->lines[i], {1.0f, 1.0f, 1.0f, 0.95f});
+            ty += dl::OverlayBatch::TextHeight(unit) + 3.0f * unit;
+        }
     }
 }
 
@@ -396,10 +425,12 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     canal.Init(dl::stage::MakeCanal());
     dl::stage::AnchorSet anchors; // the anchor lamps: where a fall or R comes back (scene/Anchors.h)
     Respawn respawn;
-    dl::mech::MechanismSet mech; // the moving parts of the west wing (scene/WestWing.h)
-    if (!mech.Init(dl::stage::WestWing()))
+    Respawn orbReturn; // the ring where an orb came back to its start (scene/OrbReturn.h)
+    int falls = 0;     // falls and R, for the end screen
+    dl::mech::MechanismSet mech; // every moving part of the city (scene/CityParts.h)
+    if (!mech.Init(dl::stage::CityParts()))
     {
-        DL_LOG_ERROR("Main", "the west wing could not be set up (scene/WestWing.h)");
+        DL_LOG_ERROR("Main", "the moving parts could not be set up (scene/CityParts.h)");
         MessageBoxA(window.Handle(), "The map could not be set up. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
         gpu.Shutdown();
         return 1;
@@ -603,6 +634,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             player.SetSpawn(anchors.RespawnPoint(room));
             player.Respawn();
             respawn = Respawn{player.Feet(), 0.0f};
+            ++falls;
             camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch());
             DL_LOG_INFO("Main", "R: back to the %s of the %s%s", dl::stage::AnchorSet::AnchorOf(room) >= 0 && anchors.Lit(dl::stage::AnchorSet::AnchorOf(room)) ? "lamp" : "entry",
                         here.name, here.puzzle ? ", its puzzle is put back" : "");
@@ -624,6 +656,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         if (respawn.since >= 0.0f)
         {
             respawn.since += dtf;
+        }
+        if (orbReturn.since >= 0.0f)
+        {
+            orbReturn.since += dtf;
         }
         const int solidCount = BuildSolidTable(puzzle, seals, mech, lifts, canal, solidLayer, solidTable);
 
@@ -658,9 +694,24 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                 action == dl::mech::Action::Took ? "taken" : (action == dl::mech::Action::Put ? "put down" : "not put down: something is in the way"));
                 }
             }
-            const int countA = dl::stage::AddWaterForOrbs(solidsA, BuildSolidTable(puzzle, seals, mech, lifts, canal, 0, solidsA), kMaxSolids); // orbs float
+            const int bodyA = BuildSolidTable(puzzle, seals, mech, lifts, canal, 0, solidsA);
+            const int countA = canal.AddWaterForOrbs(solidsA, dl::stage::AddWaterForOrbs(solidsA, bodyA, kMaxSolids), kMaxSolids); // orbs float
             const int countB = BuildSolidTable(puzzle, seals, mech, lifts, canal, 1, solidsB);
             mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
+            // an orb that came to rest where its world cannot take it back goes back to its start (scene/OrbReturn.h)
+            const int stranded = dl::stage::ReturnStrandedOrbs(mech, solidsA, bodyA, solidsB, countB, canal);
+            if (stranded >= 0)
+            {
+                DL_LOG_INFO("Stage", "orb %d was out of reach of its world: back at its start", stranded);
+            }
+            for (int i = 0; i < mech.OrbCount(); ++i)
+            {
+                if (mech.ConsumeReturned(i))
+                {
+                    const dl::Vec3 start = mech.StartOf(i);
+                    orbReturn = Respawn{{start.x, start.y - dl::mech::kOrbRadius, start.z}, 0.0f};
+                }
+            }
             for (int t = 0; t < mech.TriggerCount(); ++t)
             {
                 if (mech.Changed(t))
@@ -684,6 +735,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 player.SetSpawn(anchors.RespawnPoint(room)); // beside the lit lamp of the room, else at its entry
                 player.Respawn();
                 respawn = Respawn{player.Feet(), 0.0f};
+                ++falls;
                 landDip = 0.0f;
                 DL_LOG_INFO("Main", "fell: back at the %s", dl::stage::kRooms[room].name);
             }
@@ -709,7 +761,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             {
                 clearSeconds = stageSeconds;
                 sinceClear = 0.0;
-                DL_LOG_INFO("Stage", "clear in %.1f s, hidden lights %d of %d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount);
+                DL_LOG_INFO("Stage", "clear in %.1f s, hidden lights %d of %d, falls %d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls);
             }
             float peak = 0.0f;
             if (player.ConsumeLanding(peak))
@@ -758,7 +810,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // ---- what is drawn: the map as it is now
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
-        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, anchors, respawn, player, camera.Forward(), config,
+        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, anchors, respawn, orbReturn, player, camera.Forward(), config,
                                          static_cast<float>(sinceClear), drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();
         gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);
@@ -809,7 +861,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 char status[128];
                 std::snprintf(status, sizeof(status), "%s  *  SEALS %d/%d  *  LIGHTS %d/%d%s", dl::stage::kRooms[room].name, seals.Count(),
                               dl::stage::kSealCount, lights.Count(), dl::stage::kHiddenLightCount, clearSeconds >= 0.0 ? "  *  CLEAR" : "");
-                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status);
+                const dl::endscreen::Screen end = dl::endscreen::Make(clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls);
+                const bool showEnd = clearSeconds >= 0.0 && sinceClear >= static_cast<double>(dl::endscreen::kDelay);
+                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status, showEnd ? &end : nullptr);
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
                 gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
             }

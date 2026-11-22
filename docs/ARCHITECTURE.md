@@ -33,7 +33,8 @@ main
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle,
              Overlay, OverlayBatch, Font5x7, StaticBatch                                           > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
-             StageHints, StageLights, Mechanisms, WestWing, Prompts, Shapes, Anchors, Canal        > standard library only
+             StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
+             Canal, OrbReturn, EndScreen                                                           > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -129,7 +130,14 @@ lifts (a platform that carries what stands on it, `Player::Carry`).
 Every room has its own fall line (`Stage::FallLine`), a few metres under its floors. `Anchors` keeps the anchor lamps: a lit
 lamp is where a fall or R in its room comes back (`AnchorSet::RespawnPoint`), else the entry of the room. `Canal` is the lock
 of the east district: water of layer A whose level a wheel raises (only in A), and a crate that floats on it in A and lies on
-the bed in B; it moves before the solid tables are built, like a lift, and carries a body that stands on it.
+the bed in B; a second wheel, the weir, lets the crate drift west, in both layers at once. It moves before the solid tables are
+built, like a lift, and carries a body that stands on the crate of its layer.
+
+`CityParts` joins every moving part of the city into the one `MechanismSet` of `main.cpp`: the west wing, the bars and the
+lever of the undercroft, the prism of the north hall. A gate may swap its layer instead of coming and going (the portcullis that
+the prism moves). After `MechanismSet::Update`, `OrbReturn` asks of every orb that came to rest whether a body of its world
+could take it back (a place to stand within reach, in a room, out of the water); a stranded orb goes back to its start.
+`EndScreen` makes the lines of the panel shown after the goal.
 
 Single-layer boxes are drawn in their material (wood or iron in A, fallen masonry in B); red and blue are only their edges
 in their own layer and their outlines in the other (`StageHints::WorldTinted`, `AddWorldEdges`). The water of A is fed by the

@@ -1,6 +1,6 @@
 // Mechanisms.h - the moving parts of a wing that react to the layer switch: orbs that are carried between the layers,
-//            sockets and plates that an orb (or the body) works, levers, and gates (bridges, doors, bars) that open and close
-//            with them (docs/LEVEL_DESIGN.md, section 4).
+//            sockets and plates that an orb (or the body) works, levers, prisms, and gates (bridges, doors, bars) that open
+//            and close with them (docs/LEVEL_DESIGN.md, section 4).
 // Worlds:    one rule for every part: a thing works only with what is in its own world. An orb is drawn in the colour of
 //            the world it is in (warm red-gold in A, cold blue in B), like the pads and the columns of light of that world,
 //            so "the same colour fits" is seen before it is understood. A held orb is placed only on a socket or a plate of
@@ -14,6 +14,9 @@
 // Socket:    active while an orb of its layer rests on it.
 // Plate:     active while an orb of its layer rests on it, or while the body stands on it in its layer.
 // Lever:     active from the moment a ball of the body touches it, in either layer, for ever.
+// Prism:     active from the moment the body stands on it, in either layer, for ever. Its gates do not come and go: they
+//            change world (a gate with swapsLayer: its box is in the other layer while the prism is active). Not the body
+//            changes world, a thing does (docs/LEVEL_DESIGN.md, 14.9).
 // Latch:     a trigger may latch: once active, it stays active (a lever always does).
 // Gate:      a box that is there while its trigger (or a second one) is active (a bridge), or while neither is (a door,
 //            bars). It is solid and drawn in the layers of its mask, like any box of the map.
@@ -21,6 +24,9 @@
 //            the held orb be placed on a socket, a plate or a hole. AddBeacons draws a thin column of light over every socket
 //            and plate that is not worked yet and every lever not pulled, in both layers, coloured by the layer it works in:
 //            a place to bring something is seen from across the room.
+// Return:    an orb that came to rest (ConsumeRested) may be stranded where its world cannot take it back; the caller decides
+//            (scene/OrbReturn.h) and calls SendBack. An orb that fell below the fall line is put back by itself. Either way
+//            ConsumeReturned says so once, so that the return can be shown.
 // Reset:     ResetRoom(room) puts the orbs that start in that room back at their starts (R in docs/LEVEL_DESIGN.md, 9). A
 //            latched trigger stays latched: what is done for good stays done.
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_mechanisms.cpp, and the walk
@@ -45,6 +51,7 @@ enum class TriggerKind
     Socket,
     Plate,
     Lever,
+    Prism,
 };
 
 struct Trigger
@@ -63,6 +70,7 @@ struct Gate
     int orTrigger;          ///< a second one (-1: none): it counts as open when either is active
     bool presentWhenOpen;   ///< true: a bridge (there while open); false: a door, bars (there while closed)
     const char* name;       ///< for the log
+    bool swapsLayer = false; ///< true: always there; while open its box is in the other layer (a prism moved it)
 };
 
 struct OrbStart
@@ -91,6 +99,7 @@ inline constexpr float kSnap = 0.9f;        ///< UNITS: metres: an orb put down 
 inline constexpr float kPutAhead = 1.0f;    ///< UNITS: metres in front of the feet
 inline constexpr float kReach = 1.4f;       ///< UNITS: metres: an orb this close to the feet (on the ground) can be taken
 inline constexpr float kRestTolerance = 0.35f; ///< UNITS: metres: an orb resting this close to a socket or plate works it
+inline constexpr float kPrismReach = 0.5f;  ///< UNITS: metres between the feet and the centre of a prism, on its level
 inline constexpr float kLeverReach = 0.75f; ///< UNITS: metres between a ball of the body and the lever
 inline constexpr int kMaxTriggers = 16;
 inline constexpr int kMaxGates = 16;
@@ -175,6 +184,45 @@ class MechanismSet
             m_latched[static_cast<std::size_t>(i)] = false;
             m_changed[static_cast<std::size_t>(i)] = false;
         }
+        m_rested = {};
+        m_returned = {};
+    }
+
+    /// True once after orb `i` came to rest (fell onto something and stays there).
+    bool ConsumeRested(int i)
+    {
+        if (i < 0 || i >= m_orbCount || i >= kMaxOrbs || !m_rested[static_cast<std::size_t>(i)])
+        {
+            return false;
+        }
+        m_rested[static_cast<std::size_t>(i)] = false;
+        return true;
+    }
+
+    /// True once after orb `i` was put back at its start (it fell out of the map, it was sent back, or R).
+    bool ConsumeReturned(int i)
+    {
+        if (i < 0 || i >= m_orbCount || i >= kMaxOrbs || !m_returned[static_cast<std::size_t>(i)])
+        {
+            return false;
+        }
+        m_returned[static_cast<std::size_t>(i)] = false;
+        return true;
+    }
+
+    /// Sends orb `i` back to its start (it is stranded where its world cannot take it back: scene/OrbReturn.h).
+    void SendBack(int i)
+    {
+        if (i >= 0 && i < m_orbCount)
+        {
+            PutBack(i);
+        }
+    }
+
+    /// Where orb `i` starts.
+    Vec3 StartOf(int i) const
+    {
+        return m_starts[static_cast<std::size_t>(i)].centre;
     }
 
     /// R in `room`: the orbs that start in it go back to their starts (also a held one). Latched triggers stay.
@@ -245,7 +293,7 @@ class MechanismSet
             const bool was = m_active[static_cast<std::size_t>(i)];
             bool now = m_latched[static_cast<std::size_t>(i)] || Worked(i, body, bodyLayer);
             const Trigger& t = m_triggers[static_cast<std::size_t>(i)];
-            if (now && (t.latch || t.kind == TriggerKind::Lever))
+            if (now && (t.latch || t.kind == TriggerKind::Lever || t.kind == TriggerKind::Prism))
             {
                 m_latched[static_cast<std::size_t>(i)] = true;
             }
@@ -274,7 +322,23 @@ class MechanismSet
     bool GatePresent(int gate) const
     {
         const Gate& g = m_gates[static_cast<std::size_t>(gate)];
+        if (g.swapsLayer)
+        {
+            return true;
+        }
         return g.presentWhenOpen ? GateOpen(gate) : !GateOpen(gate);
+    }
+
+    /// The box of a gate as it is now: a gate that swaps is in the other layer while it is open.
+    scene::SceneObject GateBox(int gate) const
+    {
+        const Gate& g = m_gates[static_cast<std::size_t>(gate)];
+        scene::SceneObject b = g.box;
+        if (g.swapsLayer && GateOpen(gate) && (b.layerMask == scene::kLayerA || b.layerMask == scene::kLayerB))
+        {
+            b.layerMask = b.layerMask == scene::kLayerA ? scene::kLayerB : scene::kLayerA;
+        }
+        return b;
     }
 
     int TriggerCount() const
@@ -383,7 +447,7 @@ class MechanismSet
         for (int t = 0; t < m_triggerCount; ++t)
         {
             const Trigger& tr = m_triggers[static_cast<std::size_t>(t)];
-            if (tr.kind == TriggerKind::Lever)
+            if (tr.kind == TriggerKind::Lever || tr.kind == TriggerKind::Prism)
             {
                 continue;
             }
@@ -420,7 +484,7 @@ class MechanismSet
             }
             const Trigger& t = m_triggers[static_cast<std::size_t>(i)];
             const bool lever = t.kind == TriggerKind::Lever;
-            const Colour w = WorldColour(t.layer);
+            const Colour w = t.kind == TriggerKind::Prism ? Colour{0.92f, 0.92f, 1.0f} : WorldColour(t.layer); // a prism: no world
             const float red = lever ? 1.0f : w.r;
             const float green = lever ? 0.82f : w.g;
             const float blue = lever ? 0.36f : w.b;
@@ -455,10 +519,10 @@ class MechanismSet
         const unsigned bit = 1u << layer;
         for (int i = 0; i < m_gateCount && out != nullptr && count >= 0 && count < capacity; ++i)
         {
-            const Gate& g = m_gates[static_cast<std::size_t>(i)];
-            if (GatePresent(i) && (g.box.layerMask & bit) != 0u)
+            const scene::SceneObject box = GateBox(i);
+            if (GatePresent(i) && (box.layerMask & bit) != 0u)
             {
-                out[count++] = g.box;
+                out[count++] = box;
             }
         }
         return count;
@@ -473,7 +537,7 @@ class MechanismSet
         {
             if (GatePresent(i))
             {
-                out[count++] = m_gates[static_cast<std::size_t>(i)].box;
+                out[count++] = GateBox(i);
             }
         }
         for (int i = 0; i < m_triggerCount && out != nullptr && count >= 0 && count < capacity; ++i)
@@ -524,6 +588,7 @@ class MechanismSet
         o.held = false;
         o.resting = false;
         o.vy = 0.0f;
+        m_returned[static_cast<std::size_t>(i)] = true;
     }
 
     static Vec3 HeldCentre(const Player& body)
@@ -585,6 +650,17 @@ class MechanismSet
     {
         const Trigger& t = m_triggers[static_cast<std::size_t>(i)];
         const bool on = m_active[static_cast<std::size_t>(i)];
+        if (t.kind == TriggerKind::Prism)
+        {
+            // a crystal on its pad: the same in both layers, white once it has been used
+            scene::SceneObject o = Flat(t.at.x, t.at.y + 0.15f, t.at.z, 0.5f, 0.5f, on ? 0.95f : 0.70f, on ? 0.95f : 0.80f, 1.0f, scene::kLayerBoth);
+            o.tilt = 0.7854f;
+            o.spinSpeed = 0.8f;
+            o.shineStrength = 1.0f;
+            o.shininess = 100.0f;
+            o.glow = on ? 0.9f : 0.5f;
+            return o;
+        }
         if (t.kind == TriggerKind::Lever)
         {
             scene::SceneObject o = Flat(t.at.x, t.at.y - 0.2f, t.at.z, 0.4f, 0.4f, on ? 1.0f : 0.45f, on ? 0.82f : 0.45f, on ? 0.36f : 0.50f,
@@ -621,6 +697,13 @@ class MechanismSet
                 }
             }
             return false;
+        }
+        if (t.kind == TriggerKind::Prism)
+        {
+            const Vec3 f = body.Feet();
+            const float dx = f.x - t.at.x;
+            const float dz = f.z - t.at.z;
+            return body.Grounded() && dx * dx + dz * dz < kPrismReach * kPrismReach && std::fabs(f.y - t.at.y) < 0.6f;
         }
         for (int k = 0; k < m_orbCount; ++k)
         {
@@ -664,6 +747,7 @@ class MechanismSet
             {
                 o.resting = true;
                 o.vy = 0.0f;
+                m_rested[static_cast<std::size_t>(i)] = true;
                 return;
             }
             if (o.centre.y < m_fallY)
@@ -718,6 +802,8 @@ class MechanismSet
     std::array<bool, kMaxTriggers> m_active{};
     std::array<bool, kMaxTriggers> m_latched{};
     std::array<bool, kMaxTriggers> m_changed{};
+    std::array<bool, kMaxOrbs> m_rested{};
+    std::array<bool, kMaxOrbs> m_returned{};
     int m_triggerCount = 0;
     int m_gateCount = 0;
     int m_orbCount = 0;

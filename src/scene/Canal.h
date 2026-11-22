@@ -6,7 +6,11 @@
 // Wheel:     the lock wheel is machinery: it turns only for a body in A (in B it has rusted). A ball of the body within
 //            kWheelReach of it in A opens the lock, and the water rises at kRiseSpeed to its high level. It stays open until
 //            Reset (R in the room puts back the water and the crate, docs/LEVEL_DESIGN.md, 14.7).
-// Carry:     the crate of A moves while the water rises; a body standing on it in A is carried (Player::Carry), as on a lift.
+// Weir:      a second wheel, on the quay (machinery too: A only). Turned, it lets the current through, and the crate drifts
+//            west to the end of the canal (driftX). The crate of B lies under the crate of A, so it drifts with it: in A the
+//            crate was moved, in B it is now a step where there was none (docs/LEVEL_DESIGN.md, 14.8, E2).
+// Carry:     the crate moves while the water rises or while it drifts; a body standing on the crate of its layer is carried
+//            (Player::Carry), as on a lift.
 // Water:     never solid for the body: feet kSubmerge under the surface in A is a fall (main.cpp brings the body back).
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_stage.cpp, TestEastCanal).
 // UNITS: metres, seconds. Layers: 0 = A, 1 = B.
@@ -34,9 +38,12 @@ struct Desc
     float crateX, crateZ; ///< the centre of the crate
     float crateSize;      ///< UNITS: metres: the crate is a cube
     float draft;          ///< UNITS: metres of the crate above the water
+    Vec3 weir;            ///< the centre of the weir wheel
+    float driftX;         ///< the x of the centre of the crate once the weir has let it drift
 };
 
 inline constexpr float kRiseSpeed = 0.5f;  ///< UNITS: metres per second
+inline constexpr float kDriftSpeed = 1.2f; ///< UNITS: metres per second
 inline constexpr float kWheelReach = 1.0f; ///< UNITS: metres between a ball of the body and the wheel
 inline constexpr float kSubmerge = 0.3f;   ///< UNITS: metres of the feet under the surface that count as in the water
 inline constexpr shapes::Rgb kCrateWood{0.55f, 0.38f, 0.22f};
@@ -54,7 +61,9 @@ class Canal
     void Reset()
     {
         m_open = false;
+        m_weirOpen = false;
         m_level = m_d.lowTop;
+        m_x = m_d.crateX;
     }
 
     /// Once per frame, before the solid tables are built: the wheel, the water, the crate. A body standing on the crate of A
@@ -64,32 +73,38 @@ class Canal
     bool Update(Body& body, int layer, float dt)
     {
         bool turned = false;
-        if (!m_open && layer == 0)
+        if (layer == 0 && !m_open && Touches(body, m_d.wheel))
         {
-            for (int b = 0; b < 3 && !m_open; ++b)
-            {
-                const Vec3 p = body.Ball(b);
-                const float dx = p.x - m_d.wheel.x;
-                const float dy = p.y - m_d.wheel.y;
-                const float dz = p.z - m_d.wheel.z;
-                if (dx * dx + dy * dy + dz * dz < kWheelReach * kWheelReach)
-                {
-                    m_open = true;
-                    turned = true;
-                }
-            }
+            m_open = true;
+            turned = true;
         }
-        if (!(dt > 0.0f) || !m_open || m_level >= m_d.highTop)
+        if (layer == 0 && !m_weirOpen && Touches(body, m_d.weir))
+        {
+            m_weirOpen = true;
+            turned = true;
+        }
+        if (!(dt > 0.0f))
         {
             return turned;
         }
-        const float before = CrateTopA();
-        const float step = kRiseSpeed * (dt > 0.1f ? 0.1f : dt);
-        m_level = m_level + step > m_d.highTop ? m_d.highTop : m_level + step;
-        const Vec3 f = body.Feet();
-        if (layer == 0 && OnCrate(f, before, body.Grounded()))
+        const float h = dt > 0.1f ? 0.1f : dt;
+        const float beforeX = m_x;
+        const float beforeTop = layer == 0 ? CrateTopA() : CrateTopB();
+        if (m_open && m_level < m_d.highTop)
         {
-            body.Carry({0.0f, CrateTopA() - before, 0.0f});
+            const float step = kRiseSpeed * h;
+            m_level = m_level + step > m_d.highTop ? m_d.highTop : m_level + step;
+        }
+        if (m_weirOpen && m_x != m_d.driftX)
+        {
+            const float step = kDriftSpeed * h;
+            const float gap = m_d.driftX - m_x;
+            m_x = std::fabs(gap) <= step ? m_d.driftX : m_x + (gap > 0.0f ? step : -step);
+        }
+        const float afterTop = layer == 0 ? CrateTopA() : CrateTopB();
+        if ((m_x != beforeX || afterTop != beforeTop) && OnCrate(body.Feet(), beforeX, beforeTop, body.Grounded()))
+        {
+            body.Carry({m_x - beforeX, afterTop - beforeTop, 0.0f});
         }
         return turned;
     }
@@ -101,6 +116,19 @@ class Canal
     float WaterTop() const
     {
         return m_level;
+    }
+    bool WeirOpen() const
+    {
+        return m_weirOpen;
+    }
+    /// The x of the centre of the crate now (the same in both layers).
+    float CrateX() const
+    {
+        return m_x;
+    }
+    bool Drifted() const
+    {
+        return m_weirOpen && m_x == m_d.driftX;
     }
     bool High() const
     {
@@ -130,7 +158,7 @@ class Canal
     {
         const float h = 0.5f * m_d.crateSize;
         const float top = layer == 0 ? CrateTopA() : CrateTopB();
-        SceneObject o = shapes::Box(m_d.crateX - h, top - m_d.crateSize, m_d.crateZ - h, m_d.crateX + h, top, m_d.crateZ + h, kCrateWood,
+        SceneObject o = shapes::Box(m_x - h, top - m_d.crateSize, m_d.crateZ - h, m_x + h, top, m_d.crateZ + h, kCrateWood,
                                     layer == 0 ? scene::kLayerA : scene::kLayerB);
         o.glow = 0.04f; // a thing that moves keeps its own colour (not the stone of the city)
         return o;
@@ -150,7 +178,7 @@ class Canal
     /// a rusted stump. Returns the new count.
     int AddDraw(SceneObject* out, int count, int capacity) const
     {
-        if (out == nullptr || count < 0 || capacity - count < 6)
+        if (out == nullptr || count < 0 || capacity - count < 9)
         {
             return count;
         }
@@ -175,19 +203,67 @@ class Canal
                                         scene::kLayerB);
         stump.glow = 0.02f;
         out[count++] = stump;
+        count = AddWheel(m_d.weir, m_weirOpen, out, count);
+        return count;
+    }
+
+    /// Adds the surface of the water (layer A) to a solid table for ORBS: they float on the canal as on the other waters.
+    int AddWaterForOrbs(SceneObject* out, int count, int capacity) const
+    {
+        if (out != nullptr && count >= 0 && count < capacity)
+        {
+            out[count++] = shapes::Box(m_d.x0, m_level - 0.1f, m_d.z0, m_d.x1, m_level, m_d.z1, shapes::kWaterColour, scene::kLayerA);
+        }
         return count;
     }
 
   private:
-    bool OnCrate(const Vec3& feet, float top, bool grounded) const
+    template <class Body>
+    static bool Touches(const Body& body, const Vec3& at)
+    {
+        for (int b = 0; b < 3; ++b)
+        {
+            const Vec3 p = body.Ball(b);
+            const float dx = p.x - at.x;
+            const float dy = p.y - at.y;
+            const float dz = p.z - at.z;
+            if (dx * dx + dy * dy + dz * dz < kWheelReach * kWheelReach)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool OnCrate(const Vec3& feet, float x, float top, bool grounded) const
     {
         const float h = 0.5f * m_d.crateSize + 0.3f;
-        return grounded && std::fabs(feet.x - m_d.crateX) < h && std::fabs(feet.z - m_d.crateZ) < h && std::fabs(feet.y - top) < 0.15f;
+        return grounded && std::fabs(feet.x - x) < h && std::fabs(feet.z - m_d.crateZ) < h && std::fabs(feet.y - top) < 0.15f;
+    }
+
+    /// The weir wheel: an iron wheel on its post in A (gold once turned), a rusted stump in B. Needs 3 places.
+    int AddWheel(const Vec3& w, bool open, SceneObject* out, int count) const
+    {
+        SceneObject post = shapes::Box(w.x - 0.08f, w.y - 1.1f, w.z - 0.08f, w.x + 0.08f, w.y, w.z + 0.08f, shapes::Rgb{0.30f, 0.32f, 0.36f},
+                                       scene::kLayerA);
+        post.glow = 0.04f;
+        out[count++] = post;
+        SceneObject wheel = shapes::Box(w.x - 0.35f, w.y - 0.35f, w.z - 0.05f, w.x + 0.35f, w.y + 0.35f, w.z + 0.05f,
+                                        open ? shapes::Rgb{1.0f, 0.82f, 0.36f} : shapes::Rgb{0.42f, 0.44f, 0.48f}, scene::kLayerA);
+        wheel.glow = open ? 0.8f : 0.25f;
+        out[count++] = wheel;
+        SceneObject stump = shapes::Box(w.x - 0.1f, w.y - 1.1f, w.z - 0.1f, w.x + 0.1f, w.y - 0.6f, w.z + 0.1f, shapes::Rgb{0.40f, 0.26f, 0.18f},
+                                        scene::kLayerB);
+        stump.glow = 0.02f;
+        out[count++] = stump;
+        return count;
     }
 
     Desc m_d{};
     float m_level = 0.0f;
+    float m_x = 0.0f;
     bool m_open = false;
+    bool m_weirOpen = false;
 };
 
 } // namespace dl::canal

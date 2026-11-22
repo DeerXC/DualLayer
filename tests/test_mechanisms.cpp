@@ -16,6 +16,9 @@
 //   7. gates: a bridge is there while open, a door while closed; a door with two triggers opens with either; AddSolids gives
 //      only the gates of the layer that are there; the drawn tables hold the gates, the pads and the orbs
 //   8. ResetRoom puts back the orbs of that room only, also a held one; latched triggers stay
+//  10. a prism: worked by the body standing on it in either layer, latched; its gate changes world, in the solid and the
+//      drawn tables; the column of light is cool white and goes once it is used
+//  11. an orb that came to rest and an orb that was sent back are reported once each
 //   9. guidance: OrbInReach and SpotAhead say what E would do (take which orb; place it on which socket, plate or spot of
 //      the world of the body, and which one of the other world is in front); an orb has the colour of its world;
 //      a light column stands over every socket and plate not worked and every lever not pulled, in both layers, in the
@@ -411,6 +414,54 @@ void TestGuidance()
     CHECK(glows);
 }
 
+void TestPrismAndSwap()
+{
+    // a prism and a gate that changes world: a wall of A at x 2 that the prism moves into B
+    const mech::Trigger triggers[] = {{mech::TriggerKind::Prism, {-2.0f, -1.0f, 0.0f}, 0, true, "prism"}};
+    const mech::Gate gates[] = {{Box(2.0f, -1.0f, -3.0f, 2.5f, 1.5f, 3.0f, kLayerA), 0, -1, false, "wall", true}};
+    mech::WingDesc d;
+    d.triggers = triggers;
+    d.triggerCount = 1;
+    d.gates = gates;
+    d.gateCount = 1;
+    d.fallY = -10.0f;
+    World w;
+    CHECK(w.set.Init(d));
+    w.Build();
+    CHECK(w.set.GatePresent(0) && w.set.GateBox(0).layerMask == kLayerA);
+    CHECK(w.counts[0] == kRoomCount + 1 && w.counts[1] == kRoomCount); // in the solid table of A only
+    SceneObject beacons[4] = {};
+    CHECK(w.set.AddBeacons(beacons, 0, 4) == 1 && beacons[0].colorSrgb[2] >= beacons[0].colorSrgb[0]); // a cool white column
+    w.Stand(-1.0f, 0.0f); // beside it: nothing
+    CHECK(!w.set.Active(0));
+    w.layer = 1; // stepped on in B: a prism belongs to no world
+    w.Stand(-2.0f, 0.0f);
+    CHECK(w.set.Active(0) && w.set.GatePresent(0) && w.set.GateBox(0).layerMask == kLayerB);
+    w.Build();
+    CHECK(w.counts[0] == kRoomCount && w.counts[1] == kRoomCount + 1); // now in the solid table of B only
+    w.Stand(0.0f, 3.0f); // stepped off: it stays (a prism latches)
+    CHECK(w.set.Active(0) && w.set.GateBox(0).layerMask == kLayerB);
+    SceneObject drawn[8] = {};
+    const int n = w.set.AddFixedDraw(drawn, 0, 8);
+    CHECK(n == 2 && drawn[0].layerMask == kLayerB && drawn[1].layerMask == kLayerBoth && drawn[1].glow > 0.5f); // the wall, the crystal
+    CHECK(w.set.AddBeacons(beacons, 0, 4) == 0);
+}
+
+void TestRestedAndReturned()
+{
+    World w;
+    w.Run(1.0f);
+    CHECK(w.set.ConsumeRested(0) && !w.set.ConsumeRested(0)); // once, when it came to rest
+    CHECK(!w.set.ConsumeReturned(0));
+    w.set.SendBack(0);
+    CHECK(w.set.ConsumeReturned(0) && !w.set.ConsumeReturned(0) && !w.set.OrbAt(0).resting);
+    w.Run(1.0f);
+    CHECK(w.set.ConsumeRested(0) && Near(w.set.StartOf(0).x, 0.0f, 1e-6f));
+    w.set.ResetRoom(7); // R also counts as a return
+    CHECK(w.set.ConsumeReturned(0));
+    CHECK(!w.set.ConsumeRested(-1) && !w.set.ConsumeReturned(9));
+}
+
 } // namespace
 
 int main()
@@ -423,6 +474,8 @@ int main()
     TestDraw();
     TestResetRoom();
     TestGuidance();
+    TestPrismAndSwap();
+    TestRestedAndReturned();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

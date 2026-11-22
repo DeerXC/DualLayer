@@ -21,6 +21,7 @@
 //      lights) fits
 // Returns 1 when a check fails.
 
+#include "scene/CityParts.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
 #include "scene/WestWing.h"
@@ -543,11 +544,11 @@ void TestSilhouette()
 
 void TestWholeFrameFits()
 {
-    const dl::mech::WingDesc west = st::WestWing();
+    const dl::mech::WingDesc west = st::CityParts(); // every moving part of the city
     const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, the orbs with their marks,
                                                            // a column per trigger, the previews of the gates
     const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + 2 * st::kGhostCount * st::kBarsPerGhost +
-                        6 /* the canal */ + st::kAnchorCount + 1 /* the respawn ring */ + moving * st::kBarsPerGhost /* own edges */ +
+                        9 /* the canal */ + st::kAnchorCount + 2 /* the respawn rings */ + moving * st::kBarsPerGhost /* own edges */ +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
                         st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);

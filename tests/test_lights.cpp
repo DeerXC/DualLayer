@@ -10,6 +10,7 @@
 //   3. the light on the floor of the pool: under the water of A (every pose that touches it is under water), taken standing in
 //      B, not reached from the rim
 //   4. the light on the bed of the canal: under the water of A at either level, taken standing in B, not reached from the quay
+//   5. the light behind the bars: taken in the undercroft, never from the rim of the square through the bars
 // Returns 1 when a check fails.
 
 #include "scene/StageLights.h"
@@ -227,6 +228,24 @@ void TestLightInTheCanal()
     CHECK(!JumpReaches({c.x, st::kQuayY, st::kCanalSouth - 0.3f}, 0.0f, 0.0f, 2) && !Touches({c.x, st::kQuayY, st::kCanalSouth - 0.1f}, 2));
 }
 
+void TestLightBehindBars()
+{
+    const Vec3 c = st::kHiddenLights[3].centre;
+    // taken standing in the undercroft; never from the rim of the square, where the bars stop the body (balls up to the
+    // bars: x <= kHubEast - radius), at any height a jump reaches
+    CHECK(Touches({c.x, st::kUndercroftY, c.z}, 3));
+    bool fromRim = false;
+    for (float z = st::kBayZ0 - 0.5f; z <= st::kBayZ1 + 0.5f; z += 0.05f)
+    {
+        for (float y = kFloorY; y < kFloorY + 2.1f; y += 0.05f)
+        {
+            fromRim = fromRim || Touches({st::kHubEast - kBody.radius, y, z}, 3);
+        }
+    }
+    CHECK(!fromRim);
+    CHECK(c.x > st::kHubEast + 0.5f && c.x < 14.5f && c.z > st::kBayZ0 && c.z < st::kBayZ1); // inside the undercroft
+}
+
 } // namespace
 
 int main()
@@ -235,6 +254,7 @@ int main()
     TestLightInTheGate();
     TestLightInThePool();
     TestLightInTheCanal();
+    TestLightBehindBars();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

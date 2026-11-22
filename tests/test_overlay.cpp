@@ -12,9 +12,11 @@
 //   3. the prompts: E says TAKE, PUT DOWN or PLACE as the game state says, and nothing while flying; TAB is shown until it
 //      has been used three times, then only when a held orb is in front of a socket of the other world; R only in a puzzle room after 90 s; a prompt used three times is dimmed; every
 //      prompt text can be drawn by the font
+//   4. the end screen: its lines (time as m:ss.s, capped), and every character in the font
 // Returns 1 when a check fails.
 
 #include "render/OverlayBatch.h"
+#include "scene/EndScreen.h"
 #include "scene/Prompts.h"
 
 #include <cmath>
@@ -219,6 +221,24 @@ void TestPrompts()
     }
 }
 
+void TestEndScreen()
+{
+    const dl::endscreen::Screen e = dl::endscreen::Make(252.34, 2, 4, 3);
+    CHECK(e.count == dl::endscreen::kLines);
+    CHECK(std::strcmp(e.lines[0], "CLEAR") == 0 && std::strcmp(e.lines[1], "TIME 4:12.3") == 0);
+    CHECK(std::strcmp(e.lines[2], "HIDDEN LIGHTS 2/4") == 0 && std::strcmp(e.lines[3], "FALLS 3") == 0);
+    CHECK(std::strcmp(dl::endscreen::Make(5.0, 0, 4, 0).lines[1], "TIME 0:05.0") == 0);
+    CHECK(std::strcmp(dl::endscreen::Make(-3.0, 0, 4, 0).lines[1], "TIME 0:00.0") == 0);
+    CHECK(std::strcmp(dl::endscreen::Make(1.0e9, 0, 4, 0).lines[1], "TIME 99:59.0") == 0); // capped, never cut off
+    for (int i = 0; i < e.count; ++i) // every character can be drawn
+    {
+        for (const char* p = e.lines[i]; *p != '\0'; ++p)
+        {
+            CHECK(&font::Find(*p) != &font::kMissing);
+        }
+    }
+}
+
 } // namespace
 
 int main()
@@ -226,6 +246,7 @@ int main()
     TestFont();
     TestBatch();
     TestPrompts();
+    TestEndScreen();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

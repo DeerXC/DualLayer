@@ -23,10 +23,12 @@
 //              bars. W4, the vault: the seal, and a ramp up to the closed door in the hub wall, which the seal opens (a
 //              one-way shortcut).
 //   east wing  going UP: a hall cut by a canal (scene/Canal.h: in A the lock wheel raises the water and the crate on it
-//              becomes the step onto the quay 1.2 m higher; in B the canal is dry), a ramp up from the quay to an upper room 6 m above the hub floor, east of the terrace and seen from it,
+//              becomes the step onto the quay 1.2 m higher; in B the canal is dry; the weir lets the crate drift west under a
+//              breach of B into the undercroft, which leads to the square), a ramp up from the quay to an upper room 6 m above the hub floor, east of the terrace and seen from it,
 //              and the top of the east wall of the courtyard - the wall that closed the courtyard is now a path. The seal
 //              is on it; its north end drops onto the gallery of the hub, and the gallery drops into the hub (one way).
-//   north wing going UP by two ramps to a landing 7 m above the hub floor, with the seal; a ledge runs south through a window
+//   north wing going UP by two ramps to a landing 7 m above the hub floor, cut by the gap of N1 (a bridge of A, a portcullis
+//              that the prism moves into B: scene/CityParts.h), with the seal; a ledge runs south through a window
 //              in the hub wall and drops into the hub (a one-way shortcut).
 //   cathedral  (the tower) the landmark of the map: walls 13 m high on a plinth in the pool, gold pinnacles, buttresses, a rose
 //              window over the portal and a spire on its north wall, the highest point of the map (28.5 m); the beacon over
@@ -262,6 +264,15 @@ inline constexpr float kLedgeWest = -9.0f;           // the ledge, x -9 .. -5, z
 inline constexpr float kLedgeEast = -5.0f;           // north wall
 inline constexpr float kLedgeSouth = 37.0f;
 inline constexpr float kWindowTop = kNorthHighY + 2.5f; // the top of that window
+// N1, the prism (docs/LEVEL_DESIGN.md, 14.9): landing 2 is cut by a gap of 5 m (more than a running jump) between the top of
+// ramp 2 and the seal. A bridge of A spans it; at its far end a portcullis of A, 2.6 m over the landing, closes it. In B there
+// is no bridge. The prism on the east part moves the portcullis into B: then A walks over
+inline constexpr float kPrismGapX0 = -6.0f;
+inline constexpr float kPrismGapX1 = -1.0f;
+inline constexpr float kPortcullisX0 = kPrismGapX0;  // the portcullis stands on the far end of the bridge, x -6 .. -5.5
+inline constexpr float kPortcullisX1 = kPrismGapX0 + 0.5f;
+inline constexpr float kPortcullisZ0 = 41.8f;        // it reaches far past the landing on both sides, so that no jump goes round it
+inline constexpr float kPortcullisZ1 = 48.2f;
 // the ring (step 3): the districts are joined without the hub, one way per layer
 inline constexpr float kPassageSouth = 40.5f;        // B: the passage under the ledge, west hall -> north corridor, z 40.5 .. 43.5
 inline constexpr float kPassageNorth = 43.5f;
@@ -288,6 +299,19 @@ inline constexpr float kCanalBed = kFloorY - 2.5f;   // -3.5
 inline constexpr float kQuayY = kFloorY + 1.2f;      // 0.2: the quay south of the canal, the foot of the ramp up
 inline constexpr float kCanalStairsX0 = 22.4f;       // the stairs out of the dry canal, up to the hall floor (B); the bed lies
 inline constexpr float kCanalStairsFoot = 25.4f;     // in front of their foot, so that they are walked onto from the bed
+// E2 and the undercroft (docs/LEVEL_DESIGN.md, 14.8): the weir on the quay lets the crate drift west to the end of the canal.
+// In the west wall of the canal a breach of B (in A an iron panel) opens 2.5 m over the
+// bed, out of reach from it: only the crate of B, drifted under it, is the step. Behind it the undercroft runs west under
+// the gallery to the east rim of the square, where bars close it; a lever inside opens them for good (a shortcut)
+inline constexpr float kBayZ0 = 26.4f;               // the breach and the undercroft, z 26.4 .. 28
+inline constexpr float kBayZ1 = 28.0f;
+inline constexpr float kUndercroftY = kFloorY;       // the floor of the undercroft and the sill of the breach: level with the
+                                                     // rim of the square (a step up is a wall), 2.5 m over the bed
+inline constexpr float kUndercroftTop = 1.0f;        // the top of the opening in the hub wall (under the gallery)
+inline constexpr float kBreachTop = 2.2f;            // the top of the breach and of the passage: a body jumps in from the crate
+inline constexpr float kCanalParapetX1 = 18.6f;      // the parapets on the west end of the hall floor and of the quay:
+                                                     // no jump from them, even one that turns in the air, ends in the breach
+inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
 // the square (step 3b): the hub is a sunken square. A rim at the level of the streets (kFloorY) runs along its walls and
 // holds every opening; inside it a pool 1.5 m deep surrounds the cathedral. In A the pool is full (water: a body that goes
 // in comes back at the entry of the square); in B the storm has drained it and its floor can be walked. A causeway crosses
@@ -498,7 +522,9 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kHubWest - 0.5f, kFloorY, kWingDoorZ1, kHubWest, kHubWallTop, kHubNorth + 0.5f),
     Wall(kHubWest - 0.5f, kOpeningTop, kShortcutZ0, kHubWest, kHubWallTop, kShortcutZ1),
     Wall(kHubWest - 0.5f, kOpeningTop, kWingDoorZ0, kHubWest, kHubWallTop, kWingDoorZ1),
-    Wall(kHubEast, kFloorY, kHubSouth, kHubEast + 0.5f, kHubWallTop, kWingDoorZ0),                    // east
+    Wall(kHubEast, kFloorY, kHubSouth, kHubEast + 0.5f, kHubWallTop, kBayZ0),                         // east, with the opening
+    Wall(kHubEast, kFloorY, kBayZ1, kHubEast + 0.5f, kHubWallTop, kWingDoorZ0),                       // of the undercroft
+    Wall(kHubEast, kUndercroftTop, kBayZ0, kHubEast + 0.5f, kHubWallTop, kBayZ1),                     // (its bars: kCityGates)
     Wall(kHubEast, kFloorY, kWingDoorZ1, kHubEast + 0.5f, kHubWallTop, kHubNorth + 0.5f),
     Wall(kHubEast, kOpeningTop, kWingDoorZ0, kHubEast + 0.5f, kHubWallTop, kWingDoorZ1),
     Wall(kHubWest, kFloorY, kHubNorth, -1.0f, kNorthHighY - 0.2f, kHubNorth + 0.5f),                  // north, under the window
@@ -581,7 +607,18 @@ inline constexpr SceneObject kFixed[] = {
     Wall(14.5f, kFloorY, 40.0f, kStairsX0, kCityWallTop, 40.5f),                                      // north, with the door of
     Wall(kStairsX1, kFloorY, 40.0f, 24.5f, kCityWallTop, 40.5f),                                      // the stairs from the lookout
     Wall(kStairsX0, kOpeningTop, 40.0f, kStairsX1, kCityWallTop, 40.5f),
-    Wall(14.5f, kCanalBed - 0.2f, 21.5f, 15.0f, kCityWallTop, kWingDoorZ0 - 0.5f),
+    Wall(14.5f, kCanalBed - 0.2f, 21.5f, 15.0f, kCityWallTop, kBayZ0),                                // the west wall of the canal,
+    Wall(14.5f, kCanalBed - 0.2f, kBayZ1, 15.0f, kCityWallTop, kWingDoorZ0 - 0.5f),                   // with the breach of the bay:
+    Wall(14.5f, kCanalBed - 0.2f, kBayZ0, 15.0f, kUndercroftY, kBayZ1),                               // its sill,
+    Wall(14.5f, kBreachTop, kBayZ0, 15.0f, kCityWallTop, kBayZ1),                                     // its lintel,
+    Span(14.5f, kUndercroftY, kBayZ0, 15.0f, kBreachTop, kBayZ1, kIron, kLayerA),                      // in A an iron panel
+    Wall(15.0f, kFloorY, kCanalNorth, kCanalParapetX1, kFloorY + kParapet, kCanalNorth + 0.2f),       // the parapets of the west
+    Wall(15.0f, kQuayY, kCanalSouth - 0.2f, kCanalParapetX1, kQuayY + kParapet, kCanalSouth),         // end of the floor, the quay
+    // the undercroft: from the breach west under the gallery to the opening in the east wall of the square
+    Span(kHubEast, kUndercroftY - 0.2f, kBayZ0, 14.5f, kUndercroftY, kBayZ1, kGrey, kLayerBoth, 1.0f),
+    Wall(kHubEast + 0.5f, kUndercroftY - 0.2f, kBayZ0 - 0.2f, 14.5f, kBreachTop + 0.2f, kBayZ0),
+    Wall(kHubEast + 0.5f, kUndercroftY - 0.2f, kBayZ1, 14.5f, kBreachTop + 0.2f, kBayZ1 + 0.2f),
+    Wall(kHubEast + 0.5f, kBreachTop, kBayZ0, 14.5f, kBreachTop + 0.2f, kBayZ1),
     Wall(14.5f, kFloorY, kWingDoorZ1 + 0.5f, 15.0f, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 21.5f, 18.0f, kCityWallTop, 22.0f),
     Wall(22.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 22.0f),
@@ -611,7 +648,9 @@ inline constexpr SceneObject kFixed[] = {
     Wall(-9.0f, kFloorY, 43.5f, -1.5f, kCityWallTop, 44.0f),
     Wall(1.5f, kFloorY, 43.5f, 9.0f, kCityWallTop, 44.0f),
     Floor(-1.0f, 58.0f, 9.0f, 60.0f, kFloorY + 3.5f),                                                 // landing 1 (north)
-    Floor(-9.0f, 44.0f, 4.0f, 46.0f, kNorthHighY),                                                    // landing 2 (south)
+    Floor(-9.0f, 44.0f, kPrismGapX0, 46.0f, kNorthHighY),                                             // landing 2 (south): its
+    Floor(kPrismGapX1, 44.0f, 4.0f, 46.0f, kNorthHighY),                                              // two parts, the gap of N1,
+    Span(kPrismGapX0, kNorthHighY - 0.2f, 44.0f, kPrismGapX1, kNorthHighY, 46.0f, kWood, kLayerA, 1.0f), // and its bridge (A)
     Floor(kLedgeWest, kLedgeSouth, kLedgeEast, 44.0f, kNorthHighY),                                   // the ledge into the hub
     // ---- the ring, B: the passage under the ledge from the west hall to the north corridor (both of its ends are breaches:
     // closed in A, open in B; the breach in the west hall is a piece of scene/Shapes.h, kPieces)
@@ -832,6 +871,7 @@ inline constexpr Room kRooms[] = {
     {"ditch", -3.2f, -2.0f, kDitchStairsTop, kDitchStairsX1 + 0.2f, 2.5f, kDitchStripFar, {4.4f, kFloorY, -4.6f}, false},
     {"gap", -3.2f, 0.0f, kDitchStripFar, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 4.0f}, false},
     {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 3.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
+    {"undercroft", kHubEast, -2.0f, kBayZ0, 15.0f, -0.5f, kBayZ1, {11.0f, kUndercroftY, 27.2f}, false},
     {"square", kHubWest, kSquareLowY - 0.5f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
     {"west landing", -12.0f, -2.0f, 22.0f, kHubWest, -0.5f, 25.0f, {-11.0f, kFloorY, 23.5f}, false},
     {"west passage", kWestBreachX0, -2.0f, kPassageSouth, -1.5f, -0.5f, kPassageNorth, {-12.0f, kFloorY, 42.0f}, false},
@@ -842,6 +882,7 @@ inline constexpr Room kRooms[] = {
     {"west mezzanine", -24.0f, -2.5f, 2.0f, kMezzEast, -1.0f, kMezzNorth, {-15.0f, kMezzY, 3.5f}, false},
     {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, -4.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, true},
     {"east hall", kHubEast, -2.0f, kCanalNorth, 24.0f, -0.5f, 40.0f, {12.0f, kFloorY, 31.0f}, true},
+    {"canal bed", 15.0f, kCanalBed - 0.5f, kCanalSouth, 24.0f, kCanalBed + 0.7f, kCanalNorth, {23.2f, kCanalBed, 25.15f}, false},
     {"east quay", 15.0f, -0.5f, 22.0f, 24.0f, 1.5f, kCanalSouth, {16.5f, kQuayY, 23.4f}, false},
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
@@ -1100,6 +1141,8 @@ inline canal::Desc MakeCanal()
     d.crateZ = 0.5f * (kCanalSouth + kCanalNorth);
     d.crateSize = 1.2f;
     d.draft = 0.5f;
+    d.weir = {15.7f, kQuayY + 1.1f, 23.2f}; // on the quay, at its west end
+    d.driftX = kDriftX;
     return d;
 }
 

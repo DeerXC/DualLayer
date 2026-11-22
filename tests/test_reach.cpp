@@ -13,15 +13,16 @@
 //   3. a jump that ends on solid ground more than kRise above where it started is a SKIP unless the two places are in the
 //      same room or in rooms that are joined by walking (kWalkJoined), or it ends on a ramp that starts or ends in such a room:
 //      such a jump only shortens a way that exists anyway
-// The map is searched with every door open, every bridge laid and without the block: the most permissive state (a door adds
+// The map is searched with every door open, every bridge laid, the portcullis moved by the prism, without the block and
+// without the crate of the canal: the most permissive state (a door adds
 // no way round, and what the block and the orbs allow is checked by the heights and the walks in tests/test_stage.cpp). Places that are themselves out of reach (in no
 // room: wall tops) are not searched from; the jump onto them is the skip. The balcony at the top of the tower is not searched
 // from either: reaching it is the end of the run.
 // Every skip found is printed with where it started, the direction, the layer and where it ended. Returns 1 when a check
 // fails. The numbers of the search are printed, so that a change that makes it miss whole areas is seen.
 
+#include "scene/CityParts.h"
 #include "scene/Stage.h"
-#include "scene/WestWing.h"
 
 #include <cmath>
 #include <cstddef>
@@ -65,7 +66,7 @@ constexpr int kDirections = 16;
 const char* const kWalkJoined[][2] = {
     {"guardhouse", "terrace"},   {"terrace", "ditch"},        {"ditch", "gap"},                 {"gap", "courtyard"},        {"square", "west hall"},          {"west hall", "west lower"},
     {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"square", "west landing"},
-    {"square", "east hall"},        {"east hall", "east quay"},  {"east quay", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
+    {"square", "east hall"},        {"east hall", "canal bed"},  {"square", "undercroft"},     {"east hall", "east quay"},  {"east quay", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
     {"west hall", "west passage"}, {"west passage", "north hall"}, {"north hall", "sky bridge"}, {"sky bridge", "east stairs"},
     {"east stairs", "east hall"},
 };
@@ -174,11 +175,17 @@ const std::vector<SceneObject>& PermissiveMap()
 {
     static const std::vector<SceneObject> all = [] {
         std::vector<SceneObject> v(st::kStageStatics.begin(), st::kStageStatics.end());
-        for (const dl::mech::Gate& g : st::kWestGates)
+        for (const dl::mech::Gate& g : st::kCityGates)
         {
             if (g.presentWhenOpen)
             {
-                v.push_back(g.box);
+                v.push_back(g.box); // a bridge, laid
+            }
+            else if (g.swapsLayer)
+            {
+                SceneObject moved = g.box; // the portcullis, moved by the prism: the bridge under it is open in A
+                moved.layerMask = moved.layerMask == kLayerA ? kLayerB : kLayerA;
+                v.push_back(moved);
             }
         }
         return v;

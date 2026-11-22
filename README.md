@@ -7,9 +7,10 @@
 Status: in development (milestone M2). The whole map can be walked from the start to the top of the cathedral. It begins
 in a guardhouse on the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square: a pool
 round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in the
-other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers) and the
-lock of the east district (a crate that floats on water of one world) are playable puzzles; the other districts stand as
-grey boxes, and their rooms are being built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers), the
+lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other)
+and the first prism of the north district (a wall moved into the other world) are playable; the rest of the north district
+and the last puzzle of the cathedral are being built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
 

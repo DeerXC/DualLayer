@@ -128,9 +128,42 @@
   the aqueduct whole in B, a heap of 1.8 m. `src/main.cpp` compiles against stand-ins of the interfaces it uses.
 - Not checked yet: the MSVC build and `tools/check.ps1` (its game run now expects the start in the guardhouse); the look by
   eye (docs/BUILD.md, E-19 .. E-23).
-- Next: the other entrances of the square from their heights, with their districts; the cellar of B between west and east; the
-  rule that brings back an orb that falls where its world cannot reach (docs/LEVEL_DESIGN.md, 14.4).
-
+- Made (2026-11-23, step 5, orbs never get stuck): new `scene/OrbReturn.h`. When an orb comes to rest
+  (`MechanismSet::ConsumeRested`), `OrbStranded` looks on rings round it for a place where a body of its world could stand and
+  take it (within reach, on ground of its layer, the body free, in a room, not under water); finding none, the orb goes back
+  to its start (`SendBack`), with the ring of light of a respawn (`ConsumeReturned`, also after a fall out of the map and R).
+  Orbs float on the canal as on the other waters (`Canal::AddWaterForOrbs`).
+- Made (2026-11-23, step 6, E2): `scene/Canal.h` has a second wheel, the weir, on the west end of the quay (A only). Turned, the
+  crate drifts west at 1.2 m/s to x 16, in both layers at once (the crate of B lies under the crate of A); a body on the crate of
+  its layer is carried. R in the hall puts back the weir and the crate. In the west wall of the canal, 2.5 m over the bed, a
+  breach of B (in A an iron panel): out of reach from the bed, a step from the drifted crate of B. Parapets (2.6 m) on the west
+  end of the hall floor and of the quay. Room `canal bed` (the dry bed is a place).
+- Made (2026-11-23, step 7, the undercroft): behind the breach a passage runs west under the gallery to an opening in the east
+  wall of the square, closed by four bars (both layers, seen through). A lever inside opens them for good: a shortcut from the
+  square to the canal. A fourth hidden light, "behind the bars", is seen from the rim. Room `undercroft`. The cellar between the
+  west and the east districts is not built (docs/LEVEL_DESIGN.md, 14.10).
+- Made (2026-11-23, step 8, the prism): `TriggerKind::Prism` (worked by the body standing on it in either layer, latched; a
+  crystal drawn the same in both layers) and `Gate::swapsLayer` (a gate that changes layer instead of coming and going;
+  `MechanismSet::GateBox`). N1 on landing 2 of the north hall: a gap of 5 m, a bridge of A, a portcullis of A at its far end; the
+  prism moves the portcullis into B. New `scene/CityParts.h` joins the west wing, the undercroft and the prism into one set
+  (`CityParts`; the indices of the west wing are kept).
+- Made (2026-11-23, step 9, the end): new `scene/EndScreen.h`; 1.6 s after the clear a panel shows CLEAR, the time, the hidden
+  lights and the falls (falls and R are counted in `main.cpp`). The last puzzle of the cathedral is not built.
+- Checked (2026-11-23) with g++: `tests/test_stage.cpp` (605 checks; new `TestUndercroft`: E2 played from the hub to the rim,
+  the weir not turning in B, the panel holding in A on the drifted crate, the bars holding from the rim in both layers, no jump
+  from the bed without the drift, no jump from the floor or the quay that turns in the air at three moments from seven places
+  ends in the breach; `TestPrism`: the portcullis in A, no bridge in B, no running jump in B with a switch to A at four moments
+  from three places, the prism stepped on in B, A over the bridge to the seal and back; `TestOrbReturn`: the orb over the low
+  canal in A goes back, in B it stays on the bed, on high water it stays and is taken again, the rule on a floor, a wall top,
+  the pool in A and in B), `tests/test_mechanisms.cpp` (106: the prism and a swapping gate, rested and returned once),
+  `tests/test_lights.cpp` (36: the light behind the bars is never touched from the rim), `tests/test_overlay.cpp` (226: the end
+  screen), `tests/test_hints.cpp` (332), `tests/test_reach.cpp`: 0 skips (4787 places, 110464 jumps; the portcullis moved, the
+  crate absent), the other tests unchanged. Deliberate changes, each caught: the weir turning in B, no parapets, the breach
+  0.4 m lower, no orb return, a portcullis only as wide as the landing. Piers beside the breach were tried and removed: with
+  the parapets no test needed them. `src/main.cpp` compiles against stand-ins of the interfaces it uses.
+- Not checked yet: the MSVC build and `tools/check.ps1`; the look by eye (docs/BUILD.md, E-19 .. E-28).
+- Next: play the whole map once and fix what is found; the cellar under the courtyard, the rest of the north district and the
+  last puzzle of the cathedral (docs/LEVEL_DESIGN.md, 14.10).
 ## m1-models (built and run together with M2, 2026-11-17)
 
 - Made: a depth buffer in `Device` (D32_FLOAT, cleared to 1.0, made again on resize); `render/MeshData` (cube, sphere, cylinder, torus on the CPU, no Windows in it) with `tests/test_mesh.cpp`; `render/Models` (vertex / index buffers, one shader `models.hlsl`, one directional light, a checkered floor, wireframe / level-of-detail / spin keys); `render/Projection.h` (one lens for every pass, `Triangle` uses it too); the M0 triangle is hidden by default (`[test_triangle] show`).
