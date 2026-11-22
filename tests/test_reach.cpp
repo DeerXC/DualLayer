@@ -10,15 +10,17 @@
 //      the body jumps in 16 directions, from a stand and after a short run-up, once in its own layer and once switching to
 //      the other layer at the top of the jump, holding the key the whole flight (the farthest a jump can go)
 //   3. a jump that ends on solid ground more than kRise above where it started is a SKIP unless the two places are in the
-//      same room or in rooms that are joined by walking (kWalkJoined): such a jump only shortens a way that exists anyway
-// The map is searched with every door open and without the block: the most permissive state (a door adds no way round, and
-// what the block allows is checked by the heights in tests/test_stage.cpp). Places that are themselves out of reach (in no
+//      same room or in rooms that are joined by walking (kWalkJoined), or it ends on a ramp that starts or ends in such a room:
+//      such a jump only shortens a way that exists anyway
+// The map is searched with every door open, every bridge laid and without the block: the most permissive state (a door adds
+// no way round, and what the block and the orbs allow is checked by the heights and the walks in tests/test_stage.cpp). Places that are themselves out of reach (in no
 // room: wall tops) are not searched from; the jump onto them is the skip. The balcony at the top of the tower is not searched
 // from either: reaching it is the end of the run.
 // Every skip found is printed with where it started, the direction, the layer and where it ended. Returns 1 when a check
 // fails. The numbers of the search are printed, so that a change that makes it miss whole areas is seen.
 
 #include "scene/Stage.h"
+#include "scene/WestWing.h"
 
 #include <cmath>
 #include <cstddef>
@@ -60,8 +62,9 @@ constexpr int kDirections = 16;
 
 /// Pairs of rooms (names of Stage::kRooms) that are joined by walking: a jump from one to the other is not a way round.
 const char* const kWalkJoined[][2] = {
-    {"terrace", "gap"},     {"gap", "courtyard"},        {"hub", "west hall"}, {"west hall", "west lower"},
-    {"hub", "east hall"},   {"east hall", "east upper"}, {"hub", "north hall"}, {"hub", "tower"},
+    {"terrace", "gap"},          {"gap", "courtyard"},        {"hub", "west hall"},          {"west hall", "west lower"},
+    {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"hub", "west landing"},
+    {"hub", "east hall"},        {"east hall", "east upper"}, {"hub", "north hall"},         {"hub", "tower"},
 };
 
 int RoomIndex(const char* name)
@@ -163,11 +166,28 @@ std::vector<Vec3> TopPoints(const SceneObject& o)
     return points;
 }
 
-/// The solids near (x, z): the map with every door open and without the block.
+/// Every box of the map in the most permissive state: the fixed boxes and the gates that are there while open (bridges).
+const std::vector<SceneObject>& PermissiveMap()
+{
+    static const std::vector<SceneObject> all = [] {
+        std::vector<SceneObject> v(st::kStageStatics.begin(), st::kStageStatics.end());
+        for (const dl::mech::Gate& g : st::kWestGates)
+        {
+            if (g.presentWhenOpen)
+            {
+                v.push_back(g.box);
+            }
+        }
+        return v;
+    }();
+    return all;
+}
+
+/// The solids near (x, z).
 std::vector<SceneObject> NearSolids(float x, float z)
 {
     std::vector<SceneObject> near;
-    for (const SceneObject& o : st::kStageStatics)
+    for (const SceneObject& o : PermissiveMap())
     {
         if (FlatDistance(o, x, z) < kNear)
         {
@@ -212,7 +232,7 @@ bool Stands(const Vec3& feet, int layer, const std::vector<SceneObject>& solids)
 /// True when a jump from this sample could end higher: some surface 0.3 .. 2.4 m above it within kReach (either layer).
 bool WorthJumping(const Sample& s)
 {
-    for (const SceneObject& o : st::kStageStatics)
+    for (const SceneObject& o : PermissiveMap())
     {
         float lo[3];
         float hi[3];
@@ -297,6 +317,35 @@ bool Jump(const Sample& s, const Vec3& dir, bool runUp, bool doSwitch, const std
     return false;
 }
 
+/// The room a body standing on a ramp at `f` belongs to, for the search: a ramp is walked from the rooms at its two ends, so
+/// a jump onto it from one of them is a short cut of a walk, not a skip. Returns -1 when `f` is not on a ramp; `other` gets
+/// the room at its other end.
+int RampRooms(const Vec3& f, int& other)
+{
+    for (const SceneObject& r : st::kRamps)
+    {
+        const float c = std::cos(r.tilt);
+        const float s = std::sin(r.tilt);
+        // the feet in the local space of the ramp (turned back round X)
+        const float dy = f.y - r.position[1];
+        const float dz = f.z - r.position[2];
+        const float ly = dy * c + dz * s;
+        const float lz = -dy * s + dz * c;
+        if (std::fabs(f.x - r.position[0]) > 0.5f * r.scale[0] || std::fabs(lz) > 0.5f * r.scale[2] + 0.2f || std::fabs(ly - 0.5f * r.scale[1]) > 0.3f)
+        {
+            continue;
+        }
+        const float half = 0.5f * r.scale[2] + 0.6f; // just beyond each end, on the top
+        const float top = 0.5f * r.scale[1];
+        const Vec3 a{r.position[0], r.position[1] + top * c - half * s, r.position[2] + top * s + half * c};
+        const Vec3 b{r.position[0], r.position[1] + top * c + half * s, r.position[2] + top * s - half * c};
+        other = st::RoomAt(b);
+        return st::RoomAt(a);
+    }
+    other = -1;
+    return -1;
+}
+
 bool OnBalcony(const Vec3& f)
 {
     return f.y > st::kSummitY - 0.2f && f.x > st::kTowerInnerWest && f.x < st::kTowerInnerEast && f.z > st::kTowerInnerSouth &&
@@ -315,7 +364,7 @@ void TestNoSkip()
 {
     std::vector<Sample> samples;
     int tops = 0;
-    for (const SceneObject& o : st::kStageStatics)
+    for (const SceneObject& o : PermissiveMap())
     {
         for (int layer = 0; layer < 2; ++layer)
         {
@@ -366,6 +415,15 @@ void TestNoSkip()
                     continue;
                 }
                 const int room = st::RoomAt(end);
+                int rampOther = -1;
+                const int rampRoom = RampRooms(end, rampOther);
+                if (rampRoom >= 0 || rampOther >= 0)
+                {
+                    if (Joined(s.room, rampRoom) || Joined(s.room, rampOther))
+                    {
+                        continue; // onto a ramp of a room joined to this one: a short cut of a walk
+                    }
+                }
                 if (!Joined(s.room, room))
                 {
                     skips.push_back({s, dir, runUp, switched, end, room});

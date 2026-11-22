@@ -9,8 +9,12 @@
 //              (2.4 m up, reached only from the east wing: the hub seen from above). The tower door carries three seal lamps; it
 //              opens when the three seals of the wings are taken. Three openings lead to the wings; a fourth, closed door in
 //              the west wall is the far end of a shortcut that is opened from the other side.
-//   west wing  going DOWN: a hall, a ramp down to a lower room 3.6 m below the hub, the seal at its far end, and a ramp up
-//              to the closed door in the hub wall, which opens when the seal is taken (a one-way shortcut).
+//   west wing  going DOWN, the archive: an orb that is carried between the layers (scene/WestWing.h). W1, the hall: a
+//              trench, bridged in B by an orb on a socket of B. W2: an orb on a plate of A opens a door of B at the foot of the
+//              ramp down; a lever inside keeps it open, so that the orb can be fetched. W3, the lower room: from a mezzanine,
+//              the orb is let fall through a hole that is open only in B onto a socket in the vault below, which opens its
+//              bars. W4, the vault: the seal, and a ramp up to the closed door in the hub wall, which the seal opens (a
+//              one-way shortcut).
 //   east wing  going UP: a hall, a ramp up to an upper room 6 m above the hub floor, east of the terrace and seen from it,
 //              and the top of the east wall of the courtyard - the wall that closed the courtyard is now a path. The seal
 //              is on it; its north end drops onto the gallery of the hub, and the gallery drops into the hub (one way).
@@ -193,6 +197,18 @@ inline constexpr float kShortcutZ0 = 22.5f;          // the closed door at the e
 inline constexpr float kShortcutZ1 = 24.5f;
 // the wings
 inline constexpr float kWestLowY = kFloorY - 3.6f;   // -4.6: the lower room of the west wing
+inline constexpr float kTrenchSouth = 24.5f;         // W1: the trench across the hall, z 24.5 .. 29.5: wider than a running jump
+inline constexpr float kTrenchNorth = 29.5f;
+inline constexpr float kWestDoorSouth = 12.0f;       // W2: the door at the foot of the ramp down, z 12 .. 12.5
+inline constexpr float kWestDoorNorth = 12.5f;
+inline constexpr float kWestDoorTop = kWestLowY + 2.6f;
+inline constexpr float kMezzY = kWestLowY + 3.0f;    // -1.6, W3: the mezzanine, 3 m over the lower room (out of reach of a jump)
+inline constexpr float kMezzNorth = 5.0f;            // it covers x -24 .. -14, z 2 .. 5
+inline constexpr float kMezzEast = -14.0f;
+inline constexpr float kHoleX = -20.0f;              // the hole in it, over the socket in the vault
+inline constexpr float kHoleZ = 3.5f;
+inline constexpr float kHoleHalf = 0.3f;             // UNITS: metres: 0.6 m across, narrower than the body (2 x 0.35 m)
+inline constexpr float kVaultEast = -18.0f;          // W4: the vault under the mezzanine, x -24 .. -18, z 2 .. 5
 inline constexpr float kEastHighY = kCourtWallTop;  // 5: the upper room of the east wing = the top of the east wall of the courtyard
 inline constexpr float kEastRoomNorth = 10.0f;      // the upper room ends here; the ramp up runs from z 22 to here (6 m over 12 m)
 inline constexpr float kGalleryY = kTerraceY;       // 1.4: the gallery in the hub, 2.4 m over its floor (out of reach from it)
@@ -386,27 +402,47 @@ inline constexpr SceneObject kFixed[] = {
     Floor(kTowerInnerWest, kTowerInnerSouth, kLane2, kRampSouth, Level(4)),            // south, lanes 1-2
     Floor(kLane1, kRampNorth, kTowerInnerEast, kTowerInnerNorth, Level(5)),            // north, lanes 2-3
     Span(kTowerInnerWest, kSummitY - 0.2f, kTowerInnerSouth, kTowerInnerEast, kSummitY, kRampSouth, kGold, kLayerBoth, 1.0f), // the balcony
-    // ---- the west wing (DOWN): the corridor, the hall, the walls of the ramp down, the lower room, the shortcut up
+    // ---- the west wing (DOWN), the archive (docs/LEVEL_DESIGN.md, 6.3). Its moving parts (orbs, sockets, the plate, the lever,
+    // the bridge, the door, the bars) are in scene/WestWing.h. The corridor from the hub:
     Floor(-15.0f, kWingDoorZ0, kHubWest - 0.5f, kWingDoorZ1, kFloorY),
     Wall(-15.0f, kFloorY, kWingDoorZ0 - 0.5f, kHubWest - 0.5f, kCityWallTop, kWingDoorZ0),
     Wall(-15.0f, kFloorY, kWingDoorZ1, kHubWest - 0.5f, kCityWallTop, kWingDoorZ1 + 0.5f),
-    Floor(-24.0f, 22.0f, -15.0f, 40.0f, kFloorY),
+    // W1 and W2, the hall: the north floor (the orb of W1, the socket), the trench (the bridge of W1 spans it in B), the south
+    // floor (the orb and the plate of W2, the top of the ramp down)
+    Floor(-24.0f, kTrenchNorth, -15.0f, 40.0f, kFloorY),
+    Floor(-24.0f, 22.0f, -15.0f, kTrenchSouth, kFloorY),
     Wall(-24.5f, kFloorY, 21.5f, -24.0f, kCityWallTop, 40.5f),
     Wall(-24.5f, kFloorY, 40.0f, -14.5f, kCityWallTop, 40.5f),
     Wall(-15.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, kWingDoorZ0 - 0.5f),
     Wall(-15.0f, kFloorY, kWingDoorZ1 + 0.5f, -14.5f, kCityWallTop, 40.5f),
     Wall(-24.5f, kFloorY, 21.5f, -22.0f, kCityWallTop, 22.0f),
     Wall(-18.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, 22.0f),
-    Wall(-22.5f, kWestLowY, 12.0f, -22.0f, kFloorY + 1.0f, 21.5f),                                    // the sides of the ramp down
-    Wall(-18.0f, kWestLowY, 12.0f, -17.5f, kFloorY + 1.0f, 21.5f),
-    Floor(-24.0f, 2.0f, -10.0f, 12.0f, kWestLowY),                                                    // the lower room
-    Wall(-24.5f, kWestLowY, 1.5f, -24.0f, kFloorY + 1.0f, 12.0f),
-    Wall(-24.5f, kWestLowY, 1.5f, -9.5f, kFloorY + 1.0f, 2.0f),
-    Wall(-10.0f, kWestLowY, 2.0f, -9.5f, kFloorY + 1.0f, 12.0f),
-    Wall(-24.0f, kWestLowY, 12.0f, -22.5f, kFloorY + 1.0f, 12.5f),                                    // the north edge of the lower room,
-    Wall(-17.5f, kWestLowY, 12.0f, -12.5f, kFloorY + 1.0f, 12.5f),                                    // beside and between the ramps
-    Wall(-12.5f, kWestLowY, 12.0f, -12.0f, kCityWallTop, 25.5f),                                      // the sides of the shortcut up
-    Wall(-10.0f, kWestLowY, 12.0f, -9.5f, kCityWallTop, 22.0f),
+    // the ramp down (its sides as high as the walls round it: nothing is climbed from it)
+    Wall(-22.5f, kWestLowY, kWestDoorNorth, -22.0f, kCityWallTop, 21.5f),
+    Wall(-18.0f, kWestLowY, kWestDoorNorth, -17.5f, kCityWallTop, 21.5f),
+    // W2's door at its foot: the red panel in A (the blue door, in B, is a gate of scene/WestWing.h); a lintel over it
+    Span(-22.0f, kWestLowY, kWestDoorSouth, -18.0f, kWestDoorTop, kWestDoorNorth, kRed, kLayerA),
+    Wall(-22.0f, kWestDoorTop, kWestDoorSouth, -18.0f, kCityWallTop, kWestDoorNorth),
+    // W3, the lower room: its floor and its walls
+    Floor(-24.0f, 2.0f, -10.0f, kWestDoorSouth, kWestLowY),
+    Wall(-24.5f, kWestLowY, 1.5f, -24.0f, kCityWallTop, kWestDoorNorth),
+    Wall(-24.5f, kWestLowY, 1.5f, -9.5f, kCityWallTop, 2.0f),
+    Wall(-10.0f, kWestLowY, 2.0f, -9.5f, kCityWallTop, kWestDoorSouth),
+    Wall(-24.0f, kWestLowY, kWestDoorSouth, -22.5f, kCityWallTop, kWestDoorNorth),                     // its north edge, beside
+    Wall(-17.5f, kWestLowY, kWestDoorSouth, -12.5f, kCityWallTop, kWestDoorNorth),                     // and between the ramps
+    // W3's mezzanine: a floor 3 m over the lower room, reached by a ramp along its east side; over the vault it has a hole
+    // too narrow for the body (0.6 m; the body is 0.7 m across) and wide enough for an orb, open in B and closed by a red lid
+    // in A
+    Floor(-24.0f, 2.0f, kHoleX - kHoleHalf, kMezzNorth, kMezzY),
+    Floor(kHoleX + kHoleHalf, 2.0f, kMezzEast, kMezzNorth, kMezzY),
+    Floor(kHoleX - kHoleHalf, 2.0f, kHoleX + kHoleHalf, kHoleZ - kHoleHalf, kMezzY),
+    Floor(kHoleX - kHoleHalf, kHoleZ + kHoleHalf, kHoleX + kHoleHalf, kMezzNorth, kMezzY),
+    Span(kHoleX - kHoleHalf, kMezzY - 0.2f, kHoleZ - kHoleHalf, kHoleX + kHoleHalf, kMezzY, kHoleZ + kHoleHalf, kRed, kLayerA), // the lid (A)
+    // W4, the vault under the mezzanine: the seal; its east wall (the bars on its north side are a gate of scene/WestWing.h)
+    Wall(kVaultEast, kWestLowY, 2.0f, kVaultEast + 0.5f, kMezzY - 0.2f, kMezzNorth + 0.5f),
+    // the shortcut up from the lower room to the door in the hub wall, which the seal opens
+    Wall(-12.5f, kWestLowY, kWestDoorSouth, -12.0f, kCityWallTop, 25.5f),
+    Wall(-10.0f, kWestLowY, kWestDoorSouth, -9.5f, kCityWallTop, 22.0f),
     Floor(-12.0f, 22.0f, kHubWest - 0.5f, 25.0f, kFloorY),                                            // the landing at its top
     Wall(-12.0f, kFloorY, 25.0f, kHubWest - 0.5f, kCityWallTop, 25.5f),
     // ---- the east wing (UP): the corridor, the hall, the walls of the ramp up, the upper room
@@ -454,6 +490,7 @@ inline const SceneObject kRamps[] = {
     Ramp(kLane2, kTowerInnerEast, kRampNorth, Level(5), kRampSouth, Level(6)), // tower 6: lane 3 south, to the balcony
     Ramp(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY),                    // west: down
     Ramp(-12.0f, -10.0f, 12.0f, kWestLowY, 22.0f, kFloorY),                    // west: the shortcut up
+    Ramp(-16.0f, kMezzEast, 11.0f, kWestLowY, kMezzNorth, kMezzY),             // west: up to the mezzanine (W3)
     Ramp(18.0f, 22.0f, 22.0f, kFloorY, kEastRoomNorth, kEastHighY),            // east: up
     Ramp(5.0f, 9.0f, 46.0f, kFloorY, 58.0f, kFloorY + 3.5f),                   // north: 1
     Ramp(0.0f, 4.0f, 58.0f, kFloorY + 3.5f, 46.0f, kNorthHighY),               // north: 2
@@ -529,7 +566,7 @@ struct Room
                       // close to the floors of the room, because tests/test_reach.cpp allows a jump up inside one room
     float x1, y1, z1;
     Vec3 entry;       // where it comes back, standing; a place to stand in both layers
-    bool puzzle;      // R also puts back the block puzzle
+    bool puzzle;      // R also puts back the puzzle of the room: the block of the courtyard, the orbs of the west wing
 };
 
 /// The rooms, the most specific first (the tower stands inside the hub).
@@ -539,14 +576,37 @@ inline constexpr Room kRooms[] = {
     {"gap", -3.2f, 0.0f, 4.2f, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 5.0f}, false},
     {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 3.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
     {"hub", kHubWest, -2.0f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
-    {"west hall", -24.0f, -2.0f, 22.0f, kHubWest, -0.5f, 40.0f, {-12.0f, kFloorY, 31.0f}, false},
-    {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, 0.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, false},
+    {"west landing", -12.0f, -2.0f, 22.0f, kHubWest, -0.5f, 25.0f, {-11.0f, kFloorY, 23.5f}, false},
+    {"west hall", -24.0f, -2.0f, 22.0f, kHubWest, -0.5f, 40.0f, {-12.0f, kFloorY, 31.0f}, true},
+    {"west vault", -24.0f, -6.0f, 2.0f, kVaultEast, -4.0f, kMezzNorth, {-21.5f, kWestLowY, 4.3f}, false},
+    {"west mezzanine", -24.0f, -2.5f, 2.0f, kMezzEast, -1.0f, kMezzNorth, {-15.0f, kMezzY, 3.5f}, false},
+    {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, -4.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, true},
     {"east hall", kHubEast, -2.0f, 22.0f, 24.0f, -0.5f, 40.0f, {12.0f, kFloorY, 31.0f}, false},
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
     {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
 };
 inline constexpr int kRoomCount = static_cast<int>(sizeof(kRooms) / sizeof(kRooms[0]));
+
+/// The index of the room called `name` in kRooms, or -1 (constexpr: a room that is renamed stops the build where it is used).
+constexpr int RoomIndex(const char* name)
+{
+    for (int i = 0; i < kRoomCount; ++i)
+    {
+        const char* a = kRooms[i].name;
+        const char* b = name;
+        while (*a != '\0' && *a == *b)
+        {
+            ++a;
+            ++b;
+        }
+        if (*a == *b)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
 inline constexpr int kStartRoom = 1; ///< the terrace
 
 /// The room a body standing at `feet` is in, or -1.
@@ -581,7 +641,7 @@ struct Seal
     const char* name; ///< for the log
 };
 inline constexpr Seal kSeals[] = {
-    {{-22.0f, kWestLowY + 1.0f, 4.0f}, "west"},
+    {{-23.0f, kWestLowY + 1.0f, 3.5f}, "west"},
     {{kCourtEast + 0.75f, kEastHighY + 1.0f, 20.0f}, "east"},
     {{-7.0f, kNorthHighY + 1.0f, 45.0f}, "north"},
 };

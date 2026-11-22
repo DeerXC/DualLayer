@@ -114,6 +114,8 @@
     <ClInclude Include="src\scene\Player.h" />
     <ClInclude Include="src\scene\Courtyard.h" />
     <ClInclude Include="src\scene\Puzzle.h" />
+    <ClInclude Include="src\scene\Mechanisms.h" />
+    <ClInclude Include="src\scene\WestWing.h" />
     <ClInclude Include="src\scene\Stage.h" />
     <ClInclude Include="src\scene\StageHints.h" />
     <ClInclude Include="src\scene\StageLights.h" />
@@ -132,3 +134,4 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
+

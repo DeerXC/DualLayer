@@ -12,8 +12,9 @@ WinMain > RunApp
           4. resize                > Device::Resize
           5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something is refused)
           6. Models::Update        > the spin clock and the ripple clock
-          7. the solid table       > Puzzle::Solids(layer) + Stage::AddMapSolids (the closed doors)
-          8. walking               > Player::Update, Puzzle::Update, seals and hidden lights, the room, a fall, the goal;
+          7. the solid table       > Puzzle::Solids(layer) + Stage::AddMapSolids (the closed doors) + the gates of the wings
+          8. walking               > Player::Update, Puzzle::Update, E (take or put an orb), MechanismSet::Update with the
+                                     solid table of each layer, seals and hidden lights, the room, a fall, the goal;
              flying                > ResolveSphere on the camera ball
           9. the drawn table       > Stage::BuildDrawTable + AddMapDraw + the hints + the lights > Models::SetObjects
          10. render                > Device::BeginFrame, Models::Draw (one layer, or the ripple), Device::EndFrame (Present)
@@ -28,7 +29,7 @@ What is drawn and what is solid come from the same state in the same frame, so t
 main
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle   > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
-             StageHints, StageLights                                                               > standard library only
+             StageHints, StageLights, Mechanisms, WestWing                                         > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -72,6 +73,15 @@ a layer switch that would put the body inside something.
 `BlockMaze` is the same puzzle as a grid: a breadth-first search over (the cell of the block, the region the body can
 reach), where the body moves through the union of the two layers and over the block, and the block only through their
 intersection. `Courtyard` holds the rows of the courtyard; `tools/maze_search.cpp` chose them.
+
+## The moving parts of a wing
+
+`Mechanisms` holds the parts of a wing that change while it is played, as data and rules: orbs, triggers (sockets,
+plates, levers; a trigger may latch) and gates (boxes that are there while their trigger is on, such as a bridge, or while
+it is off, such as a door or bars). An orb is in one layer: carried, it takes the layer of the body; put down, it stays,
+and falls straight down through what is not in its layer. Every frame `main.cpp` adds the gates that are there to the
+solid tables, lets E take or put an orb, updates the orbs with the solid table of each layer and the triggers with the
+body, and adds the gates, the pads and the orbs to the drawn table. `WestWing` is the data of the west wing.
 
 ## The map
 

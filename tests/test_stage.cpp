@@ -25,6 +25,7 @@
 // fails.
 
 #include "scene/Stage.h"
+#include "scene/WestWing.h"
 
 #include <cmath>
 #include <cstdio>
@@ -90,22 +91,35 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates;
 
-/// The map as the program runs it: the solid table of the layer of the body (the puzzle and the closed doors of the map),
-/// then the body, then the puzzle and the seals.
+int Room(const char* name)
+{
+    const int i = st::RoomIndex(name);
+    if (i < 0)
+    {
+        std::printf("FAIL: no room called %s\n", name);
+        ++g_failed;
+    }
+    return i;
+}
+
+/// The map as the program runs it: the solid table of the layer of the body (the puzzle, the closed doors of the map and the
+/// gates of the west wing), then the body, then the puzzle, the orbs and the seals.
 struct World
 {
     dl::puzzle::Puzzle puzzle;
     st::SealSet seals;
+    dl::mech::MechanismSet mech;
     Player player;
     int layer = 0;
     float spin = 0.0f;
-    SceneObject solids[kMaxSolids] = {};
+    SceneObject solids[2][kMaxSolids] = {};
+    int counts[2] = {0, 0};
 
     World()
     {
-        if (!puzzle.Init(st::MakeStage()))
+        if (!puzzle.Init(st::MakeStage()) || !mech.Init(st::WestWing()))
         {
             ++g_failed;
             std::printf("FAIL: the stage does not Init\n");
@@ -114,8 +128,34 @@ struct World
         player.Respawn();
     }
 
-    World(const World& o) : puzzle(o.puzzle), seals(o.seals), player(o.player), layer(o.layer), spin(o.spin)
+    World(const World& o) : puzzle(o.puzzle), seals(o.seals), mech(o.mech), player(o.player), layer(o.layer), spin(o.spin)
     {
+    }
+
+    /// The solid tables of both layers, as they are now.
+    void BuildSolids()
+    {
+        for (int l = 0; l < 2; ++l)
+        {
+            int count = 0;
+            const SceneObject* table = puzzle.Solids(l, count);
+            for (int i = 0; i < count; ++i)
+            {
+                solids[l][i] = table[i];
+            }
+            count = st::AddMapSolids(seals, solids[l], count, kMaxSolids);
+            counts[l] = mech.AddSolids(l, solids[l], count, kMaxSolids);
+        }
+    }
+
+    /// E, looking along `look`.
+    dl::mech::Action Use(const Vec3& look)
+    {
+        BuildSolids();
+        int which = -1;
+        const dl::mech::Action a = mech.Interact(player, layer, look, solids[layer], counts[layer], which);
+        Run(0.6f); // a put-down orb falls and settles
+        return a;
     }
 
     void TakeAllSeals()
@@ -128,17 +168,13 @@ struct World
 
     void Frame(const Player::Input& input, const Vec3& look)
     {
-        int count = 0;
-        const SceneObject* table = puzzle.Solids(layer, count);
-        for (int i = 0; i < count; ++i)
-        {
-            solids[i] = table[i];
-        }
-        count = st::AddMapSolids(seals, solids, count, kMaxSolids);
-        player.SetScene(solids, count);
+        BuildSolids();
+        player.SetScene(solids[layer], counts[layer]);
         spin += kDt;
         player.Update(input, look, layer, spin, kDt);
         puzzle.Update(player, kDt);
+        BuildSolids();
+        mech.Update(player, layer, solids[0], counts[0], solids[1], counts[1], kDt);
         seals.Collect(player);
     }
 
@@ -418,7 +454,7 @@ void TestPrologue()
     o.PlaceFeet({0.0f, st::kTerraceY, 12.5f});
     o.Run(2.0f, Keys(1.0f), kNorth);
     o.Run(0.5f);
-    CHECK(o.player.Grounded() && Near(o.player.Feet().y, kFloorY, 0.02f) && st::RoomAt(o.player.Feet()) == 3);
+    CHECK(o.player.Grounded() && Near(o.player.Feet().y, kFloorY, 0.02f) && st::RoomAt(o.player.Feet()) == Room("courtyard"));
 }
 
 /// Plays the proved solution of the courtyard. Returns the world with the block on the plate, the body in the courtyard.
@@ -453,7 +489,7 @@ World ReachTheHub(bool& ok)
     World w = PlaySolution(ok);
     w.layer = 1;
     w.PlaceFeet({st::kDoorX, kFloorY, 20.5f});
-    ok = ok && w.WalkPath({{st::kDoorX, kFloorY, 23.5f}}) && st::RoomAt(w.player.Feet()) == 4;
+    ok = ok && w.WalkPath({{st::kDoorX, kFloorY, 23.5f}}) && st::RoomAt(w.player.Feet()) == Room("hub");
     return w;
 }
 
@@ -492,23 +528,172 @@ void TestCourtyard()
     CHECK(ok);
 }
 
+const Vec3 kSouth{0.0f, 0.0f, -1.0f};
+const Vec3 kWest{-1.0f, 0.0f, 0.0f};
+
+/// Plays the west wing from the hub to the seal: W1 (the orb onto the socket in B, the bridge), W2 (the other orb onto the
+/// plate in A, through the door in B, the lever, the orb fetched), W3 (the orb let fall through the hole in B), W4 (the seal).
+/// Each step is checked; returns true when all of them worked.
+bool PlayWestWing(World& w)
+{
+    bool ok = true;
+    const auto step = [&](bool good, const char* what) {
+        if (!good)
+        {
+            std::printf("  (west wing: %s failed, at %.2f %.2f %.2f, layer %c)\n", what, static_cast<double>(w.player.Feet().x),
+                        static_cast<double>(w.player.Feet().y), static_cast<double>(w.player.Feet().z), w.layer == 0 ? 'A' : 'B');
+        }
+        ok = ok && good;
+        return good;
+    };
+    w.layer = 0;
+    // ---- W1: the orb on the north floor, to the socket by the trench
+    step(w.WalkPath({{-6.0f, kFloorY, 25.0f}, {-6.0f, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-21.0f, kFloorY, 35.8f}}), "walk to the W1 orb");
+    step(w.Use(kNorth) == dl::mech::Action::Took, "take the W1 orb");
+    step(w.WalkPath({{-17.0f, kFloorY, 32.7f}}), "walk to the socket");
+    step(w.Use(kSouth) == dl::mech::Action::Put, "put it down in A");
+    step(w.mech.OrbAt(0).resting && std::fabs(w.mech.OrbAt(0).centre.x + 17.0f) < 0.05f, "the orb snaps onto the socket");
+    step(!w.mech.GatePresent(st::kW1Bridge), "in A the socket does nothing");
+    step(w.Use(kSouth) == dl::mech::Action::Took, "take it again");
+    step(w.Switch(1), "switch to B");
+    step(w.Use(kSouth) == dl::mech::Action::Put && w.mech.GatePresent(st::kW1Bridge), "the orb on the socket in B lays the bridge");
+    {
+        World a = w; // the bridge is of B: in A the body falls into the trench
+        a.Switch(0);
+        a.PlaceFeet({-19.5f, kFloorY, 30.5f});
+        a.WalkTo(-19.5f, 23.4f, 4.0f);
+        step(a.Fallen() || a.player.Feet().y < kFloorY - 1.0f, "in A the bridge is not there");
+    }
+    step(w.WalkPath({{-19.5f, kFloorY, 30.5f}, {-19.5f, kFloorY, 23.4f}}) && w.At(-19.5f, kFloorY, 23.4f), "over the bridge in B");
+    // ---- W2: the other orb onto the plate in A; through the door in B; the lever; back for the orb
+    step(w.Switch(0), "switch to A");
+    step(w.WalkPath({{-15.6f, kFloorY, 23.25f}}) && w.Use(kWest) == dl::mech::Action::Took, "take the W2 orb");
+    step(w.WalkPath({{-21.9f, kFloorY, 23.25f}}) && w.Use(kWest) == dl::mech::Action::Put, "put it onto the plate");
+    step(w.mech.Active(st::kW2Plate) && w.mech.GateOpen(st::kW2Door), "the plate opens the door");
+    step(w.WalkPath({{-20.0f, kFloorY, 21.0f}}) && w.Switch(1), "to the ramp, switch to B");
+    step(w.WalkPath({{-20.0f, kFloorY, 11.0f}}) && w.At(-20.0f, st::kWestLowY, 11.0f), "down the ramp, through the door in B");
+    step(w.WalkPath({{-22.9f, kFloorY, 10.8f}}) && w.mech.Active(st::kW2Lever), "the lever");
+    step(w.WalkPath({{-20.0f, kFloorY, 13.0f}, {-20.0f, kFloorY, 21.5f}, {-21.9f, kFloorY, 23.25f}}), "back up to the plate");
+    step(w.Switch(0) && w.Use(kWest) == dl::mech::Action::Took, "take the orb off the plate in A");
+    step(w.mech.GateOpen(st::kW2Door), "the lever keeps the door open");
+    step(w.Switch(1) && w.mech.HeldOrb() == 1, "switch to B with the orb");
+    step(w.WalkPath({{-20.0f, kFloorY, 21.0f}, {-20.0f, kFloorY, 10.5f}}) && w.At(-20.0f, st::kWestLowY, 10.5f), "down with the orb");
+    // ---- W3: up to the mezzanine, the orb over the hole: in A it lies on the lid, in B it falls onto the socket
+    step(w.WalkPath({{-15.0f, kFloorY, 10.5f}, {-15.0f, kFloorY, 4.0f}}) && w.At(-15.0f, st::kMezzY, 4.0f), "up to the mezzanine");
+    step(w.Switch(0) && w.WalkPath({{-18.9f, kFloorY, 3.5f}}) && w.Use(kWest) == dl::mech::Action::Put, "put it over the hole in A");
+    step(w.mech.OrbAt(1).resting && w.mech.OrbAt(1).centre.y > st::kMezzY && !w.mech.Active(st::kW3Socket), "in A it lies on the lid");
+    step(w.Use(kWest) == dl::mech::Action::Took && w.Switch(1) && w.Use(kWest) == dl::mech::Action::Put, "again, in B");
+    step(w.mech.OrbAt(1).centre.y < st::kWestLowY + 0.5f && w.mech.Active(st::kW3Socket) && !w.mech.GatePresent(st::kW3Bars),
+         "in B it falls onto the socket and the bars open");
+    // ---- W4: down, into the vault, the seal
+    step(w.WalkPath({{-15.0f, kFloorY, 4.0f}, {-15.0f, kFloorY, 10.0f}, {-21.0f, kFloorY, 7.0f}, {-22.8f, kFloorY, 3.8f}}), "into the vault");
+    step(w.seals.Taken(st::kWestSeal), "the seal");
+    return ok;
+}
+
+void TestWestWing()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    // W1: the trench is not crossed without the bridge, in either layer, even with a running jump
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        for (float runUp : {0.0f, 0.2f, 0.4f})
+        {
+            World t = hub;
+            t.layer = layer;
+            t.PlaceFeet({-19.5f, kFloorY, 31.8f});
+            t.Run(runUp, Keys(1.0f), kSouth);
+            t.Frame(Keys(1.0f, true), kSouth);
+            bool across = false;
+            for (int i = 0; i < 240 && !t.Fallen(); ++i)
+            {
+                t.Frame(Keys(1.0f), kSouth);
+                across = across || (t.player.Grounded() && t.player.Feet().z < st::kTrenchSouth + 0.1f && t.player.Feet().y > kFloorY - 0.1f);
+            }
+            CHECK(!across);
+        }
+    }
+    // W2: the door holds in A (the red panel) and in B while the plate is up
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World t = hub;
+        t.layer = layer;
+        t.PlaceFeet({-20.0f, kFloorY, 21.0f});
+        t.WalkTo(-20.0f, 10.5f, 6.0f);
+        CHECK(t.player.Feet().z > st::kWestDoorNorth);
+    }
+    // W2: the body on the plate opens the door only for A, where the red panel holds; the orb on the plate opens it for B
+    {
+        World t = hub;
+        t.layer = 0;
+        t.PlaceFeet({-23.0f, kFloorY, 23.25f});
+        CHECK(t.mech.Active(st::kW2Plate));
+        t.layer = 1;
+        t.Run(0.2f);
+        CHECK(!t.mech.Active(st::kW2Plate));
+    }
+    // W2: without the lever, the orb cannot be carried through the door: taken off the plate, the door closes
+    {
+        World t = hub;
+        t.layer = 0;
+        t.PlaceFeet({-15.6f, kFloorY, 23.25f});
+        CHECK(t.Use(kWest) == dl::mech::Action::Took);
+        t.WalkPath({{-21.9f, kFloorY, 23.25f}});
+        CHECK(t.Use(kWest) == dl::mech::Action::Put && t.mech.GateOpen(st::kW2Door));
+        CHECK(t.Use(kWest) == dl::mech::Action::Took && !t.mech.GateOpen(st::kW2Door));
+        CHECK(t.Switch(1));
+        t.WalkPath({{-20.0f, kFloorY, 21.0f}});
+        t.WalkTo(-20.0f, 10.5f, 6.0f);
+        CHECK(t.player.Feet().z > st::kWestDoorNorth);
+        // and the orb is not put down through the closed door
+        t.PlaceFeet({-20.0f, st::kWestLowY + 0.3f, 12.95f});
+        CHECK(t.Use(kSouth) == dl::mech::Action::Refused && t.mech.HeldOrb() == 1);
+    }
+    // W3: the body does not fall through the hole, in either layer; the mezzanine is out of reach from the lower floor
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World t = hub;
+        t.layer = layer;
+        t.PlaceFeet({st::kHoleX, st::kMezzY, st::kHoleZ});
+        t.Run(1.0f);
+        CHECK(t.player.Feet().y > st::kMezzY - 0.5f);
+        CHECK(t.JumpFrom({-17.0f, st::kWestLowY, 6.5f}, kSouth, 0.3f) < st::kMezzY - 1.0f);
+    }
+    // W3: the bars hold until the socket is worked, and the seal is out of reach through them
+    {
+        World t = hub;
+        t.layer = 0;
+        t.PlaceFeet({-23.0f, st::kWestLowY, 7.0f});
+        t.Run(1.5f, Keys(1.0f), kSouth);
+        CHECK(t.player.Feet().z > st::kMezzNorth + 0.4f && !t.seals.Taken(st::kWestSeal));
+    }
+    // R in the hall puts its orbs back
+    {
+        World t = hub;
+        t.layer = 0;
+        t.PlaceFeet({-21.0f, kFloorY, 35.8f});
+        CHECK(t.Use(kNorth) == dl::mech::Action::Took);
+        t.mech.ResetRoom(Room("west hall"));
+        t.Run(0.5f);
+        CHECK(t.mech.HeldOrb() < 0 && t.mech.OrbAt(0).resting && std::fabs(t.mech.OrbAt(0).centre.z - 37.0f) < 0.05f);
+    }
+}
+
 void TestWings()
 {
     bool ok = false;
     const World hub = ReachTheHub(ok);
     CHECK(ok);
     {
-        // the west wing: down to the seal, back up the shortcut through the door that the seal opened
+        // the west wing, played: W1, W2, W3, the seal, the shortcut (the ways round are in TestWestWing)
         World w = hub;
-        w.layer = 0;
-        CHECK(w.WalkPath({{-6.0f, kFloorY, 25.0f}, {-6.0f, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-20.0f, kFloorY, 31.0f},
-                          {-20.0f, kFloorY, 23.0f}, {-20.0f, kFloorY, 10.0f}}));
-        CHECK(w.At(-20.0f, st::kWestLowY, 10.0f) && st::RoomAt(w.player.Feet()) == 6);
-        CHECK(!w.seals.Taken(st::kWestSeal));
-        CHECK(w.WalkPath({{-22.0f, kFloorY, 4.0f}}));
+        CHECK(PlayWestWing(w));
         CHECK(w.seals.Taken(st::kWestSeal) && w.seals.ShortcutOpen());
-        CHECK(w.WalkPath({{-11.0f, kFloorY, 10.0f}, {-11.0f, kFloorY, 23.5f}, {-7.0f, kFloorY, 23.5f}}));
-        CHECK(w.At(-7.0f, kFloorY, 23.5f) && st::RoomAt(w.player.Feet()) == 4);
+        CHECK(w.WalkPath({{-21.0f, kFloorY, 7.0f}, {-17.0f, kFloorY, 11.6f}, {-11.0f, kFloorY, 11.6f}, {-11.0f, kFloorY, 23.5f},
+                          {-7.0f, kFloorY, 23.5f}})); // round the foot of the ramp up to the mezzanine
+        CHECK(w.At(-7.0f, kFloorY, 23.5f) && st::RoomAt(w.player.Feet()) == Room("hub"));
         World before = hub; // without the seal, the same door holds from the hub side
         before.PlaceFeet({-7.0f, kFloorY, 23.5f});
         before.Run(2.0f, Keys(1.0f), {-1.0f, 0.0f, 0.0f});
@@ -525,14 +710,14 @@ void TestWings()
         w.layer = 0;
         CHECK(w.WalkPath({{6.0f, kFloorY, 25.0f}, {6.0f, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {20.0f, kFloorY, 31.0f},
                           {20.0f, kFloorY, 23.0f}, {20.0f, kFloorY, 8.0f}}));
-        CHECK(w.At(20.0f, st::kEastHighY, 8.0f) && st::RoomAt(w.player.Feet()) == 8);
+        CHECK(w.At(20.0f, st::kEastHighY, 8.0f) && st::RoomAt(w.player.Feet()) == Room("east upper"));
         CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 8.0f}, {st::kCourtEast + 0.75f, kFloorY, 20.0f}}));
         CHECK(w.seals.Taken(1) && w.At(st::kCourtEast + 0.75f, st::kEastHighY, 20.0f));
         CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 24.0f}})); // off the north end: onto the gallery
         CHECK(w.At(st::kCourtEast + 0.75f, st::kGalleryY, 24.0f) && std::string_view(st::kRooms[st::RoomAt(w.player.Feet())].name) == "gallery");
         CHECK(w.WalkPath({{8.0f, kFloorY, 24.0f}, {8.0f, kFloorY, 32.0f}, {5.5f, kFloorY, 32.0f}})); // along it, and off its west edge
         w.Run(0.5f);
-        CHECK(w.At(5.5f, kFloorY, 32.0f) && st::RoomAt(w.player.Feet()) == 4);
+        CHECK(w.At(5.5f, kFloorY, 32.0f) && st::RoomAt(w.player.Feet()) == Room("hub"));
         World back = w; // the gallery is not reached again from the hub floor
         back.PlaceFeet({5.5f, kFloorY, 30.0f});
         back.Run(0.3f, Keys(1.0f), kEast);
@@ -553,7 +738,7 @@ void TestWings()
         CHECK(w.At(-7.0f, st::kNorthHighY, 40.25f));
         CHECK(w.WalkPath({{-7.0f, kFloorY, 34.0f}}));
         w.Run(1.0f); // the drop is 7 m
-        CHECK(w.At(-7.0f, kFloorY, 34.0f) && st::RoomAt(w.player.Feet()) == 4);
+        CHECK(w.At(-7.0f, kFloorY, 34.0f) && st::RoomAt(w.player.Feet()) == Room("hub"));
     }
 }
 
@@ -569,7 +754,7 @@ void TestTower()
     w.TakeAllSeals(); // the walks to them are in TestWings
     CHECK(w.seals.TowerOpen());
     CHECK(w.WalkPath({{-2.5f, kFloorY, 28.2f}}));
-    CHECK(st::RoomAt(w.player.Feet()) == 0);
+    CHECK(st::RoomAt(w.player.Feet()) == Room("tower"));
     // six ramps: lanes 1, 2, 3 and again 1, 2, 3, each one level (2 m) higher, turning at the landings
     const float lane[3] = {-2.33f, 0.0f, 2.33f};
     const float north = 33.8f;
@@ -673,14 +858,15 @@ void TestRooms()
             CHECK(w.player.Grounded() && Near(w.player.Feet().y, r.entry.y, 0.02f) && w.puzzle.BodyFits(w.player, layer, w.spin));
         }
     }
-    const st::Room& court = st::kRooms[3];
+    const st::Room& court = st::kRooms[Room("courtyard")];
     CHECK(court.puzzle);
     const int gx = static_cast<int>(std::lround(court.entry.x)) - st::kCellX0;
     const int gz = static_cast<int>(std::lround(court.entry.z)) - st::kCellZ0;
     CHECK(g.Inside(gx, gz) && cells.kind[static_cast<std::size_t>(g.Index(gx, gz))] == 0); // the block is never there
-    CHECK(st::CurrentRoom({0.0f, kFloorY, 30.0f}, false, 7) == 7);  // in the air: the last room
-    CHECK(st::CurrentRoom({0.0f, kFloorY, 25.0f}, true, 7) == 4);   // standing in the hub
-    CHECK(st::CurrentRoom({50.0f, kFloorY, 25.0f}, true, 7) == 7);  // standing in no room: the last one
+    const int last = Room("east hall");
+    CHECK(st::CurrentRoom({0.0f, kFloorY, 30.0f}, false, last) == last);       // in the air: the last room
+    CHECK(st::CurrentRoom({0.0f, kFloorY, 25.0f}, true, last) == Room("hub")); // standing in the hub
+    CHECK(st::CurrentRoom({50.0f, kFloorY, 25.0f}, true, last) == last);      // standing in no room: the last one
 }
 
 } // namespace
@@ -691,6 +877,7 @@ int main()
     TestPrologue();
     TestCourtyard();
     TestWings();
+    TestWestWing();
     TestTower();
     TestNoWayRound();
     TestRooms();

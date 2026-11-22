@@ -10,6 +10,7 @@
 //         keys turn as well, R goes back to the entry of the room the body is in (and puts back the puzzle of that room),
 //         F5 reloads config/default.ini
 //         Space jumps (walking; held = the full jump, a tap = a small hop), Q / E down / up (flying)
+//         E (walking) takes the orb in reach, or puts the held one down (scene/Mechanisms.h)
 //         F walking / flying (walking: gravity, the body stands on the floor and on objects; flying: a free camera)
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
 //         Tab switches the layer (A <-> B). A switch that would put the body inside something is refused: the ripple opens
@@ -45,6 +46,7 @@
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
+#include "scene/WestWing.h"
 
 #include <DirectXMath.h>
 
@@ -76,7 +78,7 @@ constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepes
 constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
 constexpr float kEyeEase = 30.0f;                   // UNITS: 1 / seconds; small changes of the eye height are eased over about 0.05 s
 constexpr float kEyeEaseMax = 0.5f;                 // UNITS: metres; a larger change (a respawn, a teleport) is followed at once
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4; // the puzzle's table and the closed doors of the map
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates; // the puzzle's table, the doors, the gates
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -206,16 +208,27 @@ struct Gpu
 
 /// Fills the drawn table with the map as it is now: the map, its state, then what it says without words. Returns the count.
 int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
-                    const dl::Config& config, float sinceClear, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
+                    const dl::mech::MechanismSet& mech, const dl::Player& player, const dl::Vec3& look, const dl::Config& config,
+                    float sinceClear, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
     namespace st = dl::stage;
     const bool cleared = sinceClear >= 0.0f;
+    const bool ghosts = config.GetBool("hints", "ghosts", true); // the outlines of the other layer: [hints] ghosts = false turns them off
     int count = st::BuildDrawTable(puzzle, cleared, table);
     count = st::AddMapDraw(seals, table, count, st::kMaxDrawObjects);
-    if (config.GetBool("hints", "ghosts", true)) // the outlines of the other layer: [hints] ghosts = false turns them off
+    if (ghosts)
     {
         count = st::AddGhosts(table, count, st::kMaxDrawObjects);
     }
+    // the moving parts of the wings: the gates that are there and the pads of the triggers (outlined in the other layer like
+    // the fixed boxes), then the orbs
+    const int movingFirst = count;
+    count = mech.AddFixedDraw(table, count, st::kMaxDrawObjects);
+    if (ghosts)
+    {
+        count = st::AddOutlines(table + movingFirst, count - movingFirst, table, count, st::kMaxDrawObjects);
+    }
+    count = mech.AddOrbDraw(player, look, table, count, st::kMaxDrawObjects);
     // a refused push: the outline of what was in the way, in both layers, for a moment
     count = st::AddBlockedFlash(puzzle, table, count, st::kMaxDrawObjects);
     // the blue frame of the door, seen in A while the door is closed for a body in A: the plate shows what it does
@@ -230,9 +243,10 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     return count;
 }
 
-/// The solid table of a body in `layer`: the puzzle's table (the boxes of the map, the block, the courtyard door while
-/// closed) and the closed doors of the map. Returns the count.
-int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, int layer, dl::scene::SceneObject (&table)[kMaxSolids])
+/// The solid table of a body (or an orb) in `layer`: the puzzle's table (the boxes of the map, the block, the courtyard door
+/// while closed), the closed doors of the map and the gates of the wings that are there. Returns the count.
+int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::mech::MechanismSet& mech, int layer,
+                    dl::scene::SceneObject (&table)[kMaxSolids])
 {
     int count = 0;
     const dl::scene::SceneObject* solids = puzzle.Solids(layer, count);
@@ -240,7 +254,8 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
     {
         table[i] = solids[i];
     }
-    return dl::stage::AddMapSolids(seals, table, count, kMaxSolids);
+    count = dl::stage::AddMapSolids(seals, table, count, kMaxSolids);
+    return mech.AddSolids(layer, table, count, kMaxSolids);
 }
 
 int RunApp(HINSTANCE instance, int argc, char** argv)
@@ -291,6 +306,16 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     // the stack of a function that runs for the whole program
     static dl::scene::SceneObject drawTable[dl::stage::kMaxDrawObjects] = {};
     static dl::scene::SceneObject solidTable[kMaxSolids] = {};
+    static dl::scene::SceneObject solidsA[kMaxSolids] = {}; // the solid tables of each layer, for the orbs
+    static dl::scene::SceneObject solidsB[kMaxSolids] = {};
+    dl::mech::MechanismSet mech; // the moving parts of the west wing (scene/WestWing.h)
+    if (!mech.Init(dl::stage::WestWing()))
+    {
+        DL_LOG_ERROR("Main", "the west wing could not be set up (scene/WestWing.h)");
+        MessageBoxA(window.Handle(), "The map could not be set up. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
+        gpu.Shutdown();
+        return 1;
+    }
 
     dl::Player player;
     ApplyPlayerConfig(config, player);
@@ -320,6 +345,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     bool collideKeyWasDown = false;
     bool walkKeyWasDown = false;
     bool jumpKeyWasDown = false;
+    bool useKeyWasDown = false;
     bool resetTestKeyWasDown = false;
     bool collide = config.GetBool("collision", "enabled", true); // N switches it; F5 sets it from the config again
     bool walk = config.GetBool("player", "walk", true);          // F switches it; F5 sets it from the config again
@@ -420,6 +446,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             DL_LOG_INFO("Main", "movement: %s", walk ? "walk" : "fly");
         }
         const bool jumpPressed = PressedOnce(VK_SPACE, jumpKeyWasDown, focused);
+        const bool usePressed = PressedOnce('E', useKeyWasDown, focused); // walking: take or put the orb (flying: E is up)
         const bool walking = walk && collide; // a body that walks needs something to stand on
 
         // ---- the layer switch, through the guard. WHY not while Alt is down: Alt + Tab switches windows and must not also
@@ -469,21 +496,22 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             const dl::stage::Room& here = dl::stage::kRooms[room];
             landDip = 0.0f;
-            if (here.puzzle)
+            if (room == dl::stage::RoomIndex("courtyard"))
             {
                 puzzle.Reset(); // R in the courtyard also puts the block back: a block in a dead end never ends the game
             }
+            mech.ResetRoom(room); // and the orbs of the room go back (what is latched stays)
             player.SetSpawn(here.entry);
             player.Respawn();
             camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch());
-            DL_LOG_INFO("Main", "R: back to the entry of the %s%s", here.name, here.puzzle ? ", the block is back at its start" : "");
+            DL_LOG_INFO("Main", "R: back to the entry of the %s%s", here.name, here.puzzle ? ", its puzzle is put back" : "");
         }
         resetKeyWasDown = resetKeyDown;
         gpu.models.Update(dtf);
 
         // the layer whose objects are solid: the one the screen is going to show, or the old one while a refusal plays
         const int solidLayer = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
-        const int solidCount = BuildSolidTable(puzzle, seals, solidLayer, solidTable);
+        const int solidCount = BuildSolidTable(puzzle, seals, mech, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
@@ -496,6 +524,26 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             player.SetScene(solidTable, solidCount);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
             puzzle.Update(player, dtf);
+            if (usePressed)
+            {
+                int which = -1;
+                const dl::mech::Action action = mech.Interact(player, solidLayer, camera.Forward(), solidTable, solidCount, which);
+                if (action != dl::mech::Action::Nothing)
+                {
+                    DL_LOG_INFO("Stage", "orb %d %s", which,
+                                action == dl::mech::Action::Took ? "taken" : (action == dl::mech::Action::Put ? "put down" : "not put down: something is in the way"));
+                }
+            }
+            const int countA = BuildSolidTable(puzzle, seals, mech, 0, solidsA);
+            const int countB = BuildSolidTable(puzzle, seals, mech, 1, solidsB);
+            mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
+            for (int t = 0; t < mech.TriggerCount(); ++t)
+            {
+                if (mech.Changed(t))
+                {
+                    DL_LOG_INFO("Stage", "%s %s", mech.TriggerAt(t).name, mech.Active(t) ? "on" : "off");
+                }
+            }
             const int seal = seals.Collect(player);
             if (seal >= 0)
             {
@@ -575,7 +623,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         lastFlash = puzzle.BlockedFlash();
 
         // ---- what is drawn: the map as it is now
-        gpu.models.SetObjects(drawTable, BuildFrameTable(puzzle, seals, lights, config, static_cast<float>(sinceClear), drawTable));
+        gpu.models.SetObjects(drawTable, BuildFrameTable(puzzle, seals, lights, mech, player, camera.Forward(), config,
+                                                         static_cast<float>(sinceClear), drawTable));
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
@@ -644,3 +693,4 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
     return RunApp(instance, __argc, __argv);
 }
+

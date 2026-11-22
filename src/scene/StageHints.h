@@ -121,6 +121,36 @@ inline int AddGhosts(SceneObject* out, int count, int capacity)
     return count;
 }
 
+/// Adds the outline, in the other layer, of every single-layer axis-aligned box in objects[0 .. n - 1] (the moving parts of a
+/// wing: a bridge, a door, the pad of a socket). `objects` may point into `out` before `count`. Returns the new count; a table
+/// without room for all of them gets none.
+inline int AddOutlines(const SceneObject* objects, int n, SceneObject* out, int count, int capacity)
+{
+    if (objects == nullptr || out == nullptr || n < 0 || count < 0)
+    {
+        return count;
+    }
+    int needed = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        needed += HasGhost(objects[i]) ? kBarsPerGhost : 0;
+    }
+    if (capacity - count < needed)
+    {
+        return count;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        if (HasGhost(objects[i]))
+        {
+            const SceneObject o = objects[i]; // a copy: `objects` may lie in `out`
+            MakeGhost(o, out + count);
+            count += kBarsPerGhost;
+        }
+    }
+    return count;
+}
+
 // ---- the outline of what stopped a push
 inline constexpr float kBlockedBar = 0.14f; // UNITS: metres: wider than the hint, so that it is seen as an answer to the push
 
@@ -237,3 +267,4 @@ inline int AddClearRings(SceneObject* out, int count, int capacity, float clearS
 }
 
 } // namespace dl::stage
+

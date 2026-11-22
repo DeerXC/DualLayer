@@ -24,7 +24,8 @@
 | Mouse, arrow keys | turn |
 | Space | jump; held = the full jump, a tap = a small hop |
 | Tab | switch the layer (A red, B blue); a switch into something is refused and the ripple turns back |
-| R | back to the entry of the current room; in the courtyard it also puts the block back |
+| E | (walking) take the orb in reach, or put the held one down one step ahead; near a socket, a plate or a hole it is placed on it |
+| R | back to the entry of the current room; it also puts back the block (courtyard) or the orbs (west wing) of the room |
 | F | walking / flying |
 | Q / E | down / up (flying) |
 | N | collision on / off (off also means flying) |
@@ -111,7 +112,7 @@ seen".
 | E-4 | in the courtyard, in A, push the block west | refused; the outline of the blue wall flashes on the floor in both layers; no blue box appears in A |
 | E-5 | push the block onto the plate; walk through the north door in B | the hub, with the tower and three dark seal lamps |
 | E-6 | walk up and down the ramps of the wings and the tower, turning with the mouse | the picture does not shake; the walk does not stop at the foot of a ramp |
-| E-7 | west wing down to the seal, up the shortcut | one lamp lights; the door at the top opens into the hub |
+| E-7 | west wing: W1 the orb onto the socket (in A nothing happens, in B the bridge); W2 the other orb onto the plate in A, through the door in B, the lever, back for the orb; W3 the orb over the hole (in A it lies on the lid, in B it falls and the bars open); the seal; up the shortcut | each step does what it says; the held orb is seen in front of the view; an orb left in one layer leaves a small mark in the other; one lamp lights and the shortcut opens into the hub |
 | E-8 | east wing up to the courtyard wall top, the seal, off its north end | the body drops onto the gallery of the hub, which looks over the hub; off its edge into the hub; the gallery cannot be jumped onto from the floor |
 | E-9 | north wing up to the seal, along the ledge through the window, off it; on the ledge jump toward the tower | the body drops into the hub; nothing higher is reached from the ledge |
 | E-10 | with three seals, up the six ramps of the tower | the balcony looks back over the map; `CLEAR` with the time |

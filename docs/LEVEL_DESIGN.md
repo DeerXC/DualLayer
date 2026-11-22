@@ -100,14 +100,17 @@ from a place to pass through into a place seen from above.
 
 ### 6.3 West wing: the archive (the orb)
 
-Theme: one body cannot be in both worlds; a thing can. The wing goes down and passes under the terrace.
+Theme: one body cannot be in both worlds; a thing can. The wing goes down. Built in step 2 (`scene/WestWing.h`).
 
-| Room | Moment |
-|---|---|
-| W1 hand it over | carried things switch with the body: a socket in B builds a bridge |
-| W2 leave it | the orb holds the plate in A while the body opens the door in B; a lever inside keeps the door open, then the orb is fetched |
-| W3 let it fall | over a shaft covered in A and open in B, the orb put down in B falls to the bottom; the stairs down pass under the gap |
-| W4 seal and door | the door from this side opens into the hub: the closed door seen from the hub |
+| Room | Layout | Moment |
+|---|---|---|
+| W1 hand it over | the hall is cut by a trench 5 m wide (more than a running jump); an orb of A on the north floor, a socket of B by the trench | in A the orb on the socket does nothing; in B it lays a bridge of B: the thing in the hand went with the body |
+| W2 leave it | an orb and a plate of A on the south floor; a door of B at the foot of the ramp down, a red panel in the doorway in A | the orb on the plate holds the door open for B, but the orb is needed beyond the door; a lever just inside keeps the door open for good, then the orb is fetched |
+| W3 let it fall | a mezzanine 3 m over the lower room with a hole of 0.6 m (the body is 0.7 m across), closed by a red lid in A; under it, behind bars, a socket of B | in A the orb lies on the lid; in B it falls through onto the socket, and the bars open for good |
+| W4 the seal | the vault under the mezzanine; a ramp up from the lower room to the door in the hub wall | the seal opens that door: the closed door seen from the hub |
+
+The orbs start in the hall; R there puts them back. The stairs down under the gap, with the view up at the stone, are
+left for the polish of step 6.
 
 ### 6.4 East wing: the water garden (single-layer blocks, channels)
 
@@ -146,7 +149,7 @@ and one switch in the air over a net.
 | First step | the beacon over the tower | the goal seen first |
 | End of the strip | the courtyard from above | seen before reached |
 | Entering the hub | the tower, the openings of the wings, closed doors | seen before reached |
-| West wing, going down | the underside of the terrace, from below | layered space |
+| West wing, going down | the vault and its bars from the mezzanine; later the underside of the terrace (step 6) | layered space |
 | West exit | the closed door of the hub, from the other side | one-way door |
 | East exit | the top of the wall that closed the courtyard, then the hub from its gallery | a known place from a new side |
 | Bell tower window | the seal lamps already lit | progress in sight |
@@ -206,8 +209,8 @@ Every step ends with a playable build and a green `tools/check.ps1`.
 | Step | Content | State |
 |---|---|---|
 | 1 skeleton | prologue, hub, the shapes of the wings and the tower, rooms and room reset, seals and doors; the gallery, the landmarks, the search for skips | done, play-tested once |
-| 2 west wing | the orb, one-way doors, W1 .. W4 | next |
-| 3 east wing | single-layer blocks, channels, the solver extended, E1 .. E4 | |
+| 2 west wing | the orb, sockets, plates, levers, gates, W1 .. W4 | done |
+| 3 east wing | single-layer blocks, channels, the solver extended, E1 .. E4 | next |
 | 4 north wing | the prism and its links, N1 .. N4 | |
 | 5 tower | T1 .. T3, an end screen | |
 | 6 lights and polish | the 12 lights, play-test changes | |

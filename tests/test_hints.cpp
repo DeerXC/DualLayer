@@ -21,6 +21,7 @@
 
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
+#include "scene/WestWing.h"
 
 #include <cmath>
 #include <cstdio>
@@ -339,10 +340,38 @@ void TestClearRings()
     CHECK(st::AddClearRings(table, 7, 8, 0.9f) == 8); // only as many as there is room for
 }
 
+void TestOutlines()
+{
+    // the moving parts: each single-layer box gets its outline in the other layer; a sphere and a box of both layers get none
+    SceneObject table[64] = {};
+    const dl::mech::MechanismSet set = [] {
+        dl::mech::MechanismSet m;
+        m.Init(st::WestWing());
+        return m;
+    }();
+    int n = set.AddFixedDraw(table, 0, 64);
+    int single = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        single += st::HasGhost(table[i]) ? 1 : 0;
+    }
+    const int before = n;
+    n = st::AddOutlines(table, before, table, before, 64);
+    CHECK(n == before + single * st::kBarsPerGhost && single > 0);
+    for (int i = before; i < n; ++i)
+    {
+        CHECK(table[i].layerMask == kLayerA || table[i].layerMask == kLayerB);
+    }
+    CHECK(st::AddOutlines(table, before, table, 62, 64) == 62); // no room for all: none
+}
+
 void TestWholeFrameFits()
 {
-    const int largest = st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost + st::kBarsPerGhost +
-                        st::kFrameBars + 1 + st::kClearRings + st::kHiddenLightCount;
+    const dl::mech::WingDesc west = st::WestWing();
+    const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, and the orbs with their marks
+    const int largest = st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost +
+                        st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
+                        st::kHiddenLightCount;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
     CHECK(largest <= st::kMaxDrawObjects);
 }
@@ -357,6 +386,7 @@ int main()
     TestBeacon();
     TestLandmarks();
     TestClearRings();
+    TestOutlines();
     TestWholeFrameFits();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

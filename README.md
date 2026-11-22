@@ -4,9 +4,9 @@
 >
 > English: a 3D action puzzle about two overlapping worlds, red and blue, built without a game engine on C++20 / Direct3D 11.
 
-Status: in development (milestone M2). The whole map can be walked from the start to the top of the tower; the hub, the
-three wings and the tower stand as grey boxes, and their rooms are being built from the design in
-[docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+Status: in development (milestone M2). The whole map can be walked from the start to the top of the tower. The prologue
+and the west wing (an orb carried between the layers) are playable puzzles; the east and north wings and the tower stand
+as grey boxes, and their rooms are being built from the design in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
 
@@ -21,6 +21,10 @@ three wings and the tower stand as grey boxes, and their rooms are being built f
   room, every shortcut, every ramp, the tower to its top. Another one searches it for skips: from about 4600 places to
   stand, about 74000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
+- **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
+  falls through a floor that exists only in the other layer. The west wing is built on that: an orb that lays a bridge of
+  the other layer, an orb that holds a door open in a world the body has left, an orb dropped through a hole that is closed
+  in one world and open in the other.
 - **Layer switch as a ripple.** Both layers are rendered into their own off-screen pictures and a circle opens from the
   centre of the screen; pressed again, it turns round without a jump.
 - **Hints without words.** Every object of one layer leaves a thin outline in the other; a refused push outlines what was in
