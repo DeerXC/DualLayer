@@ -31,7 +31,8 @@ as grey boxes, and their rooms are being built from the design in [docs/LEVEL_DE
   over every place that waits for something; where a bridge will appear is outlined before it does; a refused push
   outlines what was in the way; a beacon over the goal is seen from the first step. The only words are key prompts,
   drawn with a bitmap font written for the project, chosen by the same code that runs the key, and dimmed once learned.
-- **Hand-written engine layer.** Direct3D 11 device and swap chain, depth, constant buffers, HLSL compiled at run time,
+- **Hand-written engine layer.** Direct3D 11 device and swap chain, depth, constant buffers, HLSL compiled at run time, a
+  static batch that draws the whole fixed city of a layer in one call (about 150 boxes),
   procedural meshes with winding tests, collision of boxes, spheres, cylinders and tori, a walking body with tuned feel
   (acceleration, variable jump height, coyote time, jump buffer, ground snap on ramps), recovery from a lost GPU device.
 - **One command checks everything.** `tools/check.ps1` runs the logic tests, a full Debug and Release rebuild (and proves the
@@ -76,4 +77,5 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 
 Not decided yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but
 not reused.
+
 

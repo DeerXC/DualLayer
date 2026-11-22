@@ -15,6 +15,8 @@ $tests = @(
     @{ Name = "core";      Sources = @("tests\test_core.cpp", "src\core\Config.cpp", "src\core\Log.cpp", "src\core\Assert.cpp"); Flags = @("/WX") },
     @{ Name = "camera";    Sources = @("tests\test_camera.cpp", "src\scene\Camera.cpp");                                      Flags = @("/WX") },
     @{ Name = "mesh";      Sources = @("tests\test_mesh.cpp", "src\render\MeshData.cpp");                                     Flags = @() },
+    @{ Name = "batch";     Sources = @("tests\test_batch.cpp", "src\render\MeshData.cpp");                                    Flags = @("/O2") },
+    @{ Name = "shapes";    Sources = @("tests\test_shapes.cpp");                                                              Flags = @("/O2") },
     @{ Name = "collision"; Sources = @("tests\test_collision.cpp");                                                           Flags = @() },
     @{ Name = "ripple";    Sources = @("tests\test_ripple.cpp");                                                              Flags = @() },
     @{ Name = "player";    Sources = @("tests\test_player.cpp");                                                              Flags = @("/O2") },
@@ -75,4 +77,5 @@ if ($Only -eq "")
 if ($ran -eq 0) { Write-Host "no test is called '$Only'" -ForegroundColor Red; exit 2 }
 Write-Host ("all {0} test(s) passed" -f $ran) -ForegroundColor Green
 exit 0
+
 

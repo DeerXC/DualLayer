@@ -111,6 +111,7 @@
     <ClInclude Include="src\render\OverlayBatch.h" />
     <ClInclude Include="src\render\Projection.h" />
     <ClInclude Include="src\render\ShaderCompiler.h" />
+    <ClInclude Include="src\render\StaticBatch.h" />
     <ClInclude Include="src\render\Triangle.h" />
     <ClInclude Include="src\scene\BlockMaze.h" />
     <ClInclude Include="src\scene\Camera.h" />
@@ -120,6 +121,7 @@
     <ClInclude Include="src\scene\Puzzle.h" />
     <ClInclude Include="src\scene\Mechanisms.h" />
     <ClInclude Include="src\scene\Prompts.h" />
+    <ClInclude Include="src\scene\Shapes.h" />
     <ClInclude Include="src\scene\WestWing.h" />
     <ClInclude Include="src\scene\Stage.h" />
     <ClInclude Include="src\scene\StageHints.h" />
@@ -140,5 +142,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
+
 
 

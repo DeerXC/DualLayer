@@ -408,7 +408,7 @@ void TestWholeFrameFits()
     const dl::mech::WingDesc west = st::WestWing();
     const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, the orbs with their marks,
                                                            // a column per trigger, the previews of the gates
-    const int largest = st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost +
+    const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
                         st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
@@ -431,4 +431,5 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+
 

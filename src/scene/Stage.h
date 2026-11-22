@@ -26,6 +26,10 @@
 //              round its walls to a balcony on its south side, 12 m above the hub, which looks back over the whole map; the
 //              goal is there.
 // Landmarks:  one per wing (an archive of shelves, a turning water ring, a bell tower), outside the walls and drawn only.
+// Vocabulary: pieces of scene/Shapes.h used in the map so far: the stairs over the ramp down of the west wing (the ramp is
+//             walked, the steps are drawn), the water of layer A in the trench of the west hall (in B it has gone), an arcade
+//             along the west wall of the hub, roofs over the corridors of the west and east wings. Drawn-only pieces (steps,
+//             water, roofs) are kDecor; the arcade is solid and part of kStageStatics.
 // Heights:    every wall that a body must not climb is out of reach of a jump (2 m) from every place a body can stand next
 //             to it: the hub walls (9 m) from the ledge (6 m), the tower walls (12.2 m) from the ledge, the courtyard walls
 //             (5 m) from the terrace (1.4 m) and from the tops of the puzzle walls (2.5 m: they can be stood on from the
@@ -50,11 +54,11 @@
 #include "scene/Courtyard.h"
 #include "scene/Puzzle.h"
 #include "scene/SceneData.h"
-
+#include "scene/Shapes.h"
 #include <array>
 #include <cmath>
 #include <cstddef>
-
+#include <vector>
 namespace dl::stage
 {
 
@@ -504,7 +508,24 @@ inline const SceneObject kRamps[] = {
     Ramp(0.0f, 4.0f, 58.0f, kFloorY + 3.5f, 46.0f, kNorthHighY),               // north: 2
 };
 inline constexpr int kRampCount = static_cast<int>(sizeof(kRamps) / sizeof(kRamps[0]));
-inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount;
+/// The arcade along the inside of the west wall of the hub: columns at z 26, 28 and 34, 36, 38 (the openings at z 22.5 .. 24.5
+/// and 30 .. 32 stay free), lintels 2.6 m over the floor (out of reach of a jump from it).
+inline constexpr int kArcadeCount = (2 + 1) + (3 + 1);
+inline std::array<SceneObject, kArcadeCount> BuildArcade()
+{
+    std::vector<SceneObject> v;
+    shapes::Arcade(kHubWest + 0.3f, kHubWest + 0.9f, 26.0f, 28.0f, kFloorY, 2.0f, 2.6f, v);
+    shapes::Arcade(kHubWest + 0.3f, kHubWest + 0.9f, 34.0f, 38.0f, kFloorY, 2.0f, 2.6f, v);
+    std::array<SceneObject, kArcadeCount> out{};
+    for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
+    {
+        out[i] = v[i];
+    }
+    return out;
+}
+inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
+
+inline constexpr int kStageStaticCount = kFixedCount + kRampCount + kRunCount + kArcadeCount;
 
 /// Every box of the map in one table: the fixed boxes, the ramps, the walls of the courtyard (the indices are the ones that
 /// Puzzle::LastBlocker names).
@@ -523,6 +544,10 @@ inline std::array<SceneObject, kStageStaticCount> BuildStatics()
     for (const Run& r : kRuns)
     {
         all[static_cast<std::size_t>(n++)] = WallOf(r);
+    }
+    for (const SceneObject& o : kArcade)
+    {
+        all[static_cast<std::size_t>(n++)] = o;
     }
     return all;
 }
@@ -811,6 +836,60 @@ inline constexpr SceneObject kLandmarks[] = {
 };
 inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / sizeof(kLandmarks[0]));
 
+// ---- what is drawn and never solid and never moves: the steps over the ramp down of the west wing, the water of the trench,
+// the roofs over the wing corridors (scene/Shapes.h). Static: baked with kStageStatics (render/StaticBatch.h).
+/// The water in the trench of the west hall (W1): layer A only. A body that goes under it comes back at the entry of the room;
+/// an orb floats on it.
+inline constexpr shapes::Water kWaters[] = {
+    {-24.0f, kTrenchSouth, -15.0f, kTrenchNorth, kFloorY - 0.5f, 3.0f},
+};
+inline constexpr int kWaterCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0]));
+
+inline std::vector<SceneObject> BuildDecor()
+{
+    std::vector<SceneObject> solid;
+    std::vector<SceneObject> drawn;
+    shapes::Stairs(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY, shapes::kStoneLight, solid, drawn); // the ramp itself is in kRamps
+    for (const shapes::Water& w : kWaters)
+    {
+        drawn.push_back(shapes::WaterBox(w));
+    }
+    shapes::Roof(-15.0f, kHubWest - 0.5f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
+    shapes::Roof(kHubEast + 0.5f, 15.0f, kWingDoorZ0 - 0.5f, kWingDoorZ1 + 0.5f, kCityWallTop, kCityWallTop + 1.0f, drawn);
+    return drawn;
+}
+inline const std::vector<SceneObject> kDecor = BuildDecor();
+
+/// The static part of the drawn table: kStageStatics, then kDecor. BuildDrawTable writes them first, in this order.
+inline int StaticDrawCount()
+{
+    return kStageStaticCount + static_cast<int>(kDecor.size());
+}
+
+/// True when a body whose feet are at `feet` in `layer` is under water.
+inline bool Submerged(const Vec3& feet, int layer)
+{
+    for (const shapes::Water& w : kWaters)
+    {
+        if (shapes::Submerged(w, feet, layer))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Adds the water surfaces (layer A) to a solid table for ORBS (they float; the body is never held by water). Returns the new
+/// count.
+inline int AddWaterForOrbs(SceneObject* out, int count, int capacity)
+{
+    for (int i = 0; i < kWaterCount && out != nullptr && count >= 0 && count < capacity; ++i)
+    {
+        out[count++] = shapes::WaterSurface(kWaters[i]);
+    }
+    return count;
+}
+
 inline constexpr int kMaxDrawObjects = 320;
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
@@ -821,6 +900,10 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
 {
     int n = 0;
     for (const SceneObject& o : kStageStatics)
+    {
+        out[n++] = o;
+    }
+    for (const SceneObject& o : kDecor)
     {
         out[n++] = o;
     }
@@ -885,4 +968,5 @@ static_assert(FixedIsSupported(), "scene/Stage.h: every box must have sizes abov
 static_assert(kPlateCell.x != 0 || kPlateCell.z != 0, "scene/Courtyard.h: the rows must hold a plate 'P'");
 
 } // namespace dl::stage
+
 

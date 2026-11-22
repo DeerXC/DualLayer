@@ -64,7 +64,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
-
+#include <vector>
 // WHY these two exported variables: on a laptop with two GPUs they ask the NVIDIA / AMD driver to run this program on the fast GPU.
 // Device::Init also chooses the adapter itself (the log lists them); this is a second safety. They must be real globals with exactly these names.
 extern "C"
@@ -194,6 +194,16 @@ struct Gpu
             return false;
         }
         models.LoadThemes(config); // the looks of the layers: built in, [layer_a] / [layer_b] in the config change them
+        // the fixed city: baked once into one draw call per layer (render/StaticBatch.h); the drawn table then holds the rest
+        static std::vector<dl::scene::SceneObject> fixedCity;
+        if (fixedCity.empty())
+        {
+            static dl::scene::SceneObject all[dl::stage::kMaxDrawObjects];
+            const dl::puzzle::Puzzle none;
+            dl::stage::BuildDrawTable(none, false, all);
+            fixedCity.assign(all, all + dl::stage::StaticDrawCount());
+        }
+        models.SetStatic(fixedCity.data(), static_cast<int>(fixedCity.size()));
         return true;
     }
 
@@ -605,7 +615,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                 action == dl::mech::Action::Took ? "taken" : (action == dl::mech::Action::Put ? "put down" : "not put down: something is in the way"));
                 }
             }
-            const int countA = BuildSolidTable(puzzle, seals, mech, 0, solidsA);
+            const int countA = dl::stage::AddWaterForOrbs(solidsA, BuildSolidTable(puzzle, seals, mech, 0, solidsA), kMaxSolids); // orbs float
             const int countB = BuildSolidTable(puzzle, seals, mech, 1, solidsB);
             mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
             for (int t = 0; t < mech.TriggerCount(); ++t)
@@ -637,7 +647,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 secondsInRoom = 0.0;
                 DL_LOG_INFO("Stage", "room: %s", dl::stage::kRooms[room].name);
             }
-            if (player.Feet().y < dl::stage::kFallY || player.JustRespawned())
+            if (player.Feet().y < dl::stage::kFallY || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer))
             {
                 player.SetSpawn(dl::stage::kRooms[room].entry);
                 player.Respawn();
@@ -696,8 +706,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         lastFlash = puzzle.BlockedFlash();
 
         // ---- what is drawn: the map as it is now
-        gpu.models.SetObjects(drawTable, BuildFrameTable(puzzle, seals, lights, mech, player, camera.Forward(), config,
-                                                         static_cast<float>(sinceClear), drawTable));
+        // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
+        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, player, camera.Forward(), config, static_cast<float>(sinceClear), drawTable);
+        const int fixedCount = dl::stage::StaticDrawCount();
+        gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);
 
         const bool showTriangle = config.GetBool("test_triangle", "show", false); // the M0 triangle: off now that there are models
 
@@ -790,5 +802,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
     return RunApp(instance, __argc, __argv);
 }
+
 
 

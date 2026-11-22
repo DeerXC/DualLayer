@@ -4,6 +4,7 @@
 #include "core/Log.h"
 #include "render/GpuDebug.h"
 #include "render/ShaderCompiler.h"
+#include "render/StaticBatch.h"
 #include "scene/SceneData.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -256,8 +257,10 @@ bool Models::Init(ID3D11Device* device, int segments)
     m_rippleCenter = XMFLOAT2(0.5f, 0.5f);
     ComPtr<ID3DBlob> vsBlob;
     ComPtr<ID3DBlob> psBlob;
+    ComPtr<ID3DBlob> batchBlob;
     if (!CompileShader(kModelsShaderPath, "VSMain", "vs_5_0", vsBlob) ||
-        !CompileShader(kModelsShaderPath, "PSMain", "ps_5_0", psBlob))
+        !CompileShader(kModelsShaderPath, "PSMain", "ps_5_0", psBlob) ||
+        !CompileShader(kModelsShaderPath, "VSBatched", "vs_5_0", batchBlob))
     {
         Shutdown();
         return false;
@@ -281,10 +284,26 @@ bool Models::Init(ID3D11Device* device, int segments)
     };
     hr = m_device->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
                                      &m_inputLayout);
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateVertexShader(batchBlob->GetBufferPointer(), batchBlob->GetBufferSize(), nullptr, &m_batchVertexShader);
+    }
+    // a baked vertex is BatchVertex: position (12 bytes), normal (12), colour (16), parameters (16)
+    const D3D11_INPUT_ELEMENT_DESC batchLayout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(BatchVertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(BatchVertex, normal), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(BatchVertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(BatchVertex, params), D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateInputLayout(batchLayout, ARRAYSIZE(batchLayout), batchBlob->GetBufferPointer(), batchBlob->GetBufferSize(),
+                                         &m_batchLayout);
+    }
     if (FAILED(hr))
     {
         DL_LOG_ERROR("Models",
-                     "CreateInputLayout failed (0x%08X): the vertex of the shader and MeshVertex do not match",
+                     "CreateInputLayout failed (0x%08X): the vertex of the shader and MeshVertex / BatchVertex do not match",
                      static_cast<unsigned>(hr));
         Shutdown();
         return false;
@@ -310,9 +329,11 @@ bool Models::Init(ID3D11Device* device, int segments)
     SetDebugName(m_vertexShader.Get(), "Models.VS");
     SetDebugName(m_pixelShader.Get(), "Models.PS");
     SetDebugName(m_inputLayout.Get(), "Models.InputLayout");
+    SetDebugName(m_batchVertexShader.Get(), "Models.Batch.VS");
+    SetDebugName(m_batchLayout.Get(), "Models.Batch.InputLayout");
     SetDebugName(m_frameBuffer.Get(), "Models.FrameCB");
     SetDebugName(m_objectBuffer.Get(), "Models.ObjectCB");
-    if (!CreateStates() || !CreateRippleResources() || !CreateMeshes(m_segments))
+    if (!CreateStates() || !CreateRippleResources() || !CreateMeshes(m_segments) || !CreateBatchBuffers())
     {
         Shutdown();
         return false;
@@ -327,6 +348,12 @@ void Models::Shutdown()
     {
         mesh = GpuMesh{};
     }
+    for (GpuMesh& mesh : m_batch)
+    {
+        mesh = GpuMesh{};
+    }
+    m_batchLayout.Reset();
+    m_batchVertexShader.Reset();
     for (LayerTarget& target : m_targets)
     {
         target = LayerTarget{};
@@ -577,6 +604,61 @@ bool Models::CreateGpuMesh(Shape shape, const MeshData& data)
     return true;
 }
 
+void Models::SetStatic(const SceneObject* objects, int count)
+{
+    m_staticObjects.clear();
+    if (objects != nullptr && count > 0)
+    {
+        m_staticObjects.assign(objects, objects + count);
+    }
+    if (m_device)
+    {
+        CreateBatchBuffers();
+    }
+}
+
+// The fixed boxes of each layer, baked into one immutable vertex and index buffer. Nothing to bake is not an error.
+bool Models::CreateBatchBuffers()
+{
+    static const char* const kNames[2][2] = {{"Models.Batch.A.VB", "Models.Batch.A.IB"}, {"Models.Batch.B.VB", "Models.Batch.B.IB"}};
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        GpuMesh& target = m_batch[static_cast<std::size_t>(layer)];
+        target = GpuMesh{};
+        const BatchMesh baked = BakeLayer(m_staticObjects.data(), static_cast<int>(m_staticObjects.size()), layer);
+        if (baked.indices.empty())
+        {
+            continue;
+        }
+        D3D11_BUFFER_DESC desc{};
+        desc.Usage = D3D11_USAGE_IMMUTABLE;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        desc.ByteWidth = static_cast<UINT>(baked.vertices.size() * sizeof(BatchVertex));
+        D3D11_SUBRESOURCE_DATA initial{};
+        initial.pSysMem = baked.vertices.data();
+        HRESULT hr = m_device->CreateBuffer(&desc, &initial, &target.vertexBuffer);
+        if (SUCCEEDED(hr))
+        {
+            desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+            desc.ByteWidth = static_cast<UINT>(baked.indices.size() * sizeof(std::uint32_t));
+            initial.pSysMem = baked.indices.data();
+            hr = m_device->CreateBuffer(&desc, &initial, &target.indexBuffer);
+        }
+        if (FAILED(hr))
+        {
+            DL_LOG_ERROR("Models", "the static batch of layer %s could not be made (0x%08X)", layer == 0 ? "A" : "B", static_cast<unsigned>(hr));
+            target = GpuMesh{};
+            return false;
+        }
+        target.indexCount = static_cast<UINT>(baked.indices.size());
+        SetDebugName(target.vertexBuffer.Get(), kNames[layer][0]);
+        SetDebugName(target.indexBuffer.Get(), kNames[layer][1]);
+        DL_LOG_INFO("Models", "static batch %s: %d boxes, %zu triangles in one draw call", layer == 0 ? "A" : "B", baked.objects,
+                    baked.indices.size() / 3);
+    }
+    return true;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // the look of the layers and the ripple
 // ---------------------------------------------------------------------------------------------------------------------
@@ -729,6 +811,23 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     std::memcpy(mapped.pData, &frame, sizeof(frame));
     context->Unmap(m_frameBuffer.Get(), 0);
 
+    // ---- the fixed city of this layer: one draw call (render/StaticBatch.h)
+    const GpuMesh& batch = m_batch[static_cast<std::size_t>(layer)];
+    if (batch.indexCount > 0)
+    {
+        context->IASetInputLayout(m_batchLayout.Get());
+        context->VSSetShader(m_batchVertexShader.Get(), nullptr, 0);
+        ID3D11Buffer* batchBuffer = batch.vertexBuffer.Get();
+        const UINT batchStride = sizeof(BatchVertex);
+        const UINT batchOffset = 0;
+        context->IASetVertexBuffers(0, 1, &batchBuffer, &batchStride, &batchOffset);
+        context->IASetIndexBuffer(batch.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+        context->DrawIndexed(batch.indexCount, 0, 0);
+        ++m_drawCalls;
+        context->IASetInputLayout(m_inputLayout.Get()); // back to the objects drawn one by one
+        context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    }
+
     // ---- one draw call per object: only the objects of this layer
     const unsigned layerBit = 1u << layer;
     for (const SceneObject& object : Objects())
@@ -771,6 +870,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
         context->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
         context->DrawIndexed(mesh.indexCount, 0, 0);
+        ++m_drawCalls;
     }
 }
 
@@ -870,6 +970,7 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
         return; // Init did not work: the log has said so; the program goes on without the models
     }
     const StateGuard guard(context);
+    m_drawCalls = 0;
 
     if (m_ripple.Active() && DrawRipple(context, view, projection, eye))
     {
@@ -884,7 +985,7 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
 int Models::TriangleTotal() const
 {
     const unsigned layerBit = 1u << m_ripple.Target();
-    int total = 0;
+    int total = static_cast<int>(m_batch[static_cast<std::size_t>(m_ripple.Target())].indexCount / 3);
     for (const SceneObject& object : Objects())
     {
         if ((object.layerMask & layerBit) != 0)
@@ -912,11 +1013,12 @@ int Models::VisibleModelCount() const
 std::wstring Models::StatusLine() const
 {
     wchar_t text[160];
-    swprintf_s(text, L"%d models | %d segments | %d triangles | %s%s | layer %s", VisibleModelCount(), m_segments,
+    swprintf_s(text, L"%d models | %d draws | %d segments | %d triangles | %s%s | layer %s", VisibleModelCount(), m_drawCalls, m_segments,
                TriangleTotal(), m_wireframe ? L"wireframe" : L"solid", m_spinning ? L"" : L" | stopped",
                m_ripple.Target() == 0 ? L"A" : L"B");
     return text;
 }
 
 } // namespace dl
+
 

@@ -15,6 +15,9 @@
 // Targets:   the two off-screen pictures are made the first time a ripple needs them and again when the window size
 //            changes; they live until Shutdown.
 // Scene:     the table of objects is scene/SceneData.h (shared with the collision, scene/Collision.h).
+// Static:    SetStatic gives the boxes that never move (the fixed city); they are baked into one vertex buffer per layer
+//            (render/StaticBatch.h) and drawn with one call per layer. SetObjects gives the rest, drawn one by one. The baked
+//            list is kept on the CPU, so a new device after a lost one bakes it again by itself.
 // Keys:      main.cpp reads the keyboard (focus rules live there) and calls ToggleWireframe / CycleDetail / ToggleSpin /
 //            ToggleLayer.
 // Threading: main thread only.
@@ -31,6 +34,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 namespace dl
 {
@@ -88,7 +92,7 @@ class Models
     /// moves, its door opens and closes, a blocker flashes).
     void SetObjects(const scene::SceneObject* objects, int count)
     {
-        if (objects != nullptr && count > 0)
+        if (objects != nullptr && count >= 0) // (0: everything is in the static batch)
         {
             m_objects = objects;
             m_objectCount = count;
@@ -98,6 +102,16 @@ class Models
             m_objects = scene::kScene;
             m_objectCount = scene::kSceneCount;
         }
+    }
+
+    /// The fixed boxes of the map (copied): every cube of them that does not turn is baked and drawn in one call per layer; the
+    /// rest of them should be given to SetObjects. Call it once after Init (it survives a lost device).
+    void SetStatic(const scene::SceneObject* objects, int count);
+
+    /// How many draw calls the last Draw made (for the title bar and the log).
+    int DrawCalls() const
+    {
+        return m_drawCalls;
     }
 
     /// True while a ripple runs (the switch guard does not refuse on top of a ripple).
@@ -145,6 +159,7 @@ class Models
     };
 
     bool CreateMeshes(int segments);
+    bool CreateBatchBuffers();
     bool CreateGpuMesh(Shape shape, const MeshData& data);
     bool CreateStates();
     bool CreateRippleResources();
@@ -173,6 +188,12 @@ class Models
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthState;
     Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendState;
     std::array<GpuMesh, kShapeCount> m_meshes;
+    // ---- the static batch: one mesh per layer
+    std::vector<scene::SceneObject> m_staticObjects; // the CPU copy (kept through Shutdown: a new device bakes it again)
+    std::array<GpuMesh, 2> m_batch;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_batchVertexShader;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_batchLayout;
+    int m_drawCalls = 0;
     std::array<Theme, 2> m_themes; // [0] = layer A, [1] = layer B (set by Init, changed by LoadThemes)
     int m_segments = 32;
     /// The drawn table as a range, so that a loop reads "for (const SceneObject& object : Objects())".
@@ -216,4 +237,5 @@ class Models
 };
 
 } // namespace dl
+
 

@@ -174,7 +174,8 @@ struct World
         player.Update(input, look, layer, spin, kDt);
         puzzle.Update(player, kDt);
         BuildSolids();
-        mech.Update(player, layer, solids[0], counts[0], solids[1], counts[1], kDt);
+        const int orbCountA = st::AddWaterForOrbs(solids[0], counts[0], kMaxSolids); // the orbs float on the water of A
+        mech.Update(player, layer, solids[0], orbCountA, solids[1], counts[1], kDt);
         seals.Collect(player);
     }
 
@@ -383,7 +384,7 @@ void TestTables()
     static SceneObject drawn[st::kMaxDrawObjects];
     int n = st::BuildDrawTable(w.puzzle, false, drawn);
     n = st::AddMapDraw(w.seals, drawn, n, st::kMaxDrawObjects);
-    CHECK(n == st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount);
+    CHECK(n == st::kStageStaticCount + static_cast<int>(st::kDecor.size()) + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount);
     CHECK(n <= st::kMaxDrawObjects);
 }
 
@@ -679,6 +680,30 @@ void TestWestWing()
         t.Run(1.5f, Keys(1.0f), kSouth);
         CHECK(t.player.Feet().z > st::kMezzNorth + 0.4f && !t.seals.Taken(st::kWestSeal));
     }
+    // the water of the trench: a body that falls in, in A, goes under it; in B the water has gone; an orb floats on it
+    {
+        World t = hub;
+        t.layer = 0;
+        t.PlaceFeet({-19.5f, kFloorY, 30.2f});
+        bool under = false;
+        for (int i = 0; i < 240 && !t.Fallen(); ++i)
+        {
+            t.Frame(Keys(1.0f), kSouth);
+            under = under || st::Submerged(t.player.Feet(), 0);
+        }
+        CHECK(under);
+        CHECK(!st::Submerged({-19.5f, kFloorY - 2.0f, 27.0f}, 1));
+        World o = hub;
+        o.layer = 0;
+        o.PlaceFeet({-21.0f, kFloorY, 35.8f});
+        CHECK(o.Use(kNorth) == dl::mech::Action::Took);
+        o.WalkPath({{-21.0f, kFloorY, 30.1f}});
+        CHECK(o.Use(kSouth) == dl::mech::Action::Put);
+        o.Run(1.0f);
+        const dl::mech::MechanismSet::Orb& orb = o.mech.OrbAt(0);
+        CHECK(orb.resting && Near(orb.centre.y, st::kWaters[0].top + dl::mech::kOrbRadius, 0.03f));
+        CHECK(o.Use(kSouth) == dl::mech::Action::Took); // and it is in reach from the edge
+    }
     // R in the hall puts its orbs back
     {
         World t = hub;
@@ -894,4 +919,5 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+
 

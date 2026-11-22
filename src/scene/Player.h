@@ -119,6 +119,18 @@ class Player
         ResetMotion();
     }
 
+    /// Moves the body by `delta` without changing its speed: what stands on a moving platform (scene/Shapes.h, Lift) is carried
+    /// with it. Call it before Update, with the move of the platform in this frame.
+    void Carry(const Vec3& delta)
+    {
+        if (std::isfinite(delta.x) && std::isfinite(delta.y) && std::isfinite(delta.z))
+        {
+            m_feet.x += delta.x;
+            m_feet.y += delta.y;
+            m_feet.z += delta.z;
+        }
+    }
+
     /// Puts the body so that its eye is at `eye` (used when the camera flew somewhere and walking starts again).
     void Place(const Vec3& eye)
     {
@@ -584,3 +596,4 @@ class Player
 };
 
 } // namespace dl
+

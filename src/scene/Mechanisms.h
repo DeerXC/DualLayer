@@ -338,7 +338,10 @@ class MechanismSet
             const float dx = o.centre.x - f.x;
             const float dz = o.centre.z - f.z;
             const float d = std::sqrt(dx * dx + dz * dz);
-            if (d < bestDistance && PathClear(chest, o.centre, 0.08f, bodyLayer, solids, count)) // not through a door or bars
+            // not through a door or bars; aimed at the top of the orb, so that an orb just below the edge of a floor (on water)
+            // is not hidden by the edge it lies against
+            const Vec3 top{o.centre.x, o.centre.y + 0.8f * kOrbRadius, o.centre.z};
+            if (d < bestDistance && PathClear(chest, top, 0.08f, bodyLayer, solids, count))
             {
                 best = i;
                 bestDistance = d;
@@ -723,4 +726,5 @@ class MechanismSet
 };
 
 } // namespace dl::mech
+
 

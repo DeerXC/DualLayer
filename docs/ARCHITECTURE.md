@@ -29,14 +29,14 @@ What is drawn and what is solid come from the same state in the same frame, so t
 ```
 main
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle,
-             Overlay, OverlayBatch, Font5x7                                                        > core, scene (data only)
+             Overlay, OverlayBatch, Font5x7, StaticBatch                                           > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
-             StageHints, StageLights, Mechanisms, WestWing, Prompts                                > standard library only
+             StageHints, StageLights, Mechanisms, WestWing, Prompts, Shapes                        > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
 A dependency only points down. `render` is the only place that talks to Direct3D. Everything in `scene` and the pure parts
-of `core` and `render` (`MeshData`, `LayerRipple`, `OverlayBatch`, `Font5x7`) have no Windows or Direct3D dependency and are tested without a window.
+of `core` and `render` (`MeshData`, `LayerRipple`, `OverlayBatch`, `Font5x7`, `StaticBatch`) have no Windows or Direct3D dependency and are tested without a window.
 
 ## Layers and the ripple
 
@@ -51,6 +51,14 @@ ripple, `Models::DrawRipple` draws the outer layer and the inner layer into two 
 own depth), then one screen-covering triangle (`shaders/ripple.hlsl`) takes each pixel from one picture or the other and
 draws a glowing ring. Tab during a ripple turns it round: only the radius changes, so nothing jumps. `StateGuard` puts back
 every pipeline state the ripple changes.
+
+## The static batch
+
+The fixed city (every box of the map that does not move, and the drawn-only decor) is baked once into one vertex buffer per
+layer by `StaticBatch`: world positions and normals, the linear colour with the city flag, and the shader parameters per
+vertex. `Models` draws it with one call per layer (`VSBatched`), then the moving and changing objects one by one (`VSMain`);
+both feed the same pixel shader. The baked list is kept on the CPU, so a new device after a lost one bakes it again. The
+drawn table keeps its order (`Stage::StaticDrawCount` fixed entries first), so `main.cpp` gives the renderer only the rest.
 
 ## Collision and the walking body
 
@@ -98,6 +106,10 @@ doors they open. Every frame `main.cpp` builds the solid table of the layer of t
 and without a switch at the top, and a jump that ends higher in a room that is not joined by walking fails the test. The
 landmarks of the wings are in the drawn table only; they stand outside every room.
 
+`Shapes` is the vocabulary the map is built from: stairs (walked as a ramp, drawn as steps), railings, arcades, bridges whole
+or broken in B, breach walls, roofs, water of layer A (a body under it goes back to the room entry; orbs float on it) and
+lifts (a platform that carries what stands on it, `Player::Carry`).
+
 `StageHints` adds to the drawn table what the map says without words: an outline in the other layer for every
 single-layer box, the outline of a refused push's blocker in both layers, the frame of the courtyard door, the beacon over
 the goal and the rings of the clear. `StageLights` keeps the hidden lights. None of these is ever solid.
@@ -122,4 +134,5 @@ and the camera live outside it and are kept. F9 runs the same path for testing.
 - Every GPU object is named `<System>.<Resource>`; every pass is a `GpuEvent` (RenderDoc, PIX, the VS graphics debugger).
 - Debug builds: the D3D11 and DXGI debug layers, a break on error under a debugger, a leak report at exit.
 - `logs/dual.log`: rooms, seals, block moves, refused pushes and switches, falls, jump heights, the clear.
+
 

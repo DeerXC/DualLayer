@@ -29,6 +29,9 @@ Decided once, used everywhere.
 | Out of reach | a surface that a body must not reach is at least 2.3 m over every floor in reach of it (a jump is 2.0 m); a parapet round a high floor is 2.6 m. A jump that ends higher in another room is a skip | `tests/test_reach.cpp`, `Stage::kParapet` |
 | Glow | `SceneObject::glow`: a light of its own, added as albedo * glow in the model shader (`params.w`), the same in both layers; 0 for ordinary objects, about 0.3 for hints, about 1 for lamps, orbs and columns of light | `shaders/models.hlsl`, `render/Models.cpp` |
 | Overlay | screen pixels, (0, 0) at the top left, +y down; colours sRGB with alpha, converted to linear when drawn; drawn last, no depth | `render/OverlayBatch.h`, `render/Overlay.cpp` |
+| Static batch | the fixed city is baked into world-space vertices (`BatchVertex`, 56 bytes: position, normal, linear colour with the city flag in alpha, the shader parameters); only cubes that do not turn are baked; the first `Stage::StaticDrawCount` entries of the drawn table are the baked ones | `render/StaticBatch.h`, `tests/test_batch.cpp` |
+| Stairs and slopes | stairs are walked as the ramp under them and drawn as steps of at most 0.3 m (the body snaps down 0.35 m); a slope steeper than about 53 degrees is not stood on (roofs); a railing (1.1 m) stops a walk, a parapet (2.6 m) seals a floor | `scene/Shapes.h`, `tests/test_shapes.cpp` |
+| Water | layer A only; never solid for the body (feet 0.3 m under the surface: back to the room entry), solid for orbs (they float) | `Shapes::Water`, `Stage::Submerged`, `Stage::AddWaterForOrbs` |
 | Puzzle grid | the purple block lives on a 1 m grid: cell (x, z) has its centre at world (x, z), on the floor. A stage says which cells the block may use (`StageDesc::minCell` .. `maxCell`) | `scene/Puzzle.h` |
 | Purple block | the only thing that is solid in BOTH layers and can move. One move = one cell in 0.25 s, after 0.2 s of walking straight at a face (within about 37 degrees) from the floor. The next cell must be free in both layers and must not hold the door; a refused push names what was in the way (`LastBlocker`) and it flashes for 0.6 s, because it may be in the layer that is not on the screen | `Puzzle::Update`, `tests/test_puzzle.cpp` |
 | Plate and door | the red plate is in layer A and is not solid; it is pressed by the block resting on it, or by the body standing on it while the body is in A. The blue door is in layer B, solid while closed, open while the plate is pressed. Every question about them takes the layer the body is in (a body that switches to B leaves the plate) | `Puzzle::PlatePressed`, `Puzzle::DoorOpen` |
@@ -40,4 +43,5 @@ Decided once, used everywhere.
 | Feature level | 11_0 minimum (11_1 used when present) | |
 | File encoding | UTF-8, no BOM, LF line ends (`.gitattributes`, `.editorconfig`) | |
 | Naming | types and functions `PascalCase`, variables `camelCase`, members `m_`, constants `kPascalCase`, `enum class` | `.clang-format` formats, it does not rename |
+
 
