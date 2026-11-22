@@ -5,22 +5,26 @@
 //              the air onto the red strip; a blue curtain at the end of the strip keeps B from flying over it), the overlook, and
 //              the courtyard with the proved block puzzle (scene/Courtyard.h). The block on the plate opens the blue door
 //              in the north wall of the courtyard: the way into the hub.
-//   hub        a square place, walled 10 m high, with the tower in the middle. The tower door carries three seal lamps; it
+//   hub        a square place, walled 10 m high, with the tower in the middle and a gallery along its south-east corner
+//              (2.4 m up, reached only from the east wing: the hub seen from above). The tower door carries three seal lamps; it
 //              opens when the three seals of the wings are taken. Three openings lead to the wings; a fourth, closed door in
 //              the west wall is the far end of a shortcut that is opened from the other side.
 //   west wing  going DOWN: a hall, a ramp down to a lower room 3.6 m below the hub, the seal at its far end, and a ramp up
 //              to the closed door in the hub wall, which opens when the seal is taken (a one-way shortcut).
-//   east wing  going UP: a hall, a ramp up to an upper room 5 m above the hub floor, east of the terrace and seen from it,
+//   east wing  going UP: a hall, a ramp up to an upper room 6 m above the hub floor, east of the terrace and seen from it,
 //              and the top of the east wall of the courtyard - the wall that closed the courtyard is now a path. The seal
-//              is on it; its north end drops into the hub (a one-way shortcut).
+//              is on it; its north end drops onto the gallery of the hub, and the gallery drops into the hub (one way).
 //   north wing going UP by two ramps to a landing 7 m above the hub floor, with the seal; a ledge runs south through a window
 //              in the hub wall and drops into the hub (a one-way shortcut).
 //   tower      the landmark of the map: 13 m high, gold pinnacles on its corners, the beacon over it. Inside, six ramps wind
 //              round its walls to a balcony on its south side, 12 m above the hub, which looks back over the whole map; the
 //              goal is there.
+// Landmarks:  one per wing (an archive of shelves, a turning water ring, a bell tower), outside the walls and drawn only.
 // Heights:    every wall that a body must not climb is out of reach of a jump (2 m) from every place a body can stand next
-//             to it: the hub walls (9 m) from the ledge (6 m), the tower walls (12.2 m) from the ledge and from inside, the
-//             courtyard walls (4 m) from the terrace (1.4 m). tests/test_stage.cpp checks the numbers and tries the jumps.
+//             to it: the hub walls (9 m) from the ledge (6 m), the tower walls (12.2 m) from the ledge, the courtyard walls
+//             (5 m) from the terrace (1.4 m) and from the tops of the puzzle walls (2.5 m: they can be stood on from the
+//             strip), the parapets (2.6 m) from the floors they close. tests/test_reach.cpp searches the whole map for a jump
+//             that ends higher in another room; tests/test_stage.cpp checks the numbers and walks the map.
 // Rooms:      kRooms says where each room is and where a body comes back in it after a fall or R. R also puts back the
 //             puzzle of a room that has one (docs/LEVEL_DESIGN.md, section 9).
 // Ramps:      boxes turned round X (SceneObject::tilt); they run along Z, at most 27 degrees (the body stands up to about
@@ -164,7 +168,11 @@ inline constexpr float kCourtEast = static_cast<float>(kCellX0 + courtyard::kWid
 inline constexpr float kCourtSouth = static_cast<float>(kCellZ0) - 0.5f;                        // 13.5: the strip ends here
 inline constexpr float kCourtNorth = static_cast<float>(kCellZ0 + courtyard::kRowCount) - 0.5f; // 21.5
 inline constexpr float kWallHeight = 3.5f;  // a wall of the puzzle: out of reach from the top of the block (1 m + a 2 m jump)
-inline constexpr float kCityWallTop = 4.0f; // world y of the top of the courtyard walls and the walls of the wings
+inline constexpr float kCityWallTop = 4.0f; // world y of the top of the walls of the wings
+inline constexpr float kCourtWallTop = kFloorY + 6.0f; // 5: the walls round the courtyard; out of reach from the tops of the
+                                                       // puzzle walls (a player can stand on those: 2.5 + a 2 m jump)
+inline constexpr float kCurtainTop = kTerraceY + 6.4f; // 7.8: out of reach from the strip and from the top of the east wall
+inline constexpr float kParapet = 2.6f;    // UNITS: metres: a parapet round a high floor, out of reach of a jump from it
 inline constexpr float kHubWallTop = 9.0f;  // world y of the top of the hub walls: out of reach from the ledge (6 m + 2 m)
 // the door from the courtyard into the hub (blue, layer B; a red panel fills it in A)
 inline constexpr float kDoorX = 0.0f;
@@ -185,7 +193,9 @@ inline constexpr float kShortcutZ0 = 22.5f;          // the closed door at the e
 inline constexpr float kShortcutZ1 = 24.5f;
 // the wings
 inline constexpr float kWestLowY = kFloorY - 3.6f;   // -4.6: the lower room of the west wing
-inline constexpr float kEastHighY = kFloorY + 5.0f;  // 4: the upper room of the east wing = the top of the east wall
+inline constexpr float kEastHighY = kCourtWallTop;  // 5: the upper room of the east wing = the top of the east wall of the courtyard
+inline constexpr float kEastRoomNorth = 10.0f;      // the upper room ends here; the ramp up runs from z 22 to here (6 m over 12 m)
+inline constexpr float kGalleryY = kTerraceY;       // 1.4: the gallery in the hub, 2.4 m over its floor (out of reach from it)
 inline constexpr float kNorthHighY = kFloorY + 7.0f; // 6: the landing of the north wing and its ledge
 inline constexpr float kNorthWallTop = 9.0f;         // the walls of the north hall: out of reach from the landing
 inline constexpr float kLedgeWest = -9.0f;           // the ledge, x -9 .. -5, z 37 .. 44, passes through a window of the hub
@@ -325,17 +335,17 @@ inline constexpr SceneObject kFixed[] = {
     Span(-3.0f, kTerraceY, kGateZ - 0.25f, 3.0f, kTerraceY + kGateHeight, kGateZ + 0.25f, kRed, kLayerA),
     Span(-1.5f, kTerraceY - 0.2f, kStoneNear, 1.5f, kTerraceY, kStoneFar, kBlue, kLayerB),
     Span(-3.0f, kTerraceY - 0.2f, kStripNear, 3.0f, kTerraceY, kCourtSouth, kRed, kLayerA, 1.0f),
-    Span(-3.5f, kTerraceY - 0.2f, kCurtainZ, 3.5f, kTerraceY + 4.6f, kCourtSouth, kBlue, kLayerB),
+    Span(-3.5f, kTerraceY - 0.2f, kCurtainZ, 3.5f, kCurtainTop, kCourtSouth, kBlue, kLayerB),
     // ---- the courtyard: its floor, the wall under the strip, its west wall, and its east wall, 1.5 m thick: the path of
-    // the east wing runs on its top from the upper room (z 12) to its north end in the hub (z 23)
+    // the east wing runs on its top from the upper room (z 10) to its north end over the gallery of the hub (z 23)
     Floor(kCourtWest, kCourtSouth, kCourtEast, kCourtNorth, kFloorY),
     Wall(kCourtWest, kFloorY, kCourtSouth - 0.5f, kCourtEast, kTerraceY - 0.2f, kCourtSouth),
-    Wall(kCourtWest - 0.5f, kFloorY, kCourtSouth - 0.5f, kCourtWest, kCityWallTop, kDoorNorth),
-    Span(kCourtEast, kFloorY, 12.0f, kCourtEast + 1.5f, kCityWallTop, 23.0f, kStone, kLayerBoth),
+    Wall(kCourtWest - 0.5f, kFloorY, kCourtSouth - 0.5f, kCourtWest, kCourtWallTop, kDoorNorth),
+    Span(kCourtEast, kFloorY, kEastRoomNorth, kCourtEast + 1.5f, kCourtWallTop, 23.0f, kStone, kLayerBoth),
     // its north wall with the doorway into the hub; the red panel fills the doorway in A (the blue door, in B, is kDoor)
-    Wall(kCourtWest, kFloorY, kDoorSouth, kDoorX - kDoorwayHalfWidth, kCityWallTop, kDoorNorth),
-    Wall(kDoorX + kDoorwayHalfWidth, kFloorY, kDoorSouth, kCourtEast, kCityWallTop, kDoorNorth),
-    Wall(kDoorX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kDoorX + kDoorwayHalfWidth, kCityWallTop, kDoorNorth),
+    Wall(kCourtWest, kFloorY, kDoorSouth, kDoorX - kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
+    Wall(kDoorX + kDoorwayHalfWidth, kFloorY, kDoorSouth, kCourtEast, kCourtWallTop, kDoorNorth),
+    Wall(kDoorX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kDoorX + kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
     Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth, kDoorwayHigh, kDoorNorth, kRed, kLayerA),
     // ---- the hub: its floor and its walls, 10 m high (openings: the wings west, east and north; the closed shortcut door
     // west; the window of the ledge north)
@@ -355,6 +365,10 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kHubWest, kWindowTop, kHubNorth, kLedgeEast, kHubWallTop, kHubNorth + 0.5f),                 // north, over the window
     Wall(1.0f, kFloorY, kHubNorth, kHubEast + 0.5f, kHubWallTop, kHubNorth + 0.5f),
     Wall(-1.0f, kOpeningTop, kHubNorth, 1.0f, kHubWallTop, kHubNorth + 0.5f),
+    // ---- the gallery: a walk along the south-east corner of the hub, 2.4 m over its floor, reached only by the drop from the
+    // north end of the east path; from it the hub is seen from above, and a drop leads down into it
+    Floor(kCourtEast, 23.0f, kHubEast, 25.0f, kGalleryY),
+    Floor(kHubEast - 2.0f, 25.0f, kHubEast, 34.0f, kGalleryY),
     // ---- the tower: its walls (the door in the south wall), the pinnacles, the landings of its ramps, the balcony
     TowerWall(kTowerWest, kFloorY, kTowerSouth, kTowerDoorX0, kTowerTop, kTowerInnerSouth),
     TowerWall(kTowerDoorX1, kFloorY, kTowerSouth, kTowerEast, kTowerTop, kTowerInnerSouth),
@@ -392,7 +406,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(-24.0f, kWestLowY, 12.0f, -22.5f, kFloorY + 1.0f, 12.5f),                                    // the north edge of the lower room,
     Wall(-17.5f, kWestLowY, 12.0f, -12.5f, kFloorY + 1.0f, 12.5f),                                    // beside and between the ramps
     Wall(-12.5f, kWestLowY, 12.0f, -12.0f, kCityWallTop, 25.5f),                                      // the sides of the shortcut up
-    Wall(-10.0f, kWestLowY, 12.0f, -9.5f, kFloorY + 1.0f, 22.0f),
+    Wall(-10.0f, kWestLowY, 12.0f, -9.5f, kCityWallTop, 22.0f),
     Floor(-12.0f, 22.0f, kHubWest - 0.5f, 25.0f, kFloorY),                                            // the landing at its top
     Wall(-12.0f, kFloorY, 25.0f, kHubWest - 0.5f, kCityWallTop, 25.5f),
     // ---- the east wing (UP): the corridor, the hall, the walls of the ramp up, the upper room
@@ -406,14 +420,14 @@ inline constexpr SceneObject kFixed[] = {
     Wall(14.5f, kFloorY, kWingDoorZ1 + 0.5f, 15.0f, kCityWallTop, 40.5f),
     Wall(14.5f, kFloorY, 21.5f, 18.0f, kCityWallTop, 22.0f),
     Wall(22.0f, kFloorY, 21.5f, 24.5f, kCityWallTop, 22.0f),
-    Wall(17.5f, kFloorY, 12.0f, 18.0f, kEastHighY + 1.0f, 21.5f),                                     // the sides of the ramp up
-    Wall(22.0f, kFloorY, 12.0f, 22.5f, kEastHighY + 1.0f, 21.5f),
-    Floor(kCourtEast, 2.0f, 24.0f, 12.0f, kEastHighY),                                                // the upper room
-    Wall(kCourtEast, kEastHighY, 1.5f, 24.5f, kEastHighY + 1.2f, 2.0f),                               // its parapet
-    Wall(24.0f, kEastHighY, 2.0f, 24.5f, kEastHighY + 1.2f, 12.0f),
-    Wall(kCourtEast - 0.5f, kEastHighY, 1.5f, kCourtEast, kEastHighY + 1.2f, 12.0f),
-    Wall(kCourtEast + 1.5f, kEastHighY, 12.0f, 17.5f, kEastHighY + 1.2f, 12.5f),
-    Wall(22.5f, kEastHighY, 12.0f, 24.5f, kEastHighY + 1.2f, 12.5f),
+    Wall(17.5f, kFloorY, kEastRoomNorth, 18.0f, kEastHighY + kParapet, 21.5f),                        // the sides of the ramp up
+    Wall(22.0f, kFloorY, kEastRoomNorth, 22.5f, kEastHighY + kParapet, 21.5f),
+    Floor(kCourtEast, 2.0f, 24.0f, kEastRoomNorth, kEastHighY),                                       // the upper room
+    Wall(kCourtEast, kEastHighY, 1.5f, 24.5f, kEastHighY + kParapet, 2.0f),                           // its parapet
+    Wall(24.0f, kEastHighY, 2.0f, 24.5f, kEastHighY + kParapet, kEastRoomNorth),
+    Wall(kCourtEast - 0.5f, kEastHighY, 1.5f, kCourtEast, kEastHighY + kParapet, kEastRoomNorth),
+    Wall(kCourtEast + 1.5f, kEastHighY, kEastRoomNorth, 17.5f, kEastHighY + kParapet, kEastRoomNorth + 0.5f),
+    Wall(22.5f, kEastHighY, kEastRoomNorth, 24.5f, kEastHighY + kParapet, kEastRoomNorth + 0.5f),
     // ---- the north wing (UP): the corridor, the hall, the two landings, the ledge through the window into the hub
     Floor(-1.0f, kHubNorth + 0.5f, 1.0f, 44.0f, kFloorY),
     Wall(-1.5f, kFloorY, kHubNorth + 0.5f, -1.0f, kCityWallTop, 44.0f),
@@ -440,7 +454,7 @@ inline const SceneObject kRamps[] = {
     Ramp(kLane2, kTowerInnerEast, kRampNorth, Level(5), kRampSouth, Level(6)), // tower 6: lane 3 south, to the balcony
     Ramp(-22.0f, -18.0f, 22.0f, kFloorY, 12.0f, kWestLowY),                    // west: down
     Ramp(-12.0f, -10.0f, 12.0f, kWestLowY, 22.0f, kFloorY),                    // west: the shortcut up
-    Ramp(18.0f, 22.0f, 22.0f, kFloorY, 12.0f, kEastHighY),                     // east: up
+    Ramp(18.0f, 22.0f, 22.0f, kFloorY, kEastRoomNorth, kEastHighY),            // east: up
     Ramp(5.0f, 9.0f, 46.0f, kFloorY, 58.0f, kFloorY + 3.5f),                   // north: 1
     Ramp(0.0f, 4.0f, 58.0f, kFloorY + 3.5f, 46.0f, kNorthHighY),               // north: 2
 };
@@ -511,7 +525,8 @@ inline puzzle::StageDesc MakeStage()
 struct Room
 {
     const char* name;
-    float x0, y0, z0; // the box in which a body standing on the ground is "in" the room
+    float x0, y0, z0; // the box in which the FEET of a body standing on the ground are "in" the room: its heights are kept
+                      // close to the floors of the room, because tests/test_reach.cpp allows a jump up inside one room
     float x1, y1, z1;
     Vec3 entry;       // where it comes back, standing; a place to stand in both layers
     bool puzzle;      // R also puts back the block puzzle
@@ -522,13 +537,14 @@ inline constexpr Room kRooms[] = {
     {"tower", kTowerInnerWest, -2.0f, kTowerInnerSouth, kTowerInnerEast, 14.0f, kTowerInnerNorth, {-2.5f, kFloorY, 28.0f}, false},
     {"terrace", -3.2f, 0.0f, -4.0f, 3.2f, 6.0f, 4.2f, {0.0f, kTerraceY, -3.0f}, false},
     {"gap", -3.2f, 0.0f, 4.2f, 3.2f, 6.0f, kCourtSouth, {0.0f, kTerraceY, 5.0f}, false},
-    {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 1.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
-    {"hub", kHubWest, -2.0f, kHubSouth, kHubEast, 1.0f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
-    {"west hall", -24.0f, -2.0f, 22.0f, kHubWest, 1.0f, 40.0f, {-12.0f, kFloorY, 31.0f}, false},
+    {"courtyard", kCourtWest, -2.0f, kCourtSouth, kCourtEast, 3.0f, kCourtNorth, {kCourtWest + 0.5f, kFloorY, static_cast<float>(kCellZ0)}, true},
+    {"hub", kHubWest, -2.0f, kHubSouth, kHubEast, -0.5f, kHubNorth, {0.0f, kFloorY, 23.0f}, false},
+    {"west hall", -24.0f, -2.0f, 22.0f, kHubWest, -0.5f, 40.0f, {-12.0f, kFloorY, 31.0f}, false},
     {"west lower", -24.0f, -6.0f, 2.0f, kHubWest, 0.0f, 22.0f, {-20.0f, kWestLowY, 10.0f}, false},
-    {"east hall", kHubEast, -2.0f, 22.0f, 24.0f, 1.0f, 40.0f, {12.0f, kFloorY, 31.0f}, false},
-    {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 6.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
+    {"east hall", kHubEast, -2.0f, 22.0f, 24.0f, -0.5f, 40.0f, {12.0f, kFloorY, 31.0f}, false},
+    {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
+    {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
 };
 inline constexpr int kRoomCount = static_cast<int>(sizeof(kRooms) / sizeof(kRooms[0]));
 inline constexpr int kStartRoom = 1; ///< the terrace
@@ -702,10 +718,33 @@ bool ReachedGoal(const Body& body)
            f.z > kTowerInnerSouth && f.z < kRampSouth;
 }
 
+// ---- the landmarks: one per wing, tall enough to be seen over the hub walls, so that a player in the hub knows where each
+// wing is before entering it (docs/LEVEL_DESIGN.md, section 9). Drawn only, never solid: each stands outside every room,
+// behind walls that are out of reach (tests/test_hints.cpp checks both).
+inline constexpr Rgb kArchive{0.36f, 0.29f, 0.25f};
+constexpr SceneObject Landmark(ShapeKind shape, float x, float y, float z, float size, float tilt, float spin, Rgb c)
+{
+    SceneObject o = Span(x - 0.5f * size, y - 0.5f * size, z - 0.5f * size, x + 0.5f * size, y + 0.5f * size, z + 0.5f * size, c, kLayerBoth);
+    o.shape = shape;
+    o.tilt = tilt;
+    o.spinSpeed = spin;
+    o.shineStrength = 0.6f;
+    o.shininess = 60.0f;
+    return o;
+}
+inline constexpr SceneObject kLandmarks[] = {
+    Span(-29.0f, kFloorY, 25.0f, -26.0f, 20.0f, 37.0f, kArchive, kLayerBoth),                       // west: the archive, a wall of shelves
+    Span(-29.5f, 20.0f, 30.0f, -25.5f, 21.0f, 32.0f, kGold, kLayerBoth),                            // its gold crown
+    Landmark(ShapeKind::Torus, 29.0f, 15.0f, 31.0f, 6.0f, 1.5708f, 0.15f, Rgb{0.70f, 0.86f, 0.95f}), // east: the water ring, turning
+    Span(-2.5f, kFloorY, 63.0f, 2.5f, 21.0f, 67.0f, kStone, kLayerBoth),                            // north: the bell tower
+    Landmark(ShapeKind::Sphere, 0.0f, 23.0f, 65.0f, 3.0f, 0.0f, 0.0f, kGold),                       // its bell
+};
+inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / sizeof(kLandmarks[0]));
+
 inline constexpr int kMaxDrawObjects = 320;
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
-/// closed for a body in B, the plate (brighter while pressed) and, until it is taken, the goal light. A refused push is
+/// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is
 /// shown by StageHints::AddBlockedFlash (the outline of what was in the way), not by drawing it in the wrong layer. Returns
 /// how many objects were written.
 inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObject (&out)[kMaxDrawObjects])
@@ -731,6 +770,10 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
     const float pz = static_cast<float>(kPlateCell.z);
     out[n++] = Span(px - 0.45f, kFloorY, pz - 0.45f, px + 0.45f, kFloorY + 0.04f, pz + 0.45f, pressed ? 1.0f : 0.70f,
                     pressed ? 0.55f : 0.18f, pressed ? 0.45f : 0.16f, kLayerA);
+    for (const SceneObject& o : kLandmarks)
+    {
+        out[n++] = o;
+    }
     if (!goalTaken)
     {
         SceneObject goal{};

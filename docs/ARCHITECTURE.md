@@ -79,6 +79,10 @@ intersection. `Courtyard` holds the rows of the courtyard; `tools/maze_search.cp
 time from the rows of `Courtyard`, the rooms (bounds, entry, whether R resets a puzzle), the seals of the wings and the
 doors they open. Every frame `main.cpp` builds the solid table of the layer of the body and the drawn table from it.
 
+`tests/test_reach.cpp` searches the map for skips: from every place to stand, the real body jumps in every direction, with
+and without a switch at the top, and a jump that ends higher in a room that is not joined by walking fails the test. The
+landmarks of the wings are in the drawn table only; they stand outside every room.
+
 `StageHints` adds to the drawn table what the map says without words: an outline in the other layer for every
 single-layer box, the outline of a refused push's blocker in both layers, the frame of the courtyard door, the beacon over
 the goal and the rings of the clear. `StageLights` keeps the hidden lights. None of these is ever solid.

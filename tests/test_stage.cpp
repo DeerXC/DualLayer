@@ -13,7 +13,7 @@
 //      and names the blue wall; the door to the hub holds in A (the red panel) and in B until the block is on the plate
 //   3. the wings, walked from the hub with the real body (it walks up and down every ramp): the west wing down to its seal
 //      and back up the shortcut through the door that the seal opened; the east wing up to the top of the courtyard wall,
-//      its seal, and the drop into the hub; the north wing up two ramps to its seal, along the ledge through the window of
+//      its seal, the drop onto the gallery and from there into the hub (and the gallery not reached again from the floor); the north wing up two ramps to its seal, along the ledge through the window of
 //      the hub wall and off it
 //   4. the tower: shut until the three seals are taken, then walked up its six ramps to the balcony, the goal
 //   5. no way round: the tower door; the shortcut door from both sides; the east wing from the terrace; the courtyard wall
@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstdio>
 #include <initializer_list>
+#include <string_view>
 
 namespace
 {
@@ -327,7 +328,13 @@ void TestTables()
     const float margin = 0.3f;
     CHECK(st::kWallHeight > dl::puzzle::Puzzle::kBlockSize + jump + margin);              // a puzzle wall, from the block
     CHECK(st::kCityWallTop - kFloorY > dl::puzzle::Puzzle::kBlockSize + jump + margin);   // a city wall, from the block
-    CHECK(st::kCityWallTop > st::kTerraceY + jump + margin);                             // and from the terrace
+    CHECK(st::kCourtWallTop > st::kTerraceY + jump + margin);                            // the courtyard walls, from the terrace
+    CHECK(st::kCourtWallTop > kFloorY + st::kWallHeight + jump + margin);                // and from the tops of the puzzle walls
+    CHECK(st::kCurtainTop > st::kEastHighY + jump + margin);                             // the curtain, from the east path
+    CHECK(st::kCurtainTop > st::kTerraceY + jump + margin);                              // and from the strip
+    CHECK(st::kParapet > jump + margin);                                                 // a parapet, from its floor
+    CHECK(st::kGalleryY - kFloorY > jump + margin);                                      // the gallery, from the hub floor
+    CHECK(st::kEastHighY - st::kGalleryY > jump + margin);                               // the east path, from the gallery
     CHECK(st::kEastHighY > st::kTerraceY + jump + margin);                               // the east wing, from the terrace
     CHECK(st::kNorthHighY - 0.2f > kFloorY + jump + 1.55f + 0.5f);                       // the ledge, from the hub floor
     CHECK(st::kHubWallTop > st::kNorthHighY + jump + margin);                            // the hub walls, from the ledge
@@ -340,7 +347,7 @@ void TestTables()
     static SceneObject drawn[st::kMaxDrawObjects];
     int n = st::BuildDrawTable(w.puzzle, false, drawn);
     n = st::AddMapDraw(w.seals, drawn, n, st::kMaxDrawObjects);
-    CHECK(n == st::kStageStaticCount + 4 + 2 + 2 * st::kSealCount);
+    CHECK(n == st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount);
     CHECK(n <= st::kMaxDrawObjects);
 }
 
@@ -521,8 +528,17 @@ void TestWings()
         CHECK(w.At(20.0f, st::kEastHighY, 8.0f) && st::RoomAt(w.player.Feet()) == 8);
         CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 8.0f}, {st::kCourtEast + 0.75f, kFloorY, 20.0f}}));
         CHECK(w.seals.Taken(1) && w.At(st::kCourtEast + 0.75f, st::kEastHighY, 20.0f));
-        CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 24.0f}}));
-        CHECK(w.At(st::kCourtEast + 0.75f, kFloorY, 24.0f) && st::RoomAt(w.player.Feet()) == 4);
+        CHECK(w.WalkPath({{st::kCourtEast + 0.75f, kFloorY, 24.0f}})); // off the north end: onto the gallery
+        CHECK(w.At(st::kCourtEast + 0.75f, st::kGalleryY, 24.0f) && std::string_view(st::kRooms[st::RoomAt(w.player.Feet())].name) == "gallery");
+        CHECK(w.WalkPath({{8.0f, kFloorY, 24.0f}, {8.0f, kFloorY, 32.0f}, {5.5f, kFloorY, 32.0f}})); // along it, and off its west edge
+        w.Run(0.5f);
+        CHECK(w.At(5.5f, kFloorY, 32.0f) && st::RoomAt(w.player.Feet()) == 4);
+        World back = w; // the gallery is not reached again from the hub floor
+        back.PlaceFeet({5.5f, kFloorY, 30.0f});
+        back.Run(0.3f, Keys(1.0f), kEast);
+        back.Frame(Keys(1.0f, true), kEast);
+        back.Run(1.2f, Keys(1.0f), kEast);
+        CHECK(back.player.Feet().y < kFloorY + 0.5f);
     }
     {
         // the north wing: up two ramps to the seal, along the ledge through the window of the hub wall, and off it

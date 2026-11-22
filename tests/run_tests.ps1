@@ -21,6 +21,7 @@ $tests = @(
     @{ Name = "puzzle";    Sources = @("tests\test_puzzle.cpp");                                                              Flags = @("/O2") },
     @{ Name = "maze";      Sources = @("tests\test_maze.cpp");                                                                Flags = @("/O2") },
     @{ Name = "stage";     Sources = @("tests\test_stage.cpp");                                                               Flags = @("/O2") },
+    @{ Name = "reach";     Sources = @("tests\test_reach.cpp");                                                               Flags = @("/O2") },
     @{ Name = "hints";     Sources = @("tests\test_hints.cpp");                                                               Flags = @() },
     @{ Name = "lights";    Sources = @("tests\test_lights.cpp");                                                              Flags = @() }
 )

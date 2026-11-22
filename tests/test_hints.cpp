@@ -13,8 +13,9 @@
 //   3. the frame of the door: four bars in layer A round the doorway, just in front of the wall, only while the door is closed
 //   4. the beacon: in both layers, seen from the start over every axis-aligned box of A and of B (a beacon at the height of
 //      the gate would not be: the test can tell the difference); after the clear it grows wide
-//   5. the clear rings: none before the clear and none after kClearSeconds; in between they grow
-//   6. the whole drawn table of a frame (the map, its state, the outlines, the flash, the frame, the beacon, the rings, the
+//   5. the landmarks: each seen over the walls from the hub, each outside every room (drawn only, never walked into)
+//   6. the clear rings: none before the clear and none after kClearSeconds; in between they grow
+//   7. the whole drawn table of a frame (the map, its state, the outlines, the flash, the frame, the beacon, the rings, the
 //      lights) fits
 // Returns 1 when a check fails.
 
@@ -264,6 +265,67 @@ void TestBeacon()
     CHECK(Near(table[0].scale[0], st::kClearBeaconWidth));
 }
 
+/// True when the segment from the eye to `point` meets no axis-aligned box of the map (both layers: the walls of the hub are
+/// in both).
+bool SeenFrom(const float eye[3], const float point[3])
+{
+    for (const SceneObject& o : st::kStageStatics)
+    {
+        if (o.tilt == 0.0f && o.layerMask == kLayerBoth && SegmentHitsBox(eye, point, o))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void TestLandmarks()
+{
+    // each landmark is seen over the walls from a place on the hub floor (the corner across from it, so that the tower is not
+    // in the way), and a lower point at the same place is not: the test can tell
+    struct View
+    {
+        float eye[3];
+        float top[3];
+        float low[3];
+    };
+    const float eyeY = kFloorY + dl::Player::Settings{}.eyeHeight;
+    const View views[] = {
+        {{8.0f, eyeY, 39.0f}, {-27.5f, 19.5f, 31.0f}, {-27.5f, 3.0f, 31.0f}}, // the archive, from the north-east corner
+        {{-8.0f, eyeY, 24.0f}, {29.0f, 20.5f, 31.0f}, {29.0f, 3.0f, 31.0f}},  // the water ring, from the south-west corner
+        {{-8.0f, eyeY, 23.0f}, {0.0f, 24.0f, 65.0f}, {0.0f, 5.0f, 65.0f}},    // the bell, from the south-west corner
+    };
+    for (const View& v : views)
+    {
+        if (!SeenFrom(v.eye, v.top))
+        {
+            std::printf("  landmark top (%.1f %.1f %.1f) not seen\n", static_cast<double>(v.top[0]), static_cast<double>(v.top[1]), static_cast<double>(v.top[2]));
+        }
+        CHECK(SeenFrom(v.eye, v.top));
+        CHECK(!SeenFrom(v.eye, v.low));
+    }
+    // drawn only: each is apart from every room, also from the highest point a body in it can reach (its feet at the top
+    // of the room, a jump, the body over it)
+    const float reach = dl::Player::Settings{}.jumpHeight + dl::Player::Settings{}.eyeHeight + dl::Player::Settings{}.radius + 0.3f;
+    for (const SceneObject& o : st::kLandmarks)
+    {
+        float half[3] = {0.5f * o.scale[0], 0.5f * o.scale[1], 0.5f * o.scale[2]};
+        if (o.shape == ShapeKind::Torus) // a turning ring sweeps a disc of its whole outer radius, round its centre
+        {
+            const float outer = (dl::scene::kTorusMajor + dl::scene::kTorusMinor) * o.scale[0];
+            half[0] = outer;
+            half[1] = outer;
+            half[2] = outer;
+        }
+        for (const st::Room& room : st::kRooms)
+        {
+            const bool apart = o.position[0] + half[0] < room.x0 || o.position[0] - half[0] > room.x1 || o.position[2] + half[2] < room.z0 ||
+                               o.position[2] - half[2] > room.z1 || o.position[1] - half[1] > room.y1 + reach;
+            CHECK(apart);
+        }
+    }
+}
+
 void TestClearRings()
 {
     SceneObject table[8] = {};
@@ -279,7 +341,7 @@ void TestClearRings()
 
 void TestWholeFrameFits()
 {
-    const int largest = st::kStageStaticCount + 4 + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost + st::kBarsPerGhost +
+    const int largest = st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost + st::kBarsPerGhost +
                         st::kFrameBars + 1 + st::kClearRings + st::kHiddenLightCount;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
     CHECK(largest <= st::kMaxDrawObjects);
@@ -293,6 +355,7 @@ int main()
     TestBlockedFlash();
     TestDoorFrame();
     TestBeacon();
+    TestLandmarks();
     TestClearRings();
     TestWholeFrameFits();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);

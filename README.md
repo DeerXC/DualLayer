@@ -17,8 +17,10 @@ three wings and the tower stand as grey boxes, and their rooms are being built f
   in one layer alone, and looks like 2 pushes to a player who ignores the other layer. Its layout was chosen by a search with
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
   cannot drift apart.
-- **A map that is walked by its tests.** A test drives the real walking body through the whole map: every room, every
-  shortcut, every ramp, the tower to its top, and the jumps that would skip a part.
+- **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
+  room, every shortcut, every ramp, the tower to its top. Another one searches it for skips: from about 4600 places to
+  stand, about 74000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
+  ways round the map that no play-test had found.
 - **Layer switch as a ripple.** Both layers are rendered into their own off-screen pictures and a circle opens from the
   centre of the screen; pressed again, it turns round without a jump.
 - **Hints without words.** Every object of one layer leaves a thin outline in the other; a refused push outlines what was in

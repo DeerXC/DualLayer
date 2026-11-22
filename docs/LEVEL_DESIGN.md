@@ -71,7 +71,7 @@ Not used on purpose: moving platforms, throwing, timers. They would move the dif
 | Prologue: gate, gap, courtyard | the switch; the switch in the air; the purple block | 2 min | terrace down to the courtyard | - |
 | Hub | the goal and the three ways | 0.5 min | ground | - |
 | West wing, the archive | the orb | 3 min | down, under the terrace | a one-way door |
-| East wing, the water garden | single-layer blocks, channels | 3 min | up, onto the courtyard wall | a drop |
+| East wing, the water garden | single-layer blocks, channels | 3 min | up 6 m, onto the courtyard wall | a drop onto the gallery of the hub |
 | North wing, the bell tower | the prism switch | 3 min | up, 7 m | a ledge through a window of the hub wall, a drop |
 | Tower | the three combined | 2 min | up to the balcony, 12 m | - |
 
@@ -88,12 +88,15 @@ Each room states its purpose, layout, solution, its "of course!", failure and re
   it; a blue curtain of B at the end of the strip. The way: onto the stone in B, jump, switch to A in the air. Neither layer
   alone crosses (the strip is out of reach from the terrace; in B the curtain stops the flight over the strip). It is the
   one place where the switch in the air is taught.
-- Courtyard: the proved puzzle (10 pushes). The block on the plate opens the door in the north wall into the hub.
+- Courtyard: the proved puzzle (10 pushes). The block on the plate opens the door in the north wall into the hub. The tops
+  of the puzzle walls (2.5 m) can be stood on from the strip; the walls round the courtyard (5 m) are out of reach from them.
 
 ### 6.2 Hub
 
 A walled square, 10 m high, round the tower. The tower door carries three seal lamps. The openings of the three wings and
-the far ends of their shortcuts are in its walls; the ends are closed and promise "this will open".
+the far ends of their shortcuts are in its walls; the ends are closed and promise "this will open". A gallery runs along
+its south-east corner, 2.4 m up: out of reach from the floor, it is reached only from the east wing, and turns the hub
+from a place to pass through into a place seen from above.
 
 ### 6.3 West wing: the archive (the orb)
 
@@ -116,7 +119,7 @@ proved by the solver.
 | E1 a red block ignores blue walls | where the purple block is stopped, the red one passes; no dead end (checked) |
 | E2 fill the channel | the same trench is a path in one world and a trench in the other; the wrong block in the wrong channel is a dead end, and one dead end hides a light |
 | E3 three blocks | to let a block of both layers pass, both layers need a path first |
-| E4 the wall top | the wall that held the courtyard shut is now the path; the seal; a drop into the hub |
+| E4 the wall top | the wall that held the courtyard shut is now the path; the seal; a drop onto the gallery, then into the hub |
 
 ### 6.5 North wing: the bell tower (the prism)
 
@@ -145,7 +148,7 @@ and one switch in the air over a net.
 | Entering the hub | the tower, the openings of the wings, closed doors | seen before reached |
 | West wing, going down | the underside of the terrace, from below | layered space |
 | West exit | the closed door of the hub, from the other side | one-way door |
-| East exit | the top of the wall that closed the courtyard | a known place from a new side |
+| East exit | the top of the wall that closed the courtyard, then the hub from its gallery | a known place from a new side |
 | Bell tower window | the seal lamps already lit | progress in sight |
 | Tower balcony | the whole map | the end |
 
@@ -166,7 +169,8 @@ parapet. With all twelve the goal light changes colour.
   orb leaves a trail.
 - Room reset: R puts the body at the entry of the room it is in and puts back the objects of that room. Lights, seals and
   shortcuts stay.
-- Landmarks: one per wing, seen from the hub.
+- Landmarks: one per wing, seen over the hub walls: the archive (a wall of shelves with a gold crown, west), the water
+  ring (a turning ring, east), the bell tower (north). They stand outside the map and are drawn only.
 
 ## 10. Jump limits
 
@@ -181,8 +185,9 @@ The body walks at 5.5 m/s and jumps 2 m high; a running jump covers about 3.6 m.
 | Cost of a miss | a net, or back to the room entry | back to the room entry |
 | Switches in the air required | two: the gap, the tower | - |
 
-Walls that must not be climbed are out of reach of a jump from every place a body can stand next to them; the tests check
-the numbers and try the jumps.
+Walls that must not be climbed are out of reach of a jump from every place a body can stand next to them: a surface that
+must not be reached is at least 2.3 m over every floor in reach of it, and a parapet round a high floor is 2.6 m. The
+search for skips checks this for the whole map.
 
 ## 11. Proof
 
@@ -192,6 +197,7 @@ the numbers and try the jumps.
 | Orb rooms | a walk with the real body and the orb; the known wrong moves tried |
 | Prism rooms | all prism states with the layer of the body searched |
 | The map | a walk from the start to the top; every room entry standable in both layers; the jumps that would skip a part tried |
+| Skips | a search: from every place to stand that something higher is in reach of, jumps in 16 directions, with and without a run-up and a switch at the top; a jump that ends higher in a room not joined by walking fails the test (`tests/test_reach.cpp`) |
 
 ## 12. Build order
 
@@ -199,12 +205,12 @@ Every step ends with a playable build and a green `tools/check.ps1`.
 
 | Step | Content | State |
 |---|---|---|
-| 1 skeleton | prologue, hub, the shapes of the wings and the tower, rooms and room reset, seals and doors | done, play-tested once |
+| 1 skeleton | prologue, hub, the shapes of the wings and the tower, rooms and room reset, seals and doors; the gallery, the landmarks, the search for skips | done, play-tested once |
 | 2 west wing | the orb, one-way doors, W1 .. W4 | next |
 | 3 east wing | single-layer blocks, channels, the solver extended, E1 .. E4 | |
 | 4 north wing | the prism and its links, N1 .. N4 | |
 | 5 tower | T1 .. T3, an end screen | |
-| 6 lights and polish | the 12 lights, landmarks, play-test changes | |
+| 6 lights and polish | the 12 lights, play-test changes | |
 
 ### 12.1 Risks
 

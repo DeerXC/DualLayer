@@ -112,11 +112,12 @@ seen".
 | E-5 | push the block onto the plate; walk through the north door in B | the hub, with the tower and three dark seal lamps |
 | E-6 | walk up and down the ramps of the wings and the tower, turning with the mouse | the picture does not shake; the walk does not stop at the foot of a ramp |
 | E-7 | west wing down to the seal, up the shortcut | one lamp lights; the door at the top opens into the hub |
-| E-8 | east wing up to the courtyard wall top, the seal, off its north end | the body drops into the hub |
+| E-8 | east wing up to the courtyard wall top, the seal, off its north end | the body drops onto the gallery of the hub, which looks over the hub; off its edge into the hub; the gallery cannot be jumped onto from the floor |
 | E-9 | north wing up to the seal, along the ledge through the window, off it; on the ledge jump toward the tower | the body drops into the hub; nothing higher is reached from the ledge |
 | E-10 | with three seals, up the six ramps of the tower | the balcony looks back over the map; `CLEAR` with the time |
 | E-11 | fall off a ramp; press R in the courtyard | the body comes back at the entry of the room; R puts the block back |
 | E-12 | close the window | the live-object report lists only the device |
+| E-13 | in the hub, look round | the archive (west), the water ring (east) and the bell tower (north) stand over the walls |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
