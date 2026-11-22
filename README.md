@@ -10,9 +10,9 @@ as grey boxes, and their rooms are being built from the design in [docs/LEVEL_DE
 
 ## Highlights
 
-- **One rule, many uses.** The only ability is switching between layer A (red) and layer B (blue). A wall of one layer is
-  air in the other; a jump can start in one layer and land in the other; a block that exists in both layers is stopped by
-  the walls of both.
+- **One rule, many uses.** The only ability is switching between two faces of one city: A, whole in a warm evening, and
+  B, broken by a storm, cold and foggy. A wall of one layer is air in the other; a jump can start in one layer and land in
+  the other; a block that exists in both layers is stopped by the walls of both; a thing works only in its own world.
 - **Puzzles proved by a solver.** A breadth-first solver proves that the courtyard puzzle takes 10 pushes, cannot be solved
   in one layer alone, and looks like 2 pushes to a player who ignores the other layer. Its layout was chosen by a search with
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
@@ -27,8 +27,10 @@ as grey boxes, and their rooms are being built from the design in [docs/LEVEL_DE
   in one world and open in the other.
 - **Layer switch as a ripple.** Both layers are rendered into their own off-screen pictures and a circle opens from the
   centre of the screen; pressed again, it turns round without a jump.
-- **Hints without words.** Every object of one layer leaves a thin outline in the other; a refused push outlines what was in
-  the way; a beacon over the goal is seen from the first step.
+- **Guidance without a tutorial.** Every object of one layer leaves a thin outline in the other; a column of light stands
+  over every place that waits for something; where a bridge will appear is outlined before it does; a refused push
+  outlines what was in the way; a beacon over the goal is seen from the first step. The only words are key prompts,
+  drawn with a bitmap font written for the project, chosen by the same code that runs the key, and dimmed once learned.
 - **Hand-written engine layer.** Direct3D 11 device and swap chain, depth, constant buffers, HLSL compiled at run time,
   procedural meshes with winding tests, collision of boxes, spheres, cylinders and tori, a walking body with tuned feel
   (acceleration, variable jump height, coyote time, jump buffer, ground snap on ramps), recovery from a lost GPU device.
@@ -74,3 +76,4 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 
 Not decided yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but
 not reused.
+

@@ -23,6 +23,7 @@ $tests = @(
     @{ Name = "stage";     Sources = @("tests\test_stage.cpp");                                                               Flags = @("/O2") },
     @{ Name = "mechanisms"; Sources = @("tests\test_mechanisms.cpp");                                                         Flags = @("/O2") },
     @{ Name = "reach";     Sources = @("tests\test_reach.cpp");                                                               Flags = @("/O2") },
+    @{ Name = "overlay";   Sources = @("tests\test_overlay.cpp");                                                             Flags = @() },
     @{ Name = "hints";     Sources = @("tests\test_hints.cpp");                                                               Flags = @() },
     @{ Name = "lights";    Sources = @("tests\test_lights.cpp");                                                              Flags = @() }
 )
@@ -74,3 +75,4 @@ if ($Only -eq "")
 if ($ran -eq 0) { Write-Host "no test is called '$Only'" -ForegroundColor Red; exit 2 }
 Write-Host ("all {0} test(s) passed" -f $ran) -ForegroundColor Green
 exit 0
+

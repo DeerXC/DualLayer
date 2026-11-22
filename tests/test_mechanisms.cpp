@@ -16,6 +16,10 @@
 //   7. gates: a bridge is there while open, a door while closed; a door with two triggers opens with either; AddSolids gives
 //      only the gates of the layer that are there; the drawn tables hold the gates, the pads and the orbs
 //   8. ResetRoom puts back the orbs of that room only, also a held one; latched triggers stay
+//   9. guidance: OrbInReach and SpotAhead say what E would do (take which orb; place it on which socket, plate or spot of
+//      the world of the body, and which one of the other world is in front); an orb has the colour of its world;
+//      a light column stands over every socket and plate not worked and every lever not pulled, in both layers, in the
+//      colour of its layer, and goes when it is worked; orbs, pads and columns have a light of their own
 // Returns 1 when a check fails.
 
 #include "scene/Mechanisms.h"
@@ -276,12 +280,13 @@ void TestTriggers()
 {
     World w;
     w.Run(1.0f);
-    // the socket of B: an orb of A on it does nothing; an orb of B does
+    // the socket of B: an orb of A is not placed on it (it is put down as anywhere else) and does nothing; an orb of B is
     w.Stand(0.0f, -1.0f);
     CHECK(w.Use(kNorth) == mech::Action::Took);
-    w.Stand(-2.0f, 0.9f);
-    CHECK(w.Use(kNorth) == mech::Action::Put && Near(w.set.OrbAt(0).centre.x, -2.0f, 1e-3f));
+    w.Stand(-2.0f, 0.4f);
+    CHECK(w.Use(kNorth) == mech::Action::Put && Near(w.set.OrbAt(0).centre.z, 1.4f, 0.05f)); // one step ahead, not on the socket
     CHECK(!w.set.Active(kSocketB) && !w.set.GatePresent(kBridge));
+    w.Stand(-2.0f, 0.9f);
     CHECK(w.Use(kNorth) == mech::Action::Took);
     w.layer = 1;
     CHECK(w.Use(kNorth) == mech::Action::Put && w.set.Active(kSocketB) && w.set.GatePresent(kBridge));
@@ -345,6 +350,67 @@ void TestResetRoom()
     CHECK(!w.set.Active(kLever) && w.set.HeldOrb() < 0);
 }
 
+void TestGuidance()
+{
+    World w;
+    w.Run(1.0f);
+    w.Build();
+    w.Stand(0.0f, -3.0f); // out of reach
+    CHECK(w.set.OrbInReach(w.body, 0, w.solids[0], w.counts[0]) < 0);
+    w.Stand(0.0f, -1.0f);
+    CHECK(w.set.OrbInReach(w.body, 0, w.solids[0], w.counts[0]) == 0);
+    CHECK(w.set.OrbInReach(w.body, 1, w.solids[1], w.counts[1]) < 0); // the orb is in A
+    CHECK(w.Use(kNorth) == mech::Action::Took);
+    Vec3 at{};
+    w.Stand(1.6f, 1.2f); // the plate (2, 2) is ahead: snapped onto it
+    CHECK(w.set.SpotAhead(w.body, 0, kNorth, at) == kPlateA && Near(at.x, 2.0f, 1e-4f) && Near(at.z, 2.0f, 1e-4f));
+    CHECK(w.set.SpotAhead(w.body, 1, kNorth, at) == mech::MechanismSet::kSpotNone); // a plate of A does not take a body in B
+    w.Stand(-2.0f, 0.9f); // the socket of B (-2, 2) is ahead: from A it is not a place, but it is reported as the other world
+    int other = mech::MechanismSet::kSpotNone;
+    CHECK(w.set.SpotAhead(w.body, 0, kNorth, at, &other) == mech::MechanismSet::kSpotNone && other == kSocketB);
+    CHECK(w.set.SpotAhead(w.body, 1, kNorth, at, &other) == kSocketB && other == mech::MechanismSet::kSpotNone);
+    w.Stand(0.0f, 3.2f); // the extra spot (0, 4) is ahead
+    CHECK(w.set.SpotAhead(w.body, 0, kNorth, at) == mech::MechanismSet::kSpotExtra && Near(at.z, 4.0f, 1e-4f));
+    CHECK(w.set.SpotAhead(w.body, 1, kNorth, at) == mech::MechanismSet::kSpotExtra); // a hole: either world
+    w.Stand(0.0f, -3.0f); // nothing near: one step ahead
+    CHECK(w.set.SpotAhead(w.body, 0, kEast, at) == mech::MechanismSet::kSpotNone && Near(at.x, 1.0f, 0.05f));
+    // the columns: one per trigger that is not worked, both layers, glowing, in the colour of its layer
+    SceneObject table[16] = {};
+    int n = w.set.AddBeacons(table, 0, 16);
+    CHECK(n == 4);
+    for (int i = 0; i < n; ++i)
+    {
+        CHECK(table[i].layerMask == kLayerBoth && table[i].glow > 1.0f && table[i].scale[1] >= 2.0f &&
+              table[i].scale[0] <= 0.1f);
+    }
+    CHECK(table[0].colorSrgb[2] > table[0].colorSrgb[0]); // the socket of B: blue
+    CHECK(table[1].colorSrgb[0] > table[1].colorSrgb[2]); // the plate of A: red
+    // an orb is drawn in the colour of its world, the same as the column of a trigger of that world
+    SceneObject orbs[8] = {};
+    const int nOrbs = w.set.AddOrbDraw(w.body, kNorth, orbs, 0, 8);
+    for (int i = 0; i < nOrbs; ++i)
+    {
+        if (orbs[i].shape == ShapeKind::Sphere)
+        {
+            const int world = orbs[i].layerMask == kLayerA ? 0 : 1;
+            CHECK(orbs[i].colorSrgb[0] == mech::MechanismSet::WorldColour(world).r && orbs[i].colorSrgb[2] == mech::MechanismSet::WorldColour(world).b);
+        }
+    }
+    CHECK(table[1].colorSrgb[0] == mech::MechanismSet::WorldColour(0).r && table[0].colorSrgb[2] == mech::MechanismSet::WorldColour(1).b);
+    w.Stand(-4.0f, -3.4f); // pull the lever: its column goes
+    CHECK(w.set.AddBeacons(table, 0, 16) == 3);
+    CHECK(w.set.AddBeacons(table, 15, 16) == 16 && w.set.AddBeacons(nullptr, 0, 16) == 0);
+    // a light of their own
+    n = w.set.AddFixedDraw(table, 0, 16);
+    n = w.set.AddOrbDraw(w.body, kNorth, table, n, 16);
+    bool glows = true;
+    for (int i = 0; i < n; ++i)
+    {
+        glows = glows && (table[i].shape != ShapeKind::Sphere || table[i].glow > 0.5f);
+    }
+    CHECK(glows);
+}
+
 } // namespace
 
 int main()
@@ -356,6 +422,8 @@ int main()
     TestTriggers();
     TestDraw();
     TestResetRoom();
+    TestGuidance();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+

@@ -9,6 +9,9 @@
 //            layers, wide and bright, fading out. Only the outline: the thing itself stays in its own layer, so a blue wall is
 //            never seen as a solid box in layer A (the first version drew the whole box in both layers, which looked like a
 //            wall that should not be there).
+// Previews: a gate that appears when something is done (a bridge) shows where it will be: its outline in both layers, a
+//            little brighter than a hint (AddGatePreviews). The player sees "something goes here" before knowing how.
+// Glow:      every hint has a little light of its own (SceneObject::glow), so it reads in the darker corners as well.
 // Door:      the plate is in layer A and the door it opens is in layer B. AddDoorFrame draws, in A, a thin blue frame round
 //            the doorway while the door is closed for a body in A; standing on the plate makes it vanish.
 // Beacon:    a thin column of light over the goal on the top of the tower, seen from the start over every wall of both
@@ -19,6 +22,7 @@
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_hints.cpp). UNITS: metres, seconds.
 #pragma once
 
+#include "scene/Mechanisms.h"
 #include "scene/Puzzle.h"
 #include "scene/SceneData.h"
 #include "scene/Stage.h"
@@ -32,6 +36,7 @@ inline constexpr float kGhostLift = 0.02f;  // UNITS: metres above the surface, 
 inline constexpr float kFlatHeight = 0.5f;  // UNITS: metres; an object up to this thick is a platform, outlined at its top
 inline constexpr float kGhostLight = 0.35f; // how much of the way to white the colour goes: the outline glows a little
 inline constexpr int kBarsPerGhost = 4;
+inline constexpr float kHintGlow = 0.35f;  // the light of its own of a hint bar
 
 /// True when `o` leaves an outline in the other layer: an axis-aligned box of one layer only.
 constexpr bool HasGhost(const SceneObject& o)
@@ -72,6 +77,7 @@ constexpr SceneObject HintBar(float x0, float y0, float z0, float x1, float y1, 
     SceneObject o = Span(x0, y0, z0, x1, y1, z1, r, g, b, mask);
     o.shineStrength = 0.0f;
     o.shininess = 1.0f;
+    o.glow = kHintGlow;
     return o;
 }
 
@@ -145,6 +151,42 @@ inline int AddOutlines(const SceneObject* objects, int n, SceneObject* out, int 
         {
             const SceneObject o = objects[i]; // a copy: `objects` may lie in `out`
             MakeGhost(o, out + count);
+            count += kBarsPerGhost;
+        }
+    }
+    return count;
+}
+
+// ---- where a gate will appear
+inline constexpr float kPreviewBar = 0.09f;   // UNITS: metres
+inline constexpr float kPreviewLight = 0.6f;  // closer to white than a hint: it is an invitation
+
+/// Adds the outline, in both layers, of every gate of `mech` that appears when its trigger is worked (a bridge) and is not
+/// there yet. Returns the new count; a table without room for all of them gets none.
+inline int AddGatePreviews(const mech::MechanismSet& mech, SceneObject* out, int count, int capacity)
+{
+    if (out == nullptr || count < 0)
+    {
+        return count;
+    }
+    int needed = 0;
+    for (int i = 0; i < mech.GateCount(); ++i)
+    {
+        needed += (mech.GateAt(i).presentWhenOpen && !mech.GatePresent(i)) ? kBarsPerGhost : 0;
+    }
+    if (capacity - count < needed)
+    {
+        return count;
+    }
+    for (int i = 0; i < mech.GateCount(); ++i)
+    {
+        if (mech.GateAt(i).presentWhenOpen && !mech.GatePresent(i))
+        {
+            MakeOutline(mech.GateAt(i).box, kPreviewBar, kPreviewLight, kLayerBoth, out + count);
+            for (int b = 0; b < kBarsPerGhost; ++b)
+            {
+                out[count + b].glow = 0.7f;
+            }
             count += kBarsPerGhost;
         }
     }
@@ -227,6 +269,7 @@ inline int AddGoalBeacon(SceneObject* out, int count, int capacity, float clearS
     const float half = 0.5f * (kBeaconWidth + (kClearBeaconWidth - kBeaconWidth) * t);
     out[count] = HintBar(kGoal.x - half, kBeaconBottom, kGoal.z - half, kGoal.x + half, kBeaconTop, kGoal.z + half, 1.0f,
                          0.90f + 0.10f * t, 0.55f + 0.45f * t, kLayerBoth);
+    out[count].glow = 1.5f; // a column of light: seen in the dark of either layer
     return count + 1;
 }
 
@@ -267,4 +310,5 @@ inline int AddClearRings(SceneObject* out, int count, int capacity, float clearS
 }
 
 } // namespace dl::stage
+
 

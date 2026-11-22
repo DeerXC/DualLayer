@@ -46,14 +46,18 @@ struct FrameConstants
     float pad2;
     XMFLOAT3 skyDown; // linear: the ground light on a surface that looks down
     float pad3;
+    XMFLOAT3 fogColor; // linear: the colour of the fog (= the background)
+    float fogDensity;  // UNITS: 1 / metres
+    XMFLOAT3 tint;     // the stone of the city in this layer (multiplies the albedo of the city)
+    float weathering;  // 0 .. 1
 };
 
 struct ObjectConstants
 {
     XMFLOAT4X4 world;
     XMFLOAT4X4 normalMatrix; // inverse transpose of the 3x3 of `world`
-    XMFLOAT4 color;          // linear albedo
-    XMFLOAT4 params;         // x: checkered floor, y: shine strength, z: shininess
+    XMFLOAT4 color;          // rgb: linear albedo; a: 1 = part of the city (takes the tint and the weathering of the layer)
+    XMFLOAT4 params;         // x: checkered floor, y: shine strength, z: shininess, w: glow (its own light)
 };
 
 // KEEP IN SYNC: cbuffer Ripple in shaders/ripple.hlsl (field for field).
@@ -69,7 +73,7 @@ struct RippleConstants
     float pad1;
 };
 
-static_assert(sizeof(FrameConstants) == 144, "cbuffer Frame is 9 registers of 16 bytes");
+static_assert(sizeof(FrameConstants) == 176, "cbuffer Frame is 11 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
 
@@ -91,18 +95,27 @@ constexpr float kDefaultRippleDistortion = 0.012f; // UNITS: uv (a part of the s
 constexpr float kRippleGlow = 0.5f;               // the ring adds this much of the light colour of the layer it opens
 constexpr float kRippleOvershoot = 1.5f;          // the circle grows this many ring widths past the corner, so the ring leaves the screen
 
+/// The two faces of the city (docs/LEVEL_DESIGN.md, 13). A, the whole city: a low evening sun, warm sandstone, a light
+/// haze, a bright sky behind it. B, the city after the storm: a cold light from above, wet dark stone with moss on what looks
+/// up, a thick fog that hides what is far. They differ in every channel at once, so that a single glance tells them apart.
 std::array<Models::Theme, 2> DefaultThemes()
 {
     Models::Theme a;
-    a.toLight = XMFLOAT3(-0.45f, 0.80f, -0.55f); // above, left of and behind the camera (the light of M1)
-    a.lightColor = XMFLOAT3(1.25f, 1.02f, 0.78f);
-    a.sky = XMFLOAT3(0.19f, 0.12f, 0.09f);
-    a.clear = XMFLOAT3(0.035f, 0.012f, 0.008f);
+    a.toLight = XMFLOAT3(-0.60f, 0.45f, -0.65f); // a low sun, left of and behind the camera at the start: long shadows
+    a.lightColor = XMFLOAT3(1.45f, 1.05f, 0.70f);
+    a.sky = XMFLOAT3(0.24f, 0.16f, 0.12f);
+    a.clear = XMFLOAT3(0.42f, 0.22f, 0.10f); // an evening sky
+    a.fogDensity = 0.006f;
+    a.tint = XMFLOAT3(1.25f, 1.00f, 0.74f); // sandstone
+    a.weathering = 0.15f;
     Models::Theme b;
-    b.toLight = XMFLOAT3(0.55f, 0.65f, -0.45f); // above, right of and behind the camera: the shadows turn round
-    b.lightColor = XMFLOAT3(0.78f, 0.95f, 1.25f);
-    b.sky = XMFLOAT3(0.08f, 0.13f, 0.25f);
-    b.clear = XMFLOAT3(0.006f, 0.014f, 0.040f);
+    b.toLight = XMFLOAT3(0.20f, 0.95f, -0.25f); // a grey light from high above: short shadows
+    b.lightColor = XMFLOAT3(0.55f, 0.68f, 0.85f);
+    b.sky = XMFLOAT3(0.10f, 0.14f, 0.20f);
+    b.clear = XMFLOAT3(0.045f, 0.065f, 0.09f); // a storm
+    b.fogDensity = 0.022f;
+    b.tint = XMFLOAT3(0.62f, 0.70f, 0.78f); // wet dark stone
+    b.weathering = 0.85f;
     return {{a, b}};
 }
 
@@ -586,6 +599,10 @@ void Models::LoadThemes(const Config& config)
                          config.GetFloat(s, "sky_b", d.sky.z));
         t.clear = XMFLOAT3(config.GetFloat(s, "clear_r", d.clear.x), config.GetFloat(s, "clear_g", d.clear.y),
                            config.GetFloat(s, "clear_b", d.clear.z));
+        t.fogDensity = std::clamp(config.GetFloat(s, "fog_density", d.fogDensity), 0.0f, 0.2f);
+        t.tint = XMFLOAT3(std::clamp(config.GetFloat(s, "tint_r", d.tint.x), 0.0f, 4.0f), std::clamp(config.GetFloat(s, "tint_g", d.tint.y), 0.0f, 4.0f),
+                          std::clamp(config.GetFloat(s, "tint_b", d.tint.z), 0.0f, 4.0f));
+        t.weathering = std::clamp(config.GetFloat(s, "weathering", d.weathering), 0.0f, 1.0f);
         // a light with no direction cannot be normalised: keep the built-in one
         const float length2 = t.toLight.x * t.toLight.x + t.toLight.y * t.toLight.y + t.toLight.z * t.toLight.z;
         if (!(length2 > 1.0e-6f))
@@ -700,6 +717,10 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     frame.lightColor = theme.lightColor;
     frame.skyUp = theme.sky;
     frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale, theme.sky.y * kSkyDownScale, theme.sky.z * kSkyDownScale);
+    frame.fogColor = theme.clear; // the fog is the colour of the sky behind it: what is far melts into the background
+    frame.fogDensity = theme.fogDensity;
+    frame.tint = theme.tint;
+    frame.weathering = theme.weathering;
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (FAILED(context->Map(m_frameBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
     {
@@ -732,9 +753,12 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         // transpose), or the light is wrong. For this affine matrix the 3x3 part of the result is the inverse transpose
         // of the 3x3 of `world`.
         XMStoreFloat4x4(&data.normalMatrix, XMMatrixTranspose(XMMatrixInverse(nullptr, world)));
+        // the city (an object of both layers that does not shine by itself) takes the stone of the layer; the key objects of
+        // one layer and everything that glows keep their own colours, so that red, blue and gold always mean the same
+        const float city = (object.layerMask == scene::kLayerBoth && object.glow <= 0.0f) ? 1.0f : 0.0f;
         data.color = XMFLOAT4(SrgbToLinear(object.colorSrgb[0]), SrgbToLinear(object.colorSrgb[1]),
-                              SrgbToLinear(object.colorSrgb[2]), 1.0f);
-        data.params = XMFLOAT4(object.checker, object.shineStrength, object.shininess, 0.0f);
+                              SrgbToLinear(object.colorSrgb[2]), city);
+        data.params = XMFLOAT4(object.checker, object.shineStrength, object.shininess, object.glow);
         if (FAILED(context->Map(m_objectBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
         {
             continue;
@@ -895,3 +919,4 @@ std::wstring Models::StatusLine() const
 }
 
 } // namespace dl
+

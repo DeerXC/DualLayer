@@ -104,7 +104,7 @@ Theme: one body cannot be in both worlds; a thing can. The wing goes down. Built
 
 | Room | Layout | Moment |
 |---|---|---|
-| W1 hand it over | the hall is cut by a trench 5 m wide (more than a running jump); an orb of A on the north floor, a socket of B by the trench | in A the orb on the socket does nothing; in B it lays a bridge of B: the thing in the hand went with the body |
+| W1 hand it over | the hall is cut by a trench 5 m wide (more than a running jump); an orb of A on the north floor, a socket of B by the trench | the orb and the socket have the colours of their worlds (red-gold, blue); in A the orb is not placed on the blue socket and TAB is offered; switched with the body, the orb turns blue and fits: it lays a bridge of B. "The thing in the hand went with the body" |
 | W2 leave it | an orb and a plate of A on the south floor; a door of B at the foot of the ramp down, a red panel in the doorway in A | the orb on the plate holds the door open for B, but the orb is needed beyond the door; a lever just inside keeps the door open for good, then the orb is fetched |
 | W3 let it fall | a mezzanine 3 m over the lower room with a hole of 0.6 m (the body is 0.7 m across), closed by a red lid in A; under it, behind bars, a socket of B | in A the orb lies on the lid; in B it falls through onto the socket, and the bars open for good |
 | W4 the seal | the vault under the mezzanine; a ramp up from the lower room to the door in the hub wall | the seal opens that door: the closed door seen from the hub |
@@ -235,3 +235,16 @@ seen at once, so the player thinks instead of searching.
 
 Agreed on 2026-11-22: the structure (hub, three wings, tower); the four new objects; the prologue changes; the jump limits;
 R resets the current room.
+
+Decided on 2026-11-22, after playing the west wing (the next design; it replaces the hub, the wings and the tower of this
+document as they are built, step by step):
+
+| Item | Decision |
+|---|---|
+| Two layers | one city in two states: A whole (warm evening light), B ruined by a storm (cold light, fog). In A the structure is the way (bridges, floors, doors); in B the breaches are (walls broken open), but bridges and floors are broken too. Red and blue outlines stay only on the key objects of one layer |
+| Structure | a sunken square as the hub; four districts in a ring, each joined to two others without the square (a sky bridge of A, a cellar broken open in B); a cathedral over the square, the highest point; at least three levels in each district |
+| Districts | west: market and sewers (the orb, going down); east: canal and locks (single-layer blocks, water); north-west: theatre and roofs (the prism as a change of scenery); north-east: graveyard and bell tower (prism and orb) |
+| New objects | water, only in A: a wall, not swimming (a body that falls in goes back to the room entry); things float on it. Lifts: shortcuts only, entered standing still |
+| Guidance | five levels: landmarks (far), light (middle), one look for everything that can be used (near), a safe first use of every object, and key prompts on the screen |
+| Order | step 0, the guidance (done: the prompts, the columns of light, the previews of bridges); step 1, the identity of the two layers (done: the themes, the prologue gate; the world colours of the orbs); then the vocabulary of shapes (stairs, arcades, railings, roofs, broken bridges, breaches, water, lifts), the new skeleton, the districts, the cathedral |
+

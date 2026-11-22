@@ -11,6 +11,9 @@
 //         F5 reloads config/default.ini
 //         Space jumps (walking; held = the full jump, a tap = a small hop), Q / E down / up (flying)
 //         E (walking) takes the orb in reach, or puts the held one down (scene/Mechanisms.h)
+// Overlay: drawn last (render/Overlay.h): a dot in the middle of the view, the prompt of the key that does something now
+//         (scene/Prompts.h: E TAKE / PUT DOWN / PLACE, TAB SWITCH WORLD until it is learned, R RESET ROOM when stuck) and a
+//         small status line (the room, the seals, the hidden lights). [hints] prompts = false hides the prompts.
 //         F walking / flying (walking: gravity, the body stands on the floor and on objects; flying: a free camera)
 //         Z wireframe on / off, X the next level of detail (8, 16, 32, 64 segments), C the shapes stop / turn
 //         Tab switches the layer (A <-> B). A switch that would put the body inside something is refused: the ripple opens
@@ -36,11 +39,14 @@
 #include "render/Device.h"
 #include "render/GpuDebug.h"
 #include "render/Models.h"
+#include "render/Overlay.h"
+#include "render/OverlayBatch.h"
 #include "render/Projection.h"
 #include "render/Triangle.h"
 #include "scene/Camera.h"
 #include "scene/Collision.h"
 #include "scene/Player.h"
+#include "scene/Prompts.h"
 #include "scene/Puzzle.h"
 #include "scene/SceneData.h"
 #include "scene/Stage.h"
@@ -51,6 +57,7 @@
 #include <DirectXMath.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -176,11 +183,13 @@ struct Gpu
     std::unique_ptr<dl::Device> device = std::make_unique<dl::Device>();
     dl::Triangle triangle;
     dl::Models models;
+    dl::Overlay overlay;
 
     bool Init(const dl::Window& window, const dl::Config& config, int adapter)
     {
         if (!device->Init(window.Handle(), window.Width(), window.Height(), adapter, config.GetBool("render", "vsync", true)) ||
-            !triangle.Init(device->GetDevice()) || !models.Init(device->GetDevice(), config.GetInt("models", "segments", 32)))
+            !triangle.Init(device->GetDevice()) || !models.Init(device->GetDevice(), config.GetInt("models", "segments", 32)) ||
+            !overlay.Init(device->GetDevice()))
         {
             return false;
         }
@@ -191,6 +200,7 @@ struct Gpu
     /// WHY this order: every object must be released before Device::Shutdown reports leaks.
     void Shutdown()
     {
+        overlay.Shutdown();
         models.Shutdown();
         triangle.Shutdown();
         device->Shutdown();
@@ -229,6 +239,9 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
         count = st::AddOutlines(table + movingFirst, count - movingFirst, table, count, st::kMaxDrawObjects);
     }
     count = mech.AddOrbDraw(player, look, table, count, st::kMaxDrawObjects);
+    // guidance: a column of light over every place that waits for something, and where a bridge will appear
+    count = mech.AddBeacons(table, count, st::kMaxDrawObjects);
+    count = st::AddGatePreviews(mech, table, count, st::kMaxDrawObjects);
     // a refused push: the outline of what was in the way, in both layers, for a moment
     count = st::AddBlockedFlash(puzzle, table, count, st::kMaxDrawObjects);
     // the blue frame of the door, seen in A while the door is closed for a body in A: the plate shows what it does
@@ -256,6 +269,47 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
     }
     count = dl::stage::AddMapSolids(seals, table, count, kMaxSolids);
     return mech.AddSolids(layer, table, count, kMaxSolids);
+}
+
+/// The overlay of one frame: the dot in the middle, the prompts at the bottom, the status line at the top left. Sizes follow
+/// the height of the window, so the text is as big on a laptop as on a desktop screen.
+void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl::prompt::Shown, 2>& prompts, const char* status)
+{
+    namespace pr = dl::prompt;
+    hud.Clear();
+    const float w = static_cast<float>(width);
+    const float h = static_cast<float>(height);
+    const float unit = std::max(2.0f, std::floor(h / 320.0f)); // one font pixel, in screen pixels
+    // the dot in the middle of the view: what E looks at
+    const float dot = std::max(2.0f, std::floor(unit * 0.8f));
+    hud.AddRect(std::floor(0.5f * (w - dot)), std::floor(0.5f * (h - dot)), dot, dot, {1.0f, 1.0f, 1.0f, 0.75f});
+    // the status line
+    const float statusUnit = std::max(2.0f, std::floor(unit * 0.6f));
+    hud.AddRect(0.0f, 0.0f, dl::OverlayBatch::TextWidth(status, statusUnit) + 4.0f * statusUnit, dl::OverlayBatch::TextHeight(statusUnit) + 3.0f * statusUnit,
+                {0.0f, 0.0f, 0.0f, 0.35f});
+    hud.AddText(2.0f * statusUnit, 1.5f * statusUnit, statusUnit, status, {0.92f, 0.92f, 0.92f, 0.85f});
+    // the prompts, one row each, from the bottom up: [KEY] VERB
+    float y = h - 6.0f * unit - dl::OverlayBatch::TextHeight(unit);
+    for (const pr::Shown& shown : prompts)
+    {
+        if (shown.kind == pr::Kind::Count)
+        {
+            continue;
+        }
+        const pr::Text text = pr::TextOf(shown.kind);
+        const float a = shown.alpha;
+        const float pad = 2.0f * unit;
+        const float keyWidth = dl::OverlayBatch::TextWidth(text.key, unit) + 2.0f * pad;
+        const float verbWidth = dl::OverlayBatch::TextWidth(text.verb, unit);
+        const float rowHeight = dl::OverlayBatch::TextHeight(unit) + 2.0f * pad;
+        const float total = keyWidth + 3.0f * unit + verbWidth;
+        const float x = std::floor(0.5f * (w - total));
+        hud.AddRect(x - 2.0f * unit, y - pad, total + 4.0f * unit, rowHeight, {0.0f, 0.0f, 0.0f, 0.45f * a});
+        hud.AddFrame(x, y - pad, keyWidth, rowHeight, std::max(1.0f, std::floor(unit * 0.5f)), {1.0f, 0.86f, 0.45f, a});
+        hud.AddText(x + pad, y, unit, text.key, {1.0f, 0.86f, 0.45f, a});
+        hud.AddText(x + keyWidth + 3.0f * unit, y, unit, text.verb, {1.0f, 1.0f, 1.0f, a});
+        y -= rowHeight + 2.0f * unit;
+    }
 }
 
 int RunApp(HINSTANCE instance, int argc, char** argv)
@@ -316,6 +370,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         gpu.Shutdown();
         return 1;
     }
+
+    static dl::OverlayBatch hud; // WHY static: 288 KB, too large for the stack
+    dl::prompt::Tracker prompts; // how often each prompt was followed: a learned one is dimmed
+    double secondsInRoom = 0.0;  // UNITS: seconds since the body came into the room it is in (R is offered after a while)
 
     dl::Player player;
     ApplyPlayerConfig(config, player);
@@ -460,6 +518,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             {
             case dl::puzzle::LayerGuard::Action::Switch:
                 gpu.models.ToggleLayer();
+                prompts.Used(dl::prompt::Kind::SwitchWorld);
                 break;
             case dl::puzzle::LayerGuard::Action::Refuse:
                 gpu.models.ToggleLayer(); // the ripple opens a little; the guard turns it back
@@ -501,6 +560,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 puzzle.Reset(); // R in the courtyard also puts the block back: a block in a dead end never ends the game
             }
             mech.ResetRoom(room); // and the orbs of the room go back (what is latched stays)
+            prompts.Used(dl::prompt::Kind::ResetRoom);
+            secondsInRoom = 0.0;
             player.SetSpawn(here.entry);
             player.Respawn();
             camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch());
@@ -527,7 +588,17 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             if (usePressed)
             {
                 int which = -1;
+                dl::Vec3 spot{};
+                const bool wouldPlace = mech.SpotAhead(player, solidLayer, camera.Forward(), spot) != dl::mech::MechanismSet::kSpotNone;
                 const dl::mech::Action action = mech.Interact(player, solidLayer, camera.Forward(), solidTable, solidCount, which);
+                if (action == dl::mech::Action::Took)
+                {
+                    prompts.Used(dl::prompt::Kind::Take);
+                }
+                else if (action == dl::mech::Action::Put)
+                {
+                    prompts.Used(wouldPlace ? dl::prompt::Kind::Place : dl::prompt::Kind::PutDown);
+                }
                 if (action != dl::mech::Action::Nothing)
                 {
                     DL_LOG_INFO("Stage", "orb %d %s", which,
@@ -559,9 +630,11 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
             // the room: the one the body stands in; a fall below the map goes back to its entry
             const int standing = dl::stage::CurrentRoom(player.Feet(), player.Grounded(), room);
+            secondsInRoom += dt;
             if (standing != room)
             {
                 room = standing;
+                secondsInRoom = 0.0;
                 DL_LOG_INFO("Stage", "room: %s", dl::stage::kRooms[room].name);
             }
             if (player.Feet().y < dl::stage::kFallY || player.JustRespawned())
@@ -652,6 +725,30 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Opaque.TestTriangle");
                 gpu.triangle.Draw(gpu.device->GetContext(), aspect, angle, view);
             }
+            {
+                // ---- the overlay: what E would do now, the first lesson (TAB), R when stuck, and the status line
+                dl::prompt::Input in;
+                in.walking = walking;
+                in.holding = mech.HeldOrb() >= 0;
+                dl::Vec3 spot{};
+                int otherWorld = dl::mech::MechanismSet::kSpotNone;
+                in.wouldPlace = in.holding && mech.SpotAhead(player, solidLayer, camera.Forward(), spot, &otherWorld) != dl::mech::MechanismSet::kSpotNone;
+                in.otherWorldSpot = in.holding && otherWorld != dl::mech::MechanismSet::kSpotNone;
+                in.orbInReach = !in.holding && mech.OrbInReach(player, solidLayer, solidTable, solidCount) >= 0;
+                in.puzzleRoom = dl::stage::kRooms[room].puzzle;
+                in.secondsInRoom = static_cast<float>(secondsInRoom);
+                std::array<dl::prompt::Shown, 2> shown = prompts.Choose(in);
+                if (!config.GetBool("hints", "prompts", true))
+                {
+                    shown = {};
+                }
+                char status[128];
+                std::snprintf(status, sizeof(status), "%s  *  SEALS %d/%d  *  LIGHTS %d/%d%s", dl::stage::kRooms[room].name, seals.Count(),
+                              dl::stage::kSealCount, lights.Count(), dl::stage::kHiddenLightCount, clearSeconds >= 0.0 ? "  *  CLEAR" : "");
+                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status);
+                dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
+                gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
+            }
         }
         gpu.device->EndFrame();
 
@@ -693,4 +790,5 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int)
 {
     return RunApp(instance, __argc, __argv);
 }
+
 

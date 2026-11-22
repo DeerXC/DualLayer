@@ -397,6 +397,11 @@ void TestPrologue()
     b.Run(1.2f, Keys(1.0f), kNorth);
     b.Run(0.3f);
     CHECK(b.player.Feet().z > st::kGateZ + 0.5f && b.player.Feet().z < st::kTerraceEnd && Near(b.player.Feet().y, st::kTerraceY, 0.02f));
+    World side; // the town wall beside the breach holds in B too: only the breach is a way
+    side.layer = 1;
+    side.PlaceFeet({2.4f, st::kTerraceY, -1.0f});
+    side.Run(2.0f, Keys(1.0f), kNorth);
+    CHECK(side.player.Feet().z < st::kGateZ - 0.25f - 0.3f);
     // the gap: one layer alone never crosses it, two jumps in a row, from several jump points
     const float points[] = {4.6f, 5.0f, 5.4f, 5.6f, 5.8f, 6.0f, 6.2f};
     for (int layer = 0; layer < 2; ++layer)
@@ -551,9 +556,14 @@ bool PlayWestWing(World& w)
     step(w.WalkPath({{-6.0f, kFloorY, 25.0f}, {-6.0f, kFloorY, 31.0f}, {-12.0f, kFloorY, 31.0f}, {-21.0f, kFloorY, 35.8f}}), "walk to the W1 orb");
     step(w.Use(kNorth) == dl::mech::Action::Took, "take the W1 orb");
     step(w.WalkPath({{-17.0f, kFloorY, 32.7f}}), "walk to the socket");
+    {
+        Vec3 spot{};
+        int other = dl::mech::MechanismSet::kSpotNone;
+        step(w.mech.SpotAhead(w.player, 0, kSouth, spot, &other) == dl::mech::MechanismSet::kSpotNone && other == st::kW1Socket,
+             "in A the socket of B is not a place, and is reported as the other world");
+    }
     step(w.Use(kSouth) == dl::mech::Action::Put, "put it down in A");
-    step(w.mech.OrbAt(0).resting && std::fabs(w.mech.OrbAt(0).centre.x + 17.0f) < 0.05f, "the orb snaps onto the socket");
-    step(!w.mech.GatePresent(st::kW1Bridge), "in A the socket does nothing");
+    step(!w.mech.Active(st::kW1Socket) && !w.mech.GatePresent(st::kW1Bridge), "in A nothing happens");
     step(w.Use(kSouth) == dl::mech::Action::Took, "take it again");
     step(w.Switch(1), "switch to B");
     step(w.Use(kSouth) == dl::mech::Action::Put && w.mech.GatePresent(st::kW1Bridge), "the orb on the socket in B lays the bridge");
@@ -884,3 +894,4 @@ int main()
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+

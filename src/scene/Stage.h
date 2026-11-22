@@ -1,7 +1,9 @@
 // Stage.h - the map (docs/LEVEL_DESIGN.md, step 1: the skeleton). A walled city in two layers round a hub, walked in about
 //            ten minutes when its rooms are filled; in this step the wings are grey boxes with their shapes, heights and
 //            ways in and out, so that the size and the flow of the whole map can be played before any room is built.
-//   prologue   the terrace with the red gate (the wall of one layer), the gap (a wide blue stone in B, then a switch to A in
+//   prologue   the terrace with the town wall across it: in A (the whole city) its gate is shut; in B (the city after the
+//              storm) the wall is broken open where the gate was, with rubble at the edges of the breach - the first lesson,
+//              "in A the structure is the way, in B the breach is"; the gap (a wide blue stone in B, then a switch to A in
 //              the air onto the red strip; a blue curtain at the end of the strip keeps B from flying over it), the overlook, and
 //              the courtyard with the proved block puzzle (scene/Courtyard.h). The block on the plate opens the blue door
 //              in the north wall of the courtyard: the way into the hub.
@@ -155,8 +157,9 @@ inline SceneObject Ramp(float x0, float x1, float z0, float y0, float z1, float 
 
 // ---- the measures (tests/test_stage.cpp checks what each one is for)
 inline constexpr float kTerraceY = kFloorY + 2.4f; // the top of the raised terrace of the prologue
-inline constexpr float kGateZ = 3.0f;              // the red gate wall, 3.5 m high
+inline constexpr float kGateZ = 3.0f;              // the town wall across the terrace, 3.5 m high, 0.5 m thick
 inline constexpr float kGateHeight = 3.5f;
+inline constexpr float kGateHalf = 1.5f;           // its gate (A) and its breach (B), x -1.5 .. 1.5
 inline constexpr float kTerraceEnd = 6.0f;         // the terrace ends here, the gap begins
 inline constexpr float kStoneNear = 7.0f;          // the blue stone (B): 1 m from the terrace, 3 m deep, so that a jump
 inline constexpr float kStoneFar = 10.0f;          // onto it needs no aim
@@ -346,12 +349,17 @@ constexpr float Level(int k)
 }
 
 inline constexpr SceneObject kFixed[] = {
-    // ---- the prologue: the terrace, the gate (A), the stone (B), the strip (A)
+    // ---- the prologue: the terrace, the gate (A, shut), the stone (B), the strip (A), the curtain (B); the town wall and the
+    // rubble of its breach (B) follow the curtain
     Span(-3.0f, kTerraceY - 0.2f, -4.0f, 3.0f, kTerraceY, kTerraceEnd, kGrey, kLayerBoth, 1.0f),
-    Span(-3.0f, kTerraceY, kGateZ - 0.25f, 3.0f, kTerraceY + kGateHeight, kGateZ + 0.25f, kRed, kLayerA),
+    Span(-kGateHalf, kTerraceY, kGateZ - 0.25f, kGateHalf, kTerraceY + kGateHeight, kGateZ + 0.25f, kRed, kLayerA),
     Span(-1.5f, kTerraceY - 0.2f, kStoneNear, 1.5f, kTerraceY, kStoneFar, kBlue, kLayerB),
     Span(-3.0f, kTerraceY - 0.2f, kStripNear, 3.0f, kTerraceY, kCourtSouth, kRed, kLayerA, 1.0f),
     Span(-3.5f, kTerraceY - 0.2f, kCurtainZ, 3.5f, kCurtainTop, kCourtSouth, kBlue, kLayerB),
+    Wall(-3.0f, kTerraceY, kGateZ - 0.25f, -kGateHalf, kTerraceY + kGateHeight, kGateZ + 0.25f), // the town wall, both layers
+    Wall(kGateHalf, kTerraceY, kGateZ - 0.25f, 3.0f, kTerraceY + kGateHeight, kGateZ + 0.25f),
+    Span(-kGateHalf, kTerraceY, kGateZ - 0.6f, -kGateHalf + 0.3f, kTerraceY + 0.4f, kGateZ + 0.6f, kDark, kLayerB), // the rubble of
+    Span(kGateHalf - 0.3f, kTerraceY, kGateZ - 0.6f, kGateHalf, kTerraceY + 0.4f, kGateZ + 0.6f, kDark, kLayerB),   // the breach (B)
     // ---- the courtyard: its floor, the wall under the strip, its west wall, and its east wall, 1.5 m thick: the path of
     // the east wing runs on its top from the upper room (z 10) to its north end over the gallery of the hub (z 23)
     Floor(kCourtWest, kCourtSouth, kCourtEast, kCourtNorth, kFloorY),
@@ -519,7 +527,7 @@ inline std::array<SceneObject, kStageStaticCount> BuildStatics()
     return all;
 }
 inline const std::array<SceneObject, kStageStaticCount> kStageStatics = BuildStatics();
-inline constexpr int kGateIndex = 1; ///< the red gate in kStageStatics (scene/StageLights.h hides a light in it)
+inline constexpr int kGateIndex = 1; ///< the gate (A) in kStageStatics (scene/StageLights.h hides a light in it)
 
 /// The blue door (layer B) in the doorway from the courtyard into the hub.
 inline constexpr SceneObject kDoor = Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth,
@@ -745,13 +753,15 @@ inline int AddMapDraw(const SealSet& seals, SceneObject* out, int count, int cap
         s.spinSpeed = 1.2f; // it turns with the spin time of the renderer
         s.shineStrength = 1.0f;
         s.shininess = 100.0f;
+        s.glow = 0.9f;
         out[count++] = s;
     }
     for (int i = 0; i < kSealCount && count < capacity; ++i)
     {
         const float x = kTowerDoorX0 + 0.2f + 0.5f * static_cast<float>(i);
         const Rgb c = seals.Taken(i) ? kGold : kDark;
-        out[count++] = Span(x - 0.15f, kDoorwayHigh + 0.3f, kTowerSouth - 0.1f, x + 0.15f, kDoorwayHigh + 0.6f, kTowerSouth, c, kLayerBoth);
+        out[count] = Span(x - 0.15f, kDoorwayHigh + 0.3f, kTowerSouth - 0.1f, x + 0.15f, kDoorwayHigh + 0.6f, kTowerSouth, c, kLayerBoth);
+        out[count++].glow = seals.Taken(i) ? 1.2f : 0.0f; // a lit lamp shines
     }
     return count;
 }
@@ -851,6 +861,7 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
         goal.shineStrength = 1.0f;
         goal.shininess = 120.0f;
         goal.layerMask = kLayerBoth;
+        goal.glow = 1.2f;
         out[n++] = goal;
     }
     return n;
@@ -874,3 +885,4 @@ static_assert(FixedIsSupported(), "scene/Stage.h: every box must have sizes abov
 static_assert(kPlateCell.x != 0 || kPlateCell.z != 0, "scene/Courtyard.h: the rows must hold a plate 'P'");
 
 } // namespace dl::stage
+

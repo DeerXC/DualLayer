@@ -91,6 +91,7 @@
     <ClCompile Include="src\render\Device.cpp" />
     <ClCompile Include="src\render\MeshData.cpp" />
     <ClCompile Include="src\render\Models.cpp" />
+    <ClCompile Include="src\render\Overlay.cpp" />
     <ClCompile Include="src\render\ShaderCompiler.cpp" />
     <ClCompile Include="src\render\Triangle.cpp" />
     <ClCompile Include="src\scene\Camera.cpp" />
@@ -105,6 +106,9 @@
     <ClInclude Include="src\render\LayerRipple.h" />
     <ClInclude Include="src\render\MeshData.h" />
     <ClInclude Include="src\render\Models.h" />
+    <ClInclude Include="src\render\Font5x7.h" />
+    <ClInclude Include="src\render\Overlay.h" />
+    <ClInclude Include="src\render\OverlayBatch.h" />
     <ClInclude Include="src\render\Projection.h" />
     <ClInclude Include="src\render\ShaderCompiler.h" />
     <ClInclude Include="src\render\Triangle.h" />
@@ -115,6 +119,7 @@
     <ClInclude Include="src\scene\Courtyard.h" />
     <ClInclude Include="src\scene\Puzzle.h" />
     <ClInclude Include="src\scene\Mechanisms.h" />
+    <ClInclude Include="src\scene\Prompts.h" />
     <ClInclude Include="src\scene\WestWing.h" />
     <ClInclude Include="src\scene\Stage.h" />
     <ClInclude Include="src\scene\StageHints.h" />
@@ -125,6 +130,7 @@
     <!-- shaders are compiled at run time by the game (hot reload comes later): VS must NOT compile them -->
     <None Include="shaders\common.hlsli" />
     <None Include="shaders\models.hlsl" />
+    <None Include="shaders\overlay.hlsl" />
     <None Include="shaders\ripple.hlsl" />
     <None Include="shaders\test_triangle.hlsl" />
     <None Include="config\default.ini" />
@@ -134,4 +140,5 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
+
 

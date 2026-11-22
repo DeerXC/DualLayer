@@ -15,7 +15,9 @@
 //      the gate would not be: the test can tell the difference); after the clear it grows wide
 //   5. the landmarks: each seen over the walls from the hub, each outside every room (drawn only, never walked into)
 //   6. the clear rings: none before the clear and none after kClearSeconds; in between they grow
-//   7. the whole drawn table of a frame (the map, its state, the outlines, the flash, the frame, the beacon, the rings, the
+//   7. the previews: the outline of the bridge of the west wing in both layers until it is laid, then none; doors and bars get
+//      none (they are there while closed)
+//   8. the whole drawn table of a frame (the map, its state, the outlines, the flash, the frame, the beacon, the rings, the
 //      lights) fits
 // Returns 1 when a check fails.
 
@@ -365,13 +367,50 @@ void TestOutlines()
     CHECK(st::AddOutlines(table, before, table, 62, 64) == 62); // no room for all: none
 }
 
+void TestPreviews()
+{
+    dl::mech::MechanismSet set;
+    CHECK(set.Init(st::WestWing()));
+    SceneObject table[32] = {};
+    int bridges = 0;
+    for (int i = 0; i < set.GateCount(); ++i)
+    {
+        bridges += set.GateAt(i).presentWhenOpen ? 1 : 0;
+    }
+    CHECK(bridges == 1);
+    const int n = st::AddGatePreviews(set, table, 0, 32);
+    CHECK(n == bridges * st::kBarsPerGhost);
+    const SceneObject& bridge = set.GateAt(st::kW1Bridge).box;
+    for (int i = 0; i < n; ++i)
+    {
+        CHECK(table[i].layerMask == kLayerBoth && table[i].glow > st::kHintGlow);
+        CHECK(std::fabs(table[i].position[0] - bridge.position[0]) <= 0.5f * bridge.scale[0] &&
+              std::fabs(table[i].position[2] - bridge.position[2]) <= 0.5f * bridge.scale[2]);
+        CHECK(table[i].position[1] > bridge.position[1]); // on its top
+    }
+    CHECK(st::AddGatePreviews(set, table, 30, 32) == 30); // no room: none
+    // an open door is not previewed (it is a door, not a bridge): the body stands on the plate of W2 in A, the door opens
+    dl::Player body;
+    const dl::mech::Trigger& plate = set.TriggerAt(st::kW2Plate);
+    body.SetScene(st::kStageStatics.data(), st::kStageStaticCount);
+    body.Place({plate.at.x, plate.at.y + body.GetSettings().eyeHeight, plate.at.z});
+    for (int i = 0; i < 30; ++i)
+    {
+        body.Update({}, {0.0f, 0.0f, 1.0f}, 0, 0.0f, 1.0f / 60.0f);
+        set.Update(body, 0, st::kStageStatics.data(), st::kStageStaticCount, st::kStageStatics.data(), st::kStageStaticCount, 1.0f / 60.0f);
+    }
+    CHECK(set.GateOpen(st::kW2Door) && !set.GatePresent(st::kW2Door));
+    CHECK(st::AddGatePreviews(set, table, 0, 32) == bridges * st::kBarsPerGhost);
+}
+
 void TestWholeFrameFits()
 {
     const dl::mech::WingDesc west = st::WestWing();
-    const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, and the orbs with their marks
+    const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, the orbs with their marks,
+                                                           // a column per trigger, the previews of the gates
     const int largest = st::kStageStaticCount + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + st::kGhostCount * st::kBarsPerGhost +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
-                        st::kHiddenLightCount;
+                        st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
     CHECK(largest <= st::kMaxDrawObjects);
 }
@@ -387,7 +426,9 @@ int main()
     TestLandmarks();
     TestClearRings();
     TestOutlines();
+    TestPreviews();
     TestWholeFrameFits();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
+

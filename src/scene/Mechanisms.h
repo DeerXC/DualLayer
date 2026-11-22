@@ -1,6 +1,11 @@
 // Mechanisms.h - the moving parts of a wing that react to the layer switch: orbs that are carried between the layers,
 //            sockets and plates that an orb (or the body) works, levers, and gates (bridges, doors, bars) that open and close
 //            with them (docs/LEVEL_DESIGN.md, section 4).
+// Worlds:    one rule for every part: a thing works only with what is in its own world. An orb is drawn in the colour of
+//            the world it is in (warm red-gold in A, cold blue in B), like the pads and the columns of light of that world,
+//            so "the same colour fits" is seen before it is understood. A held orb is placed only on a socket or a plate of
+//            the layer the body is in; in front of one of the other world it is put down as anywhere else, and the prompt
+//            offers the switch of worlds (SpotAhead reports it).
 // Orb:       a ball of kOrbRadius that is in ONE layer. Carried (E), it is in the layer of the body and switches with it. Put
 //            down (E), it is placed one step ahead of the body, in the layer of the body, and stays there; near a spot (a
 //            socket, a plate, a hole: kSnap) it is placed over the spot. With nothing under it in its own layer it falls
@@ -12,6 +17,10 @@
 // Latch:     a trigger may latch: once active, it stays active (a lever always does).
 // Gate:      a box that is there while its trigger (or a second one) is active (a bridge), or while neither is (a door,
 //            bars). It is solid and drawn in the layers of its mask, like any box of the map.
+// Guidance:  OrbInReach and SpotAhead answer the questions of the prompts (scene/Prompts.h): can E take something, and would
+//            the held orb be placed on a socket, a plate or a hole. AddBeacons draws a thin column of light over every socket
+//            and plate that is not worked yet and every lever not pulled, in both layers, coloured by the layer it works in:
+//            a place to bring something is seen from across the room.
 // Reset:     ResetRoom(room) puts the orbs that start in that room back at their starts (R in docs/LEVEL_DESIGN.md, 9). A
 //            latched trigger stays latched: what is done for good stays done.
 // Plain data and plain logic, no Windows, no Direct3D: tested without a window (tests/test_mechanisms.cpp, and the walk
@@ -311,6 +320,132 @@ class MechanismSet
         return -1;
     }
 
+    /// The orb E would take now (in reach, in the layer of the body, not behind a solid), or -1. `solids`: the solid table of
+    /// the layer of the body.
+    int OrbInReach(const Player& body, int bodyLayer, const scene::SceneObject* solids, int count) const
+    {
+        const Vec3 f = body.Feet();
+        const Vec3 chest{f.x, f.y + 1.0f, f.z};
+        int best = -1;
+        float bestDistance = kReach;
+        for (int i = 0; i < m_orbCount; ++i)
+        {
+            const Orb& o = m_orbs[static_cast<std::size_t>(i)];
+            if (o.held || o.layer != bodyLayer || o.centre.y < f.y - 0.6f || o.centre.y > f.y + 2.0f)
+            {
+                continue;
+            }
+            const float dx = o.centre.x - f.x;
+            const float dz = o.centre.z - f.z;
+            const float d = std::sqrt(dx * dx + dz * dz);
+            if (d < bestDistance && PathClear(chest, o.centre, 0.08f, bodyLayer, solids, count)) // not through a door or bars
+            {
+                best = i;
+                bestDistance = d;
+            }
+        }
+        return best;
+    }
+
+    /// Where a put-down now would go for a body in `layer`: the trigger it would be placed on (a socket or a plate of that
+    /// layer), kSpotExtra for an extra spot (a hole, in either layer), or kSpotNone (one step ahead). `snapped` gets the
+    /// place. `otherWorld` (when given) gets a socket or plate of the OTHER layer that would be in reach, or kSpotNone.
+    static constexpr int kSpotNone = -1;
+    static constexpr int kSpotExtra = -2;
+    int SpotAhead(const Player& body, int layer, const Vec3& look, Vec3& snapped, int* otherWorld = nullptr) const
+    {
+        const Vec3 f = body.Feet();
+        const float flat = std::sqrt(look.x * look.x + look.z * look.z);
+        const float fx = flat > 1.0e-4f ? look.x / flat : 0.0f;
+        const float fz = flat > 1.0e-4f ? look.z / flat : 1.0f;
+        const Vec3 ahead{f.x + kPutAhead * fx, f.y + 0.6f, f.z + kPutAhead * fz};
+        snapped = ahead;
+        int which = kSpotNone;
+        float best = kSnap; // the nearest spot on about the level of the feet, within kSnap
+        const auto consider = [&](const Vec3& spot, int id) {
+            const float dx = spot.x - ahead.x;
+            const float dz = spot.z - ahead.z;
+            const float d = std::sqrt(dx * dx + dz * dz);
+            if (d < best && std::fabs(spot.y - f.y) < 0.5f)
+            {
+                best = d;
+                snapped = {spot.x, ahead.y, spot.z};
+                which = id;
+            }
+        };
+        if (otherWorld != nullptr)
+        {
+            *otherWorld = kSpotNone;
+        }
+        for (int t = 0; t < m_triggerCount; ++t)
+        {
+            const Trigger& tr = m_triggers[static_cast<std::size_t>(t)];
+            if (tr.kind == TriggerKind::Lever)
+            {
+                continue;
+            }
+            if (tr.layer == layer)
+            {
+                consider(tr.at, t);
+            }
+            else if (otherWorld != nullptr && *otherWorld == kSpotNone)
+            {
+                const float dx = tr.at.x - ahead.x;
+                const float dz = tr.at.z - ahead.z;
+                if (dx * dx + dz * dz < kSnap * kSnap && std::fabs(tr.at.y - f.y) < 0.5f)
+                {
+                    *otherWorld = t;
+                }
+            }
+        }
+        for (int s = 0; s < m_spotCount; ++s)
+        {
+            consider(m_spots[static_cast<std::size_t>(s)], kSpotExtra);
+        }
+        return which;
+    }
+
+    /// Adds to a DRAWN table a thin column of light over every socket and plate that is not worked and every lever that is
+    /// not pulled (both layers; red for a trigger of A, blue for B, gold for a lever). Returns the new count.
+    int AddBeacons(scene::SceneObject* out, int count, int capacity) const
+    {
+        for (int i = 0; i < m_triggerCount && out != nullptr && count >= 0 && count < capacity; ++i)
+        {
+            if (m_active[static_cast<std::size_t>(i)])
+            {
+                continue;
+            }
+            const Trigger& t = m_triggers[static_cast<std::size_t>(i)];
+            const bool lever = t.kind == TriggerKind::Lever;
+            const Colour w = WorldColour(t.layer);
+            const float red = lever ? 1.0f : w.r;
+            const float green = lever ? 0.82f : w.g;
+            const float blue = lever ? 0.36f : w.b;
+            const float bottom = lever ? t.at.y + 0.2f : t.at.y + 0.05f;
+            scene::SceneObject o = Flat(t.at.x, bottom, t.at.z, kBeaconWidth, kBeaconHeight, red, green, blue, scene::kLayerBoth);
+            o.shineStrength = 0.0f;
+            o.glow = 1.6f;
+            out[count++] = o;
+        }
+        return count;
+    }
+
+    struct Colour
+    {
+        float r;
+        float g;
+        float b;
+    };
+
+    /// The colour of a world: an orb, a pad and a column of light of layer A are warm red-gold, of layer B cold blue.
+    static constexpr Colour WorldColour(int layer)
+    {
+        return layer == 0 ? Colour{1.00f, 0.50f, 0.28f} : Colour{0.35f, 0.65f, 1.00f};
+    }
+
+    static constexpr float kBeaconWidth = 0.06f;  ///< UNITS: metres
+    static constexpr float kBeaconHeight = 2.4f; ///< UNITS: metres: seen over a body and over the low walls of a room
+
     /// Adds the gates that are there to a SOLID table of `layer`. Returns the new count.
     int AddSolids(int layer, scene::SceneObject* out, int count, int capacity) const
     {
@@ -358,12 +493,15 @@ class MechanismSet
             {
                 c = ShownHeld(body, look);
             }
-            out[count++] = Ball(c, kOrbRadius, 0.55f, 0.92f, 1.00f, 1u << o.layer, 1.4f);
+            const Colour w = WorldColour(o.layer);
+            scene::SceneObject ball = Ball(c, kOrbRadius, w.r, w.g, w.b, 1u << o.layer, 1.4f);
+            ball.glow = 0.8f; // an orb is a light: seen in a dark corner and from across a room
+            out[count++] = ball;
             if (!o.held && count < capacity)
             {
                 const unsigned other = o.layer == 0 ? scene::kLayerB : scene::kLayerA;
                 const float y = c.y - kOrbRadius;
-                out[count++] = Flat(c.x, y + 0.02f, c.z, 0.5f, 0.02f, 0.80f, 0.95f, 1.00f, other);
+                out[count++] = Flat(c.x, y + 0.02f, c.z, 0.5f, 0.02f, w.r, w.g, w.b, other); // seen from the other world, in its own colour
             }
         }
         return count;
@@ -449,6 +587,7 @@ class MechanismSet
             scene::SceneObject o = Flat(t.at.x, t.at.y - 0.2f, t.at.z, 0.4f, 0.4f, on ? 1.0f : 0.45f, on ? 0.82f : 0.45f, on ? 0.36f : 0.50f,
                                         scene::kLayerBoth);
             o.shineStrength = 0.8f;
+            o.glow = on ? 0.6f : 0.4f;
             return o;
         }
         const float size = t.kind == TriggerKind::Socket ? 0.7f : 0.9f;
@@ -456,7 +595,9 @@ class MechanismSet
         const float red = t.layer == 0 ? 0.70f + 0.30f * k : 0.15f + 0.45f * k;
         const float green = t.layer == 0 ? 0.18f + 0.40f * k : 0.35f + 0.45f * k;
         const float blue = t.layer == 0 ? 0.16f + 0.30f * k : 0.80f + 0.20f * k;
-        return Flat(t.at.x, t.at.y, t.at.z, size, 0.04f, red, green, blue, 1u << t.layer);
+        scene::SceneObject pad = Flat(t.at.x, t.at.y, t.at.z, size, 0.04f, red, green, blue, 1u << t.layer);
+        pad.glow = on ? 0.8f : 0.25f;
+        return pad;
     }
 
     /// True when the trigger is worked right now (before latching).
@@ -547,63 +688,11 @@ class MechanismSet
         return true;
     }
 
-    int OrbInReach(const Player& body, int bodyLayer, const scene::SceneObject* solids, int count) const
-    {
-        const Vec3 f = body.Feet();
-        const Vec3 chest{f.x, f.y + 1.0f, f.z};
-        int best = -1;
-        float bestDistance = kReach;
-        for (int i = 0; i < m_orbCount; ++i)
-        {
-            const Orb& o = m_orbs[static_cast<std::size_t>(i)];
-            if (o.held || o.layer != bodyLayer || o.centre.y < f.y - 0.6f || o.centre.y > f.y + 2.0f)
-            {
-                continue;
-            }
-            const float dx = o.centre.x - f.x;
-            const float dz = o.centre.z - f.z;
-            const float d = std::sqrt(dx * dx + dz * dz);
-            if (d < bestDistance && PathClear(chest, o.centre, 0.08f, bodyLayer, solids, count)) // not through a door or bars
-            {
-                best = i;
-                bestDistance = d;
-            }
-        }
-        return best;
-    }
-
     bool PutDown(int i, const Player& body, int bodyLayer, const Vec3& look, const scene::SceneObject* solids, int count)
     {
         const Vec3 f = body.Feet();
-        const float flat = std::sqrt(look.x * look.x + look.z * look.z);
-        const float fx = flat > 1.0e-4f ? look.x / flat : 0.0f;
-        const float fz = flat > 1.0e-4f ? look.z / flat : 1.0f;
-        Vec3 target{f.x + kPutAhead * fx, f.y + 0.6f, f.z + kPutAhead * fz};
-        // the nearest spot (a socket, a plate, an extra spot such as a hole) on about the level of the feet, within kSnap
-        float best = kSnap;
-        Vec3 snapped = target;
-        const auto consider = [&](const Vec3& spot) {
-            const float dx = spot.x - target.x;
-            const float dz = spot.z - target.z;
-            const float d = std::sqrt(dx * dx + dz * dz);
-            if (d < best && std::fabs(spot.y - f.y) < 0.5f)
-            {
-                best = d;
-                snapped = {spot.x, target.y, spot.z};
-            }
-        };
-        for (int t = 0; t < m_triggerCount; ++t)
-        {
-            if (m_triggers[static_cast<std::size_t>(t)].kind != TriggerKind::Lever)
-            {
-                consider(m_triggers[static_cast<std::size_t>(t)].at);
-            }
-        }
-        for (int s = 0; s < m_spotCount; ++s)
-        {
-            consider(m_spots[static_cast<std::size_t>(s)]);
-        }
-        target = snapped;
+        Vec3 target{};
+        SpotAhead(body, bodyLayer, look, target);
         const Vec3 start{f.x, f.y + 0.6f, f.z};
         if (!PathClear(start, target, kOrbRadius, bodyLayer, solids, count))
         {
@@ -634,3 +723,4 @@ class MechanismSet
 };
 
 } // namespace dl::mech
+

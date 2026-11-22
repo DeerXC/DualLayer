@@ -46,6 +46,7 @@ struct SceneObject
     float shineStrength;
     float shininess;
     unsigned layerMask = kLayerBoth; // which layers have this object (not written = both)
+    float glow = 0.0f;               // light of its own: 0 = none, 1 = its colour at full strength (a lamp, a hint, an orb)
 };
 
 // THE SCENE. Edit it to move or to change something. Every object stands on the floor: y = kFloorY + half of its height
@@ -141,3 +142,4 @@ static_assert(SceneIsSupported(), "scene/SceneData.h: a sphere / torus must be s
                                   "every scale must be above 0, and every layer mask must be A, B or both");
 
 } // namespace dl::scene
+

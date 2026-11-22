@@ -17,7 +17,8 @@ WinMain > RunApp
                                      solid table of each layer, seals and hidden lights, the room, a fall, the goal;
              flying                > ResolveSphere on the camera ball
           9. the drawn table       > Stage::BuildDrawTable + AddMapDraw + the hints + the lights > Models::SetObjects
-         10. render                > Device::BeginFrame, Models::Draw (one layer, or the ripple), Device::EndFrame (Present)
+         10. render                > Device::BeginFrame, Models::Draw (one layer, or the ripple), Overlay::Draw (prompts,
+                                     status line), Device::EndFrame (Present)
   end:    Gpu::Shutdown (Models, Triangle, Device: the debug layer reports leaks), log closed
 ```
 
@@ -27,19 +28,23 @@ What is drawn and what is solid come from the same state in the same frame, so t
 
 ```
 main
- +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle   > core, scene (data only)
+ +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle,
+             Overlay, OverlayBatch, Font5x7                                                        > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
-             StageHints, StageLights, Mechanisms, WestWing                                         > standard library only
+             StageHints, StageLights, Mechanisms, WestWing, Prompts                                > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
 A dependency only points down. `render` is the only place that talks to Direct3D. Everything in `scene` and the pure parts
-of `core` and `render` (`MeshData`, `LayerRipple`) have no Windows or Direct3D dependency and are tested without a window.
+of `core` and `render` (`MeshData`, `LayerRipple`, `OverlayBatch`, `Font5x7`) have no Windows or Direct3D dependency and are tested without a window.
 
 ## Layers and the ripple
 
 Every object carries a layer mask (A = 1, B = 2, both = 3); a draw call and a collision skip an object whose mask does not
-hold the layer. Each layer has its own theme (light, sky, background), never mixed.
+hold the layer. Each layer has its own theme (light, sky, background, fog, and the stone of the city), never mixed: A is
+the whole city in a warm evening, B the same city after a storm, cold and foggy, its stone dark and mossy. The model shader
+gives the city (objects of both layers that do not glow) the tint and the weathering of the layer, and fogs everything by
+its distance into the background colour; glowing things are seen through more of the fog.
 
 `LayerRipple` keeps the timing of a switch. While no ripple runs, one layer is drawn straight to the back buffer. During a
 ripple, `Models::DrawRipple` draws the outer layer and the inner layer into two off-screen pictures (sRGB colour and their
@@ -97,6 +102,15 @@ landmarks of the wings are in the drawn table only; they stand outside every roo
 single-layer box, the outline of a refused push's blocker in both layers, the frame of the courtyard door, the beacon over
 the goal and the rings of the clear. `StageLights` keeps the hidden lights. None of these is ever solid.
 
+## The overlay
+
+`OverlayBatch` collects what is drawn over the picture in one frame as triangles in screen pixels: rectangles, frames and
+text in `Font5x7`, a bitmap font written for the project (each row of lit pixels of a glyph is one rectangle). `Overlay`
+copies the batch into one dynamic vertex buffer (pixels to clip space, sRGB to linear) and draws it last, with alpha
+blending and without depth. `Prompts` decides which key prompt is shown from the state of the game (an orb in reach, the
+place a held orb would go, how often a prompt was followed); `Mechanisms` answers those questions with the same code that
+E uses, so the prompt never promises what E would not do.
+
 ## Device recovery
 
 `Present` reports a removed or reset device; `Device` only sets `Lost()`. `main.cpp` keeps every GPU object in one `Gpu`
@@ -108,3 +122,4 @@ and the camera live outside it and are kept. F9 runs the same path for testing.
 - Every GPU object is named `<System>.<Resource>`; every pass is a `GpuEvent` (RenderDoc, PIX, the VS graphics debugger).
 - Debug builds: the D3D11 and DXGI debug layers, a break on error under a debugger, a leak report at exit.
 - `logs/dual.log`: rooms, seals, block moves, refused pushes and switches, falls, jump heights, the clear.
+

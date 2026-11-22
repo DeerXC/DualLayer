@@ -1,8 +1,8 @@
 // StageLights.h - the hidden lights of the map. None is on the way to the goal; each asks for something the map teaches,
 //            used in a way the main path does not use it (docs/LEVEL_DESIGN.md, section 8; the others come with the rooms
 //            of the wings):
-//   0 "inside the gate"   buried in the top of the red gate. In A it is inside the wall and cannot be touched; in B the wall
-//                         is gone, and a full jump at the red outline on the terrace reaches it.
+//   0 "inside the gate"   buried in the top of the gate. In A it is inside the shut gate and cannot be touched; in B the
+//                         gate is gone (a breach), and a full jump under it, beside the main path, reaches it.
 // A light is taken when one of the three balls of the body touches it. Taken lights stay taken for the rest of the run (R
 // and a fall do not bring them back). With every light taken, the goal light changes its colour.
 // Drawn:     every light not yet taken, in both layers, as a small turning sphere. Never solid.
@@ -30,7 +30,7 @@ inline constexpr float kLightReach = 0.20f;  ///< UNITS: metres; a ball of the b
                                              ///< be touched through the wall
 
 inline constexpr HiddenLight kHiddenLights[] = {
-    {{-2.4f, kTerraceY + 3.0f, kGateZ}, "inside the gate"},
+    {{-0.9f, kTerraceY + 3.0f, kGateZ}, "inside the gate"},
 };
 inline constexpr int kHiddenLightCount = static_cast<int>(sizeof(kHiddenLights) / sizeof(kHiddenLights[0]));
 
@@ -117,6 +117,7 @@ class LightSet
             o.shineStrength = 1.0f;
             o.shininess = 120.0f;
             o.layerMask = kLayerBoth;
+            o.glow = 0.9f;
             out[count++] = o;
         }
         return count;
@@ -147,3 +148,4 @@ inline bool RecolourGoal(SceneObject* out, int count)
 }
 
 } // namespace dl::stage
+

@@ -47,7 +47,10 @@ class Models
         DirectX::XMFLOAT3 toLight = DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f);   ///< from a surface TO the light (made unit length when drawn)
         DirectX::XMFLOAT3 lightColor = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f); ///< colour of the light
         DirectX::XMFLOAT3 sky = DirectX::XMFLOAT3(0.1f, 0.1f, 0.1f);        ///< colour of the sky light on a surface that looks up
-        DirectX::XMFLOAT3 clear = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);      ///< the background
+        DirectX::XMFLOAT3 clear = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);      ///< the background, and the colour of the fog
+        float fogDensity = 0.0f;                                            ///< UNITS: 1 / metres: the part of the light lost per metre
+        DirectX::XMFLOAT3 tint = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);       ///< the stone of the city in this layer: multiplies its albedo
+        float weathering = 0.0f; ///< 0 .. 1: how uneven the stone blocks are and how much moss grows on surfaces that look up
     };
 
     /// segments: how round the sphere, the cylinder and the torus are (clamped to 6 .. 128). Returns false (and logs
@@ -213,3 +216,4 @@ class Models
 };
 
 } // namespace dl
+
