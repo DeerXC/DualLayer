@@ -108,6 +108,11 @@ void TestSolverSmall()
         CHECK(r.solved && r.pushes == 1);
         CHECK(!Solve(g, Mode::OnlyA).solved); // stays in A: the red wall
         CHECK(!Solve(g, Mode::OnlyB).solved); // stays in B: the blue wall
+        CHECK(MinSwitches(g) == 2);           // to B before the red wall, back to A on the blue one
+        const char* none[] = {"S.KP"};
+        CHECK(MinSwitches(Make(none, 1)) == 0);
+        const char* stuck[] = {"S#KP"};
+        CHECK(MinSwitches(Make(stuck, 1)) == -1);
     }
     {
         // the body climbs over the block: one row, the body between the block and the plate; the only way to the west side
@@ -148,6 +153,10 @@ void TestCourtyard()
     const Result both = Analyse(g);
     std::printf("  courtyard: %d pushes, %d states, %d dead ends\n", both.pushes, both.states, both.deadStates);
     CHECK(both.solved && both.pushes == dl::courtyard::kPushes);
+    // a room asks for few switches (docs/LEVEL_DESIGN.md 5.1): the courtyard is solved with two
+    const int switches = MinSwitches(g);
+    std::printf("  courtyard: solved with %d switches at the fewest\n", switches);
+    CHECK(switches == 2);
     CHECK(Replays(g, both.path));
     CHECK(!Solve(g, Mode::OnlyA).solved); // one layer is never enough
     CHECK(!Solve(g, Mode::OnlyB).solved);

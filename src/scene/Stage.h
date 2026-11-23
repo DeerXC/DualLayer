@@ -1988,8 +1988,8 @@ inline void AxisBounds(const SceneObject& o, float lo[3], float hi[3])
     }
 }
 
-// The houses of the town (docs/LEVEL_DESIGN.md, 5.3 and 5.5): the town grows round its cathedral, so every house is turned to
-// the street that runs round it (its walls face the cathedral or run round it, within a few degrees), and its colours follow
+// The houses of the town (docs/LEVEL_DESIGN.md, 5.1, 5.3 and 5.5): rows along the streets of the model, each house turned to its
+// street, and its colours follow
 // the quarter it is in: ochre plaster in the west, whitewash in the east, grey stone in the north, sandstone in the south,
 // blended by distance so that no quarter has a border. In B one house in four is a shell: no roof, the walls broken lower.
 // A plot that is not built is a garden (trees: scene/Landscape.h).
@@ -2027,52 +2027,233 @@ inline constexpr float kCathedralX = 0.0f; ///< the middle of the cathedral, whi
 inline constexpr float kCathedralZ = 31.0f;
 
 /// Every plot of the town (fixed seed: the same town every run).
-inline std::vector<Plot> SkylinePlots()
+// ---- the streets of the town (tools/layout/city_model.py): a ring street round the cathedral quarter and streets out from it
+// to the town wall, each a curve. The houses stand in rows along them, their fronts on the street (SkylinePlots); the ground is
+// paved along them (Landscape GroundColour); a lamp every 14 m (Scenery StreetLamps).
+struct StreetPoint
 {
-    std::vector<Plot> plots;
-    unsigned state = 2026u;
-    const auto next = [&state]() {
-        state = state * 1664525u + 1013904223u;
-        return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f;
-    };
-    constexpr float kQuarter = 1.5707963f;
-    for (float x = kSkylineX0; x < kSkylineX1; x += kSkylineCell)
-    {
-        for (float z = kSkylineZ0; z < kSkylineZ1; z += kSkylineCell)
+    float x, z;
+};
+inline constexpr float kStreetHalf = 1.8f; ///< UNITS: metres: half the width of a street
+
+/// The streets, each a polyline (fixed: the same town every run).
+inline const std::vector<std::vector<StreetPoint>>& TownStreets()
+{
+    static const std::vector<std::vector<StreetPoint>> streets = [] {
+        std::vector<std::vector<StreetPoint>> v;
+        std::vector<StreetPoint> ring; // round the cathedral quarter, a little uneven
+        for (int k = 0; k <= 64; ++k)
         {
-            Plot p{};
-            p.x0 = x + 0.5f * kSkylineStreet;
-            p.z0 = z + 0.5f * kSkylineStreet;
-            p.x1 = x + kSkylineCell - 0.5f * kSkylineStreet;
-            p.z1 = z + kSkylineCell - 0.5f * kSkylineStreet;
-            const float roll = next(); // drawn for every plot, so that one change of the map does not reshuffle the whole city
-            p.height = 3.0f + 6.0f * next();
-            const float towerRoll = next();
-            p.towerSize = 1.2f + 0.6f * next();
-            p.towerHeight = 5.0f + 6.0f * next();
-            const float jitter = next();
-            const float fate = next();
-            if (!PlotIsFree(p.x0, p.z0, p.x1, p.z1))
+            const float a = 6.2831853f * static_cast<float>(k) / 64.0f;
+            const float wob = 1.0f + 0.06f * std::sin(3.0f * a + 0.7f) + 0.04f * std::sin(5.0f * a + 2.1f);
+            ring.push_back({2.0f + 42.0f * wob * std::sin(a), 32.0f + 60.0f * wob * std::cos(a)});
+        }
+        v.push_back(ring);
+        const StreetPoint outs[][4] = {
+            {{-30.0f, 14.0f}, {-42.0f, 8.0f}, {-52.0f, 0.0f}, {-60.0f, -8.0f}},    // west, down to the wall
+            {{34.0f, 10.0f}, {44.0f, 2.0f}, {52.0f, -8.0f}, {60.0f, -18.0f}},      // east, down to the wall
+            {{28.0f, 74.0f}, {38.0f, 84.0f}, {46.0f, 94.0f}, {56.0f, 102.0f}},      // north-east, up the hill
+            {{-28.0f, 76.0f}, {-38.0f, 86.0f}, {-48.0f, 94.0f}, {-58.0f, 102.0f}},  // north-west, up the hill
+            {{-14.0f, -24.0f}, {-26.0f, -30.0f}, {-40.0f, -34.0f}, {-56.0f, -38.0f}}, // the lower town, west
+            {{16.0f, -24.0f}, {28.0f, -30.0f}, {42.0f, -34.0f}, {56.0f, -38.0f}},   // the lower town, east
+        };
+        for (const auto& o : outs)
+        {
+            std::vector<StreetPoint> line;
+            for (int k = 0; k < 3; ++k) // each leg in steps of a metre or so, with a gentle bend
             {
-                continue;
+                const StreetPoint a = o[k];
+                const StreetPoint b = o[k + 1];
+                for (int t = 0; t < 8; ++t)
+                {
+                    const float u = static_cast<float>(t) / 8.0f;
+                    const float bend = 1.2f * std::sin(3.14159265f * u) * (k % 2 == 0 ? 1.0f : -1.0f);
+                    const float dx = b.x - a.x;
+                    const float dz = b.z - a.z;
+                    const float l = std::sqrt(dx * dx + dz * dz);
+                    line.push_back({a.x + dx * u - dz / l * bend, a.z + dz * u + dx / l * bend});
+                }
             }
-            const float cx = 0.5f * (p.x0 + p.x1);
-            const float cz = 0.5f * (p.z0 + p.z1);
-            // what the storm did: by how exposed the plot is (Damage), not one house in four
-            const float dmg = Damage(cx, cz);
-            p.ruin = fate < 0.08f + 0.75f * dmg;
-            p.unroofed = !p.ruin && fate < 0.25f + 0.6f * dmg;
-            // the direction to the cathedral, folded into -45 .. 45 degrees (a square house looks the same turned by 90)
-            float yaw = std::atan2(cx - kCathedralX, cz - kCathedralZ);
-            yaw = yaw - kQuarter * std::floor(yaw / kQuarter + 0.5f);
-            p.yaw = yaw + (jitter - 0.5f) * 0.14f;
-            const float inner = p.x1 - p.x0;
-            p.side = inner / (std::fabs(std::cos(p.yaw)) + std::fabs(std::sin(p.yaw))); // its turned corners stay on the plot
-            p.kind = roll < 0.12f ? PlotKind::Garden : (towerRoll < 0.15f ? PlotKind::Tower : PlotKind::House);
-            plots.push_back(p);
+            line.push_back(o[3]);
+            v.push_back(line);
+        }
+        return v;
+    }();
+    return streets;
+}
+
+/// The distance from (x, z) to the nearest street.
+inline float StreetDistance(float x, float z)
+{
+    float best = 1.0e9f;
+    for (const auto& line : TownStreets())
+    {
+        for (std::size_t i = 0; i + 1 < line.size(); ++i)
+        {
+            const float ax = line[i].x;
+            const float az = line[i].z;
+            const float bx = line[i + 1].x - ax;
+            const float bz = line[i + 1].z - az;
+            const float l2 = bx * bx + bz * bz;
+            float t = l2 > 0.0f ? ((x - ax) * bx + (z - az) * bz) / l2 : 0.0f;
+            t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+            const float dx = x - (ax + t * bx);
+            const float dz = z - (az + t * bz);
+            const float d = dx * dx + dz * dz;
+            best = d < best ? d : best;
         }
     }
-    return plots;
+    return std::sqrt(best);
+}
+
+/// Every plot of the town: in rows along both sides of every street, a house every few metres, its front on the street and
+/// turned to it; a second row behind the first where there is room (fixed seed: the same town every run).
+inline std::vector<Plot> SkylinePlots()
+{
+    static const std::vector<Plot> cached = [] {
+        std::vector<Plot> plots;
+        unsigned state = 2026u;
+        const auto next = [&state]() {
+            state = state * 1664525u + 1013904223u;
+            return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f;
+        };
+        constexpr float kQuarter = 1.5707963f;
+        constexpr float kPlot = 5.2f; // the side of a plot
+        const auto overlaps = [&](float x0, float z0, float x1, float z1) {
+            for (const Plot& q : plots)
+            {
+                if (x0 < q.x1 && x1 > q.x0 && z0 < q.z1 && z1 > q.z0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (const auto& line : TownStreets())
+        {
+            for (int row = 0; row < 3; ++row)
+            {
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    float walked = 0.0f;
+                    float nextAt = 0.5f * kPlot;
+                    for (std::size_t i = 0; i + 1 < line.size(); ++i)
+                    {
+                        const float dx = line[i + 1].x - line[i].x;
+                        const float dz = line[i + 1].z - line[i].z;
+                        const float l = std::sqrt(dx * dx + dz * dz);
+                        if (l < 1.0e-4f)
+                        {
+                            continue;
+                        }
+                        for (; nextAt < walked + l; nextAt += kPlot + 0.4f)
+                        {
+                            const float u = nextAt - walked;
+                            const float tx = dx / l;
+                            const float tz = dz / l;
+                            const float off = kStreetHalf + 0.5f * kPlot + static_cast<float>(row) * (kPlot + 1.0f);
+                            const float cx = line[i].x + tx * u - tz * off * static_cast<float>(side);
+                            const float cz = line[i].z + tz * u + tx * off * static_cast<float>(side);
+                            Plot p{};
+                            p.x0 = cx - 0.5f * kPlot;
+                            p.z0 = cz - 0.5f * kPlot;
+                            p.x1 = cx + 0.5f * kPlot;
+                            p.z1 = cz + 0.5f * kPlot;
+                            const float roll = next();
+                            p.height = 3.5f + 5.0f * next() + (row == 0 ? 1.0f : 0.0f);
+                            const float towerRoll = next();
+                            p.towerSize = 1.2f + 0.6f * next();
+                            p.towerHeight = 5.0f + 6.0f * next();
+                            const float jitter = next();
+                            const float fate = next();
+                            const bool inTown = p.x0 >= kSkylineX0 && p.x1 <= kSkylineX1 && p.z0 >= kSkylineZ0 && p.z1 <= kSkylineZ1; // inside the wall
+                            if (!inTown || !PlotIsFree(p.x0, p.z0, p.x1, p.z1) || overlaps(p.x0, p.z0, p.x1, p.z1) ||
+                                StreetDistance(cx, cz) < kStreetHalf + 0.5f * kPlot - 0.3f)
+                            {
+                                continue;
+                            }
+                            // what the storm did: by how exposed the plot is (Damage)
+                            const float dmg = Damage(cx, cz);
+                            p.ruin = fate < 0.08f + 0.75f * dmg;
+                            p.unroofed = !p.ruin && fate < 0.25f + 0.6f * dmg;
+                            // turned to its street, folded into -45 .. 45 degrees (a square house looks the same turned by 90)
+                            float yaw = std::atan2(tx, tz);
+                            yaw = yaw - kQuarter * std::floor(yaw / kQuarter + 0.5f);
+                            p.yaw = yaw + (jitter - 0.5f) * 0.06f;
+                            p.side = (kPlot - 0.4f) / (std::fabs(std::cos(p.yaw)) + std::fabs(std::sin(p.yaw))); // its corners stay on the plot
+                            p.kind = row >= 1 && roll < 0.25f ? PlotKind::Garden : (towerRoll < 0.08f ? PlotKind::Tower : PlotKind::House);
+                            plots.push_back(p);
+                        }
+                        walked += l;
+                    }
+                }
+            }
+        }
+        // the blocks between the streets: filled with houses on the free ground, each turned to its nearest street; then the
+        // gaps left with smaller houses
+        const auto fill = [&](float size, float shift) {
+            for (float bx = kSkylineX0 + shift; bx < kSkylineX1; bx += size + 0.2f)
+            {
+                for (float bz = kSkylineZ0 + shift; bz < kSkylineZ1; bz += size + 0.2f)
+                {
+                    Plot p{};
+                    p.x0 = bx;
+                    p.z0 = bz;
+                    p.x1 = bx + size;
+                    p.z1 = bz + size;
+                    if (p.x1 > kSkylineX1 || p.z1 > kSkylineZ1)
+                    {
+                        continue;
+                    }
+                    const float roll = next();
+                    p.height = 3.0f + 4.5f * next();
+                    const float towerRoll = next();
+                    p.towerSize = 1.2f + 0.6f * next();
+                    p.towerHeight = 5.0f + 6.0f * next();
+                    const float jitter = next();
+                    const float fate = next();
+                    const float cx = bx + 0.5f * size;
+                    const float cz = bz + 0.5f * size;
+                    if (!PlotIsFree(p.x0, p.z0, p.x1, p.z1) || overlaps(p.x0, p.z0, p.x1, p.z1) || StreetDistance(cx, cz) < kStreetHalf + 0.5f * size)
+                    {
+                        continue;
+                    }
+                    // the direction of the nearest street
+                    float best = 1.0e9f;
+                    float tx = 0.0f;
+                    float tz = 1.0f;
+                    for (const auto& line : TownStreets())
+                    {
+                        for (std::size_t i = 0; i + 1 < line.size(); ++i)
+                        {
+                            const float mx = 0.5f * (line[i].x + line[i + 1].x) - cx;
+                            const float mz = 0.5f * (line[i].z + line[i + 1].z) - cz;
+                            const float d = mx * mx + mz * mz;
+                            if (d < best)
+                            {
+                                best = d;
+                                tx = line[i + 1].x - line[i].x;
+                                tz = line[i + 1].z - line[i].z;
+                            }
+                        }
+                    }
+                    const float dmg = Damage(cx, cz);
+                    p.ruin = fate < 0.08f + 0.75f * dmg;
+                    p.unroofed = !p.ruin && fate < 0.25f + 0.6f * dmg;
+                    float yaw = std::atan2(tx, tz);
+                    yaw = yaw - kQuarter * std::floor(yaw / kQuarter + 0.5f);
+                    p.yaw = yaw + (jitter - 0.5f) * 0.06f;
+                    p.side = (size - 0.4f) / (std::fabs(std::cos(p.yaw)) + std::fabs(std::sin(p.yaw)));
+                    p.kind = roll < 0.18f ? PlotKind::Garden : (towerRoll < 0.06f ? PlotKind::Tower : PlotKind::House);
+                    plots.push_back(p);
+                }
+            }
+        };
+        fill(kPlot, 0.1f);
+        fill(4.2f, 1.7f);
+        return plots;
+    }();
+    return cached;
 }
 
 /// The colour of the walls and of the roof of a house at (x, z): the four quarters blended by distance.
@@ -2761,7 +2942,7 @@ inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObje
     return count;
 }
 
-inline constexpr int kMaxDrawObjects = 4000; ///< most of it is the static city (baked into one call per layer)
+inline constexpr int kMaxDrawObjects = 5000; ///< most of it is the static city (baked into one call per layer)
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the crate and its bands, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is

@@ -166,10 +166,11 @@ Its rules, which the game follows:
 
 | Rule | Model | Game |
 |---|---|---|
+| Streets | a ring street round the cathedral quarter and streets out to the wall, houses in rows along them, turned to them | `Stage::TownStreets`: the ring and six streets; houses in rows along both sides, the blocks between filled, each house turned to its street; the streets paved on the ground (grass in B where the storm hit), a lamp every 14 m |
 | Ground | the town on terraces stepping down to the sea; outside the wall a headland, hills, a stream valley east of the town, the mountain in the north | the headland, the stream valley, the mountain (`Landscape::NaturalHeight`); the town levelled at the street round the map |
 | Damage | the storm came from the sea: the sea front and the harbour lie in ruins, the lower town is roofless, the upper town behind the square stands (`damage`) | `Stage::Damage`: houses in B are shells, or unroofed with their rafters left, by how exposed they are |
 | Plants | A kept: lemon yards, olive rows, fields of grain. B let go: grass through the paving, figs in roofless houses, scrub over the groves, pines felled by the storm, reeds on the silted harbour | the same (5.6.4) |
-| Puzzles | a room asks for one or two switches, at places it shows; the rest is walked in one world | 6.1 .. 6.5; the courtyard is the one room that asks for more |
+| Puzzles | a room asks for one or two switches, at places it shows; the rest is walked in one world | 6.1 .. 6.5; the courtyard is proved to need two at the fewest (`BlockMaze::MinSwitches`, tests/test_maze.cpp) |
 
 The rooms of the game are being moved to the places of the model in two steps (section 12).
 
@@ -621,7 +622,8 @@ search for skips checks this for the whole map.
 |---|---|
 | The ground, the sea, the plants, the town, the scenery | built (5.3 .. 5.8) |
 | Rebuild after the model, step 1: the ground of the model, the pits as sunken lanes, the open-ground rule, the red and blue edges gone, A and B told apart by damage and plants | built 2026-11-23 (5.1, 5.4) |
-| Rebuild after the model, step 2: the rooms at the places of the model (the prologue on the wall walk, the round square, the districts), the streets on the ground, the courtyard down to two switches | next |
+| Rebuild after the model, step 2a: the streets and the houses in rows along them; the courtyard proved to need two switches | built 2026-11-23 (5.1) |
+| Rebuild after the model, step 2b: the rooms at the places of the model (the prologue on the wall walk, the round square, the districts moved) | next |
 | Recovery (no switch into water, places of return out of water) | built (14.4) |
 | The prologue, the harbour, the courtyard | built (6.1) |
 | The square, the cathedral, the bell tower, the ring of lights | built (6.2, 6.6) |
@@ -645,6 +647,7 @@ search for skips checks this for the whole map.
 | 2026-11-23 | the three endings, lamp travel, resonance and the stuck timer (1.3, 1.5, 9.3) |
 | 2026-11-23 | the first plan is dropped: the model of a round square on a hillside, the tower in the square and its floors, the cistern, the separate bell tower west of the town. The cathedral carries the bell tower and the ring of the lights (6.6); the map is one town round the square |
 | 2026-11-23 | the model (5.1) is the target of the map again; the first plan that was dropped is the greybox, not the model. The rebuild in two steps: first the ground, the look and the two worlds told apart; then the rooms at their places |
+| 2026-11-23 | the courtyard stays as it is: the new count of switches (`MinSwitches`) shows it needs two, the number a room may ask for. The rooms are moved to the places of the model in a step of their own (2b), so that each move is proved on its own |
 
 ## 14. The vertical city
 

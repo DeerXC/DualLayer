@@ -14,12 +14,15 @@
 //            the block one cell; the body steps into the cell the block left, in the layer it pushed from. Walking and
 //            switching cost nothing; the count is pushes, the measure that a player feels as "how far the block went".
 // Modes:     Both = the game; OnlyA / OnlyB = a body that never switches (it still sees the block stopped by both layers).
+// Switches:  MinSwitches counts the other measure: the fewest layer switches that solve it (walking and pushing free). A room
+//            should ask for few (docs/LEVEL_DESIGN.md 5.1): the courtyard asks for two.
 // Plain logic, no Windows, no Direct3D, no game state: used by src/scene/Stage.h, tests/test_maze.cpp and
 // tools/maze_search.cpp.
 #pragma once
 
 #include <array>
 #include <cstddef>
+#include <deque>
 #include <queue>
 #include <vector>
 
@@ -410,6 +413,87 @@ inline Grid AsSeenFromA(const Grid& g)
         }
     }
     return seen;
+}
+
+/// The fewest layer switches that put the block on the plate (walking and pushing cost nothing), or -1 when it cannot be
+/// solved. A search over (block, body cell, body layer) that pays 1 for a switch and 0 for a step or a push (0-1 BFS).
+inline int MinSwitches(const Grid& g)
+{
+    const int n = g.w * g.d;
+    if (g.block < 0 || g.plate < 0 || g.start < 0 || n <= 0)
+    {
+        return -1;
+    }
+    const auto key = [n](int block, int cell, int layer) { return (block * n + cell) * 2 + layer; };
+    std::vector<int> best(static_cast<std::size_t>(n * n * 2), 1 << 30);
+    std::deque<std::array<int, 4>> queue; // block, cell, layer, cost
+    if (!BodyFree(g, g.X(g.start), g.Z(g.start), 0))
+    {
+        return -1;
+    }
+    best[static_cast<std::size_t>(key(g.block, g.start, 0))] = 0;
+    queue.push_back({g.block, g.start, 0, 0});
+    while (!queue.empty())
+    {
+        const auto [block, cell, layer, cost] = queue.front();
+        queue.pop_front();
+        if (cost > best[static_cast<std::size_t>(key(block, cell, layer))])
+        {
+            continue;
+        }
+        if (block == g.plate)
+        {
+            return cost;
+        }
+        const auto relax = [&](int b, int c, int l, int w) {
+            const std::size_t k = static_cast<std::size_t>(key(b, c, l));
+            if (cost + w < best[k])
+            {
+                best[k] = cost + w;
+                if (w == 0)
+                {
+                    queue.push_front({b, c, l, cost});
+                }
+                else
+                {
+                    queue.push_back({b, c, l, cost + w});
+                }
+            }
+        };
+        if (BodyFree(g, g.X(cell), g.Z(cell), 1 - layer))
+        {
+            relax(block, cell, 1 - layer, 1); // a switch, where the body fits
+        }
+        for (int i = 0; i < 4; ++i)
+        {
+            const int x = g.X(cell) + detail::kDx[i];
+            const int z = g.Z(cell) + detail::kDz[i];
+            if (!g.Inside(x, z))
+            {
+                continue;
+            }
+            const int next = g.Index(x, z);
+            if (next == block) // walking into the block: a push, when the cell beyond it is free in both layers
+            {
+                const int tx = x + detail::kDx[i];
+                const int tz = z + detail::kDz[i];
+                if (BlockFree(g, tx, tz))
+                {
+                    relax(g.Index(tx, tz), next, layer, 0);
+                }
+                if (BodyFree(g, x, z, layer))
+                {
+                    relax(block, next, layer, 0); // or the body climbs onto it
+                }
+                continue;
+            }
+            if (BodyFree(g, x, z, layer))
+            {
+                relax(block, next, layer, 0);
+            }
+        }
+    }
+    return -1;
 }
 
 } // namespace dl::maze

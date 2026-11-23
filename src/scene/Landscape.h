@@ -299,8 +299,16 @@ inline void GroundColour(float x, float y, float z, float normalY, int layer, fl
     }
     else if (TownMask(x, z) > 0.6f)
     {
-        // the streets of the town: paving in A; in B grass comes through where the storm hit hardest
-        c = layer == 0 ? p.town : (dmg + 0.3f * rough > 0.55f ? Rgb{0.36f, 0.44f, 0.32f} : p.town);
+        if (StreetDistance(x, z) < kStreetHalf)
+        {
+            // a street: paving in A; in B grass comes through where the storm hit hardest
+            c = layer == 0 ? Rgb{0.70f, 0.65f, 0.55f} : (dmg + 0.3f * rough > 0.55f ? Rgb{0.36f, 0.44f, 0.32f} : Rgb{0.46f, 0.46f, 0.44f});
+        }
+        else
+        {
+            // behind the houses: yards and kitchen gardens in A, overgrown in B
+            c = layer == 0 ? (rough > 0.1f ? Rgb{0.58f, 0.52f, 0.40f} : Rgb{0.50f, 0.56f, 0.36f}) : (rough > -0.2f ? Rgb{0.32f, 0.40f, 0.28f} : Rgb{0.42f, 0.40f, 0.34f});
+        }
     }
     else if (std::fabs(x - StreamX(z)) < 7.0f && z > -40.0f && z < 200.0f)
     {

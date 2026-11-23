@@ -391,6 +391,16 @@
   every ramp and stair) never taken for a fall; 14598 walks and jumps off edges, every one in the map, below its fall line or
   caught on the open ground), `tests/test_stage.cpp` (4134), `tests/test_reach.cpp` (0 skips, 410240 jumps),
   `tests/test_hints.cpp` (357), the others unchanged.
+- Changed (2026-11-23, rebuild after the model, step 2a, docs/LEVEL_DESIGN.md 5.1): the town round the map follows the streets of
+  the model: a ring street round the cathedral quarter and six streets out to the wall (`Stage::TownStreets`, `StreetDistance`);
+  the houses stand in rows along both sides, the blocks between are filled, each house turned to its street (`SkylinePlots`,
+  cached); the streets are paved on the ground and grown over in B where the storm hit (`Landscape::GroundColour`); a street
+  lamp every 14 m on alternate sides. `kMaxDrawObjects` 5000. The model and its two pictures are in the repository again
+  (`tools/layout/city_model.py`, `docs/images/city_a.png`, `city_b.png`).
+- Made (2026-11-23): `BlockMaze::MinSwitches`, the fewest layer switches that solve a block puzzle (a 0-1 search: a switch costs
+  1, a step or a push 0). The courtyard needs two: it stays as it is.
+- Checked (2026-11-23): `tests/test_maze.cpp` (43: `MinSwitches` on small grids and the courtyard), `tests/test_hints.cpp` (357),
+  `tests/test_terrain.cpp`, `tests/test_reach.cpp`, `tests/test_stage.cpp` (below).
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

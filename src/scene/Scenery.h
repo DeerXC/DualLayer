@@ -282,24 +282,37 @@ inline void WaterTowerScenery(std::vector<SceneObject>& out)
     }
 }
 
-// ---- the streets: a lamp at every other crossing of the town (a lit lantern in A; in B the post only, its lantern gone)
+// ---- the streets: a lamp every 14 m, on alternate sides (a lit lantern in A; in B the post only, its lantern gone)
 
 inline void StreetLamps(std::vector<SceneObject>& out)
 {
-    int k = 0;
-    for (float x = kSkylineX0 + kSkylineCell; x < kSkylineX1 - 1.0f; x += kSkylineCell)
+    for (const auto& line : TownStreets())
     {
-        for (float z = kSkylineZ0 + kSkylineCell; z < kSkylineZ1 - 1.0f; z += kSkylineCell)
+        float walked = 0.0f;
+        float nextLamp = 7.0f;
+        int side = 1;
+        for (std::size_t i = 0; i + 1 < line.size(); ++i)
         {
-            ++k;
-            if (k % 2 != 0 || !PlotIsFree(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f))
+            const float dx = line[i + 1].x - line[i].x;
+            const float dz = line[i + 1].z - line[i].z;
+            const float l = std::sqrt(dx * dx + dz * dz);
+            while (l > 1.0e-4f && nextLamp <= walked + l)
             {
-                continue;
+                const float u = (nextLamp - walked) / l;
+                const float x = line[i].x + dx * u - dz / l * (kStreetHalf - 0.3f) * static_cast<float>(side);
+                const float z = line[i].z + dz * u + dx / l * (kStreetHalf - 0.3f) * static_cast<float>(side);
+                nextLamp += 14.0f;
+                side = -side;
+                if (!PlotIsFree(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f))
+                {
+                    continue;
+                }
+                out.push_back(Span(x - 0.07f, kPlainY, z - 0.07f, x + 0.07f, kPlainY + 3.2f, z + 0.07f, kIron, kLayerBoth));
+                SceneObject lantern = Span(x - 0.18f, kPlainY + 3.2f, z - 0.18f, x + 0.18f, kPlainY + 3.6f, z + 0.18f, Rgb{1.0f, 0.82f, 0.46f}, kLayerA);
+                lantern.glow = 0.7f;
+                out.push_back(lantern);
             }
-            out.push_back(Span(x - 0.07f, kPlainY, z - 0.07f, x + 0.07f, kPlainY + 3.2f, z + 0.07f, kIron, kLayerBoth));
-            SceneObject lantern = Span(x - 0.18f, kPlainY + 3.2f, z - 0.18f, x + 0.18f, kPlainY + 3.6f, z + 0.18f, Rgb{1.0f, 0.82f, 0.46f}, kLayerA);
-            lantern.glow = 0.7f;
-            out.push_back(lantern);
+            walked += l;
         }
     }
 }

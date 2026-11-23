@@ -171,6 +171,7 @@ seen".
 | E-60 | jump off the side of the terrace into the lane; jump off the landing of the north hall over its wall | each time the body comes back at its lamp or the entry of the room, as after a fall |
 | E-61 | from the balcony of the cathedral look south and north, in A and in B | in B the houses by the sea are shells, those of the lower town roofless with rafters, those behind the square stand; grass in the streets of the south; reeds on the silted harbour; felled pines on the headland; fields of grain in A |
 | E-62 | stand 30 s in the courtyard | the pale outlines of the other world grow bright |
+| E-63 | from the balcony of the cathedral and from the top of the lock walk, look over the town, in A and in B | paved streets winding round the middle of the town and out to the wall, houses in rows along them, turned to them, a lamp every few houses; in B grass on the streets of the south |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
