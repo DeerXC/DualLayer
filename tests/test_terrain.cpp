@@ -454,9 +454,11 @@ void TestNoEscape()
                 {
                     p.Update({}, d, pl.layer, 0.0f, kDt);
                 }
-                if (!p.Grounded() || !dl::puzzle::Puzzle::FitsIn(p, pl.layer, 0.0f, solids.data(), static_cast<int>(solids.size())))
+                const Vec3 settled = p.Feet();
+                const float moved = std::fabs(settled.x - pl.feet.x) + std::fabs(settled.y - pl.feet.y) + std::fabs(settled.z - pl.feet.z);
+                if (!p.Grounded() || moved > 0.1f || !dl::puzzle::Puzzle::FitsIn(p, pl.layer, 0.0f, solids.data(), static_cast<int>(solids.size())))
                 {
-                    continue; // not a place to stand after all (or a body would not fit there)
+                    continue; // not a place to stand after all (inside another box, or a body would not fit there)
                 }
                 ++tried;
                 Player::Input in;

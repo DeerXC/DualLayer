@@ -5,17 +5,21 @@
 > English: a 3D action puzzle about two overlapping worlds, red and blue, built without a game engine on C++20 / Direct3D 11.
 
 Status: in development (milestone M2). The whole map can be walked from the start to the top of the cathedral. It begins
-on the quay of a harbour under the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square: a pool
-round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in the
-other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers), the
-lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other),
-a walk that climbs beside three locks (water in one world, dry rooms in the other), a market whose well is climbed down
-half in one world and half in the other
-two prisms of the north district (a wall moved into the other world; two things moved at once), a cellar that closes the
-ring of districts, and an end in which the master sluice drains every water of one world are playable. The map stands on
-the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their streets, and plants
-placed by the ground they grow on; three bells change the water, the machinery and the light of the city. The theatre, the
-graveyard and the rooms inside the cathedral are still to be built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
+on the quay of a harbour under the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square:
+a pool round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in
+the other world. Round it every district has a part that is played:
+
+- the west: an orb carried between the layers, and a market whose well is climbed down half in one world and half in the
+  other;
+- the east: a crate that floats on water of one world and is moved in it to be used in the other, and a walk that climbs
+  beside three locks (water in one world, dry rooms in the other);
+- the north: two prisms (a wall moved into the other world; two things moved at once), and a theatre whose fallen back wall
+  is passed with a switch in the air;
+- a cellar that closes the ring of districts, and an end in which the master sluice drains every water of one world.
+
+The map stands on the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their
+streets, plants placed by the ground they grow on; three bells change the water, the machinery and the light of the city.
+What is still to be built is listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md) (14.10).
 
 ## Highlights
 
@@ -28,10 +32,10 @@ graveyard and the rooms inside the cathedral are still to be built from [docs/LE
   cannot drift apart.
 - **A world without a void, proved.** The ground is a height field generated in code, flat-shaded and baked into the static
   batch with the plants. Tests prove that it lies under every floor, that no walk or jump off an edge of the map ever ends on
-  it (about 10000 tried), and that every view down meets the map, the land or the sea.
+  it (about 13000 tried), and that every view down meets the map, the land or the sea.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
-  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4900 places to
-  stand, about 135000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
+  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 10000 places to
+  stand, about 360000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
 - **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
   falls through a floor that exists only in the other layer. The west wing is built on that: an orb that lays a bridge of

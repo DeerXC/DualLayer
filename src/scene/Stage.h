@@ -369,6 +369,29 @@ inline constexpr float kLandingNE = kFloorY;          // the heights of the land
 inline constexpr float kLandingSE = kFloorY - 2.0f;
 inline constexpr float kLandingSW = kFloorY - 4.0f;
 inline constexpr float kLandingNW = kFloorY - 6.0f;
+// the theatre of the north (docs/LEVEL_DESIGN.md 6.5.1): a lane from a door under landing 1 of the north hall climbs to the
+// stage through the stage wall; seven rows of seats rise north from the orchestra to a promenade; behind it the back wall, and
+// beyond a terrace. In B the upper rows of the west half and the west half of the promenade have fallen, and the back wall
+// has a breach there (in A a wooden panel): from the promenade of A, a jump at the panel with a switch to B in the air carries
+// the body through the breach onto the terrace (N3)
+inline constexpr float kTheatreDoorX0 = 3.0f;        // the door in the north wall of the north hall and the lane, x 3 .. 5
+inline constexpr float kTheatreDoorX1 = 5.0f;
+inline constexpr float kStageWallZ = 66.0f;          // the stage wall, z 66 .. 66.6
+inline constexpr float kStageFront = 70.6f;          // the stage, z 66.6 .. 70.6, 1 m over the orchestra
+inline constexpr float kStageY = kFloorY + 1.0f;
+inline constexpr float kRowsZ0 = 76.0f;              // row k: z 76 + 1.2 k .. 76 + 1.2 (k + 1), top kFloorY + 0.55 (k + 1)
+inline constexpr float kRowDepth = 1.2f;
+inline constexpr float kRowRise = 0.55f;
+inline constexpr int kRowCount = 7;
+inline constexpr float kPromenadeY = kFloorY + kRowRise * static_cast<float>(kRowCount); // 2.85
+inline constexpr float kPromenadeZ0 = kRowsZ0 + kRowDepth * static_cast<float>(kRowCount); // 84.4
+inline constexpr float kBackWallZ = 86.0f;           // the back wall, z 86 .. 86.5
+inline constexpr float kTheatreX = 14.0f;            // the theatre, x -14 .. 14
+inline constexpr float kTheatreWallTop = kFloorY + 7.0f;
+inline constexpr float kFallenX = -2.0f;             // B: west of this the upper rows (4 .. 6) and the promenade have fallen
+inline constexpr float kBreachX0 = -11.0f;           // the breach of B in the back wall, x -11 .. -9 (A: a wooden panel)
+inline constexpr float kBreachX1 = -9.0f;
+inline constexpr float kTerraceZ1 = 90.0f;           // the terrace behind it, x -13 .. -7, z 86.5 .. 90, at the promenade
 inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
 // the cellar (docs/LEVEL_DESIGN.md, 14.8): the fourth link of the ring, from the canal bed of the east district west under the
 // courtyard to the lower room of the west wing. It carries the water of the canal: in A it is flooded and an iron sluice panel
@@ -572,6 +595,16 @@ inline constexpr float kRampNorth = 33.0f;
 constexpr float Level(int k)
 {
     return kFloorY + static_cast<float>(k) * kRampRise;
+}
+
+/// Row k of the seats of the theatre, its east part (x kFallenX .. 12, both layers) or its west part (x -12 .. kFallenX; rows
+/// 4 .. 6 A only: fallen in B). Solid down to the floor.
+constexpr SceneObject TheatreRow(int k, bool east)
+{
+    const float z0 = kRowsZ0 + kRowDepth * static_cast<float>(k);
+    const float top = kFloorY + kRowRise * static_cast<float>(k + 1);
+    return Span(east ? kFallenX : -12.0f, kFloorY, z0, east ? 12.0f : kFallenX, top, z0 + kRowDepth, Rgb{0.74f, 0.68f, 0.58f},
+                (!east && k >= 4) ? kLayerA : kLayerBoth);
 }
 
 /// A stall of the market: a stone counter (both layers) over its footprint, 0.95 m high.
@@ -879,7 +912,37 @@ inline constexpr SceneObject kFixed[] = {
     Wall(9.0f, kFloorY, kBridgeSouth, 9.5f, kBridgeY - 0.2f, kBridgeNorth),                            // sky bridge from landing 1
     Wall(9.0f, kLookoutTop, kBridgeSouth, 9.5f, kNorthWallTop, kBridgeNorth),
     Wall(9.0f, kFloorY, kBridgeNorth, 9.5f, kNorthWallTop, 60.5f),
-    Wall(-9.5f, kFloorY, 60.0f, 9.5f, kNorthWallTop, 60.5f),
+    Wall(-9.5f, kFloorY, 60.0f, kTheatreDoorX0, kNorthWallTop, 60.5f),                                 // north, with the door of
+    Wall(kTheatreDoorX1, kFloorY, 60.0f, 9.5f, kNorthWallTop, 60.5f),                                  // the theatre lane (under
+    Wall(kTheatreDoorX0, kFloorY + 2.4f, 60.0f, kTheatreDoorX1, kNorthWallTop, 60.5f),                 // landing 1)
+    // ---- the theatre (6.5.1): the lane (its stair is in kPieces), the stage wall and its door, the stage, the orchestra
+    Floor(kTheatreDoorX0, 60.5f, kTheatreDoorX1, 62.0f, kFloorY),
+    Span(kTheatreDoorX0, kFloorY, 65.0f, kTheatreDoorX1, kStageY, kStageWallZ + 0.6f, kGrey, kLayerBoth, 1.0f),
+    Wall(kTheatreDoorX0 - 0.5f, kFloorY, 60.5f, kTheatreDoorX0, kStageY + 4.0f, kStageWallZ),
+    Wall(kTheatreDoorX1, kFloorY, 60.5f, kTheatreDoorX1 + 0.5f, kStageY + 4.0f, kStageWallZ),
+    Wall(-kTheatreX - 0.5f, kFloorY, kStageWallZ, kTheatreDoorX0, kTheatreWallTop, kStageWallZ + 0.6f),
+    Wall(kTheatreDoorX1, kFloorY, kStageWallZ, kTheatreX + 0.5f, kTheatreWallTop, kStageWallZ + 0.6f),
+    Wall(kTheatreDoorX0, kStageY + 2.4f, kStageWallZ, kTheatreDoorX1, kTheatreWallTop, kStageWallZ + 0.6f),
+    Floor(-kTheatreX, kStageWallZ + 0.6f, kTheatreX, kBackWallZ, kFloorY),
+    Span(-10.0f, kFloorY, kStageWallZ + 0.6f, 10.0f, kStageY, kStageFront, kWood, kLayerBoth),
+    // the rows: west of kFallenX rows 4 .. 6 are A only (fallen in B), the rest both
+    TheatreRow(0, true), TheatreRow(1, true), TheatreRow(2, true), TheatreRow(3, true), TheatreRow(4, true), TheatreRow(5, true),
+    TheatreRow(6, true), TheatreRow(4, false), TheatreRow(5, false), TheatreRow(6, false), TheatreRow(0, false), TheatreRow(1, false),
+    TheatreRow(2, false), TheatreRow(3, false),
+    Span(kFallenX, kFloorY, kPromenadeZ0, kTheatreX, kPromenadeY, kBackWallZ, kGrey, kLayerBoth, 1.0f),      // the promenade (east)
+    Span(-kTheatreX, kFloorY, kPromenadeZ0, kFallenX, kPromenadeY, kBackWallZ, kGrey, kLayerA, 1.0f),        // (west: A)
+    Span(-12.0f, kFloorY, kRowsZ0 + 4.0f * kRowDepth, kFallenX, kFloorY + 0.6f, kBackWallZ, kDebris, kLayerB), // B: their rubble
+    // its walls: east and west, the back wall with the breach (B) at the promenade, the terrace behind it
+    Wall(-kTheatreX - 0.5f, kFloorY, kStageWallZ + 0.6f, -kTheatreX, kTheatreWallTop, kBackWallZ + 0.5f),
+    Wall(kTheatreX, kFloorY, kStageWallZ + 0.6f, kTheatreX + 0.5f, kTheatreWallTop, kBackWallZ + 0.5f),
+    Wall(-kTheatreX, kFloorY, kBackWallZ, kBreachX0, kTheatreWallTop, kBackWallZ + 0.5f),
+    Wall(kBreachX1, kFloorY, kBackWallZ, kTheatreX, kTheatreWallTop, kBackWallZ + 0.5f),
+    Wall(kBreachX0, kFloorY, kBackWallZ, kBreachX1, kPromenadeY, kBackWallZ + 0.5f),                     // the sill of the breach
+    Span(kBreachX0, kPromenadeY, kBackWallZ, kBreachX1, kTheatreWallTop, kBackWallZ + 0.5f, kWood, kLayerA), // A: the panel
+    Span(-13.0f, kFloorY, kBackWallZ + 0.5f, -7.0f, kPromenadeY, kTerraceZ1, kGrey, kLayerBoth, 1.0f),       // the terrace
+    Wall(-13.5f, kFloorY, kBackWallZ + 0.5f, -13.0f, kTheatreWallTop, kTerraceZ1 + 0.5f),
+    Wall(-7.0f, kFloorY, kBackWallZ + 0.5f, -6.5f, kTheatreWallTop, kTerraceZ1 + 0.5f),
+    Wall(-13.0f, kFloorY, kTerraceZ1, -7.0f, kTheatreWallTop, kTerraceZ1 + 0.5f),
     Wall(-9.0f, kFloorY, 43.5f, -1.5f, kCityWallTop, 44.0f),
     Wall(1.5f, kFloorY, 43.5f, 9.0f, kCityWallTop, 44.0f),
     Floor(-1.0f, 58.0f, 9.0f, 60.0f, kFloorY + 3.5f),                                                 // landing 1 (north)
@@ -946,7 +1009,7 @@ inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
 
 /// Pieces of scene/Shapes.h: the breach in the north wall of the west hall (5 boxes), the slope of the stairs from the lookout
 /// (1), and the slopes of the two stairs down into the pool of the square (2). Their steps are drawn in kDecor.
-inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1 + 1 + 3 + kLockCount + 4;
+inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1 + 1 + 3 + kLockCount + 4 + 3;
 /// The two stairs down into the pool: south-east (from the south rim, beside the east rim) and north-west (from the north rim,
 /// beside the west rim), so that the pool is entered at its two opposite corners.
 inline void PoolStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
@@ -1006,6 +1069,14 @@ inline void WellStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>
     shapes::Stairs(kShaftX0, kShaftX0 + kLanding, a0, kLandingSW, a1, kLandingNW, shapes::kStoneLight, solid, drawn);
     shapes::StairsX(kShaftZ1 - kLanding, kShaftZ1, b0, kLandingNW, b1, kWellFloor, shapes::kStoneLight, solid, drawn);
 }
+/// The stairs of the theatre: up the lane to the stage door, from the stage down to the orchestra, and the aisle up the east
+/// end of the rows to the promenade.
+inline void TheatreStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
+{
+    shapes::Stairs(kTheatreDoorX0, kTheatreDoorX1, 62.0f, kFloorY, 65.0f, kStageY, shapes::kStoneLight, solid, drawn);
+    shapes::Stairs(-1.0f, 1.0f, kStageFront, kStageY, kStageFront + 3.0f, kFloorY, shapes::kStoneLight, solid, drawn);
+    shapes::Stairs(12.0f, kTheatreX, kRowsZ0, kFloorY, kPromenadeZ0, kPromenadeY, shapes::kStoneLight, solid, drawn);
+}
 inline std::array<SceneObject, kPieceCount> BuildPieces()
 {
     std::vector<SceneObject> v;
@@ -1018,6 +1089,7 @@ inline std::array<SceneObject, kPieceCount> BuildPieces()
     SeaStair(v, steps);
     LockStairs(v, steps);
     WellStairs(v, steps);
+    TheatreStairs(v, steps);
     std::array<SceneObject, kPieceCount> out{};
     for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
     {
@@ -1046,6 +1118,7 @@ inline constexpr AnchorDesc kAnchors[] = {
     {{23.2f, kFloorY, 33.0f}, {21.9f, kFloorY, 33.0f}, "east hall", "the canal"},
     {{29.0f, kFloorY, 35.5f}, {29.0f, kFloorY, 34.2f}, "lock walk", "the locks"},
     {{-35.2f, kFloorY, 58.6f}, {-35.2f, kFloorY, 57.3f}, "market", "the market"},
+    {{13.0f, kFloorY, 72.5f}, {11.7f, kFloorY, 72.5f}, "theatre", "the theatre"},
     {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the bell tower"},
 };
 inline constexpr int kAnchorCount = static_cast<int>(sizeof(kAnchors) / sizeof(kAnchors[0]));
@@ -1172,6 +1245,9 @@ inline constexpr Room kRooms[] = {
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
     {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
+    {"theatre terrace", -13.0f, kPromenadeY - 0.5f, kBackWallZ + 0.5f, -7.0f, kPromenadeY + 0.5f, kTerraceZ1, {-10.0f, kPromenadeY, 88.8f}, false},
+    {"theatre", -kTheatreX, kFloorY - 0.5f, kStageWallZ, kTheatreX, kPromenadeY + 0.5f, kBackWallZ, {11.0f, kFloorY, 73.0f}, false},
+    {"theatre lane", kTheatreDoorX0, kFloorY - 0.5f, 60.5f, kTheatreDoorX1, kStageY + 0.5f, kStageWallZ, {4.0f, kFloorY, 61.2f}, false},
     {"well", kShaftX0, kWellFloor - 0.5f, kShaftZ0, kShaftX1, kFloorY - 0.3f, kShaftZ1, {kShaftX0 + 0.9f, kLandingSW, kShaftZ0 + 0.9f}, false},
     {"market", kMarketX0, kFloorY - 0.5f, kMarketZ0, kMarketX1, kFloorY + 3.0f, kMarketZ1, {-36.0f, kFloorY, 34.6f}, false},
     {"west lane", kMarketX1, kFloorY - 0.5f, kLaneZ0, -24.5f, kFloorY + 1.5f, kLaneZ1, {-28.0f, kFloorY, 34.6f}, false},
@@ -1399,8 +1475,8 @@ inline constexpr SceneObject kLandmarks[] = {
     Span(-29.0f, kFloorY, 36.5f, -26.0f, 20.0f, 47.0f, kArchive, kLayerBoth),                       // west: the archive, a wall of shelves
     Span(-29.5f, 20.0f, 40.5f, -25.5f, 21.0f, 42.5f, kGold, kLayerBoth),                            // its gold crown (north of the lane)
     Span(57.0f, 31.0f, 17.0f, 62.0f, 35.0f, 22.0f, Rgb{0.72f, 0.66f, 0.56f}, kLayerA),             // east: the tank of the water tower (A)
-    Span(-2.5f, kFloorY, 63.0f, 2.5f, 21.0f, 67.0f, kStone, kLayerBoth),                            // north: the stage tower of the theatre
-    Landmark(ShapeKind::Sphere, 0.0f, 23.0f, 65.0f, 3.0f, 0.0f, 0.0f, kGold),                       // its bell
+    Span(-2.5f, kFloorY, 61.0f, 2.5f, 21.0f, 65.5f, kStone, kLayerBoth),                            // north: the stage tower of the theatre
+    Landmark(ShapeKind::Sphere, 0.0f, 23.0f, 63.25f, 3.0f, 0.0f, 0.0f, kGold),                       // its bell
 };
 inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / sizeof(kLandmarks[0]));
 
@@ -1714,13 +1790,11 @@ struct Zone
     float x0, z0, x1, z1;
     const char* name;
 };
-inline constexpr float kTheatreX = 0.0f; ///< the middle of the orchestra; the seats rise north
-inline constexpr float kTheatreZ = 74.0f;
 inline constexpr float kWaterTowerX = 59.5f;
 inline constexpr float kWaterTowerZ = 19.5f;
 inline constexpr Zone kZones[] = {
     {-62.0f, 30.0f, -34.0f, 60.0f, "the market"},
-    {-20.0f, 66.0f, 20.0f, 100.0f, "the theatre"},
+    {-16.0f, 60.0f, 16.0f, 92.0f, "the theatre"},
     {53.0f, 12.0f, 64.0f, 24.0f, "the water tower"},
 };
 
@@ -2247,6 +2321,26 @@ inline void MarketDecor(std::vector<SceneObject>& drawn)
     }
 }
 
+// ---- the theatre (6.5.1), drawn only: the upper stage wall with its columns (A; broken in B), the painted scenery of the
+// evening's play against the stage wall (A), grass in the orchestra (B)
+inline void TheatreDecor(std::vector<SceneObject>& drawn)
+{
+    drawn.push_back(Span(-kTheatreX - 0.5f, kTheatreWallTop, kStageWallZ, kTheatreX + 0.5f, kTheatreWallTop + 4.0f, kStageWallZ + 0.6f, kStone, kLayerA));
+    for (float x = -12.0f; x <= 12.1f; x += 3.0f)
+    {
+        drawn.push_back(Span(x - 0.25f, kStageY, kStageWallZ + 0.6f, x + 0.25f, kTheatreWallTop + 3.5f, kStageWallZ + 0.9f, kArcadeStone, kLayerA));
+    }
+    drawn.push_back(Span(-kTheatreX - 0.5f, kTheatreWallTop, kStageWallZ, -6.0f, kTheatreWallTop + 1.5f, kStageWallZ + 0.6f, Rgb{0.47f, 0.48f, 0.49f},
+                         kLayerB));
+    const Rgb paint[3] = {{0.56f, 0.44f, 0.62f}, {0.40f, 0.52f, 0.66f}, {0.72f, 0.58f, 0.36f}};
+    for (int k = 0; k < 3; ++k)
+    {
+        const float x = -9.0f + 3.0f * static_cast<float>(k);
+        drawn.push_back(Span(x, kStageY, kStageWallZ + 0.6f, x + 2.4f, kStageY + 3.2f - 0.4f * static_cast<float>(k), kStageWallZ + 0.66f, paint[k], kLayerA));
+    }
+    drawn.push_back(Span(-5.0f, kFloorY, kStageFront + 1.0f, 4.0f, kFloorY + 0.02f, kRowsZ0 - 0.5f, Rgb{0.36f, 0.44f, 0.28f}, kLayerB));
+}
+
 inline std::vector<SceneObject> BuildDecor()
 {
     std::vector<SceneObject> solid;
@@ -2264,6 +2358,8 @@ inline std::vector<SceneObject> BuildDecor()
     CathedralDecor(drawn);
     CourtyardDecor(drawn);
     WellStairs(solid, drawn); // (the slopes: kPieces)
+    TheatreStairs(solid, drawn);
+    TheatreDecor(drawn);
     MarketDecor(drawn);
     Battlements(drawn);
     WallParts(drawn);

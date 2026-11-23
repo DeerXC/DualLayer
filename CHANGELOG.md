@@ -295,6 +295,24 @@
   corner where the fallen stretch stops it, no jump to the next corner, up in A; caught when the wooden stretch is in both
   layers), `tests/test_terrain.cpp` (170; no escape from 2766 places, 15678 walks and jumps), `tests/test_reach.cpp` (0 skips,
   294080 jumps), `tests/test_hints.cpp` (442), `tests/test_lights.cpp` (49).
+- Made (2026-11-23, the theatre, docs/LEVEL_DESIGN.md 6.5.1): a door under landing 1 of the north hall, a lane with a stair up to a
+  door in the stage wall; the stage, a stair down to the orchestra, seven straight rows of seats (`Stage::TheatreRow`), an aisle
+  stair at their east end, the promenade, the back wall, a terrace behind it; drawn: the upper stage wall and its columns, the
+  painted scenery (A), grass (B) (`Stage::TheatreDecor`). In B the upper west rows and the west promenade have fallen and the back
+  wall has a breach (A: a panel). N3: from the promenade of A, a jump at the panel with a switch to B in the air goes through
+  onto the terrace and its hidden light. The lamp of the theatre (the tenth). Rooms `theatre lane`, `theatre`,
+  `theatre terrace`. The theatre leaves `scene/Scenery.h`; the stage tower landmark stands between the north hall and the stage
+  wall. The coarse field reaches z 400.
+- Fixed (2026-11-23, review): the search for escapes counted places inside another box (the floor under the stage): a place
+  that the body is pushed out of is not a place. The drawn table of the hidden lights in `tests/test_lights.cpp` was sized for
+  eight lights.
+- Checked (2026-11-23, the whole build reviewed): every header compiled together with `-Wall -Wextra -Wshadow -Wconversion
+  -Wdouble-promotion -Wpedantic` without a warning; `src/main.cpp` against stand-ins; 367 solid boxes and 2379 drawn boxes of the
+  map, about 65000 triangles of ground, plants and scenery per layer, all in one draw call per layer. `tests/test_stage.cpp`
+  (3390; new `TestTheatre`: the way in and up in both layers, the panel holds, N3 through the breach at 3 of 3 timings, the
+  light, no way to the terrace in B; caught when the panel is in both layers), `tests/test_terrain.cpp` (177; no escape from
+  3358 places), `tests/test_reach.cpp` (0 skips, 366592 jumps from 10475 places), `tests/test_hints.cpp` (481),
+  `tests/test_lights.cpp` (51), the other tests unchanged.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

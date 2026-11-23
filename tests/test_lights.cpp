@@ -102,9 +102,9 @@ void TestLogic()
     CHECK(set.Count() == 0 && !set.All());
     FakeBody far{{0.0f, st::kTerraceY, -3.0f}, {}};
     CHECK(set.Collect(far) == -1);
-    SceneObject table[8] = {};
-    CHECK(set.AddToDrawTable(table, 0, 8) == st::kHiddenLightCount && table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
-    CHECK(set.AddToDrawTable(table, 8, 8) == 8 && set.AddToDrawTable(nullptr, 3, 8) == 3);
+    SceneObject table[16] = {};
+    CHECK(set.AddToDrawTable(table, 0, 16) == st::kHiddenLightCount && table[0].shape == ShapeKind::Sphere && table[0].layerMask == kLayerBoth);
+    CHECK(set.AddToDrawTable(table, 16, 16) == 16 && set.AddToDrawTable(nullptr, 3, 16) == 3);
     for (int i = 0; i < st::kHiddenLightCount; ++i)
     {
         const Vec3 c = st::kHiddenLights[i].centre;

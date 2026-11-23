@@ -2154,6 +2154,87 @@ void TestMarketWell()
     CHECK(f.JumpFrom({-45.0f, st::kWellFloor, 40.5f}, kSouth, 0.3f) < st::kWellFloor + 0.5f);
 }
 
+/// The theatre (docs/LEVEL_DESIGN.md 6.5.1): from the north hall through the lane onto the stage, down to the orchestra, up
+/// the aisle to the promenade, in both layers; N3: the terrace behind the breach of B is reached only by a jump from the
+/// promenade of A with a switch to B in the air.
+void TestTheatre()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const Vec3 W{-1.0f, 0.0f, 0.0f};
+    const float zp = 0.5f * (st::kPromenadeZ0 + st::kBackWallZ); // the middle of the promenade
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World u = hub;
+        u.layer = layer;
+        u.PlaceFeet(st::kRooms[Room("north hall")].entry);
+        CHECK(u.WalkPath({{4.5f, kFloorY, 50.0f}, {4.5f, kFloorY, 59.5f}, {4.0f, kFloorY, 61.5f}, {4.0f, kFloorY, 65.6f}, {4.0f, kFloorY, 68.0f}}) &&
+              u.At(4.0f, st::kStageY, 68.0f, 0.4f) && st::RoomAt(u.player.Feet()) == Room("theatre"));
+        CHECK(u.WalkPath({{0.0f, kFloorY, 69.5f}, {0.0f, kFloorY, 74.5f}, {13.0f, kFloorY, 74.5f}, {13.0f, kFloorY, zp}, {0.0f, kFloorY, zp}}) &&
+              u.At(0.0f, st::kPromenadeY, zp, 0.4f));
+    }
+    World w = hub; // A, on the promenade
+    w.layer = 0;
+    w.PlaceFeet({0.0f, st::kPromenadeY, zp});
+    // A: the promenade goes on west to the panel, which holds
+    CHECK(w.WalkPath({{-10.0f, kFloorY, zp}}) && w.At(-10.0f, st::kPromenadeY, zp, 0.4f));
+    {
+        World a = w;
+        a.Run(1.5f, Keys(1.0f), kNorth);
+        CHECK(a.player.Feet().z < st::kBackWallZ && st::RoomAt(a.player.Feet()) == Room("theatre"));
+    }
+    // N3: a jump at the panel, a switch to B in the air: through the breach onto the terrace
+    int through = 0;
+    int tried = 0;
+    for (float after : {0.15f, 0.25f, 0.35f})
+    {
+        World j = w;
+        j.PlaceFeet({-10.0f, st::kPromenadeY, st::kPromenadeZ0 + 0.6f});
+        ++tried;
+        if (j.RunJumpAlong(kNorth, st::kPromenadeZ0 + 0.7f, after, 1) && st::RoomAt(j.player.Feet()) == Room("theatre terrace"))
+        {
+            ++through;
+        }
+    }
+    std::printf("  N3: %d of %d tried timings go through the breach\n", through, tried);
+    CHECK(through >= 2);
+    // the light on the terrace
+    {
+        World t = hub;
+        t.layer = 1;
+        t.PlaceFeet({-10.0f, st::kPromenadeY, 88.0f});
+        st::LightSet set;
+        bool got = false;
+        for (int i = 0; i < 120 && !got; ++i)
+        {
+            t.Frame(Keys(1.0f), kNorth);
+            got = set.Collect(t.player) == 8;
+        }
+        CHECK(got);
+    }
+    // without it: in A the panel holds a jump; in B the west promenade is not there (a body on the east part that walks west
+    // falls into the rubble) and no jump from the east promenade or from row 3 reaches the breach
+    {
+        World a = w;
+        a.JumpFrom({-10.0f, st::kPromenadeY, st::kPromenadeZ0 + 0.6f}, kNorth, 0.3f);
+        CHECK(a.player.Feet().z < st::kBackWallZ);
+        World b = hub;
+        b.layer = 1;
+        b.PlaceFeet({0.0f, st::kPromenadeY, zp});
+        b.Run(2.0f, Keys(1.0f), W);
+        CHECK(b.player.Feet().y < st::kPromenadeY - 1.0f);
+        World c = hub;
+        c.layer = 1;
+        c.JumpFrom({-1.6f, st::kPromenadeY, zp}, Vec3{-0.8f, 0.0f, 0.6f}, 0.3f);
+        CHECK(st::RoomAt(c.player.Feet()) != Room("theatre terrace"));
+        World r = hub;
+        r.layer = 1;
+        r.JumpFrom({-10.0f, kFloorY + 4.0f * st::kRowRise, st::kRowsZ0 + 3.5f * st::kRowDepth}, kNorth, 0.3f);
+        CHECK(st::RoomAt(r.player.Feet()) != Room("theatre terrace"));
+    }
+}
+
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
 {
@@ -2402,6 +2483,7 @@ int main()
     TestHarbour();
     TestLockWalk();
     TestMarketWell();
+    TestTheatre();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

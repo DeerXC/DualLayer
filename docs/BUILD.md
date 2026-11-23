@@ -158,6 +158,8 @@ seen".
 | E-47 | the west hall: through the new door in its west wall, along the lane into the market; walk round it in A and in B; climb a counter and an awning in A | a walled square with stalls (awnings in A, bare posts and rotten crates in B), the clock tower, the lamp of the market; the well with its parapet; nothing to walk through |
 | E-48 | the well: down in A to the south-west corner, Tab, down in B to the floor, take the light; back up in B to the corner, Tab, up in A | the wooden south stretch in A only; the water of A over the west and north stretches; the day bell on the dry floor in B; Tab refused while in the water's place in A |
 | E-49 | look down from the gap, the terrace and the sky bridge | rock ravines below, no sea inside the town; the sea only in the bay and the harbour |
+| E-50 | the north hall: walk between the two ramps to the door under landing 1, up the lane onto the stage; down into the orchestra; up the aisle at the east end of the rows to the promenade, in A and in B | the stage wall with columns and painted scenery (A), broken (B); rows of seats; in B the west part of the upper rows and the promenade gone, rubble below |
+| E-51 | in A on the promenade, walk west to the wooden panel in the back wall; jump at it and press Tab in the air; take the light | the jump goes through the breach onto the terrace behind; without Tab the panel stops the body |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

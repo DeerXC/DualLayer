@@ -12,8 +12,7 @@
 //            houses under the line of the fall stand in A only; in B a low heap of rubble is where they were.
 // Houses:    each house gets a door on the side that faces the cathedral and windows on its upper floor; in A some windows
 //            are lit (the evening); in B the shells have none above the height they were broken at.
-// Districts: the theatre of the north (its seats, the
-//            stage), the graveyard outside the north wall with the night bell tower, the water tower over the locks of the east;
+// Districts: the graveyard outside the north wall with the night bell tower, the water tower over the locks of the east;
 //            and a lamp at every other crossing of the streets (docs/LEVEL_DESIGN.md 5.8).
 // Rule:      nothing here is solid, and nothing stands where a body can land on it: every box is 4.5 m or more from every room,
 //            or out of reach above it (tests/test_terrain.cpp, TestScenery).
@@ -316,53 +315,7 @@ inline void HouseDetails(std::vector<SceneObject>& out)
 
 inline constexpr Rgb kPaving{0.64f, 0.60f, 0.52f};
 
-// ---- the theatre of the north (docs/LEVEL_DESIGN.md 5.8): an open bowl north of the north hall: the orchestra, the stage and
-// its front wall against the stage tower (kLandmarks), the seats in rows rising north. In B the stage front stands lower, the
-// upper rows on the west have fallen, and grass grows in the orchestra.
-
-inline constexpr Rgb kSeatStone{0.78f, 0.71f, 0.60f};
-
-inline void TheatreScenery(std::vector<SceneObject>& out)
-{
-    const float y = kPlainY;
-    const float cx = kTheatreX;
-    const float cz = kTheatreZ;
-    Octagon(cx, cz, 6.0f, y - 0.2f, y + 0.08f, kPaving, kLayerBoth, out); // the orchestra
-    SceneObject grass = Span(cx - 3.0f, y + 0.08f, cz - 1.0f, cx + 2.0f, y + 0.1f, cz + 3.0f, Rgb{0.36f, 0.44f, 0.28f}, kLayerB);
-    out.push_back(grass);
-    out.push_back(Span(cx - 9.0f, y - 0.2f, 67.5f, cx + 9.0f, y + 1.0f, 70.5f, kWood, kLayerBoth)); // the stage
-    out.push_back(Span(cx - 9.0f, y - 0.2f, 67.0f, cx - 2.5f, y + 7.0f, 67.5f, kStone, kLayerA));  // its front wall (A)
-    out.push_back(Span(cx + 2.5f, y - 0.2f, 67.0f, cx + 9.0f, y + 7.0f, 67.5f, kStone, kLayerA));
-    out.push_back(Span(cx - 9.0f, y - 0.2f, 67.0f, cx - 2.5f, y + 3.0f, 67.5f, kBellStoneB, kLayerB)); // (B: lower)
-    out.push_back(Span(cx + 2.5f, y - 0.2f, 67.0f, cx + 9.0f, y + 2.2f, 67.5f, kBellStoneB, kLayerB));
-    // the scenery of the evening's play (A): a painted stair against the stage front
-    SceneObject scenery = Span(cx - 7.5f, y + 1.0f, 68.0f, cx - 5.5f, y + 5.5f, 68.6f, Rgb{0.56f, 0.44f, 0.62f}, kLayerA);
-    scenery.tilt = -0.35f;
-    out.push_back(scenery);
-    // the seats: seven rows on a half circle north of the orchestra, each 0.55 m higher
-    for (int row = 0; row < 7; ++row)
-    {
-        const float rad = 7.5f + 1.3f * static_cast<float>(row);
-        const float top = y + 0.55f * static_cast<float>(row + 1);
-        const int segments = 10 + 2 * row;
-        for (int k = 0; k < segments; ++k)
-        {
-            const float a = 3.14159265f * (static_cast<float>(k) + 0.5f) / static_cast<float>(segments);
-            const float px = cx + rad * std::cos(a);
-            const float pz = cz + rad * std::sin(a);
-            const float len = 3.14159265f * rad / static_cast<float>(segments) + 0.15f;
-            const bool fallen = row >= 4 && px < cx - 2.0f; // B: the upper rows on the west have fallen
-            SceneObject seat = Span(px - 0.5f * len, y - 0.2f, pz - 0.65f, px + 0.5f * len, top, pz + 0.65f, kSeatStone, fallen ? kLayerA : kLayerBoth);
-            seat.yaw = 1.5707963f - a;
-            out.push_back(seat);
-        }
-    }
-    for (int k = 0; k < 5; ++k) // B: where the upper west rows were, their stones lie in a heap
-    {
-        out.push_back(Span(cx - 15.0f + 2.0f * static_cast<float>(k), y - 0.2f, cz + 9.0f + static_cast<float>(k % 2), cx - 13.4f + 2.0f * static_cast<float>(k),
-                           y + 0.6f + 0.3f * static_cast<float>(k % 3), cz + 10.6f + static_cast<float>(k % 2), kBellStoneB, kLayerB));
-    }
-}
+// ---- the theatre of the north is part of the map (scene/Stage.h, docs/LEVEL_DESIGN.md 6.5.1).
 
 // ---- the graveyard on the hillside outside the north wall, with the night bell tower; in B a grave apart from the others,
 // with a stone lantern (docs/LEVEL_DESIGN.md 9.2)
@@ -478,7 +431,6 @@ void Scenery(HeightAt heightAt, std::vector<SceneObject>& out)
     TownWall(out);
     BellTower(out);
     HouseDetails(out);
-    TheatreScenery(out);
     GraveyardScenery(heightAt, out);
     WaterTowerScenery(out);
     StreetLamps(out);

@@ -68,7 +68,7 @@ constexpr int kDirections = 16;
 const char* const kWalkJoined[][2] = {
     {"quay", "sea stair"},       {"sea stair", "guardhouse"},  {"guardhouse", "terrace"},   {"terrace", "ditch"},        {"ditch", "gap"},                 {"gap", "courtyard"},        {"square", "west hall"},          {"west hall", "west lower"},
     {"west lower", "west vault"}, {"west lower", "west mezzanine"}, {"west lower", "west landing"}, {"square", "west landing"},
-    {"square", "east hall"},        {"east hall", "canal bed"}, {"east hall", "lock walk"}, {"west hall", "west lane"}, {"west lane", "market"}, {"market", "well"},  {"square", "undercroft"},     {"east hall", "east quay"},  {"east quay", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
+    {"square", "east hall"},        {"east hall", "canal bed"}, {"east hall", "lock walk"}, {"west hall", "west lane"}, {"west lane", "market"}, {"market", "well"}, {"north hall", "theatre lane"}, {"theatre lane", "theatre"},  {"square", "undercroft"},     {"east hall", "east quay"},  {"east quay", "east upper"}, {"square", "north hall"},         {"square", "cathedral"},
     {"west hall", "west passage"}, {"west passage", "north hall"}, {"north hall", "sky bridge"}, {"sky bridge", "east stairs"},
     {"east stairs", "east hall"}, {"cellar", "canal bed"}, {"cellar", "west lower"},
 };
