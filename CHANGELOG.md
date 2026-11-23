@@ -283,6 +283,18 @@
   no escape from 2193 places, 12624 walks and jumps; under the map 13404 points), `tests/test_reach.cpp` (0 skips, 171584 jumps),
   `tests/test_hints.cpp` (371: the water tower seen from the square), `tests/test_lights.cpp` (47). The north wall of the walk
   lowered to 1 m over the top terrace is caught by the search for skips and the search for escapes.
+- Made (2026-11-23, the market and the well, docs/LEVEL_DESIGN.md 6.3.1): a door in the west wall of the west hall, a lane to a
+  walled market with eight stalls (stone counters; solid awnings in A; rotten crates in B), a solid clock tower (its top drawn),
+  the lamp of the market (the ninth), and the great well: a shaft with a stair down its four walls (`Stage::WellStairs`; the
+  south stretch a wooden stair of A only), water of A 3 m deep (`Stage::kWellWaters`, fed from the trench), the fallen day bell
+  (solid, B) and a hidden light on its floor. Rooms `west lane`, `market`, `well`. The archive landmark moves north of the lane.
+  The market leaves `scene/Scenery.h` (it is walked now). `Puzzle::kMaxSolids` 400.
+- Changed (2026-11-23): the sea ends at the harbour (`Landscape::kSeaNorth`): the pits inside the town show rock, not water.
+- Checked (2026-11-23): `tests/test_stage.cpp` (3109; new `TestMarketWell`: the lane and the square walked in both layers; down
+  in A to the corner over the water, the west stretch under water in A, on in B to the floor and the light, back up in B to the
+  corner where the fallen stretch stops it, no jump to the next corner, up in A; caught when the wooden stretch is in both
+  layers), `tests/test_terrain.cpp` (170; no escape from 2766 places, 15678 walks and jumps), `tests/test_reach.cpp` (0 skips,
+  294080 jumps), `tests/test_hints.cpp` (442), `tests/test_lights.cpp` (49).
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

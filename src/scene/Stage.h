@@ -347,6 +347,28 @@ inline constexpr float kTerraceFloor[4] = {kFloorY, kFloorY + 2.0f, kFloorY + 4.
 inline constexpr float kBasinDepth = 2.5f;           // the bed of basin k: 2.5 m under terrace k
 inline constexpr float kLockWaterBelow = 0.6f;       // its water (A): 0.6 m under terrace k
 inline constexpr float kBasinStairWidth = 1.5f;      // the stair out of a dry basin, at its east end
+// the market of the west and its well (docs/LEVEL_DESIGN.md 6.3.1): a lane from a door in the west wall of the west hall to a
+// walled market square; in it the great well, a shaft 12 m across and 8 m deep, with a stair down its four walls. The south
+// stretch of the stair is a wooden stair of A (in B it has fallen); the water of A stands 3 m deep in the shaft, over the west
+// and north stretches. So: down in A to the corner over the water, then on in B to the dry bottom, where the day bell lies
+inline constexpr float kLaneZ0 = 33.6f;              // the lane, z 33.6 .. 35.6, from the west hall (x -24.5) to the market (x -34)
+inline constexpr float kLaneZ1 = 35.6f;
+inline constexpr float kMarketX0 = -61.0f;           // the market, x -61 .. -34, z 30 .. 60
+inline constexpr float kMarketX1 = -34.0f;
+inline constexpr float kMarketZ0 = 30.0f;
+inline constexpr float kMarketZ1 = 60.0f;
+inline constexpr float kShaftX0 = -54.0f;            // the shaft of the well, x -54 .. -42, z 38 .. 50
+inline constexpr float kShaftX1 = -42.0f;
+inline constexpr float kShaftZ0 = 38.0f;
+inline constexpr float kShaftZ1 = 50.0f;
+inline constexpr float kShaftWall = 0.6f;            // its walls, 1 m over the square: a parapet
+inline constexpr float kWellFloor = kFloorY - 8.0f;  // -9: the bottom
+inline constexpr float kWellWater = kFloorY - 5.0f;  // -6: the water of A
+inline constexpr float kLanding = 1.8f;              // the landings in the corners and the width of the stair
+inline constexpr float kLandingNE = kFloorY;          // the heights of the landings: NE -1 (the way in), SE -3, SW -5, NW -7
+inline constexpr float kLandingSE = kFloorY - 2.0f;
+inline constexpr float kLandingSW = kFloorY - 4.0f;
+inline constexpr float kLandingNW = kFloorY - 6.0f;
 inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
 // the cellar (docs/LEVEL_DESIGN.md, 14.8): the fourth link of the ring, from the canal bed of the east district west under the
 // courtyard to the lower room of the west wing. It carries the water of the canal: in A it is flooded and an iron sluice panel
@@ -552,6 +574,29 @@ constexpr float Level(int k)
     return kFloorY + static_cast<float>(k) * kRampRise;
 }
 
+/// A stall of the market: a stone counter (both layers) over its footprint, 0.95 m high.
+constexpr SceneObject MarketStall(float x, float z, bool alongZ, int)
+{
+    const float hx = alongZ ? 0.9f : 1.6f;
+    const float hz = alongZ ? 1.6f : 0.9f;
+    return Span(x - hx, kFloorY, z - hz, x + hx, kFloorY + 0.95f, z + hz, Rgb{0.66f, 0.62f, 0.55f}, kLayerBoth);
+}
+/// Its awning (A): cloth on a frame, 2.4 m over the square, a little larger than the counter; red or gold in turn.
+constexpr SceneObject MarketAwning(float x, float z, bool alongZ, int k)
+{
+    const float hx = (alongZ ? 0.9f : 1.6f) + 0.2f;
+    const float hz = (alongZ ? 1.6f : 0.9f) + 0.2f;
+    return Span(x - hx, kFloorY + 2.4f, z - hz, x + hx, kFloorY + 2.5f, z + hz, k % 2 == 0 ? Rgb{0.78f, 0.28f, 0.22f} : Rgb{0.88f, 0.72f, 0.34f},
+                kLayerA);
+}
+/// A rotten crate beside a stall (B), out of the way along the wall.
+constexpr SceneObject MarketCrate(float x, float z)
+{
+    const float dz = z < 45.0f ? -1.5f : 1.5f;
+    const float dx = x < -59.0f ? -0.6f : 1.9f;
+    return Span(x + dx - 0.35f, kFloorY, z + dz - 0.35f, x + dx + 0.35f, kFloorY + 0.5f, z + dz + 0.35f, Rgb{0.30f, 0.25f, 0.21f}, kLayerB);
+}
+
 inline constexpr SceneObject kFixed[] = {
     // ---- the prologue (docs/LEVEL_DESIGN.md, 14.6). Index 0 is the terrace, index 1 the gate (kGateIndex)
     Span(-3.0f, kTerraceY - 0.2f, kTerraceSouth, 3.0f, kTerraceY, kDitchEdge, kGrey, kLayerBoth, 1.0f),
@@ -666,7 +711,9 @@ inline constexpr SceneObject kFixed[] = {
     // floor (the orb and the plate of W2, the top of the ramp down)
     Floor(-24.0f, kTrenchNorth, -15.0f, 40.0f, kFloorY),
     Floor(-24.0f, 22.0f, -15.0f, kTrenchSouth, kFloorY),
-    Wall(-24.5f, kFloorY, 21.5f, -24.0f, kCityWallTop, 40.5f),
+    Wall(-24.5f, kFloorY, 21.5f, -24.0f, kCityWallTop, kLaneZ0),                                      // its west wall, with the
+    Wall(-24.5f, kFloorY, kLaneZ1, -24.0f, kCityWallTop, 40.5f),                                      // door to the lane of the
+    Wall(-24.5f, kFloorY + 2.4f, kLaneZ0, -24.0f, kCityWallTop, kLaneZ1),                             // market
     Wall(-15.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, kWingDoorZ0 - 0.5f),
     Wall(-15.0f, kFloorY, kWingDoorZ1 + 0.5f, -14.5f, kCityWallTop, 40.5f),
     Wall(-24.5f, kFloorY, 21.5f, -22.0f, kCityWallTop, 22.0f),
@@ -715,6 +762,42 @@ inline constexpr SceneObject kFixed[] = {
     Wall(24.0f, kCanalBed - 0.2f, 21.5f, 24.5f, kCityWallTop, kLockDoorZ0),                          // the east wall of the
     Wall(24.0f, kCanalBed - 0.2f, kLockDoorZ1, 24.5f, kCityWallTop, 40.5f),                           // hall, with the door
     Wall(24.0f, kFloorY + 2.2f, kLockDoorZ0, 24.5f, kCityWallTop, kLockDoorZ1),                       // to the lock walk
+    // ---- the lane and the market (6.3.1)
+    Floor(kMarketX1, kLaneZ0, -24.5f, kLaneZ1, kFloorY),
+    Wall(kMarketX1, kFloorY, kLaneZ0 - 0.5f, -24.5f, kCityWallTop, kLaneZ0),
+    Wall(kMarketX1, kFloorY, kLaneZ1, -24.5f, kCityWallTop, kLaneZ1 + 0.5f),
+    Floor(kMarketX0, kMarketZ0, kMarketX1, kShaftZ0 - kShaftWall, kFloorY),                            // the square round the shaft
+    Floor(kMarketX0, kShaftZ1 + kShaftWall, kMarketX1, kMarketZ1, kFloorY),
+    Floor(kMarketX0, kShaftZ0 - kShaftWall, kShaftX0 - kShaftWall, kShaftZ1 + kShaftWall, kFloorY),
+    Floor(kShaftX1 + kShaftWall, kShaftZ0 - kShaftWall, kMarketX1, kShaftZ1 + kShaftWall, kFloorY),
+    Wall(kMarketX0 - 0.5f, kFloorY, kMarketZ0 - 0.5f, kMarketX0, kCityWallTop, kMarketZ1 + 0.5f),     // its walls (the backs of
+    Wall(kMarketX0, kFloorY, kMarketZ1, kMarketX1 + 0.5f, kCityWallTop, kMarketZ1 + 0.5f),            // the houses round it)
+    Wall(kMarketX0, kFloorY, kMarketZ0 - 0.5f, kMarketX1 + 0.5f, kCityWallTop, kMarketZ0),
+    Wall(kMarketX1, kFloorY, kMarketZ0, kMarketX1 + 0.5f, kCityWallTop, kLaneZ0 - 0.5f),
+    Wall(kMarketX1, kFloorY, kLaneZ1 + 0.5f, kMarketX1 + 0.5f, kCityWallTop, kMarketZ1),
+    Wall(-42.5f, kFloorY, 52.5f, -37.5f, kFloorY + 12.0f, 57.5f),                                      // the clock tower (its top: decor)
+    // the well: its floor, its walls (a parapet 1 m over the square, open over the landing of the way in), the landings
+    Span(kShaftX0, kPitY, kShaftZ0, kShaftX1, kWellFloor, kShaftZ1, kGrey, kLayerBoth, 1.0f),
+    Wall(kShaftX0 - kShaftWall, kPitY, kShaftZ0 - kShaftWall, kShaftX1 + kShaftWall, kFloorY + 1.0f, kShaftZ0),
+    Wall(kShaftX0 - kShaftWall, kPitY, kShaftZ0, kShaftX0, kFloorY + 1.0f, kShaftZ1),
+    Wall(kShaftX1, kPitY, kShaftZ0, kShaftX1 + kShaftWall, kFloorY + 1.0f, kShaftZ1),
+    Wall(kShaftX0 - kShaftWall, kPitY, kShaftZ1, kShaftX1 - kLanding, kFloorY + 1.0f, kShaftZ1 + kShaftWall),
+    Wall(kShaftX1, kPitY, kShaftZ1, kShaftX1 + kShaftWall, kFloorY + 1.0f, kShaftZ1 + kShaftWall),
+    Wall(kShaftX1 - kLanding, kPitY, kShaftZ1, kShaftX1, kFloorY, kShaftZ1 + kShaftWall),              // (the sill of the way in)
+    Span(kShaftX1 - kLanding, kWellFloor, kShaftZ1 - kLanding, kShaftX1, kLandingNE, kShaftZ1, kStone, kLayerBoth),
+    Span(kShaftX1 - kLanding, kWellFloor, kShaftZ0, kShaftX1, kLandingSE, kShaftZ0 + kLanding, kStone, kLayerBoth),
+    Span(kShaftX0, kWellFloor, kShaftZ0, kShaftX0 + kLanding, kLandingSW, kShaftZ0 + kLanding, kStone, kLayerBoth),
+    Span(kShaftX0, kWellFloor, kShaftZ1 - kLanding, kShaftX0 + kLanding, kLandingNW, kShaftZ1, kStone, kLayerBoth),
+    Span(-49.2f, kWellFloor, 42.8f, -46.8f, kWellFloor + 2.6f, 45.2f, Rgb{0.70f, 0.55f, 0.28f}, kLayerB),  // B: the day bell, fallen
+    Span(-52.0f, kWellFloor, kShaftZ0, -46.0f, kWellFloor + 0.5f, kShaftZ0 + 1.2f, kDebris, kLayerB),  // B: the fallen stair
+    // the stalls: a stone counter each (both layers), an awning over it (A: solid cloth on its frame), a rotten crate (B)
+    MarketStall(-58.0f, 33.0f, false, 0), MarketStall(-52.0f, 33.0f, false, 1), MarketStall(-44.0f, 33.0f, false, 2),
+    MarketStall(-38.0f, 33.0f, false, 3), MarketStall(-58.0f, 57.0f, false, 4), MarketStall(-52.0f, 57.0f, false, 5),
+    MarketStall(-60.0f, 41.0f, true, 6), MarketStall(-60.0f, 47.0f, true, 7),
+    MarketAwning(-58.0f, 33.0f, false, 0), MarketAwning(-52.0f, 33.0f, false, 1), MarketAwning(-44.0f, 33.0f, false, 2),
+    MarketAwning(-38.0f, 33.0f, false, 3), MarketAwning(-58.0f, 57.0f, false, 4), MarketAwning(-52.0f, 57.0f, false, 5),
+    MarketAwning(-60.0f, 41.0f, true, 6), MarketAwning(-60.0f, 47.0f, true, 7),
+    MarketCrate(-58.0f, 33.0f), MarketCrate(-44.0f, 33.0f), MarketCrate(-52.0f, 57.0f), MarketCrate(-60.0f, 47.0f),
     // ---- the lock walk (E3): the terraces, solid down to the pit of the basins
     Span(kTerraceX0[0], kPitY, kLockWalkZ0, kTerraceX1[0], kTerraceFloor[0], kLockWalkZ1, kGrey, kLayerBoth, 1.0f),
     Span(kTerraceX0[1], kPitY, kLockWalkZ0, kTerraceX1[1], kTerraceFloor[1], kLockWalkZ1, kGrey, kLayerBoth, 1.0f),
@@ -863,7 +946,7 @@ inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
 
 /// Pieces of scene/Shapes.h: the breach in the north wall of the west hall (5 boxes), the slope of the stairs from the lookout
 /// (1), and the slopes of the two stairs down into the pool of the square (2). Their steps are drawn in kDecor.
-inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1 + 1 + 3 + kLockCount;
+inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1 + 1 + 3 + kLockCount + 4;
 /// The two stairs down into the pool: south-east (from the south rim, beside the east rim) and north-west (from the north rim,
 /// beside the west rim), so that the pool is entered at its two opposite corners.
 inline void PoolStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
@@ -900,6 +983,29 @@ inline void LockStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>
                        shapes::kStoneLight, solid, drawn);
     }
 }
+/// The stair down the walls of the well: east (both layers), south (A: a wooden stair; in B it has fallen), west and north
+/// (both layers), from landing to landing, 2 m down over 8.4 m each.
+inline void WellStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
+{
+    const float a0 = kShaftZ0 + kLanding;
+    const float a1 = kShaftZ1 - kLanding;
+    const float b0 = kShaftX0 + kLanding;
+    const float b1 = kShaftX1 - kLanding;
+    shapes::Stairs(kShaftX1 - kLanding, kShaftX1, a1, kLandingNE, a0, kLandingSE, shapes::kStoneLight, solid, drawn);
+    const std::size_t solidFirst = solid.size();
+    const std::size_t drawnFirst = drawn.size();
+    shapes::StairsX(kShaftZ0, kShaftZ0 + kLanding, b1, kLandingSE, b0, kLandingSW, shapes::Rgb{kWood.r, kWood.g, kWood.b}, solid, drawn);
+    for (std::size_t i = solidFirst; i < solid.size(); ++i)
+    {
+        solid[i].layerMask = kLayerA;
+    }
+    for (std::size_t i = drawnFirst; i < drawn.size(); ++i)
+    {
+        drawn[i].layerMask = kLayerA;
+    }
+    shapes::Stairs(kShaftX0, kShaftX0 + kLanding, a0, kLandingSW, a1, kLandingNW, shapes::kStoneLight, solid, drawn);
+    shapes::StairsX(kShaftZ1 - kLanding, kShaftZ1, b0, kLandingNW, b1, kWellFloor, shapes::kStoneLight, solid, drawn);
+}
 inline std::array<SceneObject, kPieceCount> BuildPieces()
 {
     std::vector<SceneObject> v;
@@ -911,6 +1017,7 @@ inline std::array<SceneObject, kPieceCount> BuildPieces()
     CanalStairs(v, steps);
     SeaStair(v, steps);
     LockStairs(v, steps);
+    WellStairs(v, steps);
     std::array<SceneObject, kPieceCount> out{};
     for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
     {
@@ -938,6 +1045,7 @@ inline constexpr AnchorDesc kAnchors[] = {
     {{-16.0f, kFloorY, 38.6f}, {-16.0f, kFloorY, 37.3f}, "west hall", "the archive"},
     {{23.2f, kFloorY, 33.0f}, {21.9f, kFloorY, 33.0f}, "east hall", "the canal"},
     {{29.0f, kFloorY, 35.5f}, {29.0f, kFloorY, 34.2f}, "lock walk", "the locks"},
+    {{-35.2f, kFloorY, 58.6f}, {-35.2f, kFloorY, 57.3f}, "market", "the market"},
     {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the bell tower"},
 };
 inline constexpr int kAnchorCount = static_cast<int>(sizeof(kAnchors) / sizeof(kAnchors[0]));
@@ -1064,6 +1172,9 @@ inline constexpr Room kRooms[] = {
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
     {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
+    {"well", kShaftX0, kWellFloor - 0.5f, kShaftZ0, kShaftX1, kFloorY - 0.3f, kShaftZ1, {kShaftX0 + 0.9f, kLandingSW, kShaftZ0 + 0.9f}, false},
+    {"market", kMarketX0, kFloorY - 0.5f, kMarketZ0, kMarketX1, kFloorY + 3.0f, kMarketZ1, {-36.0f, kFloorY, 34.6f}, false},
+    {"west lane", kMarketX1, kFloorY - 0.5f, kLaneZ0, -24.5f, kFloorY + 1.5f, kLaneZ1, {-28.0f, kFloorY, 34.6f}, false},
     {"lock walk", 24.0f, kTerraceFloor[0] - kBasinDepth - 0.5f, kBasinZ0, kLockEast, kTerraceFloor[3] + 1.5f, kLockWalkZ1, {26.5f, kFloorY, 34.5f}, false},
     {"quay", kQuayX0, kHarbourY - 0.5f, kQuayZ0, kQuayX1, kHarbourY + 0.5f, kQuayZ1, {6.0f, kHarbourY, -52.5f}, false},
     {"sea stair", -kSeaStairHalf, kHarbourY - 0.5f, kQuayZ1, kSeaStairHalf, kTerraceY + 0.5f, kTerraceSouth, {0.0f, kTerraceY, -26.0f}, false},
@@ -1285,8 +1396,8 @@ constexpr SceneObject Landmark(ShapeKind shape, float x, float y, float z, float
     return o;
 }
 inline constexpr SceneObject kLandmarks[] = {
-    Span(-29.0f, kFloorY, 25.0f, -26.0f, 20.0f, 37.0f, kArchive, kLayerBoth),                       // west: the archive, a wall of shelves
-    Span(-29.5f, 20.0f, 30.0f, -25.5f, 21.0f, 32.0f, kGold, kLayerBoth),                            // its gold crown
+    Span(-29.0f, kFloorY, 36.5f, -26.0f, 20.0f, 47.0f, kArchive, kLayerBoth),                       // west: the archive, a wall of shelves
+    Span(-29.5f, 20.0f, 40.5f, -25.5f, 21.0f, 42.5f, kGold, kLayerBoth),                            // its gold crown (north of the lane)
     Span(57.0f, 31.0f, 17.0f, 62.0f, 35.0f, 22.0f, Rgb{0.72f, 0.66f, 0.56f}, kLayerA),             // east: the tank of the water tower (A)
     Span(-2.5f, kFloorY, 63.0f, 2.5f, 21.0f, 67.0f, kStone, kLayerBoth),                            // north: the stage tower of the theatre
     Landmark(ShapeKind::Sphere, 0.0f, 23.0f, 65.0f, 3.0f, 0.0f, 0.0f, kGold),                       // its bell
@@ -1316,6 +1427,11 @@ inline constexpr shapes::Water kLockWaters[kLockCount] = {
     {kTerraceX0[0], kBasinZ0, kTerraceX1[0], kLockWalkZ0, kTerraceFloor[0] - kLockWaterBelow, kBasinDepth - kLockWaterBelow},
     {kTerraceX0[1], kBasinZ0, kTerraceX1[1], kLockWalkZ0, kTerraceFloor[1] - kLockWaterBelow, kBasinDepth - kLockWaterBelow},
     {kTerraceX0[2], kBasinZ0, kTerraceX1[2], kLockWalkZ0, kTerraceFloor[2] - kLockWaterBelow, kBasinDepth - kLockWaterBelow},
+};
+
+/// The water of the great well (A): 3 m deep over its floor.
+inline constexpr shapes::Water kWellWaters[] = {
+    {kShaftX0, kShaftZ0, kShaftX1, kShaftZ1, kWellWater, kWellWater - kWellFloor},
 };
 
 /// The canal of the east district (scene/Canal.h): the crate floats 0.5 m out of the water; low, its top is 2.4 m under the
@@ -1368,6 +1484,7 @@ inline constexpr WaterFeed kWaterFeeds[] = {
     {"the upper lock", "the aqueduct", kFloorY + 4.0f - 0.6f}, // a spout from the aqueduct over the walk
     {"the middle lock", "the upper lock", kFloorY + 2.0f - 0.6f}, // each lock fills the one below it
     {"the lower lock", "the middle lock", kFloorY - 0.6f},
+    {"the well", "the trench", kWellWater},          // a drain from the trench of the west hall, under the lane
 };
 inline constexpr int kWaterFeedCount = static_cast<int>(sizeof(kWaterFeeds) / sizeof(kWaterFeeds[0]));
 
@@ -2089,6 +2206,47 @@ inline void CourtyardDecor(std::vector<SceneObject>& drawn)
     BlindArcade(true, kCourtNorth, -1.0f, kCourtWest, kCourtEast, kDoorX - kDoorwayHalfWidth - 0.2f, kDoorX + kDoorwayHalfWidth + 0.2f, drawn);
 }
 
+// ---- the market (6.3.1): what is drawn only, all of it out of reach or flat: the top of the clock tower (A: piers, a roof
+// slab, the day bell, its faces; B: broken) and the posts of the stalls (A: wood; B: grey, bare)
+inline void MarketDecor(std::vector<SceneObject>& drawn)
+{
+    const float y = kFloorY;
+    const float tx = -40.0f;
+    const float tz = 55.0f;
+    drawn.push_back(Span(tx - 2.5f, y + 12.0f, tz - 2.5f, tx + 2.5f, y + 18.0f, tz + 2.5f, kStone, kLayerA));
+    for (int k = 0; k < 4; ++k)
+    {
+        const float px = tx + (k % 2 == 0 ? -2.2f : 1.6f);
+        const float pz = tz + (k < 2 ? -2.2f : 1.6f);
+        drawn.push_back(Span(px, y + 18.0f, pz, px + 0.6f, y + 21.0f, pz + 0.6f, kStone, kLayerA));
+    }
+    drawn.push_back(Span(tx - 2.8f, y + 21.0f, tz - 2.8f, tx + 2.8f, y + 21.6f, tz + 2.8f, kStone, kLayerA));
+    SceneObject bell = Span(tx - 1.1f, y + 18.6f, tz - 1.1f, tx + 1.1f, y + 20.6f, tz + 1.1f, Rgb{0.70f, 0.55f, 0.28f}, kLayerA);
+    bell.glow = 0.2f;
+    drawn.push_back(bell);
+    const Rgb face{0.86f, 0.74f, 0.42f};
+    drawn.push_back(Span(tx - 1.1f, y + 13.5f, tz - 2.56f, tx + 1.1f, y + 15.7f, tz - 2.5f, face, kLayerA));
+    drawn.push_back(Span(tx - 1.1f, y + 13.5f, tz + 2.5f, tx + 1.1f, y + 15.7f, tz + 2.56f, face, kLayerA));
+    drawn.push_back(Span(tx - 2.56f, y + 13.5f, tz - 1.1f, tx - 2.5f, y + 15.7f, tz + 1.1f, face, kLayerA));
+    drawn.push_back(Span(tx + 2.5f, y + 13.5f, tz - 1.1f, tx + 2.56f, y + 15.7f, tz + 1.1f, face, kLayerA));
+    drawn.push_back(Span(tx - 2.5f, y + 12.0f, tz - 2.5f, tx + 2.5f, y + 13.2f, tz + 2.5f, Rgb{0.47f, 0.48f, 0.49f}, kLayerB)); // B: broken
+    const float stalls[][3] = {{-58.0f, 33.0f, 0.0f}, {-52.0f, 33.0f, 0.0f}, {-44.0f, 33.0f, 0.0f}, {-38.0f, 33.0f, 0.0f},
+                               {-58.0f, 57.0f, 0.0f}, {-52.0f, 57.0f, 0.0f}, {-60.0f, 41.0f, 1.0f}, {-60.0f, 47.0f, 1.0f}};
+    for (const auto& st : stalls)
+    {
+        const bool alongZ = st[2] > 0.5f;
+        const float hx = alongZ ? 0.9f : 1.6f;
+        const float hz = alongZ ? 1.6f : 0.9f;
+        for (int k = 0; k < 4; ++k) // a post on each corner of the counter, from its top to the awning
+        {
+            const float px = st[0] + (k % 2 == 0 ? -hx : hx - 0.12f);
+            const float pz = st[1] + (k < 2 ? -hz : hz - 0.12f);
+            drawn.push_back(Span(px, y + 0.95f, pz, px + 0.12f, y + 2.4f, pz + 0.12f, kWood, kLayerA));
+            drawn.push_back(Span(px, y + 0.95f, pz, px + 0.12f, y + 2.0f, pz + 0.12f, Rgb{0.30f, 0.25f, 0.21f}, kLayerB));
+        }
+    }
+}
+
 inline std::vector<SceneObject> BuildDecor()
 {
     std::vector<SceneObject> solid;
@@ -2105,6 +2263,8 @@ inline std::vector<SceneObject> BuildDecor()
     AqueductDecor(drawn);
     CathedralDecor(drawn);
     CourtyardDecor(drawn);
+    WellStairs(solid, drawn); // (the slopes: kPieces)
+    MarketDecor(drawn);
     Battlements(drawn);
     WallParts(drawn);
     // arched heads in the openings of the square into the wings (drawn only, above every head)
@@ -2190,6 +2350,10 @@ void ForEachWater(F f)
     {
         f(w);
     }
+    for (const shapes::Water& w : kWellWaters)
+    {
+        f(w);
+    }
 }
 
 /// True when a body whose feet are at `feet` in `layer` is under water.
@@ -2231,7 +2395,7 @@ inline int AddWaterForOrbs(SceneObject* out, int count, int capacity, const Wate
 
 inline constexpr Vec3 kMasterSluice{2.7f, kSummitY + 1.1f, 28.25f}; ///< the wheel on the balcony, beside the goal light
 inline constexpr int kWaterDrawCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0])) +
-                                       static_cast<int>(sizeof(kCellarWaters) / sizeof(kCellarWaters[0])) + kLockCount + 3 + 3;
+                                       static_cast<int>(sizeof(kCellarWaters) / sizeof(kCellarWaters[0])) + kLockCount + 1 + 3 + 3;
 
 /// Adds to a DRAWN table the water of A as it is now (the trench, the pool, the cellar; while the aqueduct runs, the water in
 /// its channel, the waterfall into the pool and the spill of the culvert) and the master sluice on the balcony (an iron wheel

@@ -5,8 +5,8 @@
 //            noise: hills east and west, a mountain to the north in ridged layers, rough ground outside the town, a bank that
 //            falls to the sea in the south. Under the parts of the map that have no floor at street level (kPits) the
 //            ground drops to kPitY, below every fall line: a fall stays a fall, and nothing of the ground shows in a room.
-// Sea:       one flat plane at kSeaY, drawn round the eye each frame and wider than the far plane (AddSea): it fills the bay
-//            and the pits that are deeper than it. Not solid: a fall into it is a fall.
+// Sea:       one flat plane at kSeaY, drawn round the eye each frame and wider than the far plane (AddSea), south of kSeaNorth:
+//            it fills the bay and the harbour; the pits inside the town show their floor of rock. Not solid: a fall into it is a fall.
 // Plants:    placed by what grows on the ground there (5.6): the kind by height, slope, the side the slope faces and the
 //            wind; never on a grid (points scattered with a distance between them); gardens in the empty plots of the town.
 //            Drawn only, both worlds (B darker; the lemon trees of the gardens dead in B).
@@ -127,7 +127,10 @@ inline const terrain::Land& TheLand()
 // ---- the sea
 
 inline constexpr float kSeaHalf = kViewDistance + 60.0f; ///< UNITS: metres: half the side of the sea plane
-inline constexpr float kSeaSnap = 20.0f;                  ///< the plane moves in steps of this, so its pattern does not slide
+inline constexpr float kSeaSnap = 20.0f;
+/// UNITS: metres: the sea ends here to the north: it fills the bay and the harbour, not the pits inside the town (those show
+/// their floor of rock: a ravine, not a moat)
+inline constexpr float kSeaNorth = kTerraceSouth;                  ///< the plane moves in steps of this, so its pattern does not slide
 
 /// Adds the sea, centred under the eye (both worlds, each in its own colour). Returns the new count.
 inline int AddSea(const Vec3& eye, SceneObject* out, int count, int capacity)
@@ -138,7 +141,12 @@ inline int AddSea(const Vec3& eye, SceneObject* out, int count, int capacity)
     const unsigned masks[2] = {kLayerA, kLayerB};
     for (int k = 0; k < 2 && out != nullptr && count >= 0 && count < capacity; ++k)
     {
-        SceneObject o = Span(cx - kSeaHalf, kSeaY - 0.2f, cz - kSeaHalf, cx + kSeaHalf, kSeaY, cz + kSeaHalf, colours[k], masks[k]);
+        const float north = cz + kSeaHalf < kSeaNorth ? cz + kSeaHalf : kSeaNorth;
+        if (north <= cz - kSeaHalf)
+        {
+            break; // the eye is so far north that the sea is out of sight
+        }
+        SceneObject o = Span(cx - kSeaHalf, kSeaY - 0.2f, cz - kSeaHalf, cx + kSeaHalf, kSeaY, north, colours[k], masks[k]);
         o.shineStrength = 0.6f;
         o.shininess = 60.0f;
         o.glow = 0.03f; // its own colour, not the stone of the town

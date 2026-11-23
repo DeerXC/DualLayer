@@ -1725,8 +1725,8 @@ void TestAnchors()
     CHECK(lit == first && anchors.Lit(first) && !anchors.Lit(0) && !anchors.Lit(first + 1));
     CHECK(Near(anchors.RespawnPoint(terrace).x, st::kAnchors[first].stand.x, 1e-5f) && Near(anchors.RespawnPoint(terrace).z, st::kAnchors[first].stand.z, 1e-5f));
     CHECK(Near(anchors.RespawnPoint(Room("courtyard")).x, st::kRooms[Room("courtyard")].entry.x, 1e-5f)); // a room without a lamp
-    SceneObject table[8] = {};
-    CHECK(anchors.AddDraw(table, 0, 8) == st::kAnchorCount && table[first].glow > 1.0f && table[0].glow < 0.5f);
+    SceneObject table[16] = {};
+    CHECK(anchors.AddDraw(table, 0, 16) == st::kAnchorCount && table[first].glow > 1.0f && table[0].glow < 0.5f);
     CHECK(table[first].layerMask == kLayerBoth && st::AddRespawnRing({0, 0, 0}, 0.2f, table, 0, 8) == 1 && st::AddRespawnRing({0, 0, 0}, -1.0f, table, 0, 8) == 0);
     // a pedestal is the same in both layers (both, and a trace of light: not the stone of the layer)
     int pedestals = 0;
@@ -1780,6 +1780,10 @@ float WaterTopOf(std::string_view name)
         const int k = name == "the lower lock" ? 0 : (name == "the middle lock" ? 1 : 2);
         return st::kLockWaters[k].top;
     }
+    if (name == "the well")
+    {
+        return st::kWellWater;
+    }
     if (name == "the aqueduct")
     {
         return st::kAqueductBottom;
@@ -1790,7 +1794,7 @@ float WaterTopOf(std::string_view name)
 void TestWater()
 {
     // every water of A is fed, through a chain, by the aqueduct; each feed runs downhill
-    CHECK(st::kWaterFeedCount == st::kWaterCount + 2 + st::kLockCount); // the static waters, the canal, the cellar, the locks
+    CHECK(st::kWaterFeedCount == st::kWaterCount + 2 + st::kLockCount + 1); // the static waters, the canal, the cellar, the locks, the well
     for (const st::WaterFeed& f : st::kWaterFeeds)
     {
         CHECK(Near(f.top, WaterTopOf(f.water), 1e-4f));
@@ -2086,6 +2090,70 @@ void TestLockWalk()
     CHECK(!dryTouch);
 }
 
+/// The market and the well (docs/LEVEL_DESIGN.md 6.3.1): from the west hall along the lane into the market; down the stair of
+/// the well in A to the corner over the water, then in B to the dry bottom and its light; back up in B the fallen stretch
+/// stops the body, in A it is walked.
+void TestMarketWell()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const float xe = st::kShaftX1 - 0.9f;  // the middle of the east stretch
+    const float xw = st::kShaftX0 + 0.9f;  // of the west
+    const float zs = st::kShaftZ0 + 0.9f;  // of the south
+    const float zn = st::kShaftZ1 - 0.9f;  // of the north
+    World w = hub;
+    w.layer = 0;
+    w.PlaceFeet(st::kRooms[Room("west hall")].entry);
+    CHECK(w.WalkPath({{-20.0f, kFloorY, 34.6f}, {-28.0f, kFloorY, 34.6f}}) && st::RoomAt(w.player.Feet()) == Room("west lane"));
+    CHECK(w.WalkPath({{-36.0f, kFloorY, 34.6f}, {-36.5f, kFloorY, 51.6f}, {xe, kFloorY, 51.6f}}) && st::RoomAt(w.player.Feet()) == Room("market"));
+    for (int layer = 0; layer < 2; ++layer) // the lane and the square are walked in both layers
+    {
+        World u = hub;
+        u.layer = layer;
+        u.PlaceFeet(st::kRooms[Room("west hall")].entry);
+        CHECK(u.WalkPath({{-20.0f, kFloorY, 34.6f}, {-36.0f, kFloorY, 34.6f}, {-36.0f, kFloorY, 45.0f}}) &&
+              st::RoomAt(u.player.Feet()) == Room("market"));
+    }
+    // down in A: the east stretch, the wooden south stretch, to the south-west corner, 1 m over the water
+    CHECK(w.WalkPath({{xe, kFloorY, zn}, {xe, kFloorY, zs}, {xw, kFloorY, zs}}) && w.At(xw, st::kLandingSW, zs, 0.4f));
+    CHECK(st::RoomAt(w.player.Feet()) == Room("well") && !w.InWater());
+    {
+        World a = w; // on in A: the west stretch goes under the water
+        bool wet = false;
+        for (int i = 0; i < 300 && !wet; ++i)
+        {
+            a.Frame(Keys(1.0f), kNorth);
+            wet = a.InWater();
+        }
+        CHECK(wet);
+    }
+    CHECK(w.Switch(1));
+    CHECK(w.WalkPath({{xw, kFloorY, zn}, {-45.0f, kFloorY, zn}, {-45.0f, kFloorY, 46.0f}}) && w.At(-45.0f, st::kWellFloor, 46.0f, 0.4f));
+    st::LightSet lights;
+    for (int i = 0; i < 120 && !lights.Taken(7); ++i)
+    {
+        w.Frame(Keys(1.0f), Vec3{-0.2f, 0.0f, -0.98f});
+        lights.Collect(w.player);
+    }
+    CHECK(lights.Taken(7));
+    // back up in B to the south-west corner; the fallen stretch stops it there
+    CHECK(w.WalkPath({{-44.2f, kFloorY, 47.5f}, {-44.2f, kFloorY, zn}, {xw, kFloorY, zn}, {xw, kFloorY, zs}}) && w.At(xw, st::kLandingSW, zs, 0.4f));
+    {
+        World b = w;
+        b.Run(2.0f, Keys(1.0f), kEast);
+        CHECK(b.player.Feet().y < st::kLandingSW - 1.0f); // off the corner, down to the floor
+        World j = w;
+        CHECK(j.JumpFrom({xw, st::kLandingSW, zs}, kEast, 0.3f) < st::kLandingSE - 1.0f); // no jump reaches the next corner
+    }
+    CHECK(w.Switch(0));
+    CHECK(w.WalkPath({{xe, kFloorY, zs}, {xe, kFloorY, zn}, {xe, kFloorY, 51.6f}}) && w.At(xe, kFloorY, 51.6f, 0.4f));
+    // from the bottom no jump reaches a landing without the stair
+    World f = hub;
+    f.layer = 1;
+    CHECK(f.JumpFrom({-45.0f, st::kWellFloor, 40.5f}, kSouth, 0.3f) < st::kWellFloor + 0.5f);
+}
+
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
 {
@@ -2333,6 +2401,7 @@ int main()
     TestCityState();
     TestHarbour();
     TestLockWalk();
+    TestMarketWell();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

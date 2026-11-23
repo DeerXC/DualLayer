@@ -12,7 +12,7 @@
 //            houses under the line of the fall stand in A only; in B a low heap of rubble is where they were.
 // Houses:    each house gets a door on the side that faces the cathedral and windows on its upper floor; in A some windows
 //            are lit (the evening); in B the shells have none above the height they were broken at.
-// Districts: the market of the west (the great well, its stalls, the clock tower), the theatre of the north (its seats, the
+// Districts: the theatre of the north (its seats, the
 //            stage), the graveyard outside the north wall with the night bell tower, the water tower over the locks of the east;
 //            and a lamp at every other crossing of the streets (docs/LEVEL_DESIGN.md 5.8).
 // Rule:      nothing here is solid, and nothing stands where a body can land on it: every box is 4.5 m or more from every room,
@@ -311,114 +311,10 @@ inline void HouseDetails(std::vector<SceneObject>& out)
     }
 }
 
-// ---- the market of the west (docs/LEVEL_DESIGN.md 5.8): a paved square round the great well, stalls on its edges, the clock
-// tower with the day bell. The well is a shaft in the ground (Stage kPits): a square spiral steps down its walls; in A water
-// stands in it and the day bell hangs in the clock tower; in B the shaft is dry and the bell lies at its bottom.
+// ---- the market of the west is part of the map (scene/Stage.h, docs/LEVEL_DESIGN.md 6.3.1): its square, its well, its stalls
+// and its clock tower are walked, so they are solid boxes of the map and its drawn decor, not scenery.
 
 inline constexpr Rgb kPaving{0.64f, 0.60f, 0.52f};
-inline constexpr Rgb kAwningRed{0.78f, 0.28f, 0.22f};
-inline constexpr Rgb kAwningGold{0.88f, 0.72f, 0.34f};
-inline constexpr Rgb kWoodB{0.30f, 0.25f, 0.21f};
-
-inline void MarketScenery(std::vector<SceneObject>& out)
-{
-    const float y = kPlainY;
-    const float r = kWellR;
-    out.push_back(Span(-62.0f, y - 0.1f, 30.0f, kWellX - r - 0.6f, y + 0.05f, 60.0f, kPaving, kLayerBoth)); // the paving round the shaft
-    out.push_back(Span(kWellX + r + 0.6f, y - 0.1f, 30.0f, -34.0f, y + 0.05f, 60.0f, kPaving, kLayerBoth));
-    out.push_back(Span(kWellX - r - 0.6f, y - 0.1f, 30.0f, kWellX + r + 0.6f, y + 0.05f, kWellZ - r - 0.6f, kPaving, kLayerBoth));
-    out.push_back(Span(kWellX - r - 0.6f, y - 0.1f, kWellZ + r + 0.6f, kWellX + r + 0.6f, y + 0.05f, 60.0f, kPaving, kLayerBoth));
-    // the parapet and the walls of the shaft, down to the floor of the pit
-    const float x0 = kWellX - r;
-    const float x1 = kWellX + r;
-    const float z0 = kWellZ - r;
-    const float z1 = kWellZ + r;
-    out.push_back(Span(x0 - 0.6f, kPitY, z0 - 0.6f, x1 + 0.6f, y + 1.0f, z0, kStone, kLayerBoth));
-    out.push_back(Span(x0 - 0.6f, kPitY, z1, x1 + 0.6f, y + 1.0f, z1 + 0.6f, kStone, kLayerBoth));
-    out.push_back(Span(x0 - 0.6f, kPitY, z0, x0, y + 1.0f, z1, kStone, kLayerBoth));
-    out.push_back(Span(x1, kPitY, z0, x1 + 0.6f, y + 1.0f, z1, kStone, kLayerBoth));
-    // the square spiral: a ledge 1.4 m wide down each wall in turn, 1.6 m lower at each corner; in B one stretch has fallen
-    float top = y - 0.2f;
-    for (int k = 0; k < 8 && top > kPitY + 2.0f; ++k)
-    {
-        const int side = k % 4;
-        const unsigned mask = k == 5 ? kLayerA : kLayerBoth;
-        const Rgb c = k == 5 ? kWood : kPaving;
-        const float w = 1.4f;
-        if (side == 0)
-        {
-            out.push_back(Span(x0, top - 0.3f, z0, x1 - w, top, z0 + w, c, mask));
-        }
-        else if (side == 1)
-        {
-            out.push_back(Span(x1 - w, top - 0.3f, z0, x1, top, z1 - w, c, mask));
-        }
-        else if (side == 2)
-        {
-            out.push_back(Span(x0 + w, top - 0.3f, z1 - w, x1, top, z1, c, mask));
-        }
-        else
-        {
-            out.push_back(Span(x0, top - 0.3f, z0 + w, x0 + w, top, z1, c, mask));
-        }
-        top -= 1.6f;
-    }
-    // A: the water in the shaft; B: its floor, dry, and the day bell lying on it
-    SceneObject water = Span(x0, kPitY, z0, x1, kSeaY + 1.0f, z1, Rgb{0.20f, 0.42f, 0.60f}, kLayerA);
-    water.glow = 0.05f;
-    out.push_back(water);
-    out.push_back(Span(x0, kPitY, z0, x1, kPitY + 0.3f, z1, kDebris, kLayerB));
-    SceneObject bell = Span(kWellX - 1.6f, kPitY + 0.2f, kWellZ - 1.6f, kWellX + 1.6f, kPitY + 2.8f, kWellZ + 1.6f, kBellBronze, kLayerB);
-    bell.tilt = 0.6f;
-    bell.yaw = 0.5f;
-    out.push_back(bell);
-    // the clock tower on the north-east corner of the square: a clock face on each side (bronze in A, dark in B), the day
-    // bell in its open top (A); in B its top has fallen
-    const float tx = -40.0f;
-    const float tz = 55.0f;
-    out.push_back(Span(tx - 2.5f, y - 0.5f, tz - 2.5f, tx + 2.5f, y + 12.0f, tz + 2.5f, kStone, kLayerBoth));
-    out.push_back(Span(tx - 2.5f, y + 12.0f, tz - 2.5f, tx + 2.5f, y + 18.0f, tz + 2.5f, kStone, kLayerA));
-    for (int k = 0; k < 4; ++k)
-    {
-        const float px = tx + (k % 2 == 0 ? -2.2f : 1.6f);
-        const float pz = tz + (k < 2 ? -2.2f : 1.6f);
-        out.push_back(Span(px, y + 18.0f, pz, px + 0.6f, y + 21.0f, pz + 0.6f, kStone, kLayerA));
-    }
-    out.push_back(Span(tx - 2.8f, y + 21.0f, tz - 2.8f, tx + 2.8f, y + 21.6f, tz + 2.8f, kStone, kLayerA));
-    Octagon(tx, tz, 1.2f, y + 18.6f, y + 20.6f, kBellBronze, kLayerA, out);
-    const Rgb faceA{0.86f, 0.74f, 0.42f};
-    out.push_back(Span(tx - 1.1f, y + 13.5f, tz - 2.56f, tx + 1.1f, y + 15.7f, tz - 2.5f, faceA, kLayerA));
-    out.push_back(Span(tx - 1.1f, y + 13.5f, tz + 2.5f, tx + 1.1f, y + 15.7f, tz + 2.56f, faceA, kLayerA));
-    out.push_back(Span(tx - 2.56f, y + 13.5f, tz - 1.1f, tx - 2.5f, y + 15.7f, tz + 1.1f, faceA, kLayerA));
-    out.push_back(Span(tx + 2.5f, y + 13.5f, tz - 1.1f, tx + 2.56f, y + 15.7f, tz + 1.1f, faceA, kLayerA));
-    out.push_back(Span(tx - 2.5f, y + 12.0f, tz - 2.5f, tx + 2.5f, y + 13.5f, tz + 2.5f, kBellStoneB, kLayerB)); // B: broken
-    // the stalls round the square: posts and a counter in both worlds, an awning in A; in B the bare frame and a rotten crate
-    const float stalls[][3] = {{-58.0f, 33.0f, 0.0f}, {-52.0f, 33.0f, 0.0f}, {-44.0f, 33.0f, 0.0f}, {-38.0f, 33.0f, 0.0f},
-                               {-58.0f, 57.0f, 1.0f}, {-52.0f, 57.0f, 1.0f}, {-60.0f, 41.0f, 2.0f}, {-60.0f, 47.0f, 2.0f}};
-    int n = 0;
-    for (const auto& st : stalls)
-    {
-        const float sx = st[0];
-        const float sz = st[1];
-        const bool alongZ = st[2] > 1.5f;
-        const float hx = alongZ ? 0.9f : 1.6f;
-        const float hz = alongZ ? 1.6f : 0.9f;
-        for (int k = 0; k < 4; ++k)
-        {
-            const float px = sx + (k % 2 == 0 ? -hx : hx - 0.12f);
-            const float pz = sz + (k < 2 ? -hz : hz - 0.12f);
-            out.push_back(Span(px, y, pz, px + 0.12f, y + 2.4f, pz + 0.12f, kWood, kLayerA));
-            out.push_back(Span(px, y, pz, px + 0.12f, y + 2.4f, pz + 0.12f, kWoodB, kLayerB));
-        }
-        out.push_back(Span(sx - hx, y, sz - hz * 0.4f, sx + hx, y + 0.95f, sz + hz * 0.4f, kWood, kLayerA));
-        SceneObject awning = Span(sx - hx - 0.2f, y + 2.4f, sz - hz - 0.2f, sx + hx + 0.2f, y + 2.5f, sz + hz + 0.2f, n % 2 == 0 ? kAwningRed : kAwningGold,
-                                  kLayerA);
-        awning.tilt = alongZ ? 0.0f : 0.12f;
-        out.push_back(awning);
-        out.push_back(Span(sx - 0.4f, y, sz - 0.4f, sx + 0.3f, y + 0.5f, sz + 0.3f, kWoodB, kLayerB));
-        ++n;
-    }
-}
 
 // ---- the theatre of the north (docs/LEVEL_DESIGN.md 5.8): an open bowl north of the north hall: the orchestra, the stage and
 // its front wall against the stage tower (kLandmarks), the seats in rows rising north. In B the stage front stands lower, the
@@ -582,7 +478,6 @@ void Scenery(HeightAt heightAt, std::vector<SceneObject>& out)
     TownWall(out);
     BellTower(out);
     HouseDetails(out);
-    MarketScenery(out);
     TheatreScenery(out);
     GraveyardScenery(heightAt, out);
     WaterTowerScenery(out);

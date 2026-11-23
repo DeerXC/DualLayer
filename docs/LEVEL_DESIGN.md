@@ -329,7 +329,7 @@ its districts, drawn only and baked with the ground (`scene/Scenery.h`). Houses 
 
 | District | Where (x, z) | A | B |
 |---|---|---|---|
-| West: the market | -62 .. -34, 30 .. 60 | a paved square round the great well (a shaft 12 m across, a square spiral down its walls, water at its foot); stalls with awnings; the clock tower with its faces and the day bell | the shaft dry and the day bell lying at its foot; one stretch of the spiral fallen; the stalls bare frames with rotten crates; the top of the clock tower gone |
+| West: the market | -61 .. -34, 30 .. 60 | walked: 6.3.1 | walked: 6.3.1 |
 | North: the theatre | -20 .. 20, 66 .. 100 | the orchestra, the stage with the scenery of the evening's play against its front wall, seven rows of seats rising north; the stage tower (a landmark) | the stage front low and broken, the upper rows of the west fallen into a heap, grass in the orchestra |
 | North: the graveyard | -19 .. 19, 112 .. 128, outside the north wall on the hillside | rows of stones with fresh flowers; the night bell tower with its roof; cypresses round it | the stones without flowers; one grave apart, with a stone lantern (9.2) |
 | East: the water tower | (59.5, 19.5), over the top of the lock walk | the shaft, an open stage with the dawn bell, the tank (a landmark seen from the square) | the shaft broken at 20 m, its top lying south of it |
@@ -432,6 +432,24 @@ hall, a lower room and a vault; the plan moves them along the market street and 
 The spiral runs 1.6 turns down the wall of the well. One stretch of it fell in B; a wooden gallery of A spans it, so the
 spiral itself asks for one switch. Ways in and out: the market street from the square; the clock lane; the tunnel of the
 cistern (B); the fall of the theatre (B). After the day bell, the bucket lift of A runs from the bottom to the parapet.
+
+#### 6.3.1 The market and the well (W5, as built)
+
+A door in the west wall of the west hall opens onto a lane west to the market (rooms `west lane`, `market`, `well`). The
+market is a walled square (the backs of the houses round it) with eight stalls (a stone counter each; in A an awning of
+cloth over it, solid, so the awnings are a roof walk of A; in B the bare posts and rotten crates), the clock tower (solid to
+11 m; its open top with the day bell in A, broken in B), the lamp of the market, and the great well.
+
+The well is a shaft 12 m across and 8 m deep, walled by a parapet 1 m over the square, open over its way in. A stair runs
+down its four walls from corner landing to corner landing, 2 m down over 8.4 m each: east (both worlds), south (a wooden
+stair of A; in B it has fallen to the floor), west and north (both). The water of A stands 3 m deep in the shaft (fed from the
+trench of the west hall): over the west and north stretches. So the way down is: in A down the east and the wooden south
+stretch to the south-west corner, 1 m over the water; switch to B; on down the dry stair to the floor, where the day bell lies
+and a hidden light waits. The way back up is the other way round: in B up to the south-west corner, where the fallen stretch
+stops the body; switch to A; up the wooden stair. Its "of course!": the stair that is there in one world and the water that is
+there in the other split the shaft into two halves, and the corner between them is where the world is changed.
+
+A fall from the square into the shaft is a fall (back to the lamp of the market); on the stair, a fall to the floor is not.
 
 ### 6.4 East: the stepped locks (water and the crate)
 
@@ -558,7 +576,7 @@ appear only after a bell, so each bell sends the player back. The numbers are th
 | 4 | Under the courtyard | cistern | 0, -6.4, 17 | B | first | the first puzzle, from below | a ladder up through a grate of the courtyard |
 | 5 | The high conduit | cistern | -6, -2.4, 22.5 | A | after the dawn bell | the crate floats as high as the water | a footbridge over the cistern |
 | 6 | On the awnings | west | -24.4, 2.9, 27.2 | A | first | awnings of A, bare frames in B, a switch in the air | a roof bridge from the market to the clock tower |
-| 7 | In the wall of the well | west | -47.6, -10, 31 | B | first | the orb dropped onto the other socket | the chain of the bucket, a ladder up the shaft |
+| 7 | In the wall of the well (built as the bottom of the well, 6.3.1) | west | -47.6, -10, 31 | B | first | the orb dropped onto the other socket | the chain of the bucket, a ladder up the shaft |
 | 8 | In the clockwork | west | -30, 12.5, 46 | A | after the day bell | machinery runs only in A | the stair of the clock tower |
 | 9 | The bed of the canal | east | 18, -3.4, 31.4 | B | first | the lesson of the pool, again | a footbridge over the canal |
 | 10 | The bottom of the fourth lock (built as the bottom of the middle lock, 6.4.1) | east | 49, 5.8, 28.8 | B | first | a lock is a room when it is dry | the fallen part of the aqueduct |
@@ -682,7 +700,7 @@ until then the current map stays playable.
 | 5 prologue | the harbour, the ridge road, the gate, the barbican, the wall walk | the harbour built 2026-11-23 (6.1.2); the rest waits for the move of the prologue |
 | 6 square and tower outside | the round square, the fallen bell, the tower in both worlds, the ring of lamps | the tower in both worlds and the ring of lamps built 2026-11-23, east of the square (6.6.1); the square itself waits |
 | 7 east | the lock walk, E3, E4, the dawn bell, the aqueduct walk | the lock walk built 2026-11-23 (6.4.1); the water tower drawn (5.8); the puzzle of E3, E4 and E2b wait |
-| 8 west | the well, W1 .. W4 round it, the day bell, the bucket lift | |
+| 8 west | the well, W1 .. W4 round it, the day bell, the bucket lift | the market and the well built 2026-11-23 (6.3.1), reached from the west hall; W1 .. W4 stay in the hall for now |
 | 9 north | the theatre bowl, N1 .. N4, the cliff path, the graveyard, the night bell | |
 | 10 links | the cistern, the fall of the theatre, the fallen tower | |
 | 11 tower | T0 .. T5, the endings | |
@@ -736,6 +754,7 @@ until then the current map stays playable.
 | 4 | the seals ring the bells (1.2): the dawn bell raises the water of A, the day bell turns the machinery (the lock), the night bell brings the night of A; two memory fragments (the steps of the fountain, the bench by the gate), solid in B once their light is taken | `scene/CityState.h`, `Waterworks::SetRaise`, `Canal::SetMachinery`, `Models::SetNight` |
 | 5, 6 (part) | the harbour of beat 0 (6.1.2), the start on its quay; the town wall round the town; the bell tower in both worlds (6.6.1); doors and windows on every house (in A some lit), all of it drawn only and baked with the ground | `Stage.h` (the quay, the stair, the rooms `quay` and `sea stair`, the lamp of the quay), `scene/Scenery.h`, `Landscape::BakeWorld` |
 | 7 (part), the town | the lock walk (6.4.1); the districts round the map (5.8): the market and its well, the theatre, the graveyard and the night bell tower, the water tower, street lamps; the bell tower moved west | `Stage.h` (the lock walk, `kZones`, the well pit), `scene/Scenery.h`, `Shapes::StairsX` |
+| 8 (part) | the market and the well (6.3.1); the sea stops at the harbour, so the pits inside the town are ravines of rock, not moats | `Stage.h` (the lane, the market, the well, `WellStairs`, `kWellWaters`), `Landscape::kSeaNorth` |
 
 ## 13. Decisions
 
@@ -757,6 +776,7 @@ until then the current map stays playable.
 | 2026-11-23 | the block puzzle stays and becomes part of the town (6.1.1): the block is the crate of the canal, pushed on the flagstones of a cloister; walls of A are stacked crates, walls of B fallen masonry, the plate brass. The pushed crate gets a second room, the other way round (E2b: pushed in B, lifted in A) |
 | 2026-11-23 | the map toward the plan, without moving the playable rooms: the game starts on the quay of a harbour under the town wall (6.1.2); a town wall rings the town; the bell tower stands beside the square, whole in A and fallen on the ground in B (6.6.1); the houses get doors and windows. The move of the prologue, the round square and the districts stay for their steps |
 | 2026-11-23 | the east district starts to move: the lock walk climbs east from the east hall beside three locks (6.4.1). The rest of the town carries the landmarks of its districts as scenery (5.8), so the town reads as the planned city before its rooms are rebuilt; the bell tower moves west to make room for the locks |
+| 2026-11-23 | the west district becomes walkable: the market and its well (6.3.1), reached from the west hall by a lane; the stair of the well, a wooden stretch of A over water of A, makes the shaft a puzzle of where to change worlds. The sea is kept to the bay: the pits inside the town are ravines |
 
 ## 14. The vertical city
 
@@ -800,7 +820,7 @@ Whole red or blue boxes are gone; red and blue are only edges and outlines.
 
 A stone lamp that looks the same in both worlds. It is lit the first time a body passes it; from then on a fall or R in its
 room comes back beside it, and a ring spreads from where the body appears. Rooms without a lamp have a carved tile at their
-entry. Eight lamps in the current build: the quay, the locks, the terrace, before the gap, the square, the archive, the canal, the bell tower;
+entry. Nine lamps in the current build: the quay, the locks, the market, the terrace, before the gap, the square, the archive, the canal, the bell tower;
 twelve in the plan (section 8).
 
 ### 14.6 The prologue

@@ -607,7 +607,7 @@ void TestImmersion()
                 for (; t <= st::kViewDistance && !met; t += 1.0f) // the ground and the sea, step by step
                 {
                     const Vec3 p{eye.x + d.x * t, eye.y + d.y * t, eye.z + d.z * t};
-                    met = p.y <= land.Height(p.x, p.z) || p.y <= st::kSeaY;
+                    met = p.y <= land.Height(p.x, p.z) || (p.y <= st::kSeaY && p.z < st::kSeaNorth);
                 }
                 const Vec3 far{eye.x + d.x * st::kViewDistance, eye.y + d.y * st::kViewDistance, eye.z + d.z * st::kViewDistance};
                 for (std::size_t b = 0; b < boxes.size() && !met; ++b)
