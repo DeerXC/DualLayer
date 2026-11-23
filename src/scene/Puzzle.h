@@ -1,14 +1,16 @@
-// Puzzle.h - the puzzle pieces of the stage: a purple block that exists in BOTH layers and can be pushed, a red plate that
-//            is pressed in layer A and opens a blue door in layer B, and the guard that refuses a layer switch that would put
-//            the body inside something.
+// Puzzle.h - the puzzle pieces of the stage: a wooden crate that exists in BOTH layers and can be pushed (the same crate as
+//            the one that floats on the canal: docs/LEVEL_DESIGN.md 4), a gold plate that is pressed in layer A and opens a
+//            door of fallen masonry in layer B, and the guard that refuses a layer switch that would put the body inside
+//            something.
 // Plain logic, no Windows, no Direct3D: tested without a window (tests/test_puzzle.cpp, tests/test_stage.cpp).
-// Block:     a 1 m cube on the floor, on a 1 m grid (cell (x, z) has its centre at world (x, z)). It is solid in both layers,
-//            so a push in one layer moves it in both. The first push needs kPushSeconds of walking straight at one face
-//            (within about 45 degrees) from the floor; after that, as long as the body keeps walking that way, the block
-//            goes on cell after cell without a stop. It slides at kSlideSpeed, a little slower than the walk, so the body
-//            stays at its face and is never left behind. The next cell must be free in BOTH layers (no solid of A, no solid
-//            of B, not the door, not outside the allowed cells). A refused push names what was in the way (LastBlocker), so
-//            the renderer can make it flash: the thing in the way may be in the layer that is not on the screen.
+// Block:     the crate: a 1 m cube on the floor, on a 1 m grid, the flagstones of the courtyard (cell (x, z) has its centre
+//            at world (x, z)). It is solid in both layers, so a push in one layer moves it in both. The first push needs
+//            kPushSeconds of walking straight at one face (within about 45 degrees) from the floor; after that, as long as the
+//            body keeps walking that way, the block goes on cell after cell without a stop. It slides at kSlideSpeed, a little
+//            slower than the walk, so the body stays at its face and is never left behind. The next cell must be free in BOTH
+//            layers (no solid of A, no solid of B, not the door, not outside the allowed cells). A refused push names what was
+//            in the way (LastBlocker), so the renderer can make it flash: the thing in the way may be in the layer that is not
+//            on the screen.
 // Plate:     in layer A, flat on the floor, not solid. It is pressed by the block resting on it, or by the body standing on it
 //            while the body is in layer A. A body in layer B does not press it.
 // Door:      in layer B, solid while closed. It is open while the plate is pressed. The question "is the door open?" depends
@@ -50,9 +52,9 @@ struct StageDesc
 {
     const scene::SceneObject* statics = nullptr; ///< BORROWED only during Init: the table is copied
     int staticCount = 0;
-    Cell blockStart;         ///< where the purple block starts
-    Cell plate;              ///< the red plate (layer A)
-    scene::SceneObject door; ///< the blue door: its shape and place (its layer mask is set to B by Init)
+    Cell blockStart;         ///< where the crate starts
+    Cell plate;              ///< the plate (layer A)
+    scene::SceneObject door; ///< the door (B): its shape and place (its layer mask is set to B by Init)
     Cell minCell;            ///< the block stays inside these cells (inclusive)
     Cell maxCell;
 };
@@ -70,6 +72,10 @@ class Puzzle
     static constexpr float kSlideSpeed = 3.6f;     ///< UNITS: metres per second; the walk is 4, so the body keeps contact
     static constexpr float kFlashSeconds = 0.6f;   ///< UNITS: seconds that a refused push shows what was in the way
     static constexpr float kBlockSize = 1.0f;      ///< UNITS: metres
+    static constexpr int kCrateBands = 3;            ///< drawn objects of CrateBands
+    static constexpr float kBandProud = 0.02f;       ///< UNITS: metres a band stands out of the crate
+    static constexpr float kBandWidth = 0.08f;       ///< UNITS: metres
+    static constexpr float kCrateColour[3] = {0.55f, 0.38f, 0.22f}; ///< sRGB: the wood of the crates of the town
     static constexpr float kFacing = 0.7f;         ///< the walk must point at the face by at least this part (about 45 degrees)
 
     /// Copies the stage. False (and the puzzle stays empty) when the stage has too many objects or makes no sense.
@@ -203,7 +209,7 @@ class Puzzle
         return blockOnPlate || (layer == 0 && m_bodyOnPlate);
     }
 
-    /// The blue door is open while the plate is pressed (for a body in `layer`).
+    /// The door is open while the plate is pressed (for a body in `layer`).
     bool DoorOpen(int layer) const
     {
         return PlatePressed(layer);
@@ -239,7 +245,7 @@ class Puzzle
         return m_solids.data();
     }
 
-    /// The block as an object of the scene (for the renderer and the collision): a purple cube in both layers.
+    /// The block as an object of the scene (for the renderer and the collision): a wooden crate in both layers.
     scene::SceneObject BlockObject() const
     {
         scene::SceneObject o{};
@@ -251,13 +257,44 @@ class Puzzle
         o.scale[0] = kBlockSize;
         o.scale[1] = kBlockSize;
         o.scale[2] = kBlockSize;
-        o.colorSrgb[0] = 0.62f;
-        o.colorSrgb[1] = 0.32f;
-        o.colorSrgb[2] = 0.86f;
-        o.shineStrength = 0.30f;
-        o.shininess = 40.0f;
+        o.colorSrgb[0] = kCrateColour[0];
+        o.colorSrgb[1] = kCrateColour[1];
+        o.colorSrgb[2] = kCrateColour[2];
+        o.shineStrength = 0.08f;
+        o.shininess = 12.0f;
         o.layerMask = scene::kLayerBoth;
+        o.glow = 0.04f; // a thing that moves keeps its own colour (not the stone of the city), as the crate of the canal
         return o;
+    }
+
+    /// The iron bands of the crate, drawn only and moving with it: two round it (low and high) and one over it. Each is a box a
+    /// little larger than the crate on the sides it wraps, so it shows as a band. Writes kCrateBands objects to `out`.
+    void CrateBands(scene::SceneObject* out) const
+    {
+        const Vec3 c = BlockCentre();
+        const float h = 0.5f * kBlockSize;
+        const float p = kBandProud;
+        const auto band = [&](float sx, float sy, float sz, float y) {
+            scene::SceneObject o{};
+            o.shape = scene::ShapeKind::Cube;
+            o.position[0] = c.x;
+            o.position[1] = y;
+            o.position[2] = c.z;
+            o.scale[0] = sx;
+            o.scale[1] = sy;
+            o.scale[2] = sz;
+            o.colorSrgb[0] = 0.24f;
+            o.colorSrgb[1] = 0.22f;
+            o.colorSrgb[2] = 0.21f;
+            o.shineStrength = 0.4f;
+            o.shininess = 30.0f;
+            o.layerMask = scene::kLayerBoth;
+            o.glow = 0.02f;
+            return o;
+        };
+        out[0] = band(kBlockSize + 2.0f * p, kBandWidth, kBlockSize + 2.0f * p, c.y - h + 0.18f);
+        out[1] = band(kBlockSize + 2.0f * p, kBandWidth, kBlockSize + 2.0f * p, c.y + h - 0.18f);
+        out[2] = band(kBandWidth, kBlockSize + 2.0f * p, kBlockSize + 2.0f * p, c.y);
     }
 
     /// The door as an object of the scene (layer B).

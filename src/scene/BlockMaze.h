@@ -1,10 +1,10 @@
 // BlockMaze.h - the block puzzle of the courtyard as a grid, and a solver that proves things about it.
-// The rule this file is about: the purple block exists in BOTH layers, so it is stopped by the walls of BOTH layers; the
-// body is in ONE layer at a time and can switch where it fits. So the block moves through the cells that are free in A AND
-// in B (the intersection of the two maps), the body through the cells that are free in A OR in B (their union, by
-// switching). Reading the outlines of the other layer is how the player sees the intersection.
+// The rule this file is about: the block (the crate of the courtyard) exists in BOTH layers, so it is stopped by the walls
+// of BOTH layers; the body is in ONE layer at a time and can switch where it fits. So the block moves through the cells that
+// are free in A AND in B (the intersection of the two maps), the body through the cells that are free in A OR in B (their
+// union, by switching). Reading the outlines of the other layer is how the player sees the intersection.
 // Grid:      W x D cells of 1 m, cell (x, z), z grows to the north. Outside the grid counts as a wall of both layers.
-// Cells:     '.' floor   'R' red wall (layer A only)   'B' blue wall (layer B only)   '#' stone (both)   'P' the plate
+// Cells:     '.' floor   'R' wall of layer A only   'B' wall of layer B only   '#' stone (both)   'P' the plate
 //            (floor)   'K' where the block starts (floor)   'S' where the body starts (floor, layer A)
 // Climbing:  the block is 1 m high and a jump is 2 m, so the body can climb over the block: for the body, the cell of the
 //            block is passable (on top of it). The walls of the courtyard are taller than a jump from the top of the block,

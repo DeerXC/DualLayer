@@ -1,5 +1,5 @@
 // StageHints.h - what the map shows without words: the outlines of the other layer, the outline of what stopped a push, the
-//            frame of the blue door of the courtyard, the beacon over the goal, and the rings that answer the goal.
+//            frame of the door of B of the courtyard, the beacon over the goal, and the rings that answer the goal.
 // Outlines:  every fixed box of the map that exists in one layer only leaves a thin outline in the other layer: four narrow
 //            bars round its footprint, in the colour of its world (red A, blue B) made lighter. A flat object (a floor, a stone, a strip: up to
 //            kFlatHeight thick) is outlined at its TOP, where the body would stand; a tall one (a wall) at its BASE. In the
@@ -291,7 +291,7 @@ inline int AddBlockedFlash(const puzzle::Puzzle& puzzle, SceneObject* out, int c
     return count + kBarsPerGhost;
 }
 
-// ---- the frame of the blue door, drawn in layer A while the door is closed for a body in A
+// ---- the frame of the door of B, drawn in layer A while the door is closed for a body in A
 inline constexpr float kFrameDepth = 0.03f; // UNITS: metres, in front of the south face of the wall
 inline constexpr float kFrameGap = 0.01f;   // UNITS: metres between the frame and the wall, so that they never flicker
 inline constexpr int kFrameBars = 4;

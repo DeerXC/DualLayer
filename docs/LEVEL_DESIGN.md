@@ -143,11 +143,11 @@ Each object answers one question: what happens to it when the body switches laye
 | Object | Rule | Taught | Turned round |
 |---|---|---|---|
 | Layer wall / floor | exists in one layer (A: wood and iron; B: fallen masonry) | prologue, the gate | north: the prism moves it to the other layer |
-| Purple block | in both layers, so it obeys the walls of both | the courtyard | - |
+| Crate, pushed | in both layers, so it obeys the walls of both; pushed along flagstones, one flagstone at a time | the courtyard | E2b: pushed in B, lifted in A |
 | Plate and door | plate in one layer, door in the other; the door is open while the plate is pressed | the courtyard | west: the orb holds the plate while the body is in the other layer |
 | Orb | carried, it switches with the body; put down, it stays in its layer and falls to the first surface of that layer; it works sockets and plates | W1 | W3: dropped down the well, it arrives at the bottom |
 | Water (A) | not a floor for the body; things float on it; fed by the aqueduct (14.4) | the square, E1 | E3: the locks lift the crate step by step; the dawn bell raises all of it |
-| Crate | in both layers; floats on the water of A, lies on the bed in B, moved in both at once | E1 | E2: moved in A, used in B |
+| Crate, floating | the same crate: in both layers; floats on the water of A, lies on the bed in B, moved in both at once | E1 | E2: moved in A, used in B |
 | Wheel | machinery: turns only for a body in A | E1 | the day bell: machinery that turns on its own |
 | Prism | stepped on in either layer, it moves the things linked to it into the other layer, for good | N1 | N2: one prism, two things; N3: scenery of A becomes a stair of B |
 | Clock hands | the hands of the tower clock are bridges; A shows 7:11, B 7:12, the hour hand of B has broken off and fallen across the pit | T1 | - |
@@ -190,7 +190,7 @@ In the model y = 0 is the rim of the square; the game uses y = -1 for it.
 
 | Part | Where, height | Theme and object | Bell | Shape |
 |---|---|---|---|---|
-| Prologue | the ridge road from the guardhouse (+8) down two hairpins to the gate (-1), the barbican, the wall walk (+5), the courtyard (0) | the switch, the switch in the air, the purple block | - | a road that winds down the ridge; a gate between two towers; a wall walk with a break |
+| Prologue | the ridge road from the guardhouse (+8) down two hairpins to the gate (-1), the barbican, the wall walk (+5), the courtyard (0) | the switch, the switch in the air, the crate | - | a road that winds down the ridge; a gate between two towers; a wall walk with a break |
 | Square | the middle; a round place 32 m across, rim 0, pool -1.5; the tower to +67 (A) or +31 (B) | the two faces of the city | the great bell | where the streets meet; the fallen bell in the pool |
 | West, the sinking market | west; the market street (0) to the great well (-15.5) | the orb | day | a market street that ends at the parapet of a well 16 m across; a spiral down its wall |
 | East, the stepped locks | east; the lock walk climbs beside five basins from -1.5 to +11; the water tower to +30 | water, the crate, wheels | dawn | a canal that steps up the hillside; the aqueduct over the roofs |
@@ -359,7 +359,26 @@ beats are built on a straight terrace; the plan moves them onto the way into the
 | 3 | neither world is "the better one" | a heap of B closes the terrace | the arch of the barbican: whole in A, fallen across the yard in B | nothing |
 | 4 | the switch in the air | a shallow ditch: a beam of B, planks of A, stairs back up | a dry ditch at the foot of the wall walk, with stairs back up | a walk of a few seconds |
 | 5 | the same, where a miss is a fall | the gap: beam of B, planks of A, curtain of B | a break in the wall walk (+5): a beam of fallen masonry (B) and the wooden hoarding of A on posts; a miss lands in the lower lane, which winds back to the stair of the wall walk | a walk back up |
-| 6 | the first "of course!" | the courtyard puzzle (10 pushes) | the same courtyard at the end of the wall walk, first seen from above | R |
+| 6 | the first "of course!" | the courtyard puzzle (10 pushes), as a cloister (6.1.1) | the same yard at the end of the wall walk, first seen from above | R |
+
+#### 6.1.1 The courtyard as a cloister
+
+The block puzzle stays (its layout and its proofs are those of `scene/Courtyard.h`); what changes is what it is. Decided on
+2026-11-23: a purple block on a grid looked like a level of another game in a town of stone and wood, and it was the one
+object used once and never again.
+
+| Part | Before | Now | Why |
+|---|---|---|---|
+| The block | a purple cube | the crate of the town (the wood of the crate of the canal), with three iron bands | one object, two lessons: here it is pushed, on the canal it floats (4) |
+| The grid | an abstract grid | the flagstones of the yard of the old customs house, a joint on every line | a move of one cell is a move of one flagstone; the crate slides from one to the next |
+| Walls of A | red boxes | stacks of crates of the warehouse, a joint at every crate | made by people, whole: the rule of materials (14.3) |
+| Walls of B | blue boxes | masonry fallen from the arcade, its top broken | left by the ruin (14.3) |
+| The plate | a red slab | a brass slab let into the flagstones, gold: a thing to use | gold means use (9.3) |
+| The yard | four plain walls | a cloister: a blind arcade (pilasters, arched heads, a string course) on its west, east and north walls; in B the string course broken and moss in some joints | a place with a past, not a test chamber |
+
+Every drawn part of the cloister is a joint flat on the floor (under 2 cm), a part of the arcade within 11 cm of a wall, a
+joint on a wall of the puzzle, or above the walls: nothing is in the way of the body or the crate (`TestCloister`). The crate
+is pushed in both layers; the arcade and the materials are the same in A and B except where B is broken.
 
 The harbour road climbs west along the shore to the gate; the headland path goes on past it to the pines of the headland (a
 view and a lamp). From the wall walk the roofs of the market (west), the lock walk (east) and the tower are seen before the
@@ -399,6 +418,7 @@ the hillside along the lock walk, from the fountain stair (-1.5) to the water to
 |---|---|---|
 | E1 the lock | the wheel (A only) raises the water; the crate rises with it and becomes the step onto the quay | yes (14.8) |
 | E2 the drift | the weir lets the crate drift in both worlds; in B it is the step into a breach: moved in A, used in B | yes, with the undercroft |
+| E2b the dry lock | the second lesson of the pushed crate, the other way round: in B the basin of a lock is dry and its floor is flagstones; the crate lies there and is pushed, in B, under the lip of the upper basin; then, in A, the wheel fills the basin and the crate floats up beside the lip: the step to the next basin. Pushed in B, lifted in A | no |
 | E3 the locks | basins two to four. One crate, three wheels: each lock lifts it one basin; the wheel of the next lock must not be turned before the crate is in it. In B the basins are dry rooms, one with a light | no |
 | E4 the water tower | the top basin (+11); the stair of the tower stands in A, the top has fallen in B; the dawn bell hangs under the tank | no |
 
@@ -683,6 +703,7 @@ until then the current map stays playable.
 | 2026-11-23 | one town through all districts (5.3): the fronts of the places built first, row houses that share walls, four kinds of house blended by distance; ruins in B among the same houses. The fallen tower of B lies on the ground in three pieces along the line of its fall (6.6); its hollow shaft replaces the beam to the cliff as the second way in. The theatre is cut into the foot of the cliff, and the town wall runs above it |
 | 2026-11-23 | the story is decided last (1.1): three drafts were dropped because each needed a rule that did not hold; the map keeps only what any story needs. The rules of environmental storytelling (9.1) and the places of the pairs of props (9.2) hold whatever the story becomes |
 | 2026-11-23 | steps 1 to 4 built (12.3). The ground under the current map: the town levelled at the street, pits below every fall line where the map has no floor (a fall stays a fall), the sea filling them, footings at their edges; the ground is solid, and a test proves that no body reaches it. Plants by the ground they grow on (5.6). Houses turned to their streets, coloured by quarter, shells in B. In the current build the seals ring the bells |
+| 2026-11-23 | the block puzzle stays and becomes part of the town (6.1.1): the block is the crate of the canal, pushed on the flagstones of a cloister; walls of A are stacked crates, walls of B fallen masonry, the plate brass. The pushed crate gets a second room, the other way round (E2b: pushed in B, lifted in A) |
 
 ## 14. The vertical city
 

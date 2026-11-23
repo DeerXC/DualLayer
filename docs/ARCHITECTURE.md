@@ -110,7 +110,8 @@ on a hard landing.
 
 ## The block puzzle
 
-`Puzzle` holds the purple block (both layers), the plate (layer A) and the door it opens (layer B). The first push needs
+`Puzzle` holds the crate of the courtyard (the block, both layers; `CrateBands` gives its drawn bands), the plate (layer A)
+and the door it opens (layer B). The first push needs
 a short walk into a face; held, the block goes on cell after cell, a little slower than the walk so the body stays at its
 face. A push is refused when the next cell is not free in both layers; the refusal names the blocker. `LayerGuard` refuses
 a layer switch that would put the body inside something.

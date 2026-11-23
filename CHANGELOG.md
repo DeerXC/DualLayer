@@ -240,6 +240,17 @@
   compiles against stand-ins of the interfaces it uses; `render/Models.cpp` is not compiled here.
 - Not checked yet: the MSVC build and `tools/check.ps1`; the look by eye (docs/BUILD.md, E-33 .. E-41), and the frame time with
   the ground and the plants (about 45000 triangles more per layer).
+- Made (2026-11-23, the courtyard as a cloister, docs/LEVEL_DESIGN.md 6.1.1): the purple block is the crate of the town (the
+  wood of the crate of the canal, three iron bands drawn with it: `Puzzle::CrateBands`); the walls of A are stacks of crates, the
+  walls of B fallen masonry with a broken top; the plate is brass (gold: a thing to use) and glows when pressed; the yard has
+  flagstone joints on the lines of the grid, a blind arcade (pilasters, arched heads, a string course) on its west, east and
+  north walls; in B the string course is broken and moss grows in some joints (`Stage::CourtyardDecor`). The layout, the
+  proofs and the solids are unchanged. A second room of the pushed crate is planned the other way round (E2b: pushed in B,
+  lifted in A).
+- Checked (2026-11-23): `tests/test_hints.cpp` (356; new `TestCloister`: the crate is the wood of the canal, its bands wrap it,
+  and every drawn part of the cloister is flat on the floor, on a wall face within 11 cm, on a wall of the puzzle or above the
+  walls; caught when the arcade stands 0.4 m out or a joint of a stack reaches 0.3 m into the yard), `tests/test_stage.cpp`
+  (2722), `tests/test_maze.cpp` and `tests/test_puzzle.cpp` unchanged.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

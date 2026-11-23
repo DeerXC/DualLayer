@@ -19,7 +19,7 @@ graveyard and the rooms inside the cathedral are still to be built from [docs/LE
 
 - **One rule, many uses.** The only ability is switching between two faces of one city: A, whole in a warm evening, and
   B, broken by a storm, cold and foggy. A wall of one layer is air in the other; a jump can start in one layer and land in
-  the other; a block that exists in both layers is stopped by the walls of both; a thing works only in its own world.
+  the other; a crate that exists in both layers is stopped by the walls of both; a thing works only in its own world.
 - **Puzzles proved by a solver.** A breadth-first solver proves that the courtyard puzzle takes 10 pushes, cannot be solved
   in one layer alone, and looks like 2 pushes to a player who ignores the other layer. Its layout was chosen by a search with
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game

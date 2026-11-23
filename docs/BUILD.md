@@ -150,6 +150,7 @@ seen".
 | E-39 | take the west seal, then come to the canal without touching the wheel | the lock has opened by itself and the crate stands high; R puts it down and it rises again by itself |
 | E-40 | take the north seal, then stay in A for about 6 s | evening turns to night in A (a dark blue sky, a cool light); B does not change |
 | E-41 | take the light on the floor of the pool (B), then look at the south-west corner of the pool in B and in A | in B pale glowing steps lead up out of the pool there; in A there is nothing; the light inside the gate brings a pale bench beside the breach (B) |
+| E-42 | the courtyard from the overlook, then inside it, in A and in B; push the crate | flagstones with joints; a blind arcade on three walls; in A stacks of crates as walls, in B fallen masonry with a broken top, moss in a few joints and a broken string course; the crate (wood, three iron bands) slides from flagstone to flagstone; the plate is brass and brightens when pressed; nothing of the arcade is in the way |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

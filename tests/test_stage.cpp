@@ -509,7 +509,7 @@ void TestTables()
     static SceneObject drawn[st::kMaxDrawObjects];
     int n = st::BuildDrawTable(w.puzzle, false, drawn);
     n = st::AddMapDraw(w.seals, drawn, n, st::kMaxDrawObjects);
-    CHECK(n == st::kStageStaticCount + static_cast<int>(st::kDecor.size()) + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount);
+    CHECK(n == st::kStageStaticCount + static_cast<int>(st::kDecor.size()) + 4 + dl::puzzle::Puzzle::kCrateBands + st::kLandmarkCount + 2 + 2 * st::kSealCount);
     CHECK(n <= st::kMaxDrawObjects);
 }
 

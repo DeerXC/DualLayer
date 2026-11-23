@@ -21,6 +21,7 @@
 //      lights) fits
 // Returns 1 when a check fails.
 
+#include "scene/Canal.h"
 #include "scene/CityParts.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
@@ -575,13 +576,98 @@ void TestWholeFrameFits()
     const dl::mech::WingDesc west = st::CityParts(); // every moving part of the city
     const int moving = west.gateCount + west.triggerCount; // the gates and the pads, each outlined, the orbs with their marks,
                                                            // a column per trigger, the previews of the gates
-    const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + 2 * st::kGhostCount * st::kBarsPerGhost +
+    const int largest = st::StaticDrawCount() + 4 + dl::puzzle::Puzzle::kCrateBands + st::kLandmarkCount + 2 + 2 * st::kSealCount + 2 * st::kGhostCount * st::kBarsPerGhost +
                         9 /* the canal */ + 2 /* its beacons */ + st::kWaterDrawCount + st::kAnchorCount + 2 /* the respawn rings */ + moving * st::kBarsPerGhost /* own edges */ +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
                         st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount +
                         16 /* the memory fragments */ + 2 /* the sea */;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
     CHECK(largest <= st::kMaxDrawObjects);
+}
+
+void TestCloister()
+{
+    // the crate of the courtyard is the crate of the canal: the same wood; its bands wrap it a little and move with it
+    dl::puzzle::Puzzle puzzle;
+    CHECK(puzzle.Init(st::MakeStage()));
+    const SceneObject crate = puzzle.BlockObject();
+    CHECK(st::SameRgb(crate, st::Rgb{dl::canal::kCrateWood.r, dl::canal::kCrateWood.g, dl::canal::kCrateWood.b}) && crate.layerMask == kLayerBoth);
+    SceneObject bands[dl::puzzle::Puzzle::kCrateBands] = {};
+    puzzle.CrateBands(bands);
+    for (const SceneObject& b : bands)
+    {
+        bool wraps = true;
+        for (int k = 0; k < 3; ++k)
+        {
+            wraps = wraps && std::fabs(b.position[k] - crate.position[k]) + 0.5f * b.scale[k] <= 0.5f * crate.scale[k] + dl::puzzle::Puzzle::kBandProud + 1e-4f;
+        }
+        CHECK(wraps && b.layerMask == kLayerBoth);
+    }
+    // the drawn look of the courtyard never stands in the way of the body or the crate: every drawn box inside the yard is a
+    // joint flat on the floor, a part of the arcade on a wall face, a joint on a wall of the puzzle, or above the walls
+    const float x0 = st::kCourtWest;
+    const float x1 = st::kCourtEast;
+    const float z0 = st::kCourtSouth;
+    const float z1 = st::kCourtNorth;
+    std::vector<SceneObject> drawn;
+    st::CourtyardDecor(drawn);
+    int flat = 0;
+    int onWall = 0;
+    int above = 0;
+    int bad = 0;
+    for (const SceneObject& o : drawn)
+    {
+        float lo[3];
+        float hi[3];
+        st::AxisBounds(o, lo, hi);
+        if (hi[0] <= x0 || lo[0] >= x1 || hi[2] <= z0 || lo[2] >= z1)
+        {
+            continue; // in the thickness of a wall of the yard
+        }
+        if (hi[1] <= kFloorY + 0.02f)
+        {
+            ++flat;
+            continue;
+        }
+        if (lo[1] >= kFloorY + st::kWallHeight - 1e-3f)
+        {
+            ++above;
+            continue;
+        }
+        // on a face: within the proud distance of a wall of the yard, or wrapping a wall of the puzzle
+        const float proud = 0.11f; // a few centimetres: the arcade and its string course (a body is 0.35 m round)
+        const bool onYardWall = (lo[0] <= x0 + 1e-4f && hi[0] <= x0 + proud) || (hi[0] >= x1 - 1e-4f && lo[0] >= x1 - proud) ||
+                                (hi[2] >= z1 - 1e-4f && lo[2] >= z1 - proud);
+        bool onPuzzleWall = false;
+        for (const st::Run& r : st::kRuns)
+        {
+            const SceneObject w = st::WallOf(r);
+            float wl[3];
+            float wh[3];
+            st::AxisBounds(w, wl, wh);
+            bool within = true;
+            for (int k = 0; k < 3; ++k)
+            {
+                within = within && lo[k] >= wl[k] - 0.02f && hi[k] <= wh[k] + 0.02f;
+            }
+            onPuzzleWall = onPuzzleWall || within;
+        }
+        if (onYardWall || onPuzzleWall)
+        {
+            ++onWall;
+        }
+        else
+        {
+            if (bad++ < 5)
+            {
+                std::printf("  in the way: a drawn box at %.2f %.2f %.2f, size %.2f %.2f %.2f\n", static_cast<double>(o.position[0]),
+                            static_cast<double>(o.position[1]), static_cast<double>(o.position[2]), static_cast<double>(o.scale[0]),
+                            static_cast<double>(o.scale[1]), static_cast<double>(o.scale[2]));
+            }
+        }
+    }
+    std::printf("  cloister: %d flat on the floor, %d on walls, %d above the walls, %d in the way\n", flat, onWall, above, bad);
+    CHECK(flat > 15 && onWall > 20 && above > 0 && bad == 0);
 }
 
 } // namespace
@@ -599,6 +685,7 @@ int main()
     TestPreviews();
     TestSilhouette();
     TestWholeFrameFits();
+    TestCloister();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

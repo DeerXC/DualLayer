@@ -7,8 +7,8 @@
 //              a heap of fallen masonry that closes B where A is clear; a shallow ditch that teaches the switch in the air
 //              where a miss is a walk back up its stairs; the gap (a wide blue stone in B, then a switch to A in
 //              the air onto the red strip; a blue curtain at the end of the strip keeps B from flying over it), the overlook, and
-//              the courtyard with the proved block puzzle (scene/Courtyard.h). The block on the plate opens the blue door
-//              in the north wall of the courtyard: the way into the hub.
+//              the courtyard with the proved crate puzzle (scene/Courtyard.h), a cloister on flagstones. The crate on the plate
+//              opens the door of B in the north wall of the courtyard: the way into the hub.
 //   square     (the hub; step 3b) a sunken square, walled 10 m high. A rim at street level runs along its walls and holds
 //              every opening; inside it a pool 1.5 m deep surrounds the cathedral: water in A (a wall: a body that goes in
 //              comes back at the entry), dry in B, entered by two stairs at opposite corners. A causeway crosses the pool to
@@ -489,6 +489,7 @@ constexpr SceneObject WallOf(const Run& r)
     const float x0 = static_cast<float>(r.x + kCellX0) - 0.5f;
     const float z0 = static_cast<float>(r.z0 + kCellZ0) - 0.5f;
     const float z1 = static_cast<float>(r.z1 + kCellZ0) + 0.5f;
+    // A: a stack of crates and casks of the warehouse (made by people, whole); B: fallen masonry (CourtyardDecor draws their look)
     return Span(x0, kFloorY, z0, x0 + 1.0f, kFloorY + kWallHeight, z1, r.kind == 'R' ? kWood : kDebris, r.kind == 'R' ? kLayerA : kLayerB);
 }
 
@@ -548,7 +549,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(kCourtWest, kFloorY, kCourtSouth - 0.5f, kCourtEast, kTerraceY - 0.2f, kCourtSouth),
     Wall(kCourtWest - 0.5f, kFloorY, kCourtSouth - 0.5f, kCourtWest, kCourtWallTop, kDoorNorth),
     Span(kCourtEast, kFloorY, kEastRoomNorth, kCourtEast + 1.5f, kCourtWallTop, 23.0f, kStone, kLayerBoth),
-    // its north wall with the doorway into the hub; the red panel fills the doorway in A (the blue door, in B, is kDoor)
+    // its north wall with the doorway into the hub; a wooden panel fills the doorway in A (the door of B is kDoor)
     Wall(kCourtWest, kFloorY, kDoorSouth, kDoorX - kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
     Wall(kDoorX + kDoorwayHalfWidth, kFloorY, kDoorSouth, kCourtEast, kCourtWallTop, kDoorNorth),
     Wall(kDoorX - kDoorwayHalfWidth, kDoorwayHigh, kDoorSouth, kDoorX + kDoorwayHalfWidth, kCourtWallTop, kDoorNorth),
@@ -895,7 +896,7 @@ inline std::array<SceneObject, kStageStaticCount> BuildStatics()
 inline const std::array<SceneObject, kStageStaticCount> kStageStatics = BuildStatics();
 inline constexpr int kGateIndex = 1; ///< the gate (A) in kStageStatics (scene/StageLights.h hides a light in it)
 
-/// The blue door (layer B) in the doorway from the courtyard into the hub.
+/// The door of fallen masonry (layer B) in the doorway from the courtyard into the hub; the plate (A) opens it.
 inline constexpr SceneObject kDoor = Span(kDoorX - kDoorwayHalfWidth, kDoorwayLow, kDoorSouth, kDoorX + kDoorwayHalfWidth,
                                           kDoorwayHigh, kDoorNorth, kDebris, kLayerB);
 
@@ -1807,6 +1808,131 @@ inline void EntryTiles(std::vector<SceneObject>& drawn)
     }
 }
 
+// ---- the courtyard as a cloister (docs/LEVEL_DESIGN.md, 6.1): the yard of the old customs house. The grid of the puzzle is
+// its flagstones; the walls of A are the goods of the warehouse, stacked crates (whole: made by people); the walls of B are the
+// masonry of the arcade that fell into the yard. Its own walls carry a blind arcade: pilasters, arched heads and a string
+// course, a few centimetres proud of the wall (drawn only, never in the way of a body or the crate). In B the string course is
+// broken and moss grows in some joints of the flagstones.
+inline constexpr float kJointWidth = 0.035f;  ///< UNITS: metres: the joints of the flagstones
+inline constexpr float kJointHeight = 0.008f; ///< over the floor
+inline constexpr float kArcadeProud = 0.06f;  ///< UNITS: metres the blind arcade stands out of the wall
+inline constexpr float kArcadeTop = kFloorY + 3.6f; ///< the top of the arched heads (under the string course)
+inline constexpr float kArcadeBay = 2.0f;      ///< UNITS: metres between two pilasters
+inline constexpr Rgb kJoint{0.36f, 0.35f, 0.33f};
+inline constexpr Rgb kMoss{0.30f, 0.38f, 0.24f};
+inline constexpr Rgb kCrateEdge{0.36f, 0.25f, 0.15f};
+inline constexpr Rgb kArcadeStone{shapes::kStoneLight.r, shapes::kStoneLight.g, shapes::kStoneLight.b};
+
+/// One wall face of the arcade: along Z at x = `face` (`inward` +1 when the yard is toward +x) or along X at z = `face`, from a0
+/// to a1, leaving out the stretch skip0 .. skip1 (a doorway).
+inline void BlindArcade(bool alongX, float face, float inward, float a0, float a1, float skip0, float skip1, std::vector<SceneObject>& drawn)
+{
+    const float t0 = inward > 0.0f ? face : face - kArcadeProud;
+    const float t1 = inward > 0.0f ? face + kArcadeProud : face;
+    const auto box = [&](float lo, float y0, float hi, float y1, float proud, const Rgb& c, unsigned mask) {
+        const float u0 = inward > 0.0f ? face : face - proud;
+        const float u1 = inward > 0.0f ? face + proud : face;
+        drawn.push_back(alongX ? Span(lo, y0, u0, hi, y1, u1, c, mask) : Span(u0, y0, lo, u1, y1, hi, c, mask));
+    };
+    const int bays = static_cast<int>(std::lround((a1 - a0) / kArcadeBay));
+    const float bay = (a1 - a0) / static_cast<float>(bays > 0 ? bays : 1);
+    for (int k = 0; k <= bays; ++k)
+    {
+        const float at = a0 + bay * static_cast<float>(k);
+        if (at + 0.15f > skip0 && at - 0.15f < skip1)
+        {
+            continue;
+        }
+        box(at - 0.15f, kFloorY, at + 0.15f, kArcadeTop, kArcadeProud, kArcadeStone, kLayerBoth); // a pilaster
+    }
+    for (int k = 0; k < bays; ++k)
+    {
+        const float lo = a0 + bay * static_cast<float>(k) + 0.15f;
+        const float hi = a0 + bay * static_cast<float>(k + 1) - 0.15f;
+        if (hi > skip0 && lo < skip1)
+        {
+            continue;
+        }
+        shapes::ArchHead(alongX, lo, hi, t0, t1, kArcadeTop, 0.7f, drawn);
+    }
+    // the string course over the arcade: whole in A; in B laid in pieces, one in three fallen
+    box(a0, kArcadeTop, a1, kArcadeTop + 0.2f, kArcadeProud + 0.04f, kArcadeStone, kLayerA);
+    const int pieces = static_cast<int>(std::ceil((a1 - a0) / 1.0f));
+    for (int k = 0; k < pieces; ++k)
+    {
+        if ((k * 7 + static_cast<int>(face * 3.0f)) % 3 == 0)
+        {
+            continue;
+        }
+        const float lo = a0 + (a1 - a0) * static_cast<float>(k) / static_cast<float>(pieces);
+        const float hi = a0 + (a1 - a0) * static_cast<float>(k + 1) / static_cast<float>(pieces);
+        box(lo, kArcadeTop, hi, kArcadeTop + 0.2f, kArcadeProud + 0.04f, kArcadeStone, kLayerB);
+    }
+}
+
+inline void CourtyardDecor(std::vector<SceneObject>& drawn)
+{
+    // the flagstones: a joint on every line of the grid of the puzzle
+    for (int i = 0; i <= courtyard::kWidth; ++i)
+    {
+        const float x = kCourtWest + static_cast<float>(i);
+        drawn.push_back(Span(x - 0.5f * kJointWidth, kFloorY, kCourtSouth, x + 0.5f * kJointWidth, kFloorY + kJointHeight, kCourtNorth, kJoint, kLayerBoth));
+    }
+    for (int j = 0; j <= courtyard::kRowCount; ++j)
+    {
+        const float z = kCourtSouth + static_cast<float>(j);
+        drawn.push_back(Span(kCourtWest, kFloorY, z - 0.5f * kJointWidth, kCourtEast, kFloorY + kJointHeight, z + 0.5f * kJointWidth, kJoint, kLayerBoth));
+    }
+    // B: moss in the joints round a few flagstones that no wall stands on
+    for (int z = 0; z < courtyard::kRowCount; ++z)
+    {
+        for (int x = 0; x < courtyard::kWidth; ++x)
+        {
+            if (RowCell(x, z) != '.' || (x * 5 + z * 3) % 7 != 0)
+            {
+                continue;
+            }
+            const float cx = static_cast<float>(x + kCellX0);
+            const float cz = static_cast<float>(z + kCellZ0);
+            drawn.push_back(Span(cx - 0.5f, kFloorY, cz - 0.5f, cx + 0.5f, kFloorY + kJointHeight + 0.002f, cz - 0.5f + 0.08f, kMoss, kLayerB));
+            drawn.push_back(Span(cx - 0.5f, kFloorY, cz - 0.5f, cx - 0.5f + 0.08f, kFloorY + kJointHeight + 0.002f, cz + 0.5f, kMoss, kLayerB));
+        }
+    }
+    // the walls of the puzzle: A, stacked crates (a joint at every crate, 1 m apart, round each face); B, a broken top
+    for (const Run& r : kRuns)
+    {
+        const SceneObject w = WallOf(r);
+        const float x0 = w.position[0] - 0.5f * w.scale[0];
+        const float x1 = w.position[0] + 0.5f * w.scale[0];
+        const float z0 = w.position[2] - 0.5f * w.scale[2];
+        const float z1 = w.position[2] + 0.5f * w.scale[2];
+        const float p = 0.015f;
+        if (r.kind == 'R')
+        {
+            for (float y = kFloorY + 1.0f; y < kFloorY + kWallHeight - 0.1f; y += 1.0f)
+            {
+                drawn.push_back(Span(x0 - p, y - 0.03f, z0 - p, x1 + p, y + 0.03f, z1 + p, kCrateEdge, kLayerA));
+            }
+            for (float z = z0 + 1.0f; z < z1 - 0.1f; z += 1.0f)
+            {
+                drawn.push_back(Span(x0 - p, kFloorY, z - 0.03f, x1 + p, kFloorY + kWallHeight + p, z + 0.03f, kCrateEdge, kLayerA));
+            }
+        }
+        else
+        {
+            for (float z = z0; z < z1 - 0.1f; z += 1.0f)
+            {
+                const float h = 0.25f + 0.2f * static_cast<float>((static_cast<int>(z * 10.0f) + r.x * 3) % 3);
+                drawn.push_back(Span(x0 + 0.15f, kFloorY + kWallHeight, z + 0.1f, x1 - 0.2f, kFloorY + kWallHeight + h, z + 0.8f, kDebris, kLayerB));
+            }
+        }
+    }
+    // the blind arcade on the west, east and north walls of the yard
+    BlindArcade(false, kCourtWest, 1.0f, kCourtSouth, kCourtNorth, 0.0f, 0.0f, drawn);
+    BlindArcade(false, kCourtEast, -1.0f, kCourtSouth, kCourtNorth, 0.0f, 0.0f, drawn);
+    BlindArcade(true, kCourtNorth, -1.0f, kCourtWest, kCourtEast, kDoorX - kDoorwayHalfWidth - 0.2f, kDoorX + kDoorwayHalfWidth + 0.2f, drawn);
+}
+
 inline std::vector<SceneObject> BuildDecor()
 {
     std::vector<SceneObject> solid;
@@ -1822,6 +1948,7 @@ inline std::vector<SceneObject> BuildDecor()
     EntryTiles(drawn);
     AqueductDecor(drawn);
     CathedralDecor(drawn);
+    CourtyardDecor(drawn);
     Battlements(drawn);
     WallParts(drawn);
     // arched heads in the openings of the square into the wings (drawn only, above every head)
@@ -2048,7 +2175,7 @@ inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObje
 
 inline constexpr int kMaxDrawObjects = 4000; ///< most of it is the static city (baked into one call per layer)
 
-/// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
+/// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the crate and its bands, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is
 /// shown by StageHints::AddBlockedFlash (the outline of what was in the way), not by drawing it in the wrong layer. Returns
 /// how many objects were written.
@@ -2063,13 +2190,9 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
     {
         out[n++] = o;
     }
-    SceneObject block = puzzle.BlockObject();
-    block.colorSrgb[0] = 0.62f;
-    block.colorSrgb[1] = 0.32f;
-    block.colorSrgb[2] = 0.86f;
-    block.shineStrength = 0.30f;
-    block.shininess = 40.0f;
-    out[n++] = block;
+    out[n++] = puzzle.BlockObject(); // the crate, with its iron bands
+    puzzle.CrateBands(out + n);
+    n += puzzle::Puzzle::kCrateBands;
     if (!puzzle.DoorOpen(1))
     {
         out[n++] = kDoor;
@@ -2077,8 +2200,13 @@ inline int BuildDrawTable(const puzzle::Puzzle& puzzle, bool goalTaken, SceneObj
     const bool pressed = puzzle.PlatePressed(0) || puzzle.PlatePressed(1);
     const float px = static_cast<float>(kPlateCell.x);
     const float pz = static_cast<float>(kPlateCell.z);
-    out[n++] = Span(px - 0.45f, kFloorY, pz - 0.45f, px + 0.45f, kFloorY + 0.04f, pz + 0.45f, pressed ? 1.0f : 0.70f,
-                    pressed ? 0.55f : 0.18f, pressed ? 0.45f : 0.16f, kLayerA);
+    // the plate: a brass slab let into the flagstones (gold: a thing to use), bright while pressed
+    SceneObject plate = Span(px - 0.45f, kFloorY, pz - 0.45f, px + 0.45f, kFloorY + 0.04f, pz + 0.45f, pressed ? 1.0f : 0.72f,
+                             pressed ? 0.82f : 0.56f, pressed ? 0.36f : 0.26f, kLayerA);
+    plate.shineStrength = 0.8f;
+    plate.shininess = 60.0f;
+    plate.glow = pressed ? 0.6f : 0.1f;
+    out[n++] = plate;
     for (const SceneObject& o : kLandmarks)
     {
         out[n++] = o;
