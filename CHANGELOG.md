@@ -328,6 +328,20 @@
   away from a lamp, never to the lamp it opened from, a lamp not free passed over, none free: no list, closed when the body
   walks away, the panel drawable, every place beside a lamp a place to stand in both layers), `tests/test_terrain.cpp` (179; no
   escape from 3532 places), `tests/test_reach.cpp` (0 skips, 404608 jumps from 11219 places), `tests/test_hints.cpp` (495).
+- Made (2026-11-23, the endings, docs/LEVEL_DESIGN.md 1.5): new `scene/Ending.h`. The goal starts the last moment: three strokes
+  of the great bell, 1.2 s apart, a ring with each; the world at the third decides THE PAST (A: the water stays), THE PRESENT
+  (B: the master sluice drains A) or BOTH (three bells and Tab held: drained, the fragments stay). The end screen takes the
+  ending as its title (`EndScreen::Make` with a title); R after it puts the body back on the balcony with the waters full
+  (`Waterworks::Reopen`) and the last moment plays again.
+- Made (2026-11-23, guidance, 1.3 and 9.3): new `scene/Guidance.h`. Resonance after the second bell: a gold light at the bottom
+  of the screen pulses faster as a hidden light comes within 25 m, with a mark at the edge on its side when it is not ahead.
+  The stuck timer: after 30 s in one room its outlines of the other world grow brighter, after 60 s they pulse
+  (`BrightenRoom`, applied to the hint bars of the drawn table). The guide figure is not built.
+- Checked (2026-11-23): `tests/test_stage.cpp` (3901; new `TestLastMoment`: not started before the goal, three strokes 3.6 s,
+  a switch between the second and the third decides, Both only with three bells and Tab, decided once until Reset, the waters
+  reopened, the place of the replay on the balcony, every title drawable; caught when Both is given without the bells; new
+  `TestGuidance`: silent with one bell, stronger and faster nearer, the side left and right, silent with every light taken,
+  only hint bars of the room brightened and only after 30 s). `src/main.cpp` compiles against stand-ins with `-Wpedantic`.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

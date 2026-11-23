@@ -2462,6 +2462,12 @@ class Waterworks
     {
         return m_closed;
     }
+    /// The master sluice opened again (the last moment played once more): every water full.
+    void Reopen()
+    {
+        m_closed = false;
+        m_drained = 0.0f;
+    }
     void Update(float dt)
     {
         if (m_closed && dt > 0.0f && m_drained < 1.0f)

@@ -49,6 +49,8 @@
 #include "scene/CityState.h"
 #include "scene/Collision.h"
 #include "scene/EndScreen.h"
+#include "scene/Ending.h"
+#include "scene/Guidance.h"
 #include "scene/LampTravel.h"
 #include "scene/Landscape.h"
 #include "scene/OrbReturn.h"
@@ -249,7 +251,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
                     const dl::canal::Canal& canal, const dl::stage::Waterworks& waters, const dl::stage::AnchorSet& anchors,
                     const Respawn& respawn, const Respawn& orbReturn,
                     const dl::Player& player, const dl::Vec3& eye, const dl::Vec3& look, const dl::Config& config, float sinceClear,
-                    dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
+                    int room, float secondsInRoom, float clock, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
     namespace st = dl::stage;
     const bool cleared = sinceClear >= 0.0f;
@@ -264,6 +266,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = st::AddSea(eye, table, count, st::kMaxDrawObjects);              // the sea round the eye, wider than the far plane
     count = st::AddRespawnRing(respawn.at, respawn.since, table, count, st::kMaxDrawObjects);
     count = st::AddRespawnRing(orbReturn.at, orbReturn.since, table, count, st::kMaxDrawObjects);
+    const int hintFirst = count;
     if (ghosts)
     {
         count = st::AddGhosts(table, count, st::kMaxDrawObjects);
@@ -279,6 +282,8 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
         count = st::AddOutlines(table + movingFirst, movingCount, table, count, st::kMaxDrawObjects);
         count = st::AddOwnEdges(table + movingFirst, movingCount, table, count, st::kMaxDrawObjects);
     }
+    // stuck in a room for a while: its outlines grow brighter, then pulse (scene/Guidance.h)
+    st::BrightenRoom(table, hintFirst, count, room, secondsInRoom, clock);
     count = mech.AddOrbDraw(player, look, table, count, st::kMaxDrawObjects);
     // guidance: a column of light over every place that waits for something, and where a bridge will appear
     count = mech.AddBeacons(table, count, st::kMaxDrawObjects);
@@ -321,7 +326,7 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
 /// The overlay of one frame: the dot in the middle, the prompts at the bottom, the status line at the top left. Sizes follow
 /// the height of the window, so the text is as big on a laptop as on a desktop screen.
 void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl::prompt::Shown, 2>& prompts, const char* status,
-              const dl::endscreen::Screen* end)
+              const dl::endscreen::Screen* end, const dl::stage::Resonance& resonance, float clock)
 {
     namespace pr = dl::prompt;
     hud.Clear();
@@ -357,6 +362,21 @@ void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl:
         hud.AddText(x + pad, y, unit, text.key, {1.0f, 0.86f, 0.45f, a});
         hud.AddText(x + keyWidth + 3.0f * unit, y, unit, text.verb, {1.0f, 1.0f, 1.0f, a});
         y -= rowHeight + 2.0f * unit;
+    }
+    // the resonance of the lantern (scene/Guidance.h): a small light at the bottom of the screen that pulses faster as a hidden
+    // light comes nearer; a mark at the left or right edge when the light is not ahead
+    if (resonance.light >= 0)
+    {
+        const float pulse = 0.5f + 0.5f * std::sin(6.2831853f * resonance.rate * clock);
+        const float a = (0.25f + 0.75f * pulse) * (0.35f + 0.65f * resonance.strength);
+        const float size = std::floor(unit * (3.0f + 3.0f * resonance.strength));
+        hud.AddRect(std::floor(0.5f * (w - size)), h - 3.0f * unit - size, size, size, {1.0f, 0.82f, 0.45f, a});
+        if (resonance.side != 0)
+        {
+            const float mark = 3.0f * unit;
+            const float mx = resonance.side < 0 ? 2.0f * unit : w - 2.0f * unit - mark;
+            hud.AddRect(mx, std::floor(0.5f * (h - 4.0f * mark)), mark, 4.0f * mark, {1.0f, 0.82f, 0.45f, 0.5f * a});
+        }
     }
     // the end screen: a panel in the middle, the first line large
     if (end != nullptr && end->count > 0)
@@ -441,6 +461,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     dl::stage::Waterworks waters; // the water of A; the master sluice drains it at the end
     dl::stage::CityState city;    // what the bells have changed (scene/CityState.h)
     dl::stage::LampTravel travel; // the list of the lit lamps (scene/LampTravel.h)
+    dl::stage::Ending ending;     // the last moment and its ending (scene/Ending.h)
     bool travelLeftWasDown = false;
     bool travelRightWasDown = false;
     int bellsRung = 0;
@@ -642,7 +663,21 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             camera.Update(keys, dtf);
         }
         const bool resetKeyDown = focused && IsDown('R');
-        if (resetKeyDown && !resetKeyWasDown)
+        const bool replay = resetKeyDown && !resetKeyWasDown && ending.Done() && sinceClear >= static_cast<double>(dl::endscreen::kDelay);
+        if (replay)
+        {
+            // the last moment again (scene/Ending.h): the waters full, the body on the balcony, which starts it at once
+            ending.Reset();
+            clearSeconds = -1.0;
+            sinceClear = -1.0;
+            waters.Reopen();
+            player.SetSpawn({0.0f, dl::stage::kSummitY, 28.0f});
+            player.Respawn();
+            respawn = Respawn{player.Feet(), 0.0f};
+            camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch());
+            DL_LOG_INFO("Stage", "the last moment again");
+        }
+        else if (resetKeyDown && !resetKeyWasDown)
         {
             const dl::stage::Room& here = dl::stage::kRooms[room];
             if (room == dl::stage::RoomIndex("east hall") || room == dl::stage::RoomIndex("east quay") || room == dl::stage::RoomIndex("canal bed"))
@@ -844,12 +879,28 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 }
             }
 
-            if (clearSeconds < 0.0 && dl::stage::ReachedGoal(player))
+            // the last moment (scene/Ending.h): the goal starts three strokes of the great bell; the world at the third decides
+            if (clearSeconds < 0.0 && !ending.Running() && !ending.Done() && dl::stage::ReachedGoal(player))
+            {
+                ending.Start();
+                DL_LOG_INFO("Stage", "the last moment: the great bell strikes");
+            }
+            const int stroke = ending.Update(dtf, solidLayer, focused && IsDown(VK_TAB), city.Count());
+            if (stroke > 0)
+            {
+                respawn = Respawn{player.Feet(), 0.0f}; // a ring with each stroke
+                DL_LOG_INFO("Stage", "stroke %d of %d, in layer %c", stroke, dl::stage::Ending::kStrokes, solidLayer == 0 ? 'A' : 'B');
+            }
+            if (clearSeconds < 0.0 && ending.Done())
             {
                 clearSeconds = stageSeconds;
                 sinceClear = 0.0;
-                waters.Close(); // the master sluice: the aqueduct runs dry and every water of A drains (docs/LEVEL_DESIGN.md, 14.10)
-                DL_LOG_INFO("Stage", "clear in %.1f s, hidden lights %d of %d, falls %d", clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls);
+                if (dl::stage::Ending::Drains(ending.Kind()))
+                {
+                    waters.Close(); // time moves on: the master sluice drains every water of A (docs/LEVEL_DESIGN.md, 14.13)
+                }
+                DL_LOG_INFO("Stage", "ending: %s; clear in %.1f s, hidden lights %d of %d, falls %d", dl::stage::Ending::Title(ending.Kind()), clearSeconds,
+                            lights.Count(), dl::stage::kHiddenLightCount, falls);
             }
             float peak = 0.0f;
             if (player.ConsumeLanding(peak))
@@ -899,7 +950,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         // ---- what is drawn: the map as it is now
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
         const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, anchors, respawn, orbReturn, player, camera.Position(), camera.Forward(), config,
-                                         static_cast<float>(sinceClear), drawTable);
+                                         static_cast<float>(sinceClear), room, static_cast<float>(secondsInRoom), static_cast<float>(stageSeconds),
+                                         drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();
         gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);
 
@@ -949,10 +1001,13 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 char status[128];
                 std::snprintf(status, sizeof(status), "%s  *  SEALS %d/%d  *  LIGHTS %d/%d%s", dl::stage::kRooms[room].name, seals.Count(),
                               dl::stage::kSealCount, lights.Count(), dl::stage::kHiddenLightCount, clearSeconds >= 0.0 ? "  *  CLEAR" : "");
-                const dl::endscreen::Screen end = dl::endscreen::Make(clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls);
+                const dl::endscreen::Screen end =
+                    dl::endscreen::Make(clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls, dl::stage::Ending::Title(ending.Kind()));
                 const bool showEnd = clearSeconds >= 0.0 && sinceClear >= static_cast<double>(dl::endscreen::kDelay);
                 const dl::endscreen::Screen lampList = travel.Panel();
-                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status, showEnd ? &end : (travel.Open() ? &lampList : nullptr));
+                const dl::stage::Resonance resonance = dl::stage::ResonanceAt(lights, city.Count(), player.Feet(), camera.Forward());
+                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status, showEnd ? &end : (travel.Open() ? &lampList : nullptr), resonance,
+                         static_cast<float>(stageSeconds));
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
                 gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
             }

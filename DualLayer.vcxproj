@@ -119,6 +119,8 @@
     <ClInclude Include="src\scene\CityParts.h" />
     <ClInclude Include="src\scene\CityState.h" />
     <ClInclude Include="src\scene\EndScreen.h" />
+    <ClInclude Include="src\scene\Ending.h" />
+    <ClInclude Include="src\scene\Guidance.h" />
     <ClInclude Include="src\scene\LampTravel.h" />
     <ClInclude Include="src\scene\Landscape.h" />
     <ClInclude Include="src\scene\OrbReturn.h" />

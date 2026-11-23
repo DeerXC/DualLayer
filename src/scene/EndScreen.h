@@ -37,4 +37,14 @@ inline Screen Make(double seconds, int lights, int lightTotal, int falls)
     return s;
 }
 
+/// The same with the title of an ending (scene/Ending.h) in the first line and, in the last, the way to see the last
+/// moment again.
+inline Screen Make(double seconds, int lights, int lightTotal, int falls, const char* title)
+{
+    Screen s = Make(seconds, lights, lightTotal, falls);
+    std::snprintf(s.lines[0], kLineLength, "%s", title != nullptr ? title : "CLEAR");
+    std::snprintf(s.lines[4], kLineLength, "R: THE LAST MOMENT AGAIN");
+    return s;
+}
+
 } // namespace dl::endscreen

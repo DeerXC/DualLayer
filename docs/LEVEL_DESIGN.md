@@ -79,7 +79,7 @@ The lantern is the switch (1.4) and has two abilities, both practical, neither a
 | When | Ability | What it does | Why |
 |---|---|---|---|
 | after the first bell | lamp travel | built (`scene/LampTravel.h`): at a lit anchor lamp, E opens the list of the lit lamps (a panel with the name of the chosen one); A and D choose, E travels, W, S or Space close it; the body stands while it is open. The body arrives at the place beside the chosen lamp, in the layer it is in, with the ring of a respawn. A lamp whose place is not free in that layer is passed over | the city is large and wound; going back is the reward of exploring, so going back must be quick and the player decides where to |
-| after the second bell | resonance | the lantern at the bottom of the screen pulses while a memory light not yet taken is within 25 m, faster as it comes nearer; when that light is out of view, a faint mark at the edge of the screen shows its side | the lights are hidden on purpose; this says "here is one" without saying where |
+| after the second bell | resonance | built (`scene/Guidance.h`): a small light at the bottom of the screen pulses while a hidden light not yet taken is within 25 m, larger and faster as it comes nearer; when that light is more than 45 degrees off the view, a mark at the left or right edge shows its side | the lights are hidden on purpose; this says "here is one" without saying where |
 
 ### 1.4 The switch
 
@@ -108,6 +108,13 @@ written with the story:
 
 The memory lights are not a condition: they decide how much of A stands in the third ending. After an ending the body is back
 before the last moment, so the other endings are seen without playing again.
+
+As built (`scene/Ending.h`): touching the goal light, or standing on the balcony of the cathedral, starts the last moment:
+the great bell strikes three times, 1.2 s apart, each stroke with a ring of light round the body, which may switch worlds
+between them. At the third stroke: in A, "THE PAST" (the waters of A stay); in B, "THE PRESENT" (the master sluice drains
+every water of A); with the three bells rung and Tab held through it, "BOTH" (drained, and the fragments brought back by the
+memory lights stay). The end screen shows the ending as its title; R then puts the body back on the balcony, the waters full,
+and the last moment plays again. The hidden floor of the tower is not built, so the third ending needs the three bells only.
 
 ## 2. Goals and hard limits
 
@@ -671,8 +678,8 @@ tower.
 | Time stuck in one room | What appears |
 |---|---|
 | always | the scene (above), outlines of the other layer, columns of light over things to use |
-| 30 s | the outlines of the key objects of the room grow brighter |
-| 60 s | the guide figure shows the key step |
+| 30 s | the outlines of the other world in the room grow brighter over 5 s (built: `Guidance::BrightenRoom`) |
+| 60 s | they pulse (built); the guide figure that would show the key step is not built |
 | a refused move | the blocker flashes in both layers (built); a refused switch shows what is in the way in the other layer |
 
 R puts the body at the lit lamp of its room, or the entry of the room, and puts back the objects of that room. Lights,
@@ -769,7 +776,7 @@ until then the current map stays playable.
 | Fun cannot be proved | each district played as grey boxes before polish; where a player stops decides the changes |
 | Draw calls | the static batch per layer, the terrain in one mesh; only moving things one by one |
 
-### 12.3 Steps 1 to 9 and part of 12, as built
+### 12.3 Steps 1 to 9 and parts of 11 and 12, as built
 
 | Step | What the code does | Where |
 |---|---|---|
@@ -782,6 +789,7 @@ until then the current map stays playable.
 | 8 (part) | the market and the well (6.3.1); the sea stops at the harbour, so the pits inside the town are ravines of rock, not moats | `Stage.h` (the lane, the market, the well, `WellStairs`, `kWellWaters`), `Landscape::kSeaNorth` |
 | 9 (part) | the theatre and N3 (6.5.1) | `Stage.h` (the lane, the stage, `TheatreRow`, `TheatreStairs`, `TheatreDecor`) |
 | 9, 12 (part) | the graveyard and the night bell rung there (6.5.2); lamp travel (1.3) | `Stage.h` (the lane, the yard, `GraveyardDecor`, `kNightBell`), `CityState::Ring`, `RingAt`, `scene/LampTravel.h`, `main.cpp` |
+| 11 (part), 12 (part) | the last moment and the three endings (1.5); resonance (1.3); the brightening of a room after 30 s and its pulse after 60 s (9.3) | `scene/Ending.h`, `scene/Guidance.h`, `EndScreen::Make` with a title, `Waterworks::Reopen`, `main.cpp` |
 
 ## 13. Decisions
 
@@ -806,6 +814,7 @@ until then the current map stays playable.
 | 2026-11-23 | the west district becomes walkable: the market and its well (6.3.1), reached from the west hall by a lane; the stair of the well, a wooden stretch of A over water of A, makes the shaft a puzzle of where to change worlds. The sea is kept to the bay: the pits inside the town are ravines |
 | 2026-11-23 | the north district becomes walkable: the theatre north of the north hall, with N3 (a jump from a floor of A through a breach of B, 6.5.1). Straight rows of seats instead of a curved bowl: simpler to walk, to prove and to read. Every district now has a walked part; what waits is listed in 14.10 |
 | 2026-11-23 | the graveyard is a room in the town behind the theatre, with the night bell rung by walking up to it (6.5.2); lamp travel is built with a list chosen by A and D (1.3) |
+| 2026-11-23 | the endings are built on the cathedral as it stands (1.5): the world at the third stroke decides, Both needs the three bells and Tab held, R plays the last moment again. Resonance and the stuck timer are built; the guide figure is replaced by a pulse of the outlines |
 
 ## 14. The vertical city
 
@@ -903,9 +912,9 @@ and it reaches 2 m past the landing on both sides, so no jump goes round it.
 | The puzzle of the crate in the locks (E3), the inside of the water tower (E4), the dry lock (E2b) | the lock walk is walked; the crate stays in the canal |
 | W1 .. W4 round the well | they stay in the west hall; the market and the well are their own room (6.3.1) |
 | The cliff path | not needed: the graveyard is reached through the theatre (6.5.2) |
-| The round square, the tower in the square, T0 .. T5, the endings | the cathedral stays in the pool; the bell tower is drawn west of the west wing (6.6.1) |
+| The round square, the tower in the square, T0 .. T5 | the cathedral stays in the pool and is climbed by its six ramps; the endings are built (1.5) |
 | The cistern | the cellar of 14.11 stays |
-| Resonance, the guide figure, the stuck timer | section 12, step 12 (lamp travel is built) |
+| The guide figure | the stuck timer brightens and pulses the outlines instead (9.3); lamp travel and resonance are built |
 | The story | section 1.1 |
 
 ### 14.11 The cellar

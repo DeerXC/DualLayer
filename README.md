@@ -15,11 +15,12 @@ the other world. Round it every district has a part that is played:
   beside three locks (water in one world, dry rooms in the other);
 - the north: two prisms (a wall moved into the other world; two things moved at once), a theatre whose fallen back wall
   is passed with a switch in the air, and a graveyard where the night bell is rung;
-- a cellar that closes the ring of districts, and an end in which the master sluice drains every water of one world.
+- a cellar that closes the ring of districts, and a last moment at the top of the cathedral: three strokes of the great
+  bell, and the world the body stands in at the last one decides which of three endings is seen.
 
 The map stands on the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their
 streets, plants placed by the ground they grow on; three bells change the water, the machinery and the light of the city,
-and once one has rung, the lit lamps are a way to travel.
+once one has rung, the lit lamps are a way to travel, and once two have rung, the lantern pulses near a hidden light.
 What is still to be built is listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md) (14.10).
 
 ## Highlights

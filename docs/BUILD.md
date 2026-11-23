@@ -162,6 +162,9 @@ seen".
 | E-51 | in A on the promenade, walk west to the wooden panel in the back wall; jump at it and press Tab in the air; take the light | the jump goes through the breach onto the terrace behind; without Tab the panel stops the body |
 | E-52 | from the east end of the promenade of the theatre, through the door in the back wall, north into the graveyard, in A and in B; walk up to the bell in the arch of the tower in the north-east corner | rows of graves with flowers (A), a lone grave with a lantern (B); the hill and the town wall over the parapet; at the bell the log says the night bell is rung and night falls in A |
 | E-53 | after a bell (a seal or the night bell), stand at a lit lamp and press E; A and D; E; then again and W | a panel LAMPS with the name of a lamp; A and D change it (only lit lamps); E puts the body beside that lamp with a ring; W closes the panel; while it is open the body does not walk |
+| E-54 | reach the goal light; stay in A through the three strokes; after the panel press R, switch to B before the third stroke; then with the three bells rung, hold Tab through the third | three strokes with a ring each; the panel says THE PAST (the water stays), THE PRESENT (the water drains), BOTH; R puts the body back on the balcony and the water is full again |
+| E-55 | after two bells (two seals, or a seal and the night bell), walk toward a hidden light not yet taken, turn away from it | a small gold light at the bottom of the screen pulses faster as it comes nearer; turned away, a gold mark at the left or right edge |
+| E-56 | stay in the courtyard (or any room) without leaving it for 30 s, then 60 s | the outlines of the other world in the room grow brighter, then pulse |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

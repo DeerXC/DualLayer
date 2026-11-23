@@ -42,6 +42,8 @@
 #include "scene/CityParts.h"
 #include "scene/CityState.h"
 #include "render/Font5x7.h"
+#include "scene/Ending.h"
+#include "scene/Guidance.h"
 #include "scene/LampTravel.h"
 #include "scene/OrbReturn.h"
 #include "scene/Recovery.h"
@@ -2330,6 +2332,104 @@ void TestLampTravel()
     }
 }
 
+/// The last moment (docs/LEVEL_DESIGN.md 1.5): three strokes, the world at the third decides; Both needs three bells and Tab
+/// held; R plays it again.
+void TestLastMoment()
+{
+    st::Ending e;
+    CHECK(e.Update(0.1f, 0, false, 0) == 0 && !e.Running() && !e.Done()); // not started
+    e.Start();
+    CHECK(e.Running());
+    int strokes = 0;
+    float t = 0.0f;
+    int layer = 0;
+    while (!e.Done() && t < 10.0f)
+    {
+        const int s0 = e.Update(kDt, layer, false, 3);
+        strokes += s0 > 0 ? 1 : 0;
+        if (s0 == 2)
+        {
+            layer = 1; // a switch between the second and the third stroke
+        }
+        t += kDt;
+    }
+    CHECK(strokes == st::Ending::kStrokes && e.Kind() == st::EndingKind::Present && Near(t, 3.0f * st::Ending::kStrokeSeconds, 0.05f));
+    CHECK(st::Ending::Drains(e.Kind()) && std::string_view(st::Ending::Title(e.Kind())) == "THE PRESENT");
+    e.Start(); // once decided, it does not start again until Reset
+    CHECK(!e.Running() && e.Kind() == st::EndingKind::Present);
+    const auto play = [](int inLayer, bool tab, int bells) {
+        st::Ending x;
+        x.Start();
+        for (int i = 0; i < 1000 && !x.Done(); ++i)
+        {
+            x.Update(kDt, inLayer, tab, bells);
+        }
+        return x.Kind();
+    };
+    CHECK(play(0, false, 3) == st::EndingKind::Past && !st::Ending::Drains(st::EndingKind::Past));
+    CHECK(play(1, false, 1) == st::EndingKind::Present);
+    CHECK(play(0, true, 3) == st::EndingKind::Both && play(1, true, 3) == st::EndingKind::Both);
+    CHECK(play(0, true, 2) == st::EndingKind::Past); // Both needs the three bells
+    e.Reset();
+    CHECK(!e.Done() && !e.Running() && e.Strokes() == 0);
+    // the waters: drained after the present, full again for the replay
+    st::Waterworks w;
+    w.Close();
+    w.Update(10.0f);
+    CHECK(w.Drained() == 1.0f);
+    w.Reopen();
+    CHECK(w.Drained() == 0.0f && !w.Closed());
+    // the place of the replay starts the last moment: it is on the balcony, and a place to stand
+    World b;
+    b.TakeAllSeals();
+    b.PlaceFeet({0.0f, st::kSummitY, 28.0f});
+    CHECK(b.player.Grounded() && st::ReachedGoal(b.player));
+    // the end screen: every title drawable
+    for (st::EndingKind k : {st::EndingKind::Past, st::EndingKind::Present, st::EndingKind::Both})
+    {
+        const dl::endscreen::Screen sc = dl::endscreen::Make(100.0, 3, 9, 2, st::Ending::Title(k));
+        for (int i = 0; i < sc.count; ++i)
+        {
+            for (const char* c = sc.lines[i]; *c != '\0'; ++c)
+            {
+                CHECK(&dl::font::Find(*c) != &dl::font::kMissing);
+            }
+        }
+    }
+}
+
+/// Resonance and the brightening of a room (docs/LEVEL_DESIGN.md 1.3, 9.3).
+void TestGuidance()
+{
+    st::LightSet lights;
+    const Vec3 c = st::kHiddenLights[3].centre;
+    const Vec3 near{c.x + 3.0f, c.y, c.z};
+    st::Resonance r = st::ResonanceAt(lights, 1, near, {0.0f, 0.0f, 1.0f});
+    CHECK(r.light < 0 && r.strength == 0.0f); // one bell: silent
+    r = st::ResonanceAt(lights, 2, near, {-1.0f, 0.0f, 0.0f});
+    CHECK(r.light >= 0 && r.strength > 0.8f && r.side == 0); // looking at it
+    const st::Resonance farther = st::ResonanceAt(lights, 2, {c.x + 15.0f, c.y, c.z}, {-1.0f, 0.0f, 0.0f});
+    CHECK(farther.light >= 0 && farther.strength < r.strength && farther.rate < r.rate);
+    // looking along +z with the light at -x: in a left-handed space with y up, -x is to the left
+    CHECK(st::ResonanceAt(lights, 2, near, {0.0f, 0.0f, 1.0f}).side == -1 && st::ResonanceAt(lights, 2, near, {0.0f, 0.0f, -1.0f}).side == 1);
+    for (const st::HiddenLight& l : st::kHiddenLights) // every light taken: silent
+    {
+        lights.Collect(Touch{l.centre});
+    }
+    CHECK(st::ResonanceAt(lights, 3, near, {0.0f, 0.0f, 1.0f}).light < 0);
+    // brightening: only hint bars in the room, only after 30 s
+    const int room = Room("courtyard");
+    const st::Room& rr = st::kRooms[room];
+    SceneObject table[3] = {};
+    table[0] = st::HintBar(rr.x0 + 1.0f, kFloorY, rr.z0 + 1.0f, rr.x0 + 2.0f, kFloorY + 0.03f, rr.z0 + 1.1f, 0.5f, 0.5f, 0.5f, kLayerA);
+    table[1] = st::HintBar(rr.x0 + 1.0f, kFloorY, rr.z0 - 20.0f, rr.x0 + 2.0f, kFloorY + 0.03f, rr.z0 - 19.9f, 0.5f, 0.5f, 0.5f, kLayerA); // elsewhere
+    table[2] = table[0];
+    table[2].glow = 1.0f; // not a hint bar
+    CHECK(st::BrightenRoom(table, 0, 3, room, 20.0f, 0.0f) == 0);
+    CHECK(st::BrightenRoom(table, 0, 3, room, 40.0f, 0.0f) == 1 && table[0].glow > st::kHintGlow + 0.5f && table[0].colorSrgb[0] > 0.6f &&
+          table[1].glow == st::kHintGlow && table[2].glow == 1.0f);
+}
+
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
 {
@@ -2581,6 +2681,8 @@ int main()
     TestTheatre();
     TestGraveyard();
     TestLampTravel();
+    TestLastMoment();
+    TestGuidance();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
