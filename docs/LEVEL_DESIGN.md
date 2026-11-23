@@ -78,7 +78,7 @@ The lantern is the switch (1.4) and has two abilities, both practical, neither a
 
 | When | Ability | What it does | Why |
 |---|---|---|---|
-| after the first bell | lamp travel | at any lit anchor lamp, E opens the list of the lit lamps, each with its name and a small view of its place; left and right choose, E travels, Esc closes. The body arrives standing beside the chosen lamp, in the layer it left, with the ring of a respawn. A lamp whose place is not free in that layer is shown but cannot be chosen | the city is large and wound; going back is the reward of exploring, so going back must be quick and the player decides where to |
+| after the first bell | lamp travel | built (`scene/LampTravel.h`): at a lit anchor lamp, E opens the list of the lit lamps (a panel with the name of the chosen one); A and D choose, E travels, W, S or Space close it; the body stands while it is open. The body arrives at the place beside the chosen lamp, in the layer it is in, with the ring of a respawn. A lamp whose place is not free in that layer is passed over | the city is large and wound; going back is the reward of exploring, so going back must be quick and the player decides where to |
 | after the second bell | resonance | the lantern at the bottom of the screen pulses while a memory light not yet taken is within 25 m, faster as it comes nearer; when that light is out of view, a faint mark at the edge of the screen shows its side | the lights are hidden on purpose; this says "here is one" without saying where |
 
 ### 1.4 The switch
@@ -510,6 +510,16 @@ lesson of the gap of the prologue, the other way round: a floor of A, a way of B
 the west promenade is not there, and no jump from the east promenade or the rows reaches the breach (TestTheatre, the search
 for skips). The prism of the plan (scenery of A moved into B) is not used here: N1 and N2 teach the prism already.
 
+#### 6.5.2 The graveyard and the night bell (N4, as built)
+
+A door in the back wall at the east end of the promenade opens onto a short lane north to a walled yard on the hill, level
+with the promenade (rooms `graveyard lane`, `graveyard`): three rows of graves (low kerbs, drawn headstones; fresh flowers in
+A), the night bell tower in its north-east corner with the bell hanging low in its open arch, the lamp of the graveyard (the
+eleventh), and in B a lone grave apart, with a stone lantern (9.2). Its parapet (3.2 m) shows the hill and the town wall
+beyond and holds a jump, also from the pedestal of the lamp. Walking up to the bell rings the night bell (`CityState::RingAt`);
+it stays rung, as if the north seal had been taken: night falls in A. The graveyard is in the town, not outside the wall as
+the plan has it, because the ground outside the wall is the hillside of the world and its rooms would stand on it.
+
 ### 6.6 The bell tower
 
 #### 6.6.1 The bell tower of the current build
@@ -716,7 +726,7 @@ until then the current map stays playable.
 | 6 square and tower outside | the round square, the fallen bell, the tower in both worlds, the ring of lamps | the tower in both worlds and the ring of lamps built 2026-11-23, east of the square (6.6.1); the square itself waits |
 | 7 east | the lock walk, E3, E4, the dawn bell, the aqueduct walk | the lock walk built 2026-11-23 (6.4.1); the water tower drawn (5.8); the puzzle of E3, E4 and E2b wait |
 | 8 west | the well, W1 .. W4 round it, the day bell, the bucket lift | the market and the well built 2026-11-23 (6.3.1), reached from the west hall; W1 .. W4 stay in the hall for now |
-| 9 north | the theatre bowl, N1 .. N4, the cliff path, the graveyard, the night bell | the theatre and N3 built 2026-11-23 (6.5.1); the graveyard and the night bell tower drawn (5.8); N1, N2 stay in the north hall; the cliff path waits |
+| 9 north | the theatre bowl, N1 .. N4, the cliff path, the graveyard, the night bell | the theatre, N3, the graveyard and the night bell built 2026-11-23 (6.5.1, 6.5.2); N1, N2 stay in the north hall; the cliff path is not needed (the graveyard is reached through the theatre) |
 | 10 links | the cistern, the fall of the theatre, the fallen tower | |
 | 11 tower | T0 .. T5, the endings | |
 | 12 guidance | the guide figure, the times of section 9, lamp travel, resonance, marks, birds; the street lamps of the night | |
@@ -759,7 +769,7 @@ until then the current map stays playable.
 | Fun cannot be proved | each district played as grey boxes before polish; where a player stops decides the changes |
 | Draw calls | the static batch per layer, the terrain in one mesh; only moving things one by one |
 
-### 12.3 Steps 1 to 9, as built
+### 12.3 Steps 1 to 9 and part of 12, as built
 
 | Step | What the code does | Where |
 |---|---|---|
@@ -771,6 +781,7 @@ until then the current map stays playable.
 | 7 (part), the town | the lock walk (6.4.1); the districts round the map (5.8): the market and its well, the theatre, the graveyard and the night bell tower, the water tower, street lamps; the bell tower moved west | `Stage.h` (the lock walk, `kZones`, the well pit), `scene/Scenery.h`, `Shapes::StairsX` |
 | 8 (part) | the market and the well (6.3.1); the sea stops at the harbour, so the pits inside the town are ravines of rock, not moats | `Stage.h` (the lane, the market, the well, `WellStairs`, `kWellWaters`), `Landscape::kSeaNorth` |
 | 9 (part) | the theatre and N3 (6.5.1) | `Stage.h` (the lane, the stage, `TheatreRow`, `TheatreStairs`, `TheatreDecor`) |
+| 9, 12 (part) | the graveyard and the night bell rung there (6.5.2); lamp travel (1.3) | `Stage.h` (the lane, the yard, `GraveyardDecor`, `kNightBell`), `CityState::Ring`, `RingAt`, `scene/LampTravel.h`, `main.cpp` |
 
 ## 13. Decisions
 
@@ -794,6 +805,7 @@ until then the current map stays playable.
 | 2026-11-23 | the east district starts to move: the lock walk climbs east from the east hall beside three locks (6.4.1). The rest of the town carries the landmarks of its districts as scenery (5.8), so the town reads as the planned city before its rooms are rebuilt; the bell tower moves west to make room for the locks |
 | 2026-11-23 | the west district becomes walkable: the market and its well (6.3.1), reached from the west hall by a lane; the stair of the well, a wooden stretch of A over water of A, makes the shaft a puzzle of where to change worlds. The sea is kept to the bay: the pits inside the town are ravines |
 | 2026-11-23 | the north district becomes walkable: the theatre north of the north hall, with N3 (a jump from a floor of A through a breach of B, 6.5.1). Straight rows of seats instead of a curved bowl: simpler to walk, to prove and to read. Every district now has a walked part; what waits is listed in 14.10 |
+| 2026-11-23 | the graveyard is a room in the town behind the theatre, with the night bell rung by walking up to it (6.5.2); lamp travel is built with a list chosen by A and D (1.3) |
 
 ## 14. The vertical city
 
@@ -837,7 +849,7 @@ Whole red or blue boxes are gone; red and blue are only edges and outlines.
 
 A stone lamp that looks the same in both worlds. It is lit the first time a body passes it; from then on a fall or R in its
 room comes back beside it, and a ring spreads from where the body appears. Rooms without a lamp have a carved tile at their
-entry. Ten lamps in the current build: the quay, the locks, the market, the theatre, the terrace, before the gap, the square, the archive, the canal, the bell tower;
+entry. Eleven lamps in the current build: the quay, the locks, the market, the theatre, the graveyard, the terrace, before the gap, the square, the archive, the canal, the bell tower;
 twelve in the plan (section 8).
 
 ### 14.6 The prologue
@@ -890,10 +902,10 @@ and it reaches 2 m past the landing on both sides, so no jump goes round it.
 |---|---|
 | The puzzle of the crate in the locks (E3), the inside of the water tower (E4), the dry lock (E2b) | the lock walk is walked; the crate stays in the canal |
 | W1 .. W4 round the well | they stay in the west hall; the market and the well are their own room (6.3.1) |
-| The cliff path, the graveyard as a room, the night bell rung there | drawn only (5.8) |
+| The cliff path | not needed: the graveyard is reached through the theatre (6.5.2) |
 | The round square, the tower in the square, T0 .. T5, the endings | the cathedral stays in the pool; the bell tower is drawn west of the west wing (6.6.1) |
 | The cistern | the cellar of 14.11 stays |
-| Lamp travel, resonance, the guide figure, the stuck timer | section 12, step 12 |
+| Resonance, the guide figure, the stuck timer | section 12, step 12 (lamp travel is built) |
 | The story | section 1.1 |
 
 ### 14.11 The cellar

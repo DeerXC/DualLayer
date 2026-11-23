@@ -160,6 +160,8 @@ seen".
 | E-49 | look down from the gap, the terrace and the sky bridge | rock ravines below, no sea inside the town; the sea only in the bay and the harbour |
 | E-50 | the north hall: walk between the two ramps to the door under landing 1, up the lane onto the stage; down into the orchestra; up the aisle at the east end of the rows to the promenade, in A and in B | the stage wall with columns and painted scenery (A), broken (B); rows of seats; in B the west part of the upper rows and the promenade gone, rubble below |
 | E-51 | in A on the promenade, walk west to the wooden panel in the back wall; jump at it and press Tab in the air; take the light | the jump goes through the breach onto the terrace behind; without Tab the panel stops the body |
+| E-52 | from the east end of the promenade of the theatre, through the door in the back wall, north into the graveyard, in A and in B; walk up to the bell in the arch of the tower in the north-east corner | rows of graves with flowers (A), a lone grave with a lantern (B); the hill and the town wall over the parapet; at the bell the log says the night bell is rung and night falls in A |
+| E-53 | after a bell (a seal or the night bell), stand at a lit lamp and press E; A and D; E; then again and W | a panel LAMPS with the name of a lamp; A and D change it (only lit lamps); E puts the body beside that lamp with a ring; W closes the panel; while it is open the body does not walk |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

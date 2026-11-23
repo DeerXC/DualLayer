@@ -13,12 +13,13 @@ the other world. Round it every district has a part that is played:
   other;
 - the east: a crate that floats on water of one world and is moved in it to be used in the other, and a walk that climbs
   beside three locks (water in one world, dry rooms in the other);
-- the north: two prisms (a wall moved into the other world; two things moved at once), and a theatre whose fallen back wall
-  is passed with a switch in the air;
+- the north: two prisms (a wall moved into the other world; two things moved at once), a theatre whose fallen back wall
+  is passed with a switch in the air, and a graveyard where the night bell is rung;
 - a cellar that closes the ring of districts, and an end in which the master sluice drains every water of one world.
 
 The map stands on the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their
-streets, plants placed by the ground they grow on; three bells change the water, the machinery and the light of the city.
+streets, plants placed by the ground they grow on; three bells change the water, the machinery and the light of the city,
+and once one has rung, the lit lamps are a way to travel.
 What is still to be built is listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md) (14.10).
 
 ## Highlights
@@ -32,10 +33,10 @@ What is still to be built is listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.
   cannot drift apart.
 - **A world without a void, proved.** The ground is a height field generated in code, flat-shaded and baked into the static
   batch with the plants. Tests prove that it lies under every floor, that no walk or jump off an edge of the map ever ends on
-  it (about 13000 tried), and that every view down meets the map, the land or the sea.
+  it (about 14000 tried), and that every view down meets the map, the land or the sea.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
-  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 10000 places to
-  stand, about 360000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
+  room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 11000 places to
+  stand, about 400000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
 - **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
   falls through a floor that exists only in the other layer. The west wing is built on that: an orb that lays a bridge of

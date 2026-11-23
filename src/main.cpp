@@ -49,6 +49,7 @@
 #include "scene/CityState.h"
 #include "scene/Collision.h"
 #include "scene/EndScreen.h"
+#include "scene/LampTravel.h"
 #include "scene/Landscape.h"
 #include "scene/OrbReturn.h"
 #include "scene/Player.h"
@@ -439,6 +440,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     canal.Init(dl::stage::MakeCanal());
     dl::stage::Waterworks waters; // the water of A; the master sluice drains it at the end
     dl::stage::CityState city;    // what the bells have changed (scene/CityState.h)
+    dl::stage::LampTravel travel; // the list of the lit lamps (scene/LampTravel.h)
+    bool travelLeftWasDown = false;
+    bool travelRightWasDown = false;
     int bellsRung = 0;
     dl::stage::AnchorSet anchors; // the anchor lamps: where a fall or R comes back (scene/Anchors.h)
     Respawn respawn;
@@ -702,15 +706,51 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
         {
+            // lamp travel (scene/LampTravel.h): while the list is open the body stands; A and D choose, E goes
+            const auto lampFree = [&](const dl::Vec3& at) {
+                dl::Player probe = player;
+                probe.SetSpawn(at);
+                probe.Respawn();
+                return dl::puzzle::Puzzle::FitsIn(probe, solidLayer, gpu.models.SpinSeconds(), solidTable, solidCount);
+            };
+            travel.Follow(anchors, player.Feet());
+            bool lampUsed = false;
+            if (travel.Open())
+            {
+                const bool left = PressedOnce('A', travelLeftWasDown, focused);
+                const bool right = PressedOnce('D', travelRightWasDown, focused);
+                if (left || right)
+                {
+                    travel.Step(anchors, right ? +1 : -1, lampFree);
+                }
+                if (usePressed)
+                {
+                    const int to = travel.Selected();
+                    player.SetSpawn(travel.Go());
+                    player.Respawn();
+                    respawn = Respawn{player.Feet(), 0.0f};
+                    DL_LOG_INFO("Stage", "lamp travel: to %s", dl::stage::kAnchors[to].name);
+                    lampUsed = true;
+                }
+                else if (jumpPressed || keys.moveForward != 0.0f)
+                {
+                    travel.Close();
+                }
+            }
+            else if (usePressed && travel.TryOpen(anchors, player.Feet(), city.Count(), lampFree))
+            {
+                lampUsed = true;
+                DL_LOG_INFO("Stage", "lamp travel: the list is open");
+            }
             dl::Player::Input move;
-            move.moveForward = keys.moveForward;
-            move.moveRight = keys.moveRight;
-            move.jumpPressed = jumpPressed;
+            move.moveForward = travel.Open() ? 0.0f : keys.moveForward;
+            move.moveRight = travel.Open() ? 0.0f : keys.moveRight;
+            move.jumpPressed = jumpPressed && !travel.Open() && !lampUsed;
             move.jumpHeld = focused && IsDown(VK_SPACE);
             player.SetScene(solidTable, solidCount);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
             puzzle.Update(player, dtf);
-            if (usePressed)
+            if (usePressed && !lampUsed)
             {
                 int which = -1;
                 dl::Vec3 spot{};
@@ -774,6 +814,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 ++falls;
                 landDip = 0.0f;
                 DL_LOG_INFO("Main", "fell: back at the %s", dl::stage::kRooms[room].name);
+            }
+            if (city.RingAt(player))
+            {
+                DL_LOG_INFO("Stage", "the night bell is rung in the graveyard");
             }
             const int lamp = anchors.Update(player);
             if (lamp >= 0)
@@ -907,7 +951,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                               dl::stage::kSealCount, lights.Count(), dl::stage::kHiddenLightCount, clearSeconds >= 0.0 ? "  *  CLEAR" : "");
                 const dl::endscreen::Screen end = dl::endscreen::Make(clearSeconds, lights.Count(), dl::stage::kHiddenLightCount, falls);
                 const bool showEnd = clearSeconds >= 0.0 && sinceClear >= static_cast<double>(dl::endscreen::kDelay);
-                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status, showEnd ? &end : nullptr);
+                const dl::endscreen::Screen lampList = travel.Panel();
+                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status, showEnd ? &end : (travel.Open() ? &lampList : nullptr));
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
                 gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
             }

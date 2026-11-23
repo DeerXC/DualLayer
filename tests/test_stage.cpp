@@ -41,6 +41,8 @@
 #include "scene/Anchors.h"
 #include "scene/CityParts.h"
 #include "scene/CityState.h"
+#include "render/Font5x7.h"
+#include "scene/LampTravel.h"
 #include "scene/OrbReturn.h"
 #include "scene/Recovery.h"
 #include "scene/Stage.h"
@@ -2235,6 +2237,99 @@ void TestTheatre()
     }
 }
 
+/// The graveyard (docs/LEVEL_DESIGN.md 6.5.2): from the promenade of the theatre through the lane, in both layers; the night
+/// bell rung by walking up to it; the parapet holds a running jump.
+void TestGraveyard()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const float zp = 0.5f * (st::kPromenadeZ0 + st::kBackWallZ);
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World w = hub;
+        w.layer = layer;
+        w.PlaceFeet({11.0f, st::kPromenadeY, zp});
+        CHECK(w.WalkPath({{9.0f, kFloorY, zp}, {9.0f, kFloorY, 90.0f}, {9.0f, kFloorY, 94.0f}}) && w.At(9.0f, st::kGraveY, 94.0f, 0.4f) &&
+              st::RoomAt(w.player.Feet()) == Room("graveyard"));
+        st::CityState city;
+        CHECK(!city.RingAt(w.player));
+        bool rung = false;
+        for (int i = 0; i < 300 && !rung; ++i)
+        {
+            w.Frame(Keys(1.0f), Vec3{0.30f, 0.0f, 0.95f});
+            rung = city.RingAt(w.player);
+        }
+        CHECK(rung && city.Rung(st::Bell::Night) && city.Count() == 1);
+        st::SealSet none;
+        city.FromSeals(none); // the seals do not take it back
+        CHECK(city.Night());
+        for (const Vec3& d : {kNorth, kEast, Vec3{-1.0f, 0.0f, 0.0f}})
+        {
+            World j = w;
+            j.JumpFrom({0.0f, st::kGraveY, 102.0f}, d, 0.6f);
+            CHECK(st::RoomAt(j.player.Feet()) == Room("graveyard"));
+        }
+    }
+    CHECK(st::kGraveWallTop > st::kGraveY + 2.0f + 0.5f);
+}
+
+/// Lamp travel (docs/LEVEL_DESIGN.md 1.3): only after a bell, only at a lit lamp, only to other lit lamps whose place is free.
+void TestLampTravel()
+{
+    st::AnchorSet anchors;
+    st::LampTravel travel;
+    const auto free = [](const Vec3&) { return true; };
+    const Vec3 at = st::kAnchors[0].stand;
+    CHECK(!travel.TryOpen(anchors, at, 1, free)); // not lit
+    for (const st::AnchorDesc& a : st::kAnchors)
+    {
+        anchors.Update(Hand{{a.base.x, a.base.y + st::kAnchorHeight, a.base.z}});
+    }
+    CHECK(!travel.TryOpen(anchors, at, 0, free));                   // no bell yet
+    CHECK(!travel.TryOpen(anchors, {at.x + 5.0f, at.y, at.z}, 1, free)); // not at a lamp
+    CHECK(travel.TryOpen(anchors, at, 1, free) && travel.Open() && travel.Selected() == 1);
+    for (int i = 0; i < st::kAnchorCount + 2; ++i) // round the list: never the lamp it opened from
+    {
+        travel.Step(anchors, +1, free);
+        CHECK(travel.Selected() != 0);
+    }
+    travel.Step(anchors, -1, free);
+    const int chosen = travel.Selected();
+    const Vec3 to = travel.Go();
+    CHECK(!travel.Open() && Near(to.x, st::kAnchors[chosen].stand.x, 1e-6f) && Near(to.z, st::kAnchors[chosen].stand.z, 1e-6f));
+    // a lamp whose place is not free is passed over; with none free the list does not open
+    const auto onlyMarket = [](const Vec3& p) { return st::RoomAt(p) == Room("market"); };
+    CHECK(travel.TryOpen(anchors, at, 1, onlyMarket) && std::string_view(st::kAnchors[travel.Selected()].room) == "market");
+    travel.Step(anchors, +1, onlyMarket);
+    CHECK(std::string_view(st::kAnchors[travel.Selected()].room) == "market");
+    travel.Follow(anchors, {at.x + 5.0f, at.y, at.z}); // walked away: closed
+    CHECK(!travel.Open());
+    CHECK(!travel.TryOpen(anchors, at, 1, [](const Vec3&) { return false; }));
+    // the panel: every character can be drawn
+    travel.TryOpen(anchors, at, 1, free);
+    const dl::endscreen::Screen p = travel.Panel();
+    for (int i = 0; i < p.count; ++i)
+    {
+        for (const char* c = p.lines[i]; *c != '\0'; ++c)
+        {
+            CHECK(&dl::font::Find(*c) != &dl::font::kMissing);
+        }
+    }
+    // every lamp's place is a place to stand in both layers (it is where travel arrives)
+    for (const st::AnchorDesc& a : st::kAnchors)
+    {
+        for (int layer = 0; layer < 2; ++layer)
+        {
+            World w;
+            w.TakeAllSeals();
+            w.layer = layer;
+            w.PlaceFeet(a.stand);
+            CHECK(w.player.Grounded() && Near(w.player.Feet().y, a.stand.y, 0.02f));
+        }
+    }
+}
+
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
 {
@@ -2484,6 +2579,8 @@ int main()
     TestLockWalk();
     TestMarketWell();
     TestTheatre();
+    TestGraveyard();
+    TestLampTravel();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

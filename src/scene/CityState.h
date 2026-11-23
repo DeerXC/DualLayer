@@ -1,7 +1,8 @@
 // CityState.h - what the bells have changed in the city (docs/LEVEL_DESIGN.md, 1 and 4; step 4 of section 12), and the memory
 //            fragments that the hidden lights bring back (section 8).
 // Bells:     three: dawn, day and night. In the current build each one is rung by taking the seal of a wing: the east seal is
-//            the dawn bell, the west seal the day bell, the north seal the night bell (kSealOfBell). What a bell changes, it
+//            the dawn bell, the west seal the day bell, the north seal the night bell (kSealOfBell). The night bell is also rung
+//            where it hangs, in the graveyard (RingAt). What a bell changes, it
 //            changes for good and in both worlds, and never on the main path (any order of the bells finishes the game):
 //              dawn   the master sluice of the aqueduct opens: every water of A stands kDawnRise higher (Waterworks::SetRaise)
 //              day    the machinery of the city turns by itself: the lock of the canal opens without its wheel
@@ -43,13 +44,31 @@ inline constexpr float kNightSeconds = 6.0f; ///< UNITS: seconds the night takes
 class CityState
 {
   public:
-    /// The bells rung, read from the seals taken.
+    /// The bells rung, read from the seals taken (a bell rung where it hangs stays rung: Ring).
     void FromSeals(const SealSet& seals)
     {
         for (int b = 0; b < kBellCount; ++b)
         {
-            m_rung[static_cast<std::size_t>(b)] = seals.Taken(kSealOfBell[b]);
+            m_rung[static_cast<std::size_t>(b)] = m_rung[static_cast<std::size_t>(b)] || seals.Taken(kSealOfBell[b]);
         }
+    }
+
+    /// A bell rung where it hangs (the night bell of the graveyard). True the first time.
+    bool Ring(Bell b)
+    {
+        const bool first = !Rung(b);
+        m_rung[static_cast<std::size_t>(b)] = true;
+        return first;
+    }
+
+    /// The night bell of the graveyard: rung by a body whose feet come within kBellReach of the place in front of it.
+    template <class Body>
+    bool RingAt(const Body& body)
+    {
+        const Vec3 f = body.Feet();
+        const float dx = f.x - kNightBell.x;
+        const float dz = f.z - kNightBell.z;
+        return dx * dx + dz * dz < kBellReach * kBellReach && f.y > kNightBell.y - 0.5f && f.y < kNightBell.y + 0.5f && Ring(Bell::Night);
     }
 
     bool Rung(Bell b) const

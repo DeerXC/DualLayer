@@ -37,7 +37,7 @@ inline constexpr float kNearCell = 2.0f;
 inline constexpr float kFarX0 = -368.0f;
 inline constexpr float kFarX1 = 368.0f;
 inline constexpr float kFarZ0 = -152.0f;
-inline constexpr float kFarZ1 = 400.0f;
+inline constexpr float kFarZ1 = 416.0f;
 inline constexpr float kFarCell = 8.0f;
 /// UNITS: metres: how far the eye sees. KEEP IN SYNC: render/Projection.h kFarPlane (main.cpp checks it when it compiles).
 inline constexpr float kViewDistance = 300.0f;
@@ -436,10 +436,10 @@ inline std::vector<Plant> PlacePlants(const terrain::Land& land)
             add(x, z, PlantKind::Cypress, 0.9f + 0.3f * next());
         }
     }
-    // the cypresses round the graveyard outside the north wall (scene/Scenery.h)
+    // the cypresses on the hill behind the graveyard, outside the north wall
     for (float t = -19.0f; t <= 19.0f; t += 3.8f)
     {
-        for (float z : {kGraveyardZ0 - 2.0f, kGraveyardZ1 + 2.0f})
+        for (float z : {kGraveyardZ1 + 10.0f, kGraveyardZ1 + 13.0f}) // outside the town wall, on the hill behind the graveyard
         {
             if (land.Height(t, z) > kSeaY + 1.5f && land.Slope(t, z) < 0.6f && farFromOthers(t, z, PlantKind::Cypress))
             {

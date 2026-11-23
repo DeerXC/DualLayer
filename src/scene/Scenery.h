@@ -12,7 +12,7 @@
 //            houses under the line of the fall stand in A only; in B a low heap of rubble is where they were.
 // Houses:    each house gets a door on the side that faces the cathedral and windows on its upper floor; in A some windows
 //            are lit (the evening); in B the shells have none above the height they were broken at.
-// Districts: the graveyard outside the north wall with the night bell tower, the water tower over the locks of the east;
+// Districts: the water tower over the locks of the east;
 //            and a lamp at every other crossing of the streets (docs/LEVEL_DESIGN.md 5.8).
 // Rule:      nothing here is solid, and nothing stands where a body can land on it: every box is 4.5 m or more from every room,
 //            or out of reach above it (tests/test_terrain.cpp, TestScenery).
@@ -30,7 +30,7 @@ namespace dl::stage
 
 inline constexpr float kTownWallX = 64.0f;   ///< the town wall: x -64 .. 64, z -44 .. 106 (outside the plots of the town)
 inline constexpr float kTownWallZ0 = -44.0f;
-inline constexpr float kTownWallZ1 = 106.0f;
+inline constexpr float kTownWallZ1 = 110.0f;
 inline constexpr float kTownWallTop = kPlainY + 9.0f;
 inline constexpr float kTownWallThick = 1.2f;
 
@@ -317,63 +317,9 @@ inline constexpr Rgb kPaving{0.64f, 0.60f, 0.52f};
 
 // ---- the theatre of the north is part of the map (scene/Stage.h, docs/LEVEL_DESIGN.md 6.5.1).
 
-// ---- the graveyard on the hillside outside the north wall, with the night bell tower; in B a grave apart from the others,
-// with a stone lantern (docs/LEVEL_DESIGN.md 9.2)
-
-inline constexpr float kGraveyardZ0 = 112.0f;
-inline constexpr float kGraveyardZ1 = 128.0f;
-
-template <class HeightAt>
-void GraveyardScenery(HeightAt heightAt, std::vector<SceneObject>& out)
-{
-    for (float z = kGraveyardZ0 + 1.0f; z < kGraveyardZ1 - 1.0f; z += 2.6f)
-    {
-        for (float x = -16.0f; x <= 16.0f; x += 2.2f)
-        {
-            const int k = static_cast<int>((x + 20.0f) * 3.0f + z);
-            if (k % 5 == 0)
-            {
-                continue;
-            }
-            const float gy = heightAt(x, z);
-            SceneObject stone = Span(x - 0.4f, gy - 0.3f, z - 0.12f, x + 0.4f, gy + 0.9f + 0.1f * static_cast<float>(k % 3), z + 0.12f, kGrey,
-                                     k % 7 == 0 ? kLayerA : kLayerBoth);
-            stone.yaw = 0.05f * static_cast<float>(k % 5 - 2);
-            out.push_back(stone);
-            if (k % 4 == 1) // A: fresh flowers on the grave
-            {
-                SceneObject flowers = Span(x - 0.25f, gy - 0.05f, z + 0.2f, x + 0.25f, gy + 0.15f, z + 0.5f, Rgb{0.86f, 0.38f, 0.42f}, kLayerA);
-                out.push_back(flowers);
-            }
-        }
-    }
-    const float bx = 12.0f; // the night bell tower
-    const float bz = 124.0f;
-    const float by = heightAt(bx, bz);
-    out.push_back(Span(bx - 2.2f, by - 1.0f, bz - 2.2f, bx + 2.2f, by + 12.0f, bz + 2.2f, kStone, kLayerBoth));
-    for (int k = 0; k < 4; ++k)
-    {
-        const float px = bx + (k % 2 == 0 ? -2.0f : 1.4f);
-        const float pz = bz + (k < 2 ? -2.0f : 1.4f);
-        out.push_back(Span(px, by + 12.0f, pz, px + 0.6f, by + 15.0f, pz + 0.6f, kStone, kLayerBoth));
-    }
-    const std::size_t roof = out.size();
-    shapes::Roof(bx - 2.5f, bx + 2.5f, bz - 2.5f, bz + 2.5f, by + 15.0f, by + 17.5f, out);
-    for (std::size_t i = roof; i < out.size(); ++i)
-    {
-        out[i].layerMask = kLayerA;
-    }
-    Octagon(bx, bz, 1.0f, by + 12.6f, by + 14.4f, kBellBronze, kLayerBoth, out);
-    // B: the grave apart, with its stone lantern
-    const float gx = -18.5f;
-    const float gz = 116.0f;
-    const float gy = heightAt(gx, gz);
-    out.push_back(Span(gx - 0.9f, gy - 0.2f, gz - 1.5f, gx + 0.9f, gy + 0.3f, gz + 1.5f, Rgb{0.40f, 0.36f, 0.30f}, kLayerB));
-    out.push_back(Span(gx - 0.2f, gy, gz - 2.2f, gx + 0.2f, gy + 1.1f, gz - 1.8f, kGrey, kLayerB));
-    SceneObject lantern = Span(gx - 0.15f, gy + 1.1f, gz - 2.15f, gx + 0.15f, gy + 1.4f, gz - 1.85f, Rgb{1.0f, 0.80f, 0.40f}, kLayerB);
-    lantern.glow = 0.6f;
-    out.push_back(lantern);
-}
+// ---- the graveyard is part of the map (scene/Stage.h, docs/LEVEL_DESIGN.md 6.5.2).
+inline constexpr float kGraveyardZ0 = 92.0f; ///< (the plants keep their cypresses north of it, outside the town wall)
+inline constexpr float kGraveyardZ1 = 104.0f;
 
 // ---- the water tower over the locks (east): in A its shaft, an open stage with the dawn bell and the tank (kLandmarks); in B
 // the shaft broken at 20 m and its top fallen beside it
@@ -431,7 +377,7 @@ void Scenery(HeightAt heightAt, std::vector<SceneObject>& out)
     TownWall(out);
     BellTower(out);
     HouseDetails(out);
-    GraveyardScenery(heightAt, out);
+    (void)heightAt;
     WaterTowerScenery(out);
     StreetLamps(out);
 }

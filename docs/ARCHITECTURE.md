@@ -40,7 +40,8 @@ main
              Overlay, OverlayBatch, Font5x7, StaticBatch                                           > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
-             Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery         > standard library only
+             Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery,
+             LampTravel                                                                            > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -92,7 +93,8 @@ every floor, that no body reaches it from the map, and that every view down meet
 layer; `SafeRespawn` gives the place a fall or R comes back to, out of the water of the layer of the body. `CityState` reads
 the bells from the seals and eases what they change (the water of A, the night of A); the canal turns its lock by itself once
 the machinery runs (`Canal::SetMachinery`); `Waterworks::SetRaise` lifts every water of A. The memory fragments are pieces of B
-that appear once their hidden light is taken, solid in the tables of B.
+that appear once their hidden light is taken, solid in the tables of B. `LampTravel` holds the list of the lit lamps that E opens at a
+lamp once a bell has rung; `main.cpp` freezes the walk while it is open and moves the body to the chosen lamp.
 
 ## Collision and the walking body
 

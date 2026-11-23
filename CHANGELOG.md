@@ -313,6 +313,21 @@
   light, no way to the terrace in B; caught when the panel is in both layers), `tests/test_terrain.cpp` (177; no escape from
   3358 places), `tests/test_reach.cpp` (0 skips, 366592 jumps from 10475 places), `tests/test_hints.cpp` (481),
   `tests/test_lights.cpp` (51), the other tests unchanged.
+- Made (2026-11-23, the graveyard, docs/LEVEL_DESIGN.md 6.5.2): a door at the east end of the back wall of the theatre, a lane
+  north to a walled yard on the hill, level with the promenade: three rows of graves (kerbs, drawn headstones, flowers in A), the
+  night bell tower with the bell in its arch, a lone grave with a lantern in B, the lamp of the graveyard (the eleventh). Walking
+  up to the bell rings the night bell (`CityState::Ring`, `RingAt`); `FromSeals` keeps a bell rung where it hangs. Rooms
+  `graveyard lane`, `graveyard`. The graveyard leaves `scene/Scenery.h`; the town wall moves to z 110, the cypresses behind it.
+- Made (2026-11-23, lamp travel, 1.3): new `scene/LampTravel.h`. After the first bell, E at a lit lamp opens a panel of the lit
+  lamps; A and D choose (a lamp whose place is not free in the layer of the body is passed over), E travels with the ring of a
+  respawn, W, S or Space close it; the body stands while it is open (`main.cpp`).
+- Fixed (2026-11-23, found by the search for escapes): the parapet of the graveyard was jumped from the pedestal of its lamp;
+  raised to 3.2 m. The coarse field reaches z 416 (300 m past the graveyard).
+- Checked (2026-11-23): `tests/test_stage.cpp` (3681; new `TestGraveyard`: the way in, in both layers; the bell rung by walking up
+  to it, kept by `FromSeals`; the parapet holds a running jump; new `TestLampTravel`: not before a bell, not at an unlit lamp or
+  away from a lamp, never to the lamp it opened from, a lamp not free passed over, none free: no list, closed when the body
+  walks away, the panel drawable, every place beside a lamp a place to stand in both layers), `tests/test_terrain.cpp` (179; no
+  escape from 3532 places), `tests/test_reach.cpp` (0 skips, 404608 jumps from 11219 places), `tests/test_hints.cpp` (495).
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

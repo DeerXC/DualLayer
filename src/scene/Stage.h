@@ -392,6 +392,19 @@ inline constexpr float kFallenX = -2.0f;             // B: west of this the uppe
 inline constexpr float kBreachX0 = -11.0f;           // the breach of B in the back wall, x -11 .. -9 (A: a wooden panel)
 inline constexpr float kBreachX1 = -9.0f;
 inline constexpr float kTerraceZ1 = 90.0f;           // the terrace behind it, x -13 .. -7, z 86.5 .. 90, at the promenade
+// the graveyard (docs/LEVEL_DESIGN.md 6.5.2): a walled yard on the hill north of the theatre, level with its promenade,
+// reached by a lane through the back wall at the east end of the promenade; rows of graves, the night bell tower in its
+// north-east corner (the night bell hangs low in its open arch, and is rung by walking up to it), a lone grave in B
+inline constexpr float kGraveY = kPromenadeY;         // 2.85: its floor
+inline constexpr float kGraveX0 = -12.0f;            // the yard, x -12 .. 12, z 92 .. 104
+inline constexpr float kGraveX1 = 12.0f;
+inline constexpr float kGraveZ0 = 92.0f;
+inline constexpr float kGraveZ1 = 104.0f;
+inline constexpr float kGraveLaneX0 = 8.0f;          // the lane, x 8 .. 10, from the back wall (z 86.5) to the yard
+inline constexpr float kGraveLaneX1 = 10.0f;
+inline constexpr float kGraveWallTop = kGraveY + 3.2f; // its parapet: the hill is seen over it, not reached (also from a pedestal)
+inline constexpr Vec3 kNightBell{10.5f, kGraveY, 99.4f}; ///< the place in front of the night bell
+inline constexpr float kBellReach = 1.0f;            ///< UNITS: metres from that place to ring it
 inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
 // the cellar (docs/LEVEL_DESIGN.md, 14.8): the fourth link of the ring, from the canal bed of the east district west under the
 // courtyard to the lower room of the west wing. It carries the water of the canal: in A it is flooded and an iron sluice panel
@@ -936,7 +949,24 @@ inline constexpr SceneObject kFixed[] = {
     Wall(-kTheatreX - 0.5f, kFloorY, kStageWallZ + 0.6f, -kTheatreX, kTheatreWallTop, kBackWallZ + 0.5f),
     Wall(kTheatreX, kFloorY, kStageWallZ + 0.6f, kTheatreX + 0.5f, kTheatreWallTop, kBackWallZ + 0.5f),
     Wall(-kTheatreX, kFloorY, kBackWallZ, kBreachX0, kTheatreWallTop, kBackWallZ + 0.5f),
-    Wall(kBreachX1, kFloorY, kBackWallZ, kTheatreX, kTheatreWallTop, kBackWallZ + 0.5f),
+    Wall(kBreachX1, kFloorY, kBackWallZ, kGraveLaneX0, kTheatreWallTop, kBackWallZ + 0.5f),                // the back wall, with
+    Wall(kGraveLaneX1, kFloorY, kBackWallZ, kTheatreX, kTheatreWallTop, kBackWallZ + 0.5f),                // the door to the lane of
+    Wall(kGraveLaneX0, kGraveY + 2.4f, kBackWallZ, kGraveLaneX1, kTheatreWallTop, kBackWallZ + 0.5f),     // the graveyard
+    Span(kGraveLaneX0, kFloorY, kBackWallZ, kGraveLaneX1, kGraveY, kGraveZ0, kGrey, kLayerBoth, 1.0f),
+    Wall(kGraveLaneX0 - 0.5f, kFloorY, kBackWallZ + 0.5f, kGraveLaneX0, kGraveWallTop + 1.0f, kGraveZ0),
+    Wall(kGraveLaneX1, kFloorY, kBackWallZ + 0.5f, kGraveLaneX1 + 0.5f, kGraveWallTop + 1.0f, kGraveZ0),
+    // ---- the graveyard (6.5.2): the yard, its parapet, the rows of graves, the night bell tower, the lone grave (B)
+    Span(kGraveX0, kFloorY, kGraveZ0, kGraveX1, kGraveY, kGraveZ1, Rgb{0.50f, 0.55f, 0.40f}, kLayerBoth),
+    Wall(kGraveX0 - 0.5f, kFloorY, kGraveZ0 - 0.5f, kGraveLaneX0 - 0.5f, kGraveWallTop, kGraveZ0),
+    Wall(kGraveLaneX1 + 0.5f, kFloorY, kGraveZ0 - 0.5f, kGraveX1 + 0.5f, kGraveWallTop, kGraveZ0),
+    Wall(kGraveX0 - 0.5f, kFloorY, kGraveZ0, kGraveX0, kGraveWallTop, kGraveZ1 + 0.5f),
+    Wall(kGraveX1, kFloorY, kGraveZ0, kGraveX1 + 0.5f, kGraveWallTop, kGraveZ1 + 0.5f),
+    Wall(kGraveX0, kFloorY, kGraveZ1, kGraveX1, kGraveWallTop, kGraveZ1 + 0.5f),
+    Span(-10.0f, kGraveY, 94.2f, 4.0f, kGraveY + 0.35f, 94.8f, kGrey, kLayerBoth),
+    Span(-10.0f, kGraveY, 96.7f, 4.0f, kGraveY + 0.35f, 97.3f, kGrey, kLayerBoth),
+    Span(-10.0f, kGraveY, 99.2f, 4.0f, kGraveY + 0.35f, 99.8f, kGrey, kLayerBoth),
+    Span(8.5f, kGraveY, 100.5f, 12.0f, kGraveY + 9.0f, 104.0f, kStone, kLayerBoth),                      // the night bell tower
+    Span(-11.0f, kGraveY, 101.5f, -9.0f, kGraveY + 0.3f, 103.0f, Rgb{0.40f, 0.36f, 0.30f}, kLayerB),      // B: the lone grave
     Wall(kBreachX0, kFloorY, kBackWallZ, kBreachX1, kPromenadeY, kBackWallZ + 0.5f),                     // the sill of the breach
     Span(kBreachX0, kPromenadeY, kBackWallZ, kBreachX1, kTheatreWallTop, kBackWallZ + 0.5f, kWood, kLayerA), // A: the panel
     Span(-13.0f, kFloorY, kBackWallZ + 0.5f, -7.0f, kPromenadeY, kTerraceZ1, kGrey, kLayerBoth, 1.0f),       // the terrace
@@ -1119,6 +1149,7 @@ inline constexpr AnchorDesc kAnchors[] = {
     {{29.0f, kFloorY, 35.5f}, {29.0f, kFloorY, 34.2f}, "lock walk", "the locks"},
     {{-35.2f, kFloorY, 58.6f}, {-35.2f, kFloorY, 57.3f}, "market", "the market"},
     {{13.0f, kFloorY, 72.5f}, {11.7f, kFloorY, 72.5f}, "theatre", "the theatre"},
+    {{6.5f, kGraveY, 93.0f}, {6.5f, kGraveY, 94.3f}, "graveyard", "the graveyard"},
     {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the bell tower"},
 };
 inline constexpr int kAnchorCount = static_cast<int>(sizeof(kAnchors) / sizeof(kAnchors[0]));
@@ -1245,6 +1276,8 @@ inline constexpr Room kRooms[] = {
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
     {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
+    {"graveyard", kGraveX0, kGraveY - 0.5f, kGraveZ0, kGraveX1, kGraveY + 1.0f, kGraveZ1, {9.0f, kGraveY, 93.5f}, false},
+    {"graveyard lane", kGraveLaneX0, kGraveY - 0.5f, kBackWallZ, kGraveLaneX1, kGraveY + 1.0f, kGraveZ0, {9.0f, kGraveY, 89.0f}, false},
     {"theatre terrace", -13.0f, kPromenadeY - 0.5f, kBackWallZ + 0.5f, -7.0f, kPromenadeY + 0.5f, kTerraceZ1, {-10.0f, kPromenadeY, 88.8f}, false},
     {"theatre", -kTheatreX, kFloorY - 0.5f, kStageWallZ, kTheatreX, kPromenadeY + 0.5f, kBackWallZ, {11.0f, kFloorY, 73.0f}, false},
     {"theatre lane", kTheatreDoorX0, kFloorY - 0.5f, 60.5f, kTheatreDoorX1, kStageY + 0.5f, kStageWallZ, {4.0f, kFloorY, 61.2f}, false},
@@ -1794,7 +1827,7 @@ inline constexpr float kWaterTowerX = 59.5f;
 inline constexpr float kWaterTowerZ = 19.5f;
 inline constexpr Zone kZones[] = {
     {-62.0f, 30.0f, -34.0f, 60.0f, "the market"},
-    {-16.0f, 60.0f, 16.0f, 92.0f, "the theatre"},
+    {-16.0f, 60.0f, 16.0f, 106.0f, "the theatre and the graveyard"},
     {53.0f, 12.0f, 64.0f, 24.0f, "the water tower"},
 };
 
@@ -2341,6 +2374,39 @@ inline void TheatreDecor(std::vector<SceneObject>& drawn)
     drawn.push_back(Span(-5.0f, kFloorY, kStageFront + 1.0f, 4.0f, kFloorY + 0.02f, kRowsZ0 - 0.5f, Rgb{0.36f, 0.44f, 0.28f}, kLayerB));
 }
 
+// ---- the graveyard (6.5.2), drawn only: the headstones on the rows (A: with fresh flowers), the top of the night bell tower
+// (its open arch, the bell, a roof in A), the stone lantern on the lone grave (B)
+inline void GraveyardDecor(std::vector<SceneObject>& drawn)
+{
+    for (float z : {94.5f, 97.0f, 99.5f})
+    {
+        for (float x = -9.4f; x < 4.0f; x += 1.7f)
+        {
+            const int k = static_cast<int>((x + 10.0f) * 3.0f + z);
+            drawn.push_back(Span(x - 0.35f, kGraveY + 0.35f, z - 0.08f, x + 0.35f, kGraveY + 1.2f + 0.1f * static_cast<float>(k % 3), z + 0.08f, kGrey,
+                                 k % 7 == 0 ? kLayerA : kLayerBoth));
+            if (k % 3 == 1)
+            {
+                drawn.push_back(Span(x - 0.2f, kGraveY + 0.35f, z - 0.3f, x + 0.2f, kGraveY + 0.5f, z - 0.1f, Rgb{0.86f, 0.38f, 0.42f}, kLayerA));
+            }
+        }
+    }
+    drawn.push_back(Span(8.5f, kGraveY + 9.0f, 100.5f, 12.0f, kGraveY + 12.0f, 104.0f, kStone, kLayerBoth));
+    const std::size_t roof = drawn.size();
+    shapes::Roof(8.2f, 12.3f, 100.2f, 104.3f, kGraveY + 12.0f, kGraveY + 14.5f, drawn);
+    for (std::size_t i = roof; i < drawn.size(); ++i)
+    {
+        drawn[i].layerMask = kLayerA;
+    }
+    SceneObject bell = Span(10.0f, kGraveY + 1.4f, 100.1f, 11.0f, kGraveY + 2.3f, 100.5f, kGold, kLayerBoth); // the night bell, in its arch
+    bell.glow = 0.4f;
+    drawn.push_back(bell);
+    drawn.push_back(Span(-10.2f, kGraveY + 0.3f, 103.1f, -9.8f, kGraveY + 1.2f, 103.4f, kGrey, kLayerB));
+    SceneObject lantern = Span(-10.15f, kGraveY + 1.2f, 103.1f, -9.85f, kGraveY + 1.5f, 103.4f, Rgb{1.0f, 0.80f, 0.40f}, kLayerB);
+    lantern.glow = 0.6f;
+    drawn.push_back(lantern);
+}
+
 inline std::vector<SceneObject> BuildDecor()
 {
     std::vector<SceneObject> solid;
@@ -2360,6 +2426,7 @@ inline std::vector<SceneObject> BuildDecor()
     WellStairs(solid, drawn); // (the slopes: kPieces)
     TheatreStairs(solid, drawn);
     TheatreDecor(drawn);
+    GraveyardDecor(drawn);
     MarketDecor(drawn);
     Battlements(drawn);
     WallParts(drawn);
