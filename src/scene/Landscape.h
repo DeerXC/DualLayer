@@ -251,7 +251,8 @@ inline int AddSea(const Vec3& eye, SceneObject* out, int count, int capacity)
         SceneObject o = Span(cx - kSeaHalf, kSeaY - 0.2f, cz - kSeaHalf, cx + kSeaHalf, kSeaY, north, colours[k], masks[k]);
         o.shineStrength = 0.6f;
         o.shininess = 60.0f;
-        o.glow = 0.03f; // its own colour, not the stone of the town
+        o.checker = scene::kMatSea; // drawn as the sea (shaders/models.hlsl): swells, crests, the sky in it
+        o.glow = 1.0f;       // (water: how opaque)
         out[count++] = o;
     }
     return count;

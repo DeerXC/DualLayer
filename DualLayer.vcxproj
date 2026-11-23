@@ -134,6 +134,7 @@
     <ClInclude Include="src\scene\Mechanisms.h" />
     <ClInclude Include="src\scene\Prompts.h" />
     <ClInclude Include="src\scene\Shapes.h" />
+    <ClInclude Include="src\scene\WaterFx.h" />
     <ClInclude Include="src\scene\WestWing.h" />
     <ClInclude Include="src\scene\Stage.h" />
     <ClInclude Include="src\scene\StageHints.h" />

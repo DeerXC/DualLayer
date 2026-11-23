@@ -88,6 +88,14 @@ street lamps; boxes, drawn only). The sea is one box per layer round the eye, dr
 adds drawn rock under the walls and decks at the edges of the pits. `tests/test_terrain.cpp` proves that the ground is under
 every floor, that no body reaches it from the map, and that every view down meets the map, the land or the sea.
 
+## Water
+
+The drawn table holds the water with the rest; `Models::DrawObjects` draws everything opaque first, then the objects of a water
+material (`scene::IsWaterMaterial`) sorted far to near, blended and without writing the depth, so that what is under a surface
+shows through it and one surface never hides another. The pixel shader gives each material its life (waves, the sky, the sun,
+streaks, foam). `scene/WaterFx.h` adds what water does: foam, the falls between the locks, the wet band, the splashes; `main.cpp`
+lets a body sink for a moment before it comes back, and tints the view under a surface.
+
 ## Recovery and the city state
 
 `Recovery` keeps a body from getting stuck: `SwitchAllowed` refuses a switch into anything solid or into water of the target

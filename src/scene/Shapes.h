@@ -308,7 +308,8 @@ inline SceneObject WaterBox(const Water& w)
     SceneObject o = Box(w.x0, w.top - w.depth, w.z0, w.x1, w.top, w.z1, kWaterColour, kLayerA);
     o.shineStrength = 0.9f;
     o.shininess = 90.0f;
-    o.glow = 0.12f;
+    o.checker = scene::kMatWater;
+    o.glow = 1.0f; // (water: how opaque)
     return o;
 }
 

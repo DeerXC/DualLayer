@@ -2968,14 +2968,19 @@ inline int AddWaterDraw(const Waterworks& works, SceneObject* out, int count, in
     if (!works.Closed())
     {
         const float b = kAqueductBottom;
+        // running water (shaders/models.hlsl kMatFlow): the channel runs west along the aqueduct, the fall drops into the pool,
+        // the spill runs out of the trench
         SceneObject channel = Span(kAqueductWest, b + 0.2f, kAqueductZ0 + 0.15f, kAqueductEast, kAqueductTop - 0.15f, kAqueductZ1 - 0.15f, kWaterRgb, kLayerA);
-        channel.glow = 0.12f;
+        channel.checker = scene::kMatFlow;
+        channel.glow = 0.9f;
         out[count++] = channel;
         SceneObject fall = Span(kAqueductWest - 0.8f, kFloorY - 0.45f, kAqueductZ0 + 0.15f, kAqueductWest, b, kAqueductZ1 - 0.15f, kWaterRgb, kLayerA);
-        fall.glow = 0.2f;
+        fall.checker = scene::kMatFlow;
+        fall.glow = 0.85f;
         out[count++] = fall;
         SceneObject spill = Span(-15.4f, kFloorY - 0.55f, 26.5f, -15.0f, kFloorY - 0.45f, 27.5f, kWaterRgb, kLayerA);
-        spill.glow = 0.12f;
+        spill.checker = scene::kMatFlow;
+        spill.glow = 0.85f;
         out[count++] = spill;
     }
     const Vec3 m = kMasterSluice;

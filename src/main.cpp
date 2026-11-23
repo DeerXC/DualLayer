@@ -63,6 +63,7 @@
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
+#include "scene/WaterFx.h"
 
 #include <DirectXMath.h>
 
@@ -247,12 +248,22 @@ struct Respawn
     float since = -1.0f; ///< UNITS: seconds since the last respawn; negative before the first
 };
 
+/// What water does this frame (scene/WaterFx.h): its sheets now, the wet bands, the splashes, the body sinking.
+struct WaterState
+{
+    std::array<dl::stage::WaterSheet, dl::stage::kMaxSheets> sheets{};
+    int count = 0;
+    dl::stage::WetMarks wet;
+    dl::stage::Splashes splashes;
+    float sinking = -1.0f; // UNITS: seconds left of a body sinking in water before it comes back; negative: not sinking
+};
+
 int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
                     const dl::mech::MechanismSet& mech, const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts,
                     const dl::canal::Canal& canal, const dl::stage::Waterworks& waters, const dl::stage::LockCrate& lockCrate,
                     const dl::stage::AnchorSet& anchors, const Respawn& respawn, const Respawn& orbReturn,
                     const dl::Player& player, const dl::Vec3& eye, const dl::Vec3& look, const dl::Config& config, float sinceClear,
-                    int room, float secondsInRoom, float clock, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
+                    int room, float secondsInRoom, float clock, const WaterState& water, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
     namespace st = dl::stage;
     const bool cleared = sinceClear >= 0.0f;
@@ -263,6 +274,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = canal.AddDraw(table, count, st::kMaxDrawObjects);
     count = lockCrate.AddDraw(table, count, st::kMaxDrawObjects); // the crate of the tower lock (scene/LockCrate.h)
     count = st::AddWaterDraw(waters, table, count, st::kMaxDrawObjects); // the water of A as it is now (it drains at the end)
+    count = st::AddWaterFx(water.sheets.data(), water.count, waters, water.wet, water.splashes, table, count, st::kMaxDrawObjects); // foam, falls, wet walls
     count = anchors.AddDraw(table, count, st::kMaxDrawObjects);
     count = st::AddFragments(lights, true, table, count, st::kMaxDrawObjects); // the pieces of A that the lights brought back (B)
     count = st::AddSea(eye, table, count, st::kMaxDrawObjects);              // the sea round the eye, wider than the far plane
@@ -329,12 +341,17 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
 /// The overlay of one frame: the dot in the middle, the prompts at the bottom, the status line at the top left. Sizes follow
 /// the height of the window, so the text is as big on a laptop as on a desktop screen.
 void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl::prompt::Shown, 2>& prompts, const char* status,
-              const dl::endscreen::Screen* end, const dl::stage::Resonance& resonance, float clock)
+              const dl::endscreen::Screen* end, const dl::stage::Resonance& resonance, float clock, float underwater)
 {
     namespace pr = dl::prompt;
     hud.Clear();
     const float w = static_cast<float>(width);
     const float h = static_cast<float>(height);
+    // under water: the view is tinted deep green-blue and darker (scene/WaterFx.h Underwater)
+    if (underwater > 0.0f)
+    {
+        hud.AddRect(0.0f, 0.0f, w, h, {0.03f, 0.20f, 0.26f, 0.55f * underwater});
+    }
     const float unit = std::max(2.0f, std::floor(h / 320.0f)); // one font pixel, in screen pixels
     // the dot in the middle of the view: what E looks at
     const float dot = std::max(2.0f, std::floor(unit * 0.8f));
@@ -463,6 +480,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     canal.Init(dl::stage::MakeCanal());
     dl::stage::Waterworks waters; // the water of A; the master sluice drains it at the end
     dl::stage::CityState city;    // what the bells have changed (scene/CityState.h)
+    WaterState water;             // foam, falls, wet walls, splashes, the body sinking (scene/WaterFx.h)
     dl::stage::LampTravel travel; // the list of the lit lamps (scene/LampTravel.h)
     dl::stage::Ending ending;     // the last moment and its ending (scene/Ending.h)
     dl::stage::LockCrate lockCrate; // the crate of the tower lock (scene/LockCrate.h)
@@ -621,7 +639,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // ---- the layer switch, through the guard. WHY not while Alt is down: Alt + Tab switches windows and must not also
         // switch the layer
-        if (PressedOnce(VK_TAB, layerKeyWasDown, focused && !IsDown(VK_MENU)))
+        if (PressedOnce(VK_TAB, layerKeyWasDown, focused && !IsDown(VK_MENU) && water.sinking < 0.0f)) // (no way out of water by a switch)
         {
             const int solidNow = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
             const int target = 1 - gpu.models.CollisionLayer();
@@ -745,6 +763,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         waters.Update(dtf);
         canal.SetDrained(waters.Drained());
         lockCrate.SetWaterTop(waters.Top(dl::stage::kTowerLockWaters[0]));
+        water.count = dl::stage::CollectWaters(waters, canal, water.sheets.data(), dl::stage::kMaxSheets);
+        water.wet.Update(water.sheets.data(), water.count, dtf); // a surface that went down leaves its walls wet
+        water.splashes.Update(dtf);
         const int solidCount = BuildSolidTable(puzzle, seals, lights, lockCrate, mech, lifts, canal, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
@@ -787,9 +808,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 DL_LOG_INFO("Stage", "lamp travel: the list is open");
             }
             dl::Player::Input move;
-            move.moveForward = travel.Open() ? 0.0f : keys.moveForward;
-            move.moveRight = travel.Open() ? 0.0f : keys.moveRight;
-            move.jumpPressed = jumpPressed && !travel.Open() && !lampUsed;
+            const bool still = travel.Open() || water.sinking >= 0.0f; // the list of lamps is open, or the body sinks
+            move.moveForward = still ? 0.0f : keys.moveForward;
+            move.moveRight = still ? 0.0f : keys.moveRight;
+            move.jumpPressed = jumpPressed && !still && !lampUsed;
             move.jumpHeld = focused && IsDown(VK_SPACE);
             player.SetScene(solidTable, solidCount);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
@@ -850,9 +872,28 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 secondsInRoom = 0.0;
                 DL_LOG_INFO("Stage", "room: %s", dl::stage::kRooms[room].name);
             }
-            if (player.Feet().y < dl::stage::FallLine(room) || dl::stage::OnOpenGround(player.Feet(), player.Grounded()) || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer, waters) ||
-                canal.Submerged(player.Feet(), solidLayer))
+            // into water: a splash where it went in, and the body sinks for a moment (the view goes under) before it comes back
+            const bool inWater = dl::stage::Submerged(player.Feet(), solidLayer, waters) || canal.Submerged(player.Feet(), solidLayer);
+            if (inWater && water.sinking < 0.0f)
             {
+                float top = player.Feet().y;
+                if (dl::stage::WaterTopAt(water.sheets.data(), water.count, player.Feet().x, player.Feet().z, player.Feet().y, top))
+                {
+                    water.splashes.Spawn({player.Feet().x, top, player.Feet().z});
+                }
+                water.sinking = dl::stage::kSinkSeconds;
+                DL_LOG_INFO("Main", "into the water");
+            }
+            bool sunk = false;
+            if (water.sinking >= 0.0f)
+            {
+                water.sinking -= dtf;
+                sunk = water.sinking < 0.0f;
+            }
+            if (sunk || (water.sinking < 0.0f && (player.Feet().y < dl::stage::FallLine(room) || dl::stage::OnOpenGround(player.Feet(), player.Grounded()) ||
+                                                  player.JustRespawned())))
+            {
+                water.sinking = -1.0f;
                 player.SetSpawn(dl::stage::SafeRespawn(room, solidLayer, anchors, waters, canal)); // the lamp, else the entry, out of the water
                 player.Respawn();
                 respawn = Respawn{player.Feet(), 0.0f};
@@ -961,7 +1002,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
         const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, lockCrate, anchors, respawn, orbReturn, player, camera.Position(), camera.Forward(), config,
                                          static_cast<float>(sinceClear), room, static_cast<float>(secondsInRoom), static_cast<float>(stageSeconds),
-                                         drawTable);
+                                         water, drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();
         gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);
 
@@ -1016,8 +1057,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 const bool showEnd = clearSeconds >= 0.0 && sinceClear >= static_cast<double>(dl::endscreen::kDelay);
                 const dl::endscreen::Screen lampList = travel.Panel();
                 const dl::stage::Resonance resonance = dl::stage::ResonanceAt(lights, city.Count(), player.Feet(), camera.Forward());
+                const dl::Vec3 eyeNow = camera.Position();
+                const float underwater = dl::stage::Underwater(water.sheets.data(), water.count, eyeNow, gpu.models.CollisionLayer()) ? 1.0f : 0.0f;
                 BuildHud(hud, gpu.device->Width(), gpu.device->Height(), shown, status, showEnd ? &end : (travel.Open() ? &lampList : nullptr), resonance,
-                         static_cast<float>(stageSeconds));
+                         static_cast<float>(stageSeconds), underwater);
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
                 gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
             }

@@ -38,7 +38,7 @@ struct FrameConstants
 {
     XMFLOAT4X4 viewProjection; // row-major, row vectors: v' = v * M
     XMFLOAT3 eye;              // UNITS: metres, world space
-    float pad0;
+    float time;                // UNITS: seconds since the start (the waves of the water)
     XMFLOAT3 toLight; // unit vector from a surface TO the light
     float ambient;
     XMFLOAT3 lightColor; // linear
@@ -442,6 +442,29 @@ bool Models::CreateStates()
     {
         hr = m_device->CreateBlendState(&blend, &m_blendState);
     }
+    // water: blended over what is behind it (its alpha says how much of it is seen), tested against the depth but not written,
+    // so that what is under it still shows and one water does not hide another
+    D3D11_BLEND_DESC waterBlend{};
+    waterBlend.RenderTarget[0].BlendEnable = TRUE;
+    waterBlend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    waterBlend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    waterBlend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    waterBlend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    waterBlend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    waterBlend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    waterBlend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateBlendState(&waterBlend, &m_waterBlend);
+    }
+    D3D11_DEPTH_STENCIL_DESC waterDepth{};
+    waterDepth.DepthEnable = TRUE;
+    waterDepth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    waterDepth.DepthFunc = D3D11_COMPARISON_LESS;
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateDepthStencilState(&waterDepth, &m_waterDepth);
+    }
     D3D11_SAMPLER_DESC sampler{};
     sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sampler.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP; // the ring bends the picture a little past the edge: clamp, do not wrap
@@ -464,6 +487,8 @@ bool Models::CreateStates()
     SetDebugName(m_depthState.Get(), "Models.DepthState");
     SetDebugName(m_noDepthState.Get(), "Models.Ripple.DepthState");
     SetDebugName(m_blendState.Get(), "Models.BlendState");
+    SetDebugName(m_waterBlend.Get(), "Models.Water.BlendState");
+    SetDebugName(m_waterDepth.Get(), "Models.Water.DepthState");
     SetDebugName(m_sampler.Get(), "Models.Ripple.Sampler");
     return true;
 }
@@ -815,6 +840,7 @@ void Models::Update(float deltaSeconds)
         m_spin += dt;
     }
     m_ripple.Update(dt); // runs even while the shapes are stopped: the layer must still change
+    m_time = std::fmod(m_time + dt, 3600.0f); // the water moves on (wrapped once an hour: a float keeps its precision)
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -844,6 +870,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     FrameConstants frame{};
     XMStoreFloat4x4(&frame.viewProjection, view * projection);
     frame.eye = eye;
+    frame.time = m_time;
     XMStoreFloat3(&frame.toLight, XMVector3Normalize(XMLoadFloat3(&theme.toLight)));
     frame.ambient = 1.0f;
     frame.lightColor = theme.lightColor;
@@ -878,18 +905,14 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     }
 
-    // ---- one draw call per object: only the objects of this layer
+    // ---- one draw call per object: only the objects of this layer; the water (scene::IsWaterMaterial) waits for its own pass
     const unsigned layerBit = 1u << layer;
-    for (const SceneObject& object : Objects())
-    {
-        if ((object.layerMask & layerBit) == 0)
-        {
-            continue; // not on the layer we are drawing
-        }
+    m_water.clear();
+    const auto drawOne = [&](const SceneObject& object) {
         const GpuMesh& mesh = m_meshes[static_cast<std::size_t>(object.shape)];
         if (!mesh.vertexBuffer || !mesh.indexBuffer)
         {
-            continue;
+            return;
         }
         // World = Scale * Rotation * Translation: first the size, then the tilt and the turn, then the place (row
         // vectors: read left to right)
@@ -908,11 +931,12 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         data.color = XMFLOAT4(SrgbToLinear(object.colorSrgb[0]), SrgbToLinear(object.colorSrgb[1]),
                               SrgbToLinear(object.colorSrgb[2]), city);
         data.params = XMFLOAT4(object.checker, object.shineStrength, object.shininess, object.glow);
-        if (FAILED(context->Map(m_objectBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        D3D11_MAPPED_SUBRESOURCE objectMap{};
+        if (FAILED(context->Map(m_objectBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &objectMap)))
         {
-            continue;
+            return;
         }
-        std::memcpy(mapped.pData, &data, sizeof(data));
+        std::memcpy(objectMap.pData, &data, sizeof(data));
         context->Unmap(m_objectBuffer.Get(), 0);
         ID3D11Buffer* vertexBuffer = mesh.vertexBuffer.Get();
         const UINT stride = sizeof(MeshVertex);
@@ -921,6 +945,43 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
         context->DrawIndexed(mesh.indexCount, 0, 0);
         ++m_drawCalls;
+    };
+    for (const SceneObject& object : Objects())
+    {
+        if ((object.layerMask & layerBit) == 0)
+        {
+            continue; // not on the layer we are drawing
+        }
+        if (scene::IsWaterMaterial(object.checker))
+        {
+            m_water.push_back(&object);
+            continue;
+        }
+        drawOne(object);
+    }
+
+    // ---- the water: after everything opaque, blended, far to near (the sea first: it is under everything else)
+    if (!m_water.empty())
+    {
+        const auto farness = [&](const SceneObject* o) {
+            if (o->checker > scene::kMatSea - 0.5f && o->checker < scene::kMatSea + 0.5f)
+            {
+                return 1.0e12f;
+            }
+            const float dx = o->position[0] - eye.x;
+            const float dy = o->position[1] - eye.y;
+            const float dz = o->position[2] - eye.z;
+            return dx * dx + dy * dy + dz * dz;
+        };
+        std::sort(m_water.begin(), m_water.end(), [&](const SceneObject* a, const SceneObject* b) { return farness(a) > farness(b); });
+        context->OMSetBlendState(m_waterBlend.Get(), nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(m_waterDepth.Get(), 0);
+        for (const SceneObject* object : m_water)
+        {
+            drawOne(*object);
+        }
+        context->OMSetBlendState(m_blendState.Get(), nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(m_depthState.Get(), 0);
     }
 }
 

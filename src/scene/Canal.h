@@ -123,6 +123,12 @@ class Canal
         return m_open;
     }
 
+    /// The canal as it was described (its footprint, its bed).
+    const Desc& Described() const
+    {
+        return m_d;
+    }
+
     /// True: the machinery turns by itself (the day bell); the lock opens at the next Update, also after Reset.
     void SetMachinery(bool on)
     {
@@ -210,7 +216,8 @@ class Canal
             SceneObject water = shapes::Box(m_d.x0, m_d.bed, m_d.z0, m_d.x1, WaterTop(), m_d.z1, shapes::kWaterColour, scene::kLayerA);
             water.shineStrength = 0.9f;
             water.shininess = 90.0f;
-            water.glow = 0.12f;
+            water.checker = scene::kMatWater;
+            water.glow = 1.0f;
             out[count++] = water;
         }
         out[count++] = Crate(0);

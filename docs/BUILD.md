@@ -174,6 +174,11 @@ seen".
 | E-63 | from the balcony of the cathedral and from the top of the lock walk, look over the town, in A and in B | paved streets winding round the middle of the town and out to the wall, houses in rows along them, turned to them, a lamp every few houses; in B grass on the streets of the south |
 | E-64 | walk round the outside of the halls (the terrace, the lock walk, the market lane, the theatre), in A and in B | the outer walls of the halls are plaster in the colour of their quarter (ochre west, white east, grey north) with a row of windows high up, some lit in A; in B stained, mossy at the foot, the windows dark; nothing of it inside a room |
 | E-65 | stand in the square, look round | a blind arcade round its walls at the height of the rim, its string course broken in B; the openings, the gallery and the ledge free |
+| E-66 | the square in A: look into the pool from the rim, then across it; walk round it | the floor of the pool shows through the water when looking down; across, the sky in it; small waves moving the light; a glint of the sun; foam along the rim; the fall of the aqueduct white and running, foam at its foot |
+| E-67 | the quay and the terrace in A and in B, look out to sea | long swells moving, white crests here and there, the sky in it, the sea melting into the horizon with no line |
+| E-68 | the lock walk in A | three falls between the locks, white water running down, foam at their feet |
+| E-69 | in A walk off the rim into the pool | a splash (rings of foam, drops) where the body went in; for half a second the view is tinted green-blue under the surface; Tab does nothing meanwhile; then back at the lamp |
+| E-70 | take the north seal and reach the end (or open the canal lock and press R by the canal) | where the water went down, the walls are dark and wet, drying over about 25 s |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

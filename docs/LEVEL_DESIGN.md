@@ -317,6 +317,28 @@ Houses keep out of the districts (`Stage::kZones`).
 | The water tower | (in the map, 6.4.2) | its top lying south of it |
 | The streets | a lamp post with a lit lantern at every other crossing | the post only |
 
+### 5.9 Water
+
+Water is the other half of the rule: what is a place in B is water in A. It is drawn after everything else and seen through
+(`render/Models.cpp`), and the shader gives each kind its own life (`shaders/models.hlsl`, `scene::kMatWater` ..).
+
+| Kind | Where | How it looks |
+|---|---|---|
+| Still water | the pool, the trench, the cellar, the canal, the locks, the well | small waves that move the light on it; the sky in it where one looks across (Fresnel), the bed through it where one looks down; the sun as a glint |
+| The sea | the bay and the harbour | long swells, white crests on the highest, denser than still water, the sky in it to the horizon |
+| Running and falling water | the channel of the aqueduct, its fall into the pool, the spill of the trench, the falls between the locks | streaks along the flow, white water running down the falls, each column at its own pace |
+| Foam | a rim along the walls of every water, the foot of every fall, splashes | moving flecks |
+| The wet band | the walls of a water that has gone down | dark, on the walls only, drying in 25 s |
+
+What water does (`scene/WaterFx.h`):
+
+| Moment | What is seen |
+|---|---|
+| The locks hold water | the water of each lock falls through the lock head into the one below (three falls, with foam at their feet) |
+| Water rises (the dawn bell, the canal lock) | the surface and its rim of foam rise; no band |
+| Water goes down (the canal let out, the master sluice at the end) | the walls stay wet where it stood, dark, drying |
+| A body falls in | a splash: two rings of foam spread, drops fly up and fall back; the body sinks for half a second with the view tinted under the surface, then comes back at its lamp; no switch while it sinks |
+
 ## 6. Rooms
 
 Each room states its purpose, its solution, its "of course!", and how it is proved. Coordinates are world metres.
@@ -655,6 +677,7 @@ search for skips checks this for the whole map.
 | 2026-11-23 | the model (5.1) is the target of the map again; the first plan that was dropped is the greybox, not the model. The rebuild in two steps: first the ground, the look and the two worlds told apart; then the rooms at their places |
 | 2026-11-23 | the courtyard stays as it is: the new count of switches (`MinSwitches`) shows it needs two, the number a room may ask for. The rooms are moved to the places of the model in a step of their own (2b), so that each move is proved on its own |
 | 2026-11-23 | the rooms keep their places: the districts already stand where the model puts them, and moving them would rebuild every proved room for little gain in play. The halls are clad as houses and the square arcaded instead (5.1). A round square and the prologue on the wall walk are left for a later change, if play-tests ask for them |
+| 2026-11-23 | water is drawn as water (5.9): seen through, with waves, the sky and the sun in it, running and falling water, foam, falls between the locks, a wet band when it goes down, a splash and a moment under the surface when a body falls in |
 
 ## 14. The vertical city
 

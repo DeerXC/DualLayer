@@ -198,6 +198,9 @@ class Models
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_wireState;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthState;
     Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendState;
+    Microsoft::WRL::ComPtr<ID3D11BlendState> m_waterBlend;        // water: blended over what is behind it
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_waterDepth; // water: tested against the depth, not written
+    std::vector<const scene::SceneObject*> m_water;              // the water of a frame, far to near (reused)
     std::array<GpuMesh, kShapeCount> m_meshes;
     // ---- the static batch: one mesh per layer
     std::vector<scene::SceneObject> m_staticObjects; // the CPU copy (kept through Shutdown: a new device bakes it again)
@@ -235,6 +238,7 @@ class Models
     bool m_wireframe = false;
     bool m_spinning = true;
     float m_spin = 0.0f; // seconds of turning (it does not run while the shapes are stopped)
+    float m_time = 0.0f; // seconds since the start (always runs): the waves of the water
 
     // ---- the ripple
     LayerRipple m_ripple;

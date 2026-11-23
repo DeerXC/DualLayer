@@ -410,6 +410,23 @@
 - Checked (2026-11-23): `tests/test_hints.cpp` (359; new `TestFacades`: 596 pieces, every one a thin slab on the outer face of a
   stone wall and outside every room, caught when the inner faces of the water tower were clad; the arcade on the walls of the
   square), `tests/test_terrain.cpp` (185), `tests/test_reach.cpp`, `tests/test_stage.cpp` (below), the others unchanged.
+- Made (2026-11-23, water, docs/LEVEL_DESIGN.md 5.9): water is drawn after everything opaque, blended and sorted far to near,
+  tested against the depth but not written (`render/Models.cpp`: `m_waterBlend`, `m_waterDepth`). Materials say what it is
+  (`scene::kMatWater`, `kMatFlow`, `kMatSea`, `kMatWetBand`, `kMatFoam` in the `checker` of a `SceneObject`; its `glow` is then
+  how opaque it is). `shaders/models.hlsl` `WaterPS`: four travelling waves turn the normal (the sea in long swells with white
+  crests), the sky by the Fresnel term, the sun as a glint, the bed seen through where one looks down; running water streaks
+  along its flow, falls run white down their faces; foam in moving flecks; the wet band on walls only. `Frame.time` (was
+  `pad0`), from `Models::m_time`, which always runs. New `scene/WaterFx.h`: the sheets of water now (`CollectWaters`), a rim of
+  foam round each and a pad under the fall of the aqueduct, three falls between the locks (`AddCascades`), the wet band a
+  surface leaves when it goes down, drying in 25 s (`WetMarks`), splashes (rings and drops, `Splashes`), and `Underwater`.
+  `main.cpp`: a body that falls into water splashes and sinks for 0.55 s (no walk, no switch) before it comes back; under a
+  surface the view is tinted. `Canal::Described`.
+- Checked (2026-11-23): `tests/test_water.cpp` (new, 524: the materials, nothing of the map drawn as water by mistake; the sheets
+  and the surface at a point; the rim inside every sheet just over it; three falls from the upper surface to the lower, none
+  drained; no wet band while rising, a band from the new surface to the old one when draining, fading and gone; splashes on
+  the surface, gone in time, at most four; everything within its place in the drawn table; caught when a fall starts at the
+  surface and when a band never shows), `tests/test_hints.cpp` (the largest drawn table with the water: 4924 of 6000), the
+  others unchanged. The shader is not compiled here: check `tools/check.ps1` (the Debug build compiles it at start).
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

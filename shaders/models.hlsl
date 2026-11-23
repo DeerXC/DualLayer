@@ -9,6 +9,11 @@
 // Batched: the fixed boxes of the map come baked into one vertex buffer per layer (render/StaticBatch.h): VSBatched takes
 //          the world position, normal, colour and parameters from the vertex, VSMain from the constant buffer Object. Both
 //          hand them to the same PSMain, so a baked box looks exactly like a box drawn alone.
+// Water:   knobs.x from 2 on is water (src/scene/SceneData.h kMatWater ..), drawn after everything else with blending
+//          (render/Models.cpp): its glow (knobs.w) is then its opacity. Still water and the sea move with waves (a sum of
+//          travelling sines turns the normal of the surface), mirror the sky by the Fresnel term, catch the sun as a glint,
+//          and are seen into where one looks down. Running water streaks along its flow and falls white. Foam breaks into
+//          moving flecks. The wet band shows on its sides only. `time` (in Frame) drives it all.
 // KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 176 and 160 bytes),
 //          struct BatchVertex in src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
 
@@ -18,7 +23,7 @@ cbuffer Frame : register(b0)
 {
     float4x4 viewProjection; // View * Projection
     float3 eye;              // the camera, in the world
-    float pad0;
+    float time;              // UNITS: seconds since the start: the waves, the streaks, the foam
     float3 toLight; // the direction FROM a surface TO the light (unit length)
     float ambient;  // 1 = the sky light as the theme says
     float3 lightColor;
@@ -87,12 +92,126 @@ VSOut VSBatched(VSBatchIn input)
     return output;
 }
 
+// ---- water
+
+float Hash1(float2 p)
+{
+    return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
+}
+
+// one travelling wave: its height (sin) and its slope along its direction (cos), added into h and slope
+void Wave(float2 p, float2 dir, float frequency, float speed, float amplitude, inout float h, inout float2 slope)
+{
+    const float phase = dot(dir, p) * frequency + time * speed;
+    h += amplitude * sin(phase);
+    slope += dir * (amplitude * frequency * cos(phase));
+}
+
+// the surface of water at p (metres): four waves; `scale` stretches them (the sea: long swells), `strength` tilts them
+void Waves(float2 p, float scale, float strength, out float h, out float2 slope)
+{
+    h = 0.0;
+    slope = float2(0.0, 0.0);
+    const float2 q = p / scale;
+    Wave(q, float2(0.96, 0.28), 1.0, 1.1, 1.0, h, slope);
+    Wave(q, float2(-0.37, 0.93), 1.9, 1.7, 0.5, h, slope);
+    Wave(q, float2(0.66, -0.75), 3.3, 2.4, 0.25, h, slope);
+    Wave(q, float2(-0.98, -0.2), 5.7, 3.1, 0.12, h, slope);
+    h /= 1.87;
+    slope *= strength / 1.87;
+}
+
+float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
+{
+    const float kind = input.knobs.x;
+    const float opacity = saturate(input.knobs.w);
+    const float3 p = input.worldPosition;
+    const float3 albedo = input.tone.rgb;
+    const float diffuse = saturate(dot(n, l));
+    const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
+    float3 colour;
+    float alpha;
+    if (kind > 5.5)
+    {
+        // foam: moving flecks, thinner at their edges
+        const float2 cell = floor(p.xz * 6.0 + float2(time * 0.7, time * 0.4));
+        const float fleck = Hash1(cell);
+        const float drift = 0.5 + 0.5 * sin(time * 3.0 + fleck * 6.2831);
+        colour = albedo * (skyLight + lightColor * (0.4 + 0.6 * diffuse)) + albedo * 0.15;
+        alpha = opacity * lerp(0.35, 1.0, fleck * drift);
+    }
+    else if (kind > 4.5)
+    {
+        // the wet band: on the walls only (its top and bottom are inside the water and the air); darker toward its foot
+        if (abs(n.y) > 0.5)
+        {
+            discard;
+        }
+        colour = albedo * skyLight;
+        alpha = opacity * 0.5;
+    }
+    else
+    {
+        const bool sea = kind > 3.5;
+        const bool flow = kind > 2.5 && !sea;
+        float3 nn = n;
+        float crest = 0.0;
+        float streak = 0.0;
+        if (n.y > 0.5)
+        {
+            float h;
+            float2 slope;
+            float2 q = p.xz;
+            if (flow)
+            {
+                // running along the longer side of the box, toward -x or -z
+                const float2 along = length(world[0].xyz) >= length(world[2].xyz) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+                q += along * time * 2.5;
+                const float lane = floor(dot(p.xz, float2(along.y, along.x)) * 5.0);
+                streak = smoothstep(0.75, 1.0, frac(dot(q, along) * 0.6 + Hash1(float2(lane, 3.0))));
+            }
+            Waves(q, sea ? 6.0 : 1.0, sea ? 0.45 : (flow ? 0.35 : 0.18), h, slope);
+            nn = normalize(float3(-slope.x, 1.0, -slope.y));
+            crest = sea ? smoothstep(0.55, 0.95, h) : 0.0;
+        }
+        else if (flow)
+        {
+            // falling: white streaks run down the face, each column at its own pace
+            const float column = floor((p.x + p.z) * 6.0);
+            const float pace = 0.8 + 0.6 * Hash1(float2(column, 7.0));
+            streak = smoothstep(0.6, 1.0, frac(p.y * 0.9 + time * 2.6 * pace + Hash1(float2(column, 1.0))));
+            nn = normalize(n + 0.25 * float3(sin(p.y * 7.0 + time * 9.0), 0.0, cos(p.y * 5.0 + time * 7.0)));
+        }
+        // the sky in the water (Fresnel: more of it the flatter one looks), the sun as a glint, the body of the water below
+        const float facing = saturate(dot(nn, v));
+        const float fresnel = 0.02 + 0.98 * pow(saturate(1.0 - facing), 5.0);
+        const float3 r = reflect(-v, nn);
+        const float3 skyColour = lerp(fogColor, skyUp * 1.3 + fogColor * 0.4, saturate(r.y * 1.5));
+        const float glint = pow(saturate(dot(r, l)), sea ? 260.0 : 480.0) * (sea ? 3.0 : 4.0);
+        const float3 body = albedo * (skyLight + lightColor * (0.25 + 0.5 * diffuse)) * lerp(1.0, 0.55, facing);
+        colour = lerp(body, skyColour, fresnel) + lightColor * glint;
+        const float3 white = (skyLight + lightColor * 0.8) * 0.95;
+        colour = lerp(colour, white, saturate(crest * 0.7 + streak * 0.8));
+        // seen into where one looks down (the bed shows through), less where one looks across; the sea and falls are dense
+        const float clear = sea ? 0.2 : (flow ? 0.3 : 0.55);
+        alpha = opacity * saturate(lerp(1.0 - clear, 1.0, fresnel) + crest * 0.5 + streak * 0.5);
+    }
+    const float toEye = length(eye - p);
+    const float fog = 1.0 - exp(-toEye * fogDensity);
+    return float4(lerp(colour, fogColor, fog), alpha);
+}
+
 float4 PSMain(VSOut input) : SV_Target
 {
     const float3 n = normalize(input.worldNormal);
     const float3 l = normalize(toLight);
     const float3 v = normalize(eye - input.worldPosition);
     const float3 h = normalize(l + v);
+
+    if (input.knobs.x > 1.5)
+    {
+        return WaterPS(input, n, l, v);
+    }
 
     float3 albedo = input.tone.rgb;
     if (input.knobs.x > 0.5)

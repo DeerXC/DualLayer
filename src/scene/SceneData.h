@@ -34,6 +34,19 @@ inline constexpr float kRowZ = 3.0f;
 inline constexpr float kTorusMajor = 0.8f; // UNITS: metres, from the centre of the ring to the middle of the tube
 inline constexpr float kTorusMinor = 0.3f; // UNITS: metres, the radius of the tube
 
+// Materials: `checker` also says how a surface is drawn (shaders/models.hlsl). 0 a plain surface, 1 the checkered floor; from
+// 2 on, water, drawn after everything else and seen through (render/Models.cpp): its `glow` is then how opaque it is.
+inline constexpr float kMatWater = 2.0f;   ///< still water: pools, locks, the canal, the well (small waves)
+inline constexpr float kMatFlow = 3.0f;    ///< running and falling water: the channel, spouts, waterfalls (streaks, white water)
+inline constexpr float kMatSea = 4.0f;     ///< the sea (long swells, white crests)
+inline constexpr float kMatWetBand = 5.0f; ///< the dark wet band left on walls when water goes down (its sides only)
+inline constexpr float kMatFoam = 6.0f;    ///< foam: the rim of a surface, the foot of a fall, splash rings and drops
+
+constexpr bool IsWaterMaterial(float checker)
+{
+    return checker > 1.5f;
+}
+
 struct SceneObject
 {
     ShapeKind shape;
@@ -42,7 +55,7 @@ struct SceneObject
     float tilt;        // radians, round X, before the turn
     float spinSpeed;   // radians per second, round Y (negative: the other way)
     float colorSrgb[3];
-    float checker; // 1 = the checkered floor
+    float checker; // 1 = the checkered floor; 2 .. 6 = water (kMatWater ..)
     float shineStrength;
     float shininess;
     unsigned layerMask = kLayerBoth; // which layers have this object (not written = both)
