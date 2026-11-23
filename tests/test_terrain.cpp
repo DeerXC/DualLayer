@@ -10,8 +10,9 @@
 //      body stands and walks up a gentle slope and slides off one too steep to stand on
 //   5. under the map: at every point of every room, in both worlds, the ground is under the highest floor there: nothing of the
 //      ground shows in a room (where a room has no floor, the falls are proved by 6)
-//   6. no escape: from every place to stand near the edge of its box, a walk off it and a running jump off it, outward, never
-//      end standing on the ground of the world (the body falls below the fall line of its room, or lands in the map)
+//   6. no escape: from every place to stand near the edge of its box, a walk off it and a running jump off it, outward, end
+//      in the map, below the fall line of the room, or on the open ground where the game takes it for a fall (OnOpenGround);
+//      never on ground inside a room, where it would not be caught
 //   7. immersion: the land reaches the far plane from every room in the north, east and west, and is under the sea at its south
 //      edge; from every room entry, lamp and the balcony, rays looking down in 16 directions meet the map, the town, the land or
 //      the sea within the far plane; the sea is wider than the far plane round any eye
@@ -33,6 +34,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <string_view>
 #include <vector>
 
 namespace
@@ -172,6 +174,78 @@ void TestLand()
     // inside the town and away from the pits the ground is level, just under the street floors
     CHECK(Near(land.Height(-40.0f, 60.0f), st::kPlainY, 1e-4f) && Near(land.Height(40.0f, -20.0f), st::kPlainY, 1e-4f));
     CHECK(land.Height(0.0f, -100.0f) < st::kSeaY && land.Height(0.0f, 250.0f) > 30.0f); // the sea, the mountain
+    // the pits are sunken lanes, not ravines: a terrace step under the street at least, just under the lowest room over them;
+    // only the basin of the harbour goes down under the sea
+    int lanes = 0;
+    for (const st::Pit& p : st::kPits)
+    {
+        const float y = st::PitFloor(p);
+        if (p.sea)
+        {
+            CHECK(Near(y, st::kPitY, 1e-4f));
+            continue;
+        }
+        ++lanes;
+        CHECK(y <= st::kPlainY - st::kPitStep + 1e-4f && y > st::kPitY + 1.0f);
+        if (std::string_view(p.name) == "the ravine of the prologue")
+        {
+            std::printf("  the lane beside the prologue: %.2f m (the street: %.2f m)\n", static_cast<double>(y), static_cast<double>(st::kPlainY));
+            CHECK(y > st::kPlainY - 3.0f && st::PitFloorAt(p, 0.0f, -10.0f) > st::kPlainY - 3.0f); // under the terrace: a lane
+        }
+    }
+    CHECK(lanes > 5);
+    // the open-ground rule: standing on the ground in a lane, or on the street outside every room, is a fall; standing on a
+    // floor of the map is not
+    CHECK(st::OnOpenGround({0.0f, land.Height(0.0f, -10.0f), -10.0f}, true) && !st::OnOpenGround({0.0f, land.Height(0.0f, -10.0f), -10.0f}, false));
+    CHECK(st::OnOpenGround({-40.0f, st::kPlainY, 70.0f}, true));
+    CHECK(!st::OnOpenGround({kFloorY * 0.0f - 0.0f, kFloorY, 23.0f}, true)); // on the rim of the square
+    CHECK(!st::OnOpenGround(st::kRooms[st::kStartRoom].entry, true));
+    // never a false fall: on every room entry, every lamp, and the whole top of every ramp and stair of the map
+    int probes = 0;
+    int wrong = 0;
+    for (const st::Room& r : st::kRooms)
+    {
+        ++probes;
+        wrong += st::OnOpenGround(r.entry, true) ? 1 : 0;
+    }
+    for (const st::AnchorDesc& a : st::kAnchors)
+    {
+        ++probes;
+        wrong += st::OnOpenGround(a.stand, true) ? 1 : 0;
+    }
+    for (const SceneObject& o : st::kStageStatics)
+    {
+        if (o.tilt == 0.0f)
+        {
+            continue;
+        }
+        const float c = std::cos(o.tilt);
+        const float sn = std::sin(o.tilt);
+        for (float u = -0.45f; u <= 0.451f; u += 0.05f)
+        {
+            for (float w = -0.4f; w <= 0.41f; w += 0.2f)
+            {
+                // a point on the top face in the local space of the ramp, turned by its tilt round X (y' = y c - z s, z' = y s + z c)
+                const float ly = 0.5f * o.scale[1];
+                const float lz = u * o.scale[2];
+                const float lx = w * o.scale[0];
+                const float tz = ly * sn + lz * c; // then the yaw round Y (x' = x cy + z sy, z' = -x sy + z cy)
+                const float cy = std::cos(o.yaw);
+                const float sy = std::sin(o.yaw);
+                const Vec3 f{o.position[0] + lx * cy + tz * sy, o.position[1] + ly * c - lz * sn, o.position[2] - lx * sy + tz * cy};
+                ++probes;
+                if (st::OnOpenGround(f, true))
+                {
+                    if (wrong++ < 5)
+                    {
+                        std::printf("  a false fall on a ramp at %.2f %.2f %.2f\n", static_cast<double>(f.x), static_cast<double>(f.y), static_cast<double>(f.z));
+                    }
+                }
+            }
+        }
+    }
+    std::printf("  the open-ground rule: %d places of the map probed, %d taken for a fall\n", probes, wrong);
+    CHECK(wrong == 0);
 }
 
 /// A land of one field only, made by `height`.
@@ -436,6 +510,8 @@ void TestNoEscape()
     const std::vector<Place> places = EdgePlaces();
     int tried = 0;
     int escaped = 0;
+    int onGround = 0;
+    int caught = 0;
     for (const Place& pl : places)
     {
         const std::vector<SceneObject> solids = NearSolids(pl.feet.x, pl.feet.z);
@@ -478,8 +554,20 @@ void TestNoEscape()
                     {
                         break; // it walks on along a floor of the map: no edge here (and the solids given end 16 m away)
                     }
-                    if (p.Grounded() && f.y - land.Height(f.x, f.z) < 0.15f && !OnBox(f, pl.layer, solids) && !NearARoom(f))
+                    if (p.Grounded() && f.y - land.Height(f.x, f.z) < 0.15f && !OnBox(f, pl.layer, solids))
                     {
+                        // on the ground of the world: the game takes it for a fall (OnOpenGround) - unless the body stands in a
+                        // room there, which would be a place outside the map that counts as inside it
+                        ++onGround;
+                        if (st::OnOpenGround(f, true))
+                        {
+                            ++caught;
+                            break;
+                        }
+                        if (NearARoom(f) && st::RoomAt(f) < 0)
+                        {
+                            break; // a threshold between two rooms (the floor there is the map), no fall either way
+                        }
                         if (escaped++ < 40)
                         {
                             std::printf("  ESCAPE from %s (%.2f %.2f %.2f) layer %c, dir (%.2f %.2f)%s -> on the ground at %.2f %.2f %.2f\n",
@@ -493,7 +581,8 @@ void TestNoEscape()
             }
         }
     }
-    std::printf("  no escape: %zu places at an edge, %d walks and jumps off them, %d onto the ground\n", places.size(), tried, escaped);
+    std::printf("  no escape: %zu places at an edge, %d walks and jumps off them, %d onto the open ground (all taken for a fall: %d), %d not caught\n",
+                places.size(), tried, onGround, caught, escaped);
     CHECK(tried > 1000 && escaped == 0);
 }
 

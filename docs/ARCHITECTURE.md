@@ -79,7 +79,8 @@ plane, with a hole under the fine one; the edge of the fine field is pinned to t
 solids (`Player::SetLand`): the ground is solid in both layers.
 
 `Landscape` makes the land of the current map from noise (the hills, the mountain, the coast) and the site data of `Stage`:
-the town levelled at the street, the pits (`Stage::kPits`) below every fall line. It places the plants by the ground they grow
+the town levelled at the street, the pits (`Stage::kPits`) as sunken lanes just under the rooms over them. A body that
+stands on the ground has fallen out of the map (`OnOpenGround`). It places the plants by the ground they grow
 on, and bakes the ground (flat-shaded triangles) and the plants (boxes) of each layer into one mesh that `Models` joins to its
 static batch (`SetStaticExtra`), with the scenery of `Scenery` (the harbour, the town wall, the doors and
 windows of the houses, the districts round the map: the market and its well, the theatre, the graveyard, the water tower, the

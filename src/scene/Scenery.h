@@ -102,6 +102,18 @@ inline void HarbourScenery(std::vector<SceneObject>& out)
         out.push_back(Span(-22.4f, kSeaY - 0.6f, z - 2.6f, -19.8f, kSeaY + 0.8f, z + 2.6f, kHull, kLayerA));
         out.push_back(Span(-21.2f, kSeaY + 0.8f, z - 0.1f, -21.0f, kSeaY + 6.0f - static_cast<float>(k), z + 0.1f, kHull, kLayerA));
     }
+    // B: the harbour silted up: sand banks with reeds where the boats lay
+    const float banks[4][3] = {{-15.0f, -33.0f, 2.6f}, {-19.0f, -40.0f, 2.0f}, {14.0f, -32.0f, 2.4f}, {18.0f, -39.0f, 2.2f}};
+    for (const auto& b : banks)
+    {
+        out.push_back(Span(b[0] - b[2], kSeaY - 1.0f, b[1] - b[2], b[0] + b[2], kSeaY + 0.3f, b[1] + b[2], Rgb{0.55f, 0.52f, 0.42f}, kLayerB));
+        for (int k = 0; k < 4; ++k)
+        {
+            const float rx = b[0] + 0.6f * b[2] * (k % 2 == 0 ? -1.0f : 1.0f);
+            const float rz = b[1] + 0.6f * b[2] * (k < 2 ? -1.0f : 1.0f);
+            out.push_back(Span(rx - 0.3f, kSeaY + 0.3f, rz - 0.3f, rx + 0.3f, kSeaY + 1.5f, rz + 0.3f, Rgb{0.48f, 0.54f, 0.34f}, kLayerB));
+        }
+    }
     SceneObject wreck = Span(-22.6f, kSeaY - 1.5f, -46.0f, -19.6f, kSeaY + 0.6f, -38.0f, Rgb{0.27f, 0.22f, 0.19f}, kLayerB);
     wreck.tilt = 0.25f;
     out.push_back(wreck);

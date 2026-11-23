@@ -150,6 +150,29 @@ Not used on purpose: free physics, throwing, timers in the main path. They would
 
 ## 5. The city
 
+### 5.1 The model
+
+The target of the map is the model `tools/layout/city_model.py` (Python 3, numpy and matplotlib), drawn from over the sea in
+both worlds:
+
+![World A, the whole town at dusk](images/city_a.png)
+
+![World B, after the storm](images/city_b.png)
+
+    python tools/layout/city_model.py a      (world A; about ten minutes)
+    python tools/layout/city_model.py b      (world B)
+
+Its rules, which the game follows:
+
+| Rule | Model | Game |
+|---|---|---|
+| Ground | the town on terraces stepping down to the sea; outside the wall a headland, hills, a stream valley east of the town, the mountain in the north | the headland, the stream valley, the mountain (`Landscape::NaturalHeight`); the town levelled at the street round the map |
+| Damage | the storm came from the sea: the sea front and the harbour lie in ruins, the lower town is roofless, the upper town behind the square stands (`damage`) | `Stage::Damage`: houses in B are shells, or unroofed with their rafters left, by how exposed they are |
+| Plants | A kept: lemon yards, olive rows, fields of grain. B let go: grass through the paving, figs in roofless houses, scrub over the groves, pines felled by the storm, reeds on the silted harbour | the same (5.6.4) |
+| Puzzles | a room asks for one or two switches, at places it shows; the rest is walked in one world | 6.1 .. 6.5; the courtyard is the one room that asks for more |
+
+The rooms of the game are being moved to the places of the model in two steps (section 12).
+
 ### 5.3 One town, four kinds of house
 
 The districts are not islands round the landmarks: the same town runs through all of them, and its houses change slowly.
@@ -179,20 +202,19 @@ batch. The fine field is pinned to the coarse one along its edge, so the two mee
 | The town | levelled at the street, 5 cm under the floors of the map (`kPlainY`): the houses stand on it |
 | The land | outside the town, noise: hills to the east and the west, a hillside under the mountain, the mountain to the north in ridged layers up to about 70 m, rough ground, rock where it is steep |
 | The coast | a bay in front of the town, the shore coming north on either side; the bank falls from the town to the sea at -9, the sea floor further down |
-| Pits | where the map has no floor at street level (the open sides of the prologue, the trench, the gap under the sky bridge, the pool, the lower west, the cellar and the canal, and four closed spaces between districts) the ground drops to -16, below every fall line (`kPits`). A fall stays a fall; nothing of the ground shows inside a room. The sea fills the pits: from the terrace the ravine of the prologue is a moat |
+| Pits | where the map has no floor at street level (the open sides of the prologue, the trench, the gap under the sky bridge, the pool, the lower west, the cellar and the canal, the locks, the well, and closed spaces between districts) the ground steps down to a sunken lane a terrace step (1.6 m) under the street, and deeper only under a room that goes deeper, just under its lowest floor (`kPits`, `PitFloorAt`). Only the harbour is a basin of the sea. Paved in A, grown over in B |
 | Footings | a wall at street level or a deck at the edge of a pit gets a footing of rock down to the floor of the pit, drawn only, so that nothing floats; never through another box or a room below |
-| Collision | the ground is solid for the walking body in both worlds; tests prove that no body reaches it from the map (test_terrain, "no escape") |
+| Collision | the ground is solid; a body that comes to stand on it has fallen out of the map and comes back like after a fall (`OnOpenGround`: grounded on the ground, not on a floor, a ramp or the edge of a doorway). Tests prove that every walk and jump off an edge ends in the map, below its fall line, or on the open ground where it is caught; and that no place of the map is taken for a fall (test_terrain) |
 
 | Edge | What is seen | Why it is never the void |
 |---|---|---|
 | South | the bay, the open sea | the sea is one plane round the eye, wider than the far plane, its colour the colour of its world |
 | West, east | hills, the coast turning north | the land reaches 300 m past every room |
 | North | the hillside, the mountain in layers | the land reaches 300 m past every room and rises |
-| Down | the floors of the pits, under the sea | the pits have floors; the sea covers them |
+| Down | the sunken lanes, the sea in the harbour | the lanes have floors; the sea covers the harbour |
 
 The sea without an edge: one flat plane at -9 that follows the eye (in steps of 20 m, so its surface does not slide), 720 m
 across. The fog of each world is the colour of its sky, so the sea fades into it with no line where it ends.
-story).
 
 ### 5.5 Where buildings stand, and why
 
@@ -205,7 +227,7 @@ town (`Stage::SkylinePlots`) by these rules.
 | Colour | by quarter: ochre plaster and deep red tiles in the west, whitewash and light tiles in the east, grey stone and slate in the north, sandstone and red tiles in the south, blended by distance (no quarter has a border) | | built |
 | Towers | now and then a tower over the roofs | | built |
 | Gardens | one plot in eight is not built: a garden with lemon trees and a cypress | | built |
-| B | one house in four is a shell: its walls broken lower, no roof; a quarter of the merlons and a third of the cornices have fallen | | built |
+| B | by how exposed it was to the storm from the sea (`Stage::Damage`): by the sea most houses are shells (walls broken lower, a fig inside), in the lower town many are unroofed (the rafters left), behind the square most stand; a quarter of the merlons and a third of the cornices have fallen | | built |
 
 ### 5.6 Plants
 
@@ -246,9 +268,13 @@ questions: what grows on this ground, how thick, and who planted it.
 
 | Change | State |
 |---|---|
-| The same plants, darker and greyer | built |
-| The lemon trees of the gardens dead (no crown) | built |
-| Ivy on north faces, grass in cracks, figs in roofless houses, reeds in dry beds | open |
+| Grass through the paving of the streets where the storm hit hardest (`Damage`) | built |
+| Figs grown up through the roofless shells | built |
+| Scrub over the olive groves | built |
+| The pines nearest the sea felled (a log and a stump) | built |
+| The harbour silted: sand banks with reeds | built |
+| Fields of grain in A gone wild in B; the lemon trees of the gardens dead | built |
+| Ivy on north faces | open |
 | Never a plant where a puzzle of B needs a clear floor; plants are drawn only | rule |
 
 ### 5.7 Art style: lantern and stone
@@ -594,6 +620,8 @@ search for skips checks this for the whole map.
 | Part | State |
 |---|---|
 | The ground, the sea, the plants, the town, the scenery | built (5.3 .. 5.8) |
+| Rebuild after the model, step 1: the ground of the model, the pits as sunken lanes, the open-ground rule, the red and blue edges gone, A and B told apart by damage and plants | built 2026-11-23 (5.1, 5.4) |
+| Rebuild after the model, step 2: the rooms at the places of the model (the prologue on the wall walk, the round square, the districts), the streets on the ground, the courtyard down to two switches | next |
 | Recovery (no switch into water, places of return out of water) | built (14.4) |
 | The prologue, the harbour, the courtyard | built (6.1) |
 | The square, the cathedral, the bell tower, the ring of lights | built (6.2, 6.6) |
@@ -616,6 +644,7 @@ search for skips checks this for the whole map.
 | 2026-11-23 | the districts grow out of the wings: the market and the well (west), the lock walk, the tower lock and the water tower (east), the theatre and the graveyard (north); each holds a bell rung where it hangs |
 | 2026-11-23 | the three endings, lamp travel, resonance and the stuck timer (1.3, 1.5, 9.3) |
 | 2026-11-23 | the first plan is dropped: the model of a round square on a hillside, the tower in the square and its floors, the cistern, the separate bell tower west of the town. The cathedral carries the bell tower and the ring of the lights (6.6); the map is one town round the square |
+| 2026-11-23 | the model (5.1) is the target of the map again; the first plan that was dropped is the greybox, not the model. The rebuild in two steps: first the ground, the look and the two worlds told apart; then the rooms at their places |
 
 ## 14. The vertical city
 
@@ -639,9 +668,10 @@ broken it: a part of it has fallen, so every water of the city is dry in B.
 | A only | made by people, whole: wood, iron | the gate, planks, door panels, crates, the deck of the sky bridge |
 | B only | left by the storm: fallen masonry | the beams over the gaps, the heap of beat 3, the walls of the courtyard puzzle |
 | both | stone of the city | walls, floors |
-| key objects | their material, with a thin red (A) or blue (B) edge in their own world and an outline in the other | every single-layer box |
+| key objects | their material; in the other world a pale outline, a tint of red (A) or blue (B), that grows bright after 30 s in a room (9.3) | every single-layer box |
 
-Whole red or blue boxes are gone; red and blue are only edges and outlines.
+Whole red or blue boxes are gone, and so are the red and blue edges of the boxes in their own world: the material says the
+world (wood and iron in A, fallen masonry in B); a pale outline in the other world is the only hint that is always there.
 
 ### 14.4 Logic of the moving parts
 

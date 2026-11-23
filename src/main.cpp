@@ -272,7 +272,6 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     if (ghosts)
     {
         count = st::AddGhosts(table, count, st::kMaxDrawObjects);
-        count = st::AddWorldEdges(table, count, st::kMaxDrawObjects); // red and blue are edges, not the colour of the boxes
     }
     // the moving parts of the wings: the gates that are there and the pads of the triggers (outlined in the other layer like
     // the fixed boxes), then the orbs
@@ -282,7 +281,6 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     {
         const int movingCount = count - movingFirst;
         count = st::AddOutlines(table + movingFirst, movingCount, table, count, st::kMaxDrawObjects);
-        count = st::AddOwnEdges(table + movingFirst, movingCount, table, count, st::kMaxDrawObjects);
     }
     // stuck in a room for a while: its outlines grow brighter, then pulse (scene/Guidance.h)
     st::BrightenRoom(table, hintFirst, count, room, secondsInRoom, clock);
@@ -852,7 +850,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 secondsInRoom = 0.0;
                 DL_LOG_INFO("Stage", "room: %s", dl::stage::kRooms[room].name);
             }
-            if (player.Feet().y < dl::stage::FallLine(room) || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer, waters) ||
+            if (player.Feet().y < dl::stage::FallLine(room) || dl::stage::OnOpenGround(player.Feet(), player.Grounded()) || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer, waters) ||
                 canal.Submerged(player.Feet(), solidLayer))
             {
                 player.SetSpawn(dl::stage::SafeRespawn(room, solidLayer, anchors, waters, canal)); // the lamp, else the entry, out of the water

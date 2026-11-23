@@ -35,8 +35,8 @@ listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md) (14.10).
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
   cannot drift apart.
 - **A world without a void, proved.** The ground is a height field generated in code, flat-shaded and baked into the static
-  batch with the plants. Tests prove that it lies under every floor, that no walk or jump off an edge of the map ever ends on
-  it (about 14000 tried), and that every view down meets the map, the land or the sea.
+  batch with the plants. Tests prove that it lies under every floor, that every walk or jump off an edge of the map (about 14600
+  tried) ends in the map or is caught as a fall, and that every view down meets the map, the land or the sea.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
   room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 11000 places to
   stand, about 410000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five

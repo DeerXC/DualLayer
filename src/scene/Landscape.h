@@ -3,8 +3,11 @@
 // Ground:    a height field (scene/Terrain.h) in two parts: 2 m cells round the map, 8 m cells to well past the far plane.
 //            The town is levelled at the street (kPlainY, just under the floors of the map), the land round it is shaped by
 //            noise: hills east and west, a mountain to the north in ridged layers, rough ground outside the town, a bank that
-//            falls to the sea in the south. Under the parts of the map that have no floor at street level (kPits) the
-//            ground drops to kPitY, below every fall line: a fall stays a fall, and nothing of the ground shows in a room.
+//            falls to the sea in the south (tools/layout/city_model.py is the model it follows: the headland in the south-west,
+//            the stream valley east of the town, the mountain in ridged layers). Under the parts of the map that have no floor
+//            at street level (kPits) the ground steps down to just under the lowest floor there (PitFloor): a sunken lane, not
+//            a ravine. A body that comes to stand on the ground of the world outside every room has fallen (OnOpenGround): the
+//            ground is the town round the map, seen and never walked.
 // Sea:       one flat plane at kSeaY, drawn round the eye each frame and wider than the far plane (AddSea), south of kSeaNorth:
 //            it fills the bay and the harbour; the pits inside the town show their floor of rock. Not solid: a fall into it is a fall.
 // Plants:    placed by what grows on the ground there (5.6): the kind by height, slope, the side the slope faces and the
@@ -17,6 +20,7 @@
 #pragma once
 
 #include "render/StaticBatch.h"
+#include "scene/Collision.h"
 #include "scene/SceneData.h"
 #include "scene/Scenery.h"
 #include "scene/Stage.h"
@@ -60,6 +64,14 @@ inline float TownMask(float x, float z)
     return tx * tz;
 }
 
+inline constexpr float kStreamX = 100.0f; ///< the valley of the stream east of the town (the model: x 84, scaled to the map)
+
+/// The x of the stream at z.
+inline float StreamX(float z)
+{
+    return kStreamX + 10.0f * std::sin(z / 23.0f) + 5.0f * terrain::Fbm(z / 40.0f, 1.7f, 2, 9u);
+}
+
 /// The height of the land at (x, z), the pits left out.
 inline float NaturalHeight(float x, float z)
 {
@@ -71,6 +83,9 @@ inline float NaturalHeight(float x, float z)
     n += 13.0f * SmoothStep(-60.0f, -170.0f, x) * (0.7f + 0.3f * Fbm(x / 50.0f + 4.0f, z / 50.0f, 2, 5u)); // the hills of the west
     n += 6.0f * SmoothStep(80.0f, 150.0f, z);                                                        // the hillside under the mountain
     n += SmoothStep(110.0f, 200.0f, z) * (20.0f + 48.0f * Ridged(x / 90.0f, z / 90.0f, 4, 11u));    // the mountain, in layers
+    n += 16.0f * std::exp(-((x + 120.0f) * (x + 120.0f) / 1800.0f + (z + 70.0f) * (z + 70.0f) / 500.0f)); // the headland
+    const float sx = kStreamX + 10.0f * std::sin(z / 23.0f) + 5.0f * Fbm(z / 40.0f, 1.7f, 2, 9u);       // the stream, winding
+    n -= 7.0f * std::exp(-((x - sx) / 9.0f) * ((x - sx) / 9.0f)) * SmoothStep(-60.0f, -30.0f, z) * SmoothStep(220.0f, 150.0f, z);
     const float town = TownMask(x, z);
     const float out = std::sqrt(x * x + (z - 30.0f) * (z - 30.0f)); // (not "far": windows.h defines far and near as macros)
     n += (1.5f + 3.0f * SmoothStep(70.0f, 200.0f, out)) * Fbm(x / 24.0f, z / 24.0f, 4, 1u); // rough ground: the town is levelled
@@ -90,18 +105,56 @@ inline float NaturalHeight(float x, float z)
     return y;
 }
 
-/// True when a vertex of the fine field at (x, z) is the floor of a pit: within one cell of a pit, so that every point of a
-/// pit lies on triangles whose corners are all at the floor of the pit.
-inline bool InPit(float x, float z)
+inline constexpr float kPitStep = 1.6f;  ///< UNITS: metres: a shallow pit lies at least this far under the street (a terrace step)
+inline constexpr float kUnderFloor = 0.6f; ///< UNITS: metres: and this far under the lowest room over it
+
+/// The floor of a pit at (x, z): the sea basin of the harbour lies at kPitY; elsewhere a terrace step under the street, and
+/// deeper only under a room that goes deeper (just under its lowest floor, within two cells round it).
+inline float PitFloorAt(const Pit& p, float x, float z)
 {
+    if (p.sea)
+    {
+        return kPitY;
+    }
+    float y = kPlainY - kPitStep;
+    const float m = kNearCell;
+    for (const Room& r : kRooms)
+    {
+        if (x > r.x0 - m && x < r.x1 + m && z > r.z0 - m && z < r.z1 + m)
+        {
+            y = r.y0 - kUnderFloor < y ? r.y0 - kUnderFloor : y;
+        }
+    }
+    return y;
+}
+
+/// The shallowest floor of pit `p` (a terrace step under the street, or kPitY for the sea).
+inline float PitFloor(const Pit& p)
+{
+    return p.sea ? kPitY : kPlainY - kPitStep;
+}
+
+/// The floor of the pit whose vertices hold (x, z) (within one cell of a pit, so that every point of a pit lies on triangles
+/// whose corners are all at its floor), the lowest where two meet; or false.
+inline bool PitAt(float x, float z, float& floor)
+{
+    bool found = false;
     for (const Pit& p : kPits)
     {
         if (x >= p.x0 - kNearCell && x <= p.x1 + kNearCell && z >= p.z0 - kNearCell && z <= p.z1 + kNearCell)
         {
-            return true;
+            const float y = PitFloorAt(p, x, z);
+            floor = !found || y < floor ? y : floor;
+            found = true;
         }
     }
-    return false;
+    return found;
+}
+
+inline bool InPit(float x, float z)
+{
+    float y = 0.0f;
+    return PitAt(x, z, y);
 }
 
 /// The land of the current map.
@@ -112,12 +165,61 @@ inline terrain::Land BuildLand()
                         [](float x, float z) { return NaturalHeight(x, z); });
     land.nearField.Build(kNearX0, kNearZ0, kNearCell, static_cast<int>((kNearX1 - kNearX0) / kNearCell),
                          static_cast<int>((kNearZ1 - kNearZ0) / kNearCell),
-                         [](float x, float z) { return InPit(x, z) ? kPitY : NaturalHeight(x, z); });
+                         [](float x, float z) {
+                             float pit = 0.0f;
+                             const float n = NaturalHeight(x, z);
+                             return PitAt(x, z, pit) && pit < n ? pit : n;
+                         });
     land.PinEdge();
     return land;
 }
 
 /// The land, made once (it is the same every run).
+inline const terrain::Land& TheLand();
+
+/// True when a floor of the map (a box of both worlds, a ramp or a stair too) has its top at the height of `feet` (within a
+/// few centimetres) under the ball of a body there: the body rests on it, or on its edge in a doorway.
+inline bool OverFloor(const Vec3& feet)
+{
+    constexpr float kReach = 0.3f; // UNITS: metres: half a doorway (a wall is 0.5 m thick)
+    for (const SceneObject& o : kStageStatics)
+    {
+        if (o.layerMask != kLayerBoth || o.shape != ShapeKind::Cube)
+        {
+            continue;
+        }
+        const Vec3 l = collision_detail::ToLocal(o, {feet.x, feet.y, feet.z}, 0.0f); // in the frame of the box, not scaled
+        const float hx = 0.5f * o.scale[0];
+        const float hy = 0.5f * o.scale[1];
+        const float hz = 0.5f * o.scale[2];
+        if (l.y < hy - 0.07f || l.y > hy + 0.01f + 0.07f)
+        {
+            continue; // the top face is not at the feet
+        }
+        if (std::fabs(l.x) - hx < kReach && std::fabs(l.z) - hz < kReach)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// True when a body standing (grounded) with its feet at `feet` stands on the ground of the world: no room of the map has the
+/// ground for its floor, so it has fallen out of the map (main.cpp sends it back like a fall). The floors of the map stand 5 cm
+/// over the levelled ground; a body that rests on the edges of a doorway, its feet sunk to the ground between them, is on the
+/// floor (OverFloor).
+inline bool OnOpenGround(const Vec3& feet, bool grounded)
+{
+    if (!grounded)
+    {
+        return false;
+    }
+    // on a slope a ball rests a little over the surface under its centre: by its radius times (1 / cos - 1), and a margin
+    const Vec3 n = TheLand().Normal(feet.x, feet.z);
+    const float lift = 0.03f + 0.4f * (1.0f / (n.y > 0.2f ? n.y : 0.2f) - 1.0f) + 0.4f * std::sqrt(n.x * n.x + n.z * n.z);
+    return feet.y - TheLand().Height(feet.x, feet.z) < lift && !OverFloor(feet);
+}
+
 inline const terrain::Land& TheLand()
 {
     static const terrain::Land land = BuildLand();
@@ -171,17 +273,21 @@ inline void GroundColour(float x, float y, float z, float normalY, int layer, fl
     const Palette& p = layer == 0 ? kA : kB;
     Rgb c = p.grass;
     const bool steep = normalY < 0.72f; // more than about 44 degrees
-    if (y < kPitY + 1.0f || (steep && y < kPlainY - 1.0f && InPit(x, z)))
-    {
-        c = p.pit;
-    }
-    else if (y < kSeaY - 0.3f)
+    const float dmg = Damage(x, z);
+    const float rough = terrain::Fbm(x / 9.0f, z / 9.0f, 2, 57u);
+    if (y < kSeaY - 0.3f && !InPit(x, z))
     {
         c = p.bed;
     }
-    else if (y < kSeaY + 1.5f)
+    else if (y < kSeaY + 1.5f && !InPit(x, z))
     {
         c = p.sand;
+    }
+    else if (InPit(x, z))
+    {
+        // a sunken lane: paved in A, its stones mossy and grown over in B; its sides are retaining walls
+        c = steep ? (layer == 0 ? Rgb{0.62f, 0.56f, 0.47f} : Rgb{0.36f, 0.40f, 0.33f})
+                  : (layer == 0 ? Rgb{0.66f, 0.61f, 0.52f} : (rough > -0.1f ? Rgb{0.34f, 0.42f, 0.30f} : Rgb{0.44f, 0.43f, 0.40f}));
     }
     else if (steep)
     {
@@ -193,11 +299,16 @@ inline void GroundColour(float x, float y, float z, float normalY, int layer, fl
     }
     else if (TownMask(x, z) > 0.6f)
     {
-        c = p.town;
+        // the streets of the town: paving in A; in B grass comes through where the storm hit hardest
+        c = layer == 0 ? p.town : (dmg + 0.3f * rough > 0.55f ? Rgb{0.36f, 0.44f, 0.32f} : p.town);
+    }
+    else if (std::fabs(x - StreamX(z)) < 7.0f && z > -40.0f && z < 200.0f)
+    {
+        c = layer == 0 ? Rgb{0.40f, 0.56f, 0.30f} : Rgb{0.30f, 0.42f, 0.28f}; // the green valley of the stream
     }
     else if (terrain::Fbm(x / 30.0f, z / 30.0f, 2, 21u) > 0.12f)
     {
-        c = p.dry;
+        c = layer == 0 ? Rgb{0.74f, 0.66f, 0.40f} : Rgb{0.42f, 0.46f, 0.34f}; // A: fields of grain; B: gone wild
     }
     out[0] = batch_detail::SrgbToLinear(c.r);
     out[1] = batch_detail::SrgbToLinear(c.g);
@@ -507,11 +618,38 @@ inline void PlantBoxes(const Plant& p, std::vector<SceneObject>& out)
     case PlantKind::Olive:
         part(0.35f, -0.2f, 1.3f * s, 0.35f, trunk, 0.0f, 0.0f, true);
         part(2.4f * s, 1.0f * s, 1.3f * s, 2.4f * s, {{0.55f, 0.60f, 0.42f}, {0.36f, 0.40f, 0.32f}}, p.yaw, 0.0f, true);
+        {
+            // B: the grove let go: scrub grown up round the tree, over the rows
+            const Look scrub{{0.0f, 0.0f, 0.0f}, {0.33f, 0.39f, 0.28f}};
+            const float x = p.base.x;
+            const float z = p.base.z;
+            SceneObject b = Span(x - 1.6f * s, p.base.y - 0.2f, z - 1.6f * s, x + 1.6f * s, p.base.y + 0.9f * s, z + 1.6f * s, scrub.b, kLayerB);
+            b.yaw = p.yaw + 0.5f;
+            b.shineStrength = 0.05f;
+            out.push_back(b);
+        }
         break;
     case PlantKind::Pine:
-        part(0.35f, -0.2f, 7.0f * s, 0.35f, trunk, 0.0f, 0.05f, true); // leaning away from the sea
-        part(4.0f * s, 6.4f * s, 1.2f * s, 4.0f * s, {{0.22f, 0.36f, 0.24f}, {0.18f, 0.25f, 0.21f}}, p.yaw, 0.0f, true);
+    {
+        // the pines nearest the sea took the storm: in B one in three lies felled, its stump beside it
+        const float rx = std::fabs(std::sin(p.base.x * 12.9898f + p.base.z * 78.233f) * 43758.5453f);
+        const bool felled = p.base.z < CoastZ(p.base.x) + 45.0f && rx - std::floor(rx) < 0.35f;
+        part(0.35f, -0.2f, 7.0f * s, 0.35f, trunk, 0.0f, 0.05f, !felled); // leaning away from the sea
+        part(4.0f * s, 6.4f * s, 1.2f * s, 4.0f * s, {{0.22f, 0.36f, 0.24f}, {0.18f, 0.25f, 0.21f}}, p.yaw, 0.0f, !felled);
+        if (felled)
+        {
+            const float x = p.base.x;
+            const float z = p.base.z;
+            out.push_back(Span(x - 0.25f, p.base.y - 0.2f, z - 0.25f, x + 0.25f, p.base.y + 0.9f, z + 0.25f, trunkB, kLayerB)); // the stump
+            SceneObject log = Span(x + 0.5f, p.base.y - 0.1f, z - 0.25f, x + 0.5f + 6.5f * s, p.base.y + 0.4f, z + 0.25f, trunkB, kLayerB);
+            log.yaw = p.yaw;
+            out.push_back(log);
+            SceneObject crown = Span(x + 5.5f * s, p.base.y - 0.1f, z - 1.6f * s, x + 8.0f * s, p.base.y + 1.6f, z + 1.6f * s, Rgb{0.32f, 0.30f, 0.22f}, kLayerB);
+            crown.yaw = p.yaw;
+            out.push_back(crown);
+        }
         break;
+    }
     case PlantKind::Oak:
         part(0.4f, -0.2f, 1.8f * s, 0.4f, trunk, 0.0f, 0.0f, true);
         part(3.4f * s, 1.5f * s, 2.6f * s, 3.4f * s, {{0.26f, 0.40f, 0.22f}, {0.20f, 0.28f, 0.20f}}, p.yaw, 0.0f, true);

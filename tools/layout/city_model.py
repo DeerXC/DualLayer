@@ -10,6 +10,17 @@ The script draws five figures into docs/images and checks a few rules of section
 
 Units: metres. x east, z north, y up; y = 0 is the rim of the square (world y = y - 1 in the game).
 Worlds: "both", "A" (whole, 7:11), "B" (after the storm).
+
+Rules of the model (docs/LEVEL_DESIGN.md 5):
+  Ground   the town sits on terraces (1.6 m, held by retaining walls) stepping down to the sea; outside the wall the land is
+           rough: a headland, hills, a stream valley east of the town, the mountain in the north.
+  Damage   the storm came from the sea. How much of a place fell in B follows its exposure (`damage`): the harbour, the lower
+           town and the sea front lie in ruins; the upper town behind the hill stands, darker, with some roofs gone.
+  Plants   A: kept: lemon yards, olive rows on their terraces, cypress avenues, plane trees in the square, tilled fields.
+           B: let go: grass and saplings in the streets of the ruined quarters, figs in roofless houses, scrub over the olive
+           rows, the fields gone wild, storm-felled pines on the headland, reeds on the silted harbour.
+  Puzzles  a room asks for one or two switches at most, at places it shows (a ledge, a quay, a breach); the rest of the room is
+           walked in one world. The lights list says where the switch happens.
 """
 
 import math
@@ -48,6 +59,7 @@ TREE = (0.24, 0.38, 0.22)
 TREE_B = (0.26, 0.30, 0.24)
 MEMORY = (0.80, 0.95, 1.00)
 SEA_LEVEL = -8.0
+TERRACE = 1.6            # the height of a terrace of the town
 
 def ss(e0, e1, v):
     """Smooth step from e0 to e1 (e0 may be larger than e1)."""
@@ -200,14 +212,38 @@ def natural(x, z):
     mountain = ss(92.0, 140.0, wz)                                       # the mountain: ridged, rising in layers
     y = y + mountain * (22.0 + 38.0 * ridged(x / 70.0, z / 70.0, 4, 11) * ss(100.0, 160.0, wz))
     y = y + 10.0 * ss(70.0, 120.0, np.abs(x)) * ss(70.0, 95.0, wz)
+    # the stream: a valley east of the town from the mountain to the sea, winding
+    sx = 84.0 + 8.0 * np.sin(z / 23.0) + 4.0 * fbm(z / 40.0, 1.7, 2, 9)
+    y = y - 7.0 * np.exp(-((x - sx) / 9.0) ** 2) * ss(-45.0, -20.0, z) * ss(150.0, 110.0, z)
     town = ss(95.0, 60.0, np.hypot(x - 6.0, (z - 20.0) * 0.9))          # rough land outside the town, calm inside it
     y = y + (1.0 + 3.5 * town) * fbm(x / 22.0, z / 22.0, 4, 1)
+    # inside the town the slope is built into terraces held by retaining walls: flat steps of TERRACE m
+    inner = 1.0 - ss(70.0, 82.0, np.hypot(x - 6.0, (z - 20.0) * 0.95))
+    q = np.floor(y / TERRACE)
+    f = y / TERRACE - q
+    stepped = (q + ss(0.82, 1.0, f)) * TERRACE
+    y = y + (stepped - y) * inner
     cz = coast_z(x)                                                     # the shore: a beach, or a cliff under the headland
     cliff = ss(-36.0, -62.0, x)
     shore = SEA_LEVEL + (0.22 + 0.9 * cliff) * (z - cz)
     y = np.where(z < cz + 30.0, np.minimum(y, np.maximum(shore, SEA_LEVEL - 6.0) + 0.0 * y), y)
     y = np.where(z < cz, np.minimum(y, SEA_LEVEL - 0.6 + 0.35 * (z - cz)), y)
     return np.maximum(y, SEA_LEVEL - 14.0)
+
+def damage(x, z):
+    """0 .. 1: how hard the storm from the sea hit (x, z): the sea front and the harbour most, the lower town much, the upper
+    town behind the rise of the square little; the east hillside, open to the sea, more than the sheltered west."""
+    x = np.asarray(x, float)
+    z = np.asarray(z, float)
+    d = 0.85 * ss(30.0, -40.0, z) + 0.25 * ss(10.0, 60.0, x) * ss(50.0, 0.0, z) + 0.12 * fbm(x / 15.0, z / 15.0, 2, 33)
+    return np.clip(d, 0.0, 1.0)
+
+
+def hash01(k, salt=0):
+    h = (int(k) * 2654435761 + salt * 40503) & 0xFFFFFFFF
+    h = ((h ^ (h >> 15)) * 2246822519) & 0xFFFFFFFF
+    return (h & 0xFFFF) / 65535.0
+
 
 _HEIGHTS = {}
 
@@ -536,6 +572,12 @@ def build_harbour():
     ship(60.0, -150.0, -0.3, 16.0, "A")                                                         # the last ships, under sail
     ship(-30.0, -215.0, 0.2, 18.0, "A")
     ship(90.0, -260.0, -0.1, 14.0, "A")
+    for k in range(5):                                                                          # B: the harbour silted, reeds
+        sx_, sz_ = q0 + 3.0 + 3.6 * k, zq - 7.0 - 1.5 * (k % 2)
+        prism(ngon(sx_, sz_, 3.0 + 0.4 * (k % 3), 9), SEA_LEVEL - 1.0, SEA_LEVEL + 0.35, (0.55, 0.52, 0.42), "B")
+        for r in range(4):
+            a = r * 1.6 + k
+            cone(sx_ + 1.6 * math.cos(a), sz_ + 1.6 * math.sin(a), 0.4, SEA_LEVEL + 0.3, SEA_LEVEL + 1.6, (0.50, 0.56, 0.36), "B", 4)
     wx, wz = -18.0, float(coast_z(np.array([-18.0]))[0]) + 1.0                                  # B: a wreck on the beach
     prism(rect(wx, wz, 12.0, 3.4, 0.5), SEA_LEVEL - 0.8, SEA_LEVEL + 1.2, (0.30, 0.24, 0.20), "B")
     for u in (-4.0, -1.0, 2.0):
@@ -839,7 +881,10 @@ def house(cx, cz, w, dd, ang, k, height, ridge_along=True, arcade=False):
     base = float(np.min(ground(np.array([p[0] for p in out] + [cx]), np.array([p[1] for p in out] + [cz]))))
     wall, roof = district_colours(cx, cz, k)
     top = base + height
-    ruin = k % 3 == 0
+    dmg = float(damage(cx, cz))
+    roll = hash01(k, 7)
+    ruin = roll < 0.08 + 0.75 * dmg                     # B: a shell, roof and upper walls gone
+    unroofed = not ruin and roll < 0.25 + 0.6 * dmg     # B: the walls stand, the roof is gone (beams left)
     c, s = math.cos(ang), math.sin(ang)
     if ruin:
         prism(out, base - 1.0, top, wall, "A")
@@ -859,7 +904,15 @@ def house(cx, cz, w, dd, ang, k, height, ridge_along=True, arcade=False):
     else:
         prism(out, base - 1.0, top, wall)
     rise = 0.35 * min(w, dd) + 0.4
-    world = "A" if ruin else "both"
+    world = "A" if (ruin or unroofed) else "both"
+    if unroofed:                                                                        # B: bare rafters over the walls
+        for j in range(3):
+            u = (j - 1) * w * 0.3
+            ax_, az_ = cx + u * c, cz + u * s
+            beam((ax_ + s * dd / 2, top + 0.1, az_ - c * dd / 2), (ax_ - s * dd / 2, top + 0.1, az_ + c * dd / 2), 0.15, 0.15,
+                 (0.30, 0.25, 0.21), "B")
+        if roll < 0.2 + 0.6 * dmg:
+            cone(cx, cz, 0.9, top - 0.2, top + 1.4, TREE_B, "B", 5)                    # a fig grown through the floor
     if ridge_along:
         gable(cx, cz, dd, w, ang + math.pi / 2, top, rise, roof, world)
     else:
@@ -1015,9 +1068,28 @@ def plant_town():
             if not site_free(rect(x, z, 2.0, 2.0, 0.0)) or near_way(x, z, 2.5):
                 continue
             behind = sum(1 for h in HOUSES if min(math.hypot(x - px, z - pz) for px, pz in h) < 4.0)
+            y = float(ground(x, z))
             if behind >= 2:                                                                 # a yard between houses
-                lemon(x, z, float(ground(x, z)))
+                lemon(x, z, y)
                 HOUSES.append(rect(x, z, 1.6, 1.6, 0.0))
+            elif float(damage(x, z)) > 0.45 and hash01(k, 3) < 0.6:                         # B: self-sown in the ruins
+                cone(x, z, 1.4, y + 0.5, y + 3.6, TREE_B, "B", 6)
+                prism(ngon(x, z, 0.15, 4), y, y + 0.8, WOOD, "B")
+    # B: grass and saplings in the streets of the ruined quarters
+    for name, (curve, width, kind) in STREET.items():
+        d = lengths(curve)
+        hs = street_heights(curve)
+        s_ = 2.0
+        n = 0
+        while s_ < d[-1]:
+            n += 1
+            p, v = at(curve, s_ / d[-1])
+            if float(damage(p[0], p[1])) > 0.5 and hash01(n, len(name)) < 0.5:
+                side = 1 if n % 2 else -1
+                x, z = p[0] - v[1] * side * width * 0.3, p[1] + v[0] * side * width * 0.3
+                y = float(hs[min(len(hs) - 1, int(s_ / d[-1] * (len(hs) - 1)))])
+                cone(x, z, 0.6, y, y + 0.9, (0.38, 0.46, 0.32), "B", 5)
+            s_ += 3.0
 
 def plant_country():
     """Outside the walls: olive groves in rows along the contours of the gentle slopes that face the sun (south to east), each
@@ -1039,9 +1111,19 @@ def plant_country():
                 continue                                                                    # rock
             sunny = sz > 0.02 or sx < -0.04                                                 # falls to the south or the east
             wind = float(fbm(x / 18.0, z / 18.0, 2, 41))
+            sx = 84.0 + 8.0 * math.sin(z / 23.0)
+            if abs(x - sx) < 6.0 and -35.0 < z < 140.0 and k % 2 == 0:                    # the stream: willows and oaks
+                tree(x, z, y)
+                continue
             if (x < -38.0 and z < -20.0) or (z > 74.0 and y > 18.0 and z < 112.0):
                 if wind > 0.18 and k % 2 == 0:                                              # pines, in clumps
-                    umbrella_pine(x, z, y, k)
+                    if z < -20.0 and hash01(k, 11) < 0.35:                                  # B: felled by the storm
+                        prism(ngon(x, z, 0.22, 5), y, y + 7.0, WOOD, "A")
+                        cone(x, z, 3.2, y + 6.4, y + 8.0, PINE, "A", 9)
+                        beam((x, y + 0.4, z), (x + 6.0, y + 0.3, z + 2.0), 0.4, 0.4, (0.36, 0.30, 0.24), "B")
+                        prism(ngon(x, z, 0.24, 5), y, y + 1.2, (0.36, 0.30, 0.24), "B")
+                    else:
+                        umbrella_pine(x, z, y, k)
                 elif slope > 0.45 and k % 3 == 0:
                     shrub(x, z, y)
                 continue
@@ -1049,6 +1131,8 @@ def plant_country():
                 band = (y + 40.0) % 2.6
                 if band < 0.32 and k % 2 == 0:                                              # a row of olives on its terrace
                     olive(x, z, y)
+                elif band < 1.2 and k % 3 == 0:                                             # B: scrub over the rows
+                    cone(x, z, 1.0, y - 0.1, y + 1.1, (0.36, 0.42, 0.30), "B", 5)
                     nx, nz = -sz / max(slope, 1e-6), sx / max(slope, 1e-6)
                     prism(rect(x, z, 3.0, 0.4, math.atan2(nz, nx)), y - 0.6, y + 0.15, TERRACE_WALL)
                 continue
@@ -1101,17 +1185,38 @@ def build_terrain():
             slope = (max(ys) - min(ys)) / STEP
             if max(ys) < SEA_LEVEL - 0.3:
                 continue                                                                  # under the sea
+            dmg = float(damage(cx, cz))
+            rough = float(fbm(cx / 9.0, cz / 9.0, 2, 57))
+            in_square = math.hypot(cx - SQUARE[0], cz - SQUARE[1]) < SQUARE_R + 1
+            on_street = near_way(cx, cz, 0.6)
+            sx = 84.0 + 8.0 * math.sin(cz / 23.0)
+            by_stream = abs(cx - sx) < 7.0 and -40.0 < cz < 140.0
             if inside[j, i]:
-                colour = PAVING if math.hypot(cx - SQUARE[0], cz - SQUARE[1]) < SQUARE_R + 1 else (0.60, 0.62, 0.43)
+                if in_square or on_street:
+                    ca = PAVING
+                    cb = (0.40, 0.46, 0.34) if dmg + 0.3 * rough > 0.55 else (0.48, 0.48, 0.46)   # B: grass through the paving
+                else:
+                    ca = (0.66, 0.60, 0.48) if rough > 0.1 else (0.56, 0.62, 0.42)            # A: yards, kitchen gardens
+                    cb = (0.34, 0.42, 0.30) if rough > -0.2 else (0.44, 0.42, 0.36)          # B: overgrown
             else:
                 dry = float(fbm(cx / 30.0, cz / 30.0, 2, 21))
-                colour = SAND if min(ys) < SEA_LEVEL + 1.0 else ((0.66, 0.64, 0.44) if dry > 0.15 else GRASS)
-                if cz > 120.0 and max(ys) > 40.0:
-                    colour = (0.62, 0.60, 0.56)                                           # bare stone high on the mountain
+                if min(ys) < SEA_LEVEL + 1.0:
+                    ca, cb = SAND, (0.55, 0.53, 0.46)
+                elif by_stream:
+                    ca, cb = (0.40, 0.56, 0.30), (0.30, 0.42, 0.28)                           # the green valley of the stream
+                elif cz > 120.0 and max(ys) > 40.0:
+                    ca, cb = (0.62, 0.60, 0.56), (0.50, 0.51, 0.52)                           # bare stone on the mountain
+                elif dry > 0.15:
+                    ca, cb = (0.74, 0.66, 0.40), (0.42, 0.46, 0.34)                           # A: fields of grain; B: gone wild
+                else:
+                    ca, cb = GRASS, GRASS_B
             if slope > 0.95:
-                colour = ROCK
+                ca = cb = ROCK if not inside[j, i] else STONE_DARK                            # rock, or a retaining wall in town
+                if inside[j, i]:
+                    cb = (0.44, 0.44, 0.42) if dmg < 0.5 else (0.36, 0.38, 0.32)              # B: the walls mossy, some fallen
             pts = [(GX[i], ys[0], GZ[j]), (GX[i + 1], ys[1], GZ[j]), (GX[i + 1], ys[2], GZ[j + 1]), (GX[i], ys[3], GZ[j + 1])]
-            POLYS.append((np.array(pts), colour, "both", "terrain"))
+            POLYS.append((np.array(pts), ca, "A", "terrain"))
+            POLYS.append((np.array(pts), cb, "B", "terrain"))
     # the sea: one plane to the horizon (in the game it follows the camera and fades into the sky at the fog distance)
     poly([(-900.0, SEA_LEVEL, -1200.0), (900.0, SEA_LEVEL, -1200.0), (900.0, SEA_LEVEL, -20.0), (-900.0, SEA_LEVEL, -20.0)], SEA, "both", "water")
     for x, z, w, d, h in ((-150.0, -260.0, 60.0, 28.0, 14.0), (140.0, -330.0, 90.0, 40.0, 22.0), (40.0, -520.0, 140.0, 50.0, 30.0)):
@@ -1125,7 +1230,8 @@ def build_lists():
     walk_gap, _ = at(WALL_WALK, 0.5 * (WALK_GAP[0] + WALK_GAP[1]))
     awn, v = at(STREET["the market street"][0], 0.55)
     lights = [
-        # number, name, (x, y, z), district, taken in, visit, lesson, fragment that appears in B
+        # number, name, (x, y, z), district, taken in, visit, lesson, fragment that appears in B. Every light asks for one switch
+        # (or two, where noted in the lesson) at a place the room shows; the walk to it is in one world
         (1, "Inside the gate", (0.0, float(ground(0.0, -37.0)) + 4.4, -37.4), "prologue", "B", "first",
          "the breach is the way: a full jump under the arch", "the stair of the gate tower: a view of the bay"),
         (2, "Under the hoarding", (walk_gap[0] + 1.6, WALK_Y - 1.4, walk_gap[1]), "prologue", "A", "first",
@@ -1206,7 +1312,7 @@ def render(world, width, height, basis, centre, scale, sky, fog):
         if n.dot(fwd) > 0:
             n = -n
         col = np.asarray(colour, float)
-        if world == "B":
+        if world == "B" and not (kind == "terrain"):
             col = np.asarray(tint_b(colour), float)
         light = 0.50 + 0.50 * max(0.0, n.dot(sun)) if world == "A" else 0.62 + 0.30 * max(0.0, n.dot(sun))
         shade = col * light if kind != "water" else col

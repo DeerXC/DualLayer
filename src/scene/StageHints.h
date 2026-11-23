@@ -32,11 +32,11 @@
 namespace dl::stage
 {
 
-inline constexpr float kGhostBar = 0.06f;   // UNITS: metres, how wide a bar of an outline is
+inline constexpr float kGhostBar = 0.04f;   // UNITS: metres, how wide a bar of an outline is (faint: brighter when stuck)
 inline constexpr float kGhostThick = 0.03f; // UNITS: metres, how high a bar is (thin: it must not look like a step)
 inline constexpr float kGhostLift = 0.02f;  // UNITS: metres above the surface, so that the bar never flickers with the floor
 inline constexpr float kFlatHeight = 0.5f;  // UNITS: metres; an object up to this thick is a platform, outlined at its top
-inline constexpr float kGhostLight = 0.35f; // how much of the way to white the colour goes: the outline glows a little
+inline constexpr float kGhostLight = 0.72f; // how much of the way to white the colour goes: a pale line, a tint of its world
 inline constexpr int kBarsPerGhost = 4;
 inline constexpr float kHintGlow = 0.35f;  // the light of its own of a hint bar
 

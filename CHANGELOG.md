@@ -375,6 +375,22 @@
 - Checked (2026-11-23): `tests/test_stage.cpp` (4054; the day bell rung on the floor of the well; new `TestLightRing`),
   `tests/test_hints.cpp` (357: two landmarks fewer), `tests/test_terrain.cpp` (163), `tests/test_reach.cpp` (0 skips, 410112
   jumps), the others unchanged; with a stack of 1 MB as well.
+- Changed (2026-11-23, rebuild after the model, step 1 of 2, docs/LEVEL_DESIGN.md 5.1): the model `tools/layout/city_model.py`
+  is the target of the map again. The pits are sunken lanes, a terrace step (1.6 m) under the street and deeper only under a
+  room that goes deeper (`Landscape::PitFloorAt`; only the harbour stays a basin of the sea), paved in A and grown over in B, no
+  longer ravines to -16 m. A body that comes to stand on the ground of the world has fallen out of the map
+  (`Landscape::OnOpenGround`, with `OverFloor` for floors, ramps and the edges of doorways; `main.cpp` treats it as a fall).
+  Thresholds in the doors of the lock walk, the market lane and the theatre lane. The red and blue edges of the boxes of one
+  world are gone (the material says the world); the outline in the other world is a pale tint, thinner (`kGhostLight` 0.72,
+  `kGhostBar` 0.04), and grows bright when the body stays in a room (9.3). The ground follows the model: a headland in the
+  south-west, a stream valley east of the town, fields of grain in A gone wild in B, grass through the paving of the streets in
+  B where the storm hit hardest. The houses of B are damaged by how exposed they were (`Stage::Damage`): shells with a fig inside
+  by the sea, unroofed with their rafters in the lower town, standing behind the square. B: scrub over the olive groves, pines
+  felled by the storm near the sea, sand banks with reeds in the harbour.
+- Checked (2026-11-23): `tests/test_terrain.cpp` (185: the lanes; the open-ground rule on 3182 places of the map (rooms, lamps,
+  every ramp and stair) never taken for a fall; 14598 walks and jumps off edges, every one in the map, below its fall line or
+  caught on the open ground), `tests/test_stage.cpp` (4134), `tests/test_reach.cpp` (0 skips, 410240 jumps),
+  `tests/test_hints.cpp` (357), the others unchanged.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

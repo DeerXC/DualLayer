@@ -69,6 +69,7 @@
 #include "scene/Puzzle.h"
 #include "scene/SceneData.h"
 #include "scene/Shapes.h"
+#include "scene/Terrain.h"
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -493,9 +494,10 @@ struct Pit
 {
     float x0, z0, x1, z1;
     const char* name;
+    bool sea = false; ///< the basin of the sea (the harbour): deep, under the sea; every other pit is a sunken lane
 };
 inline constexpr Pit kPits[] = {
-    {kHarbourX0, kHarbourZ0, kHarbourX1, kTerraceSouth, "the harbour"},  // the basin of the sea under the town wall
+    {kHarbourX0, kHarbourZ0, kHarbourX1, kTerraceSouth, "the harbour", true},  // the basin of the sea under the town wall
     {-10.0f, -30.0f, 12.0f, 12.0f, "the ravine of the prologue"}, // the terrace, the ditch, the gap: open sides
     {9.6f, 55.0f, 18.4f, 63.0f, "under the sky bridge"},           // broken in B, no parapets in B
     {-6.5f, 24.5f, 6.5f, 37.5f, "under the pool"},
@@ -776,6 +778,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(-24.5f, kFloorY, 21.5f, -24.0f, kCityWallTop, kLaneZ0),                                      // its west wall, with the
     Wall(-24.5f, kFloorY, kLaneZ1, -24.0f, kCityWallTop, 40.5f),                                      // door to the lane of the
     Wall(-24.5f, kFloorY + 2.4f, kLaneZ0, -24.0f, kCityWallTop, kLaneZ1),                             // market
+    Floor(-24.5f, kLaneZ0, -24.0f, kLaneZ1, kFloorY),                                                 // (its threshold)
     Wall(-15.0f, kFloorY, 21.5f, -14.5f, kCityWallTop, kWingDoorZ0 - 0.5f),
     Wall(-15.0f, kFloorY, kWingDoorZ1 + 0.5f, -14.5f, kCityWallTop, 40.5f),
     Wall(-24.5f, kFloorY, 21.5f, -22.0f, kCityWallTop, 22.0f),
@@ -824,6 +827,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(24.0f, kCanalBed - 0.2f, 21.5f, 24.5f, kCityWallTop, kLockDoorZ0),                          // the east wall of the
     Wall(24.0f, kCanalBed - 0.2f, kLockDoorZ1, 24.5f, kCityWallTop, 40.5f),                           // hall, with the door
     Wall(24.0f, kFloorY + 2.2f, kLockDoorZ0, 24.5f, kCityWallTop, kLockDoorZ1),                       // to the lock walk
+    Floor(24.0f, kLockDoorZ0, 24.5f, kLockDoorZ1, kFloorY),                                            // (its threshold)
     // ---- the lane and the market (6.3.1)
     Floor(kMarketX1, kLaneZ0, -24.5f, kLaneZ1, kFloorY),
     Wall(kMarketX1, kFloorY, kLaneZ0 - 0.5f, -24.5f, kCityWallTop, kLaneZ0),
@@ -956,6 +960,7 @@ inline constexpr SceneObject kFixed[] = {
     Wall(-9.5f, kFloorY, 60.0f, kTheatreDoorX0, kNorthWallTop, 60.5f),                                 // north, with the door of
     Wall(kTheatreDoorX1, kFloorY, 60.0f, 9.5f, kNorthWallTop, 60.5f),                                  // the theatre lane (under
     Wall(kTheatreDoorX0, kFloorY + 2.4f, 60.0f, kTheatreDoorX1, kNorthWallTop, 60.5f),                 // landing 1)
+    Floor(kTheatreDoorX0, 60.0f, kTheatreDoorX1, 60.5f, kFloorY),                                     // (its threshold)
     // ---- the theatre (6.5.1): the lane (its stair is in kPieces), the stage wall and its door, the stage, the orchestra
     Floor(kTheatreDoorX0, 60.5f, kTheatreDoorX1, 62.0f, kFloorY),
     Span(kTheatreDoorX0, kFloorY, 65.0f, kTheatreDoorX1, kStageY, kStageWallZ + 0.6f, kGrey, kLayerBoth, 1.0f),
@@ -2004,8 +2009,19 @@ struct Plot
     float towerHeight; ///< over the roofs
     float yaw;         ///< radians: the turn of the house on its plot
     float side;        ///< UNITS: metres: the side of the house, so that it fits its plot when turned
-    bool ruin;         ///< B: a shell
+    bool ruin;         ///< B: a shell (its roof and upper walls gone)
+    bool unroofed;     ///< B: the walls stand, the roof is gone, its rafters left
 };
+
+/// 0 .. 1: how hard the storm from the sea hit (x, z) (tools/layout/city_model.py, damage): the sea front and the harbour
+/// most, the lower town much, the upper town behind the square little; the east, open to the sea, more than the west.
+inline float Damage(float x, float z)
+{
+    using terrain::SmoothStep;
+    const float d = 0.85f * SmoothStep(30.0f, -40.0f, z) + 0.25f * SmoothStep(10.0f, 60.0f, x) * SmoothStep(50.0f, 0.0f, z) +
+                    0.12f * terrain::Fbm(x / 15.0f, z / 15.0f, 2, 33u);
+    return d < 0.0f ? 0.0f : (d > 1.0f ? 1.0f : d);
+}
 
 inline constexpr float kCathedralX = 0.0f; ///< the middle of the cathedral, which the streets run round
 inline constexpr float kCathedralZ = 31.0f;
@@ -2035,13 +2051,17 @@ inline std::vector<Plot> SkylinePlots()
             p.towerSize = 1.2f + 0.6f * next();
             p.towerHeight = 5.0f + 6.0f * next();
             const float jitter = next();
-            p.ruin = next() < 0.25f;
+            const float fate = next();
             if (!PlotIsFree(p.x0, p.z0, p.x1, p.z1))
             {
                 continue;
             }
             const float cx = 0.5f * (p.x0 + p.x1);
             const float cz = 0.5f * (p.z0 + p.z1);
+            // what the storm did: by how exposed the plot is (Damage), not one house in four
+            const float dmg = Damage(cx, cz);
+            p.ruin = fate < 0.08f + 0.75f * dmg;
+            p.unroofed = !p.ruin && fate < 0.25f + 0.6f * dmg;
             // the direction to the cathedral, folded into -45 .. 45 degrees (a square house looks the same turned by 90)
             float yaw = std::atan2(cx - kCathedralX, cz - kCathedralZ);
             yaw = yaw - kQuarter * std::floor(yaw / kQuarter + 0.5f);
@@ -2103,6 +2123,9 @@ inline void Skyline(std::vector<SceneObject>& drawn)
         {
             drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + p.height, cz + h, wall, kLayerA));
             drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + 0.55f * p.height, cz + h, wall, kLayerB)); // a shell in B
+            // B: a fig grown up through the floor of the shell, over its broken walls
+            drawn.push_back(Span(cx - 0.4f * h, kFloorY + 0.4f * p.height, cz - 0.4f * h, cx + 0.4f * h, kFloorY + 0.55f * p.height + 1.6f, cz + 0.4f * h,
+                                 Rgb{0.22f, 0.32f, 0.20f}, kLayerB));
         }
         else
         {
@@ -2122,7 +2145,16 @@ inline void Skyline(std::vector<SceneObject>& drawn)
                 drawn[i].colorSrgb[0] = roof.r;
                 drawn[i].colorSrgb[1] = roof.g;
                 drawn[i].colorSrgb[2] = roof.b;
-                drawn[i].layerMask = p.ruin ? kLayerA : kLayerBoth;
+                drawn[i].layerMask = (p.ruin || p.unroofed) ? kLayerA : kLayerBoth;
+            }
+            if (p.unroofed) // B: the rafters left over the walls
+            {
+                for (int k = -1; k <= 1; ++k)
+                {
+                    const float u = 0.6f * h * static_cast<float>(k);
+                    drawn.push_back(Span(cx + u - 0.08f, kFloorY + p.height, cz - h, cx + u + 0.08f, kFloorY + p.height + 0.16f, cz + h, Rgb{0.30f, 0.25f, 0.21f},
+                                         kLayerB));
+                }
             }
         }
         TurnAbout(drawn, first, cx, cz, p.yaw);

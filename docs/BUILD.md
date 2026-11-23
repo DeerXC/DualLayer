@@ -167,6 +167,10 @@ seen".
 | E-56 | stay in the courtyard (or any room) without leaving it for 30 s, then 60 s | the outlines of the other world in the room grow brighter, then pulse |
 | E-57 | the top terrace of the lock walk: look into the tower lock in A and in B; go down its stair in B and push the crate south to the wall; climb it, jump, Tab in the air; hop through the door; walk under the bell | in A water and the crate floating by the terrace; in B a dry bed; the crate slides a step for each push and stops at the wall; in A it floats under the door; the room with the bell; the log says a bell is rung and the water of A rises |
 | E-58 | the well of the market: down to its floor in B, walk up to the fallen day bell | the log says a bell is rung; the lock of the canal opens by itself afterwards |
+| E-59 | from the side of the terrace (where the camera stood at -3, 3, -18.6), look down left and right, in A and in B | no ravine: a sunken lane about 4 m below the terrace, paved in A and grown over in B; no red or blue edge on the boxes of one world, only a pale outline in the other world |
+| E-60 | jump off the side of the terrace into the lane; jump off the landing of the north hall over its wall | each time the body comes back at its lamp or the entry of the room, as after a fall |
+| E-61 | from the balcony of the cathedral look south and north, in A and in B | in B the houses by the sea are shells, those of the lower town roofless with rafters, those behind the square stand; grass in the streets of the south; reeds on the silted harbour; felled pines on the headland; fields of grain in A |
+| E-62 | stand 30 s in the courtyard | the pale outlines of the other world grow bright |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
