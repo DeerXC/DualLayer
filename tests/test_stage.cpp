@@ -38,7 +38,9 @@
 
 #include "scene/Anchors.h"
 #include "scene/CityParts.h"
+#include "scene/CityState.h"
 #include "scene/OrbReturn.h"
+#include "scene/Recovery.h"
 #include "scene/Stage.h"
 #include "scene/StageLights.h"
 #include "scene/WestWing.h"
@@ -108,7 +110,7 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 8;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 8 + 8;
 
 int Room(const char* name)
 {
@@ -130,6 +132,7 @@ struct World
     dl::mech::MechanismSet mech;
     std::array<dl::shapes::Lift, st::kLiftCount> lifts = st::MakeLifts();
     dl::canal::Canal canal;
+    st::LightSet lights; ///< the hidden lights taken: their memory fragments are solid in B (scene/CityState.h)
     Player player;
     int layer = 0;
     float spin = 0.0f;
@@ -150,7 +153,7 @@ struct World
     }
 
     World(const World& o)
-        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), player(o.player), layer(o.layer), spin(o.spin),
+        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), lights(o.lights), player(o.player), layer(o.layer), spin(o.spin),
           orbsReturned(o.orbsReturned)
     {
     }
@@ -169,6 +172,7 @@ struct World
             count = st::AddMapSolids(seals, solids[l], count, kMaxSolids);
             count = st::AddLifts(lifts, solids[l], count, kMaxSolids);
             count = canal.AddSolids(l, solids[l], count, kMaxSolids);
+            count = st::AddFragments(lights, false, solids[l], count, kMaxSolids);
             counts[l] = mech.AddSolids(l, solids[l], count, kMaxSolids);
         }
     }
@@ -181,6 +185,14 @@ struct World
         const dl::mech::Action a = mech.Interact(player, layer, look, solids[layer], counts[layer], which);
         Run(0.6f); // a put-down orb falls and settles
         return a;
+    }
+
+    void TakeAllLights()
+    {
+        for (const st::HiddenLight& l : st::kHiddenLights)
+        {
+            lights.Collect(Touch{l.centre});
+        }
     }
 
     void TakeAllSeals()
@@ -1920,6 +1932,248 @@ void TestRooms()
 
 } // namespace
 
+/// A body that only touches what it is put at (the lamps lit by it, the wheel turned by it).
+struct Hand
+{
+    Vec3 at;
+    Vec3 Ball(int) const
+    {
+        return at;
+    }
+    Vec3 Feet() const
+    {
+        return at;
+    }
+    bool Grounded() const
+    {
+        return false;
+    }
+    void Carry(const Vec3&)
+    {
+    }
+};
+
+/// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
+void TestRecovery()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const st::Waterworks full;
+    {
+        // the cellar in B, dry: a switch to A would put the body under the water of the cellar: refused (it used to be sent to
+        // the entry of the cellar, which is under water too, again and again)
+        World w = hub;
+        w.layer = 1;
+        w.PlaceFeet({0.0f, st::kCellarY, 15.0f});
+        w.BuildSolids();
+        CHECK(w.player.Grounded() && !st::SwitchAllowed(w.player, 0, w.spin, w.solids[0], w.counts[0], full, w.canal));
+        CHECK(!w.Switch(0) || true); // (World::Switch asks only for room: the program asks SwitchAllowed)
+        st::Waterworks drained; // at the end the water has gone: then the switch is allowed
+        drained.Close();
+        drained.Update(10.0f);
+        w.canal.SetDrained(1.0f);
+        CHECK(st::SwitchAllowed(w.player, 0, w.spin, w.solids[0], w.counts[0], drained, w.canal));
+        w.canal.SetDrained(0.0f);
+        // the canal bed and the floor of the pool in B: the same
+        World c = hub;
+        c.layer = 1;
+        c.PlaceFeet({17.0f, st::kCanalBed, 25.6f});
+        c.BuildSolids();
+        CHECK(c.player.Grounded() && !st::SwitchAllowed(c.player, 0, c.spin, c.solids[0], c.counts[0], full, c.canal));
+        World p = hub;
+        p.layer = 1;
+        p.PlaceFeet({5.6f, st::kSquareLowY, 31.0f});
+        p.BuildSolids();
+        CHECK(p.player.Grounded() && !st::SwitchAllowed(p.player, 0, p.spin, p.solids[0], p.counts[0], full, p.canal));
+        // on the causeway, over the water: allowed
+        World q = hub;
+        q.layer = 1;
+        q.PlaceFeet({-2.5f, kFloorY, 26.0f});
+        q.BuildSolids();
+        CHECK(st::SwitchAllowed(q.player, 0, q.spin, q.solids[0], q.counts[0], full, q.canal));
+    }
+    // every room, both worlds, the lamp lit and not, the waters full, raised by the dawn bell and drained, the canal low and high:
+    // the place of return is out of the water and a place to stand (with every fragment there)
+    st::AnchorSet unlit;
+    st::AnchorSet lit;
+    for (const st::AnchorDesc& a : st::kAnchors)
+    {
+        lit.Update(Hand{{a.base.x, a.base.y + st::kAnchorHeight, a.base.z}});
+    }
+    st::Waterworks raised;
+    raised.SetRaise(st::kDawnRise);
+    st::Waterworks drained;
+    drained.Close();
+    drained.Update(10.0f);
+    dl::canal::Canal low;
+    low.Init(st::MakeCanal());
+    dl::canal::Canal high;
+    high.Init(st::MakeCanal());
+    high.SetMachinery(true);
+    for (int i = 0; i < 1000; ++i)
+    {
+        Hand away{{0.0f, -50.0f, 0.0f}};
+        high.Update(away, 0, 0.01f);
+    }
+    CHECK(high.High());
+    int checked = 0;
+    int wet = 0;
+    int fallbacks = 0;
+    std::vector<Vec3> places;
+    for (int room = 0; room < st::kRoomCount; ++room)
+    {
+        for (int layer = 0; layer < 2; ++layer)
+        {
+            for (const st::AnchorSet* anchors : {&unlit, &lit})
+            {
+                const st::Waterworks* const allWaters[3] = {&full, &raised, &drained};
+                for (const st::Waterworks* waters : allWaters)
+                {
+                    for (dl::canal::Canal* canal : {&low, &high})
+                    {
+                        canal->SetDrained(waters->Drained());
+                        const Vec3 at = st::SafeRespawn(room, layer, *anchors, *waters, *canal);
+                        ++checked;
+                        wet += st::InWater(at, layer, *waters, *canal) ? 1 : 0;
+                        fallbacks += (at.x != anchors->RespawnPoint(room).x || at.z != anchors->RespawnPoint(room).z) ? 1 : 0;
+                        places.push_back({at.x, at.y + static_cast<float>(layer) * 1000.0f, at.z}); // (the layer kept in y)
+                    }
+                }
+            }
+        }
+    }
+    std::printf("  recovery: %d places of return, %d under water, %d sent to a dry room\n", checked, wet, fallbacks);
+    CHECK(wet == 0 && fallbacks > 0);
+    // each distinct place: a place to stand in its world (every fragment and every lamp there)
+    int stands = 0;
+    for (std::size_t i = 0; i < places.size(); ++i)
+    {
+        bool seen = false;
+        for (std::size_t j = 0; j < i && !seen; ++j)
+        {
+            seen = places[j].x == places[i].x && places[j].y == places[i].y && places[j].z == places[i].z;
+        }
+        if (seen)
+        {
+            continue;
+        }
+        const int layer = places[i].y > 500.0f ? 1 : 0;
+        const Vec3 at{places[i].x, places[i].y - static_cast<float>(layer) * 1000.0f, places[i].z};
+        World t;
+        t.TakeAllSeals();
+        t.TakeAllLights();
+        t.layer = layer;
+        t.PlaceFeet(at);
+        t.BuildSolids();
+        const bool good = t.player.Grounded() && Near(t.player.Feet().y, at.y, 0.03f) &&
+                          dl::puzzle::Puzzle::FitsIn(t.player, layer, t.spin, t.solids[layer], t.counts[layer]);
+        if (!good)
+        {
+            std::printf("  not a place to stand: %.2f %.2f %.2f in %c\n", static_cast<double>(at.x), static_cast<double>(at.y), static_cast<double>(at.z),
+                        layer == 0 ? 'A' : 'B');
+        }
+        stands += good ? 1 : 0;
+        CHECK(good);
+    }
+    CHECK(stands > 20);
+}
+
+/// Step 4 of docs/LEVEL_DESIGN.md 12: the bells as data, and the memory fragments.
+void TestCityState()
+{
+    st::SealSet seals;
+    st::CityState city;
+    city.FromSeals(seals);
+    CHECK(city.Count() == 0 && city.WaterRise() == 0.0f && !city.Machinery() && !city.Night());
+    seals.Collect(Touch{st::kSeals[st::kSealOfBell[0]].centre}); // the east seal rings the dawn bell
+    city.FromSeals(seals);
+    CHECK(city.Rung(st::Bell::Dawn) && city.Count() == 1 && Near(city.WaterRise(), st::kDawnRise, 1e-6f));
+    city.Update(0.5f * st::kRiseSeconds);
+    CHECK(city.RiseNow() > 0.0f && city.RiseNow() < st::kDawnRise); // it rises, it does not jump
+    for (int i = 0; i < 100; ++i)
+    {
+        city.Update(0.1f);
+    }
+    CHECK(Near(city.RiseNow(), st::kDawnRise, 1e-5f) && city.NightNow() == 0.0f);
+    seals.Collect(Touch{st::kSeals[st::kSealOfBell[1]].centre});
+    seals.Collect(Touch{st::kSeals[st::kSealOfBell[2]].centre});
+    city.FromSeals(seals);
+    for (int i = 0; i < 100; ++i)
+    {
+        city.Update(0.1f);
+    }
+    CHECK(city.Count() == st::kBellCount && city.Machinery() && city.Night() && Near(city.NightNow(), 1.0f, 1e-5f));
+    // the dawn bell: every water of A stands higher; the rim of the square, the causeway and the places of return stay dry
+    st::Waterworks raised;
+    raised.SetRaise(st::kDawnRise);
+    CHECK(Near(raised.Top(st::kWaters[st::kPoolWater]), st::kWaters[st::kPoolWater].top + st::kDawnRise, 1e-5f));
+    CHECK(!st::Submerged({-2.5f, kFloorY, 26.0f}, 0, raised) && !st::Submerged({0.0f, kFloorY, 23.0f}, 0, raised));
+    CHECK(st::Submerged({0.0f, st::kSquareLowY, 31.0f}, 0, raised));
+    raised.Close(); // and at the end it drains to the same beds
+    raised.Update(10.0f);
+    CHECK(Near(raised.Top(st::kWaters[st::kPoolWater]), st::kWaters[st::kPoolWater].top - st::kWaters[st::kPoolWater].depth, 1e-5f));
+    // the day bell: the lock opens by itself, also after R; the weir does not move
+    dl::canal::Canal canal;
+    canal.Init(st::MakeCanal());
+    canal.SetMachinery(true);
+    Hand away{{0.0f, -50.0f, 0.0f}};
+    canal.Update(away, 1, 0.01f);
+    CHECK(canal.Open() && !canal.WeirOpen());
+    canal.Reset();
+    canal.Update(away, 1, 0.01f);
+    CHECK(canal.Open());
+    // the fragments: none before their light; after it, in B only, in pale glowing stone
+    st::LightSet lights;
+    SceneObject table[64] = {};
+    CHECK(st::AddFragments(lights, true, table, 0, 64) == 0);
+    int pieces = 0;
+    for (int f = 0; f < st::kFragmentCount; ++f)
+    {
+        pieces += static_cast<int>(st::Fragments().solid[f].size() + st::Fragments().drawn[f].size());
+    }
+    CHECK(pieces <= 16); // (the drawn table counts 16: tests/test_hints.cpp)
+    lights.Collect(Touch{st::kHiddenLights[st::kFragments[0].light].centre});
+    const int solid = st::AddFragments(lights, false, table, 0, 64);
+    const int drawn = st::AddFragments(lights, true, table, 0, 64);
+    CHECK(solid >= 1 && drawn > solid);
+    for (int i = 0; i < drawn; ++i)
+    {
+        CHECK(table[i].layerMask == kLayerB && table[i].glow > 0.2f && st::SameRgb(table[i], st::kMemoryStone));
+    }
+    // the steps of the fountain: in B, after the light of the pool, a third way out of the pool, in its south-west corner
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const float x = st::kPoolWest + 0.5f * st::kStairWidth;
+    World before = hub;
+    before.layer = 1;
+    before.PlaceFeet({x, st::kSquareLowY, st::kPoolSouth + st::kStairRun + 1.0f});
+    before.Run(2.0f, Keys(1.0f), kSouth);
+    CHECK(Near(before.player.Feet().y, st::kSquareLowY, 0.05f)); // the edge of the pool: no way up here
+    World after = hub;
+    after.TakeAllLights();
+    after.layer = 1;
+    after.PlaceFeet({x, st::kSquareLowY, st::kPoolSouth + st::kStairRun + 1.0f});
+    CHECK(after.WalkPath({{x, kFloorY, st::kPoolSouth - 0.8f}}) && after.At(x, kFloorY, st::kPoolSouth - 0.8f, 0.4f));
+    World inA = after; // in A the fragment is not there: the stair is not solid
+    inA.layer = 0;
+    inA.BuildSolids();
+    int inAcount = 0;
+    for (int i = 0; i < inA.counts[0]; ++i)
+    {
+        inAcount += (st::SameRgb(inA.solids[0][i], st::kMemoryStone) && (inA.solids[0][i].layerMask & kLayerA) != 0u) ? 1 : 0;
+    }
+    CHECK(inAcount == 0);
+    // the bench by the gate does not close the way through the breach
+    World gate;
+    gate.TakeAllLights();
+    gate.layer = 1;
+    gate.PlaceFeet({0.0f, st::kTerraceY, st::kGateZ - 2.0f});
+    gate.Run(1.2f, Keys(1.0f), kNorth);
+    CHECK(gate.player.Feet().z > st::kGateZ + 1.5f);
+}
+
 int main()
 {
     TestTables();
@@ -1942,6 +2196,8 @@ int main()
     TestTower();
     TestNoWayRound();
     TestRooms();
+    TestRecovery();
+    TestCityState();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

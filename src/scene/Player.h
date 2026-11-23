@@ -7,6 +7,7 @@
 //            standing on an object that is not in the new layer falls at once.
 // Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h). SetScene
 //            gives the body another one (a test, or the solids of the map, whose block moves and whose doors open).
+// Land:      SetLand gives the body the ground of the world (scene/Terrain.h): it is solid in both layers, like a floor of both.
 // Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06 s, a stop in
 //            about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is stronger while the
 //            body falls than while it rises, so a jump goes up softly and comes down firmly. Letting the jump key go while the body
@@ -32,6 +33,7 @@
 #include "scene/Camera.h" // Vec3
 #include "scene/Collision.h"
 #include "scene/SceneData.h"
+#include "scene/Terrain.h"
 
 #include <cmath>
 
@@ -102,6 +104,12 @@ class Player
             m_objects = scene::kScene;
             m_objectCount = scene::kSceneCount;
         }
+    }
+
+    /// The ground of the world, solid in both layers (BORROWS; null: none, the default).
+    void SetLand(const terrain::Land* land)
+    {
+        m_land = land;
     }
 
     /// Where the body starts and where it goes back to after a fall (the point on the ground).
@@ -327,7 +335,12 @@ class Player
 
     CollisionResult ResolveBall(const Vec3& centre, int layer, float spinSeconds) const
     {
-        return ResolveSphere(centre, m_s.radius, layer, spinSeconds, m_objects, m_objectCount);
+        CollisionResult r = ResolveSphere(centre, m_s.radius, layer, spinSeconds, m_objects, m_objectCount);
+        if (m_land != nullptr && (layer == 0 || layer == 1) && m_land->PushOut(r.position, m_s.radius) > collision_detail::kTouch)
+        {
+            r.pushed = true;
+        }
+        return r;
     }
 
     /// Adds to the wall push the part of the push on the ball at `centre` that comes from solids which are not ground: each
@@ -353,6 +366,21 @@ class Player
             {
                 m_wallX += dx;
                 m_wallZ += dz;
+            }
+        }
+        if (m_land != nullptr) // the ground: a slope too steep to stand on is a wall
+        {
+            Vec3 p = centre;
+            if (m_land->PushOut(p, m_s.radius) > collision_detail::kTouch)
+            {
+                const float dx = p.x - centre.x;
+                const float dy = p.y - centre.y;
+                const float dz = p.z - centre.z;
+                if (dy < kGroundFacing * std::sqrt(dx * dx + dy * dy + dz * dz))
+                {
+                    m_wallX += dx;
+                    m_wallZ += dz;
+                }
             }
         }
     }
@@ -568,6 +596,7 @@ class Player
 
     const scene::SceneObject* m_objects = scene::kScene;
     int m_objectCount = scene::kSceneCount;
+    const terrain::Land* m_land = nullptr;
     Vec3 m_feet{0.0f, scene::kFloorY, -3.0f};
     Vec3 m_spawn{0.0f, scene::kFloorY, -3.0f};
     Vec3 m_wish{};

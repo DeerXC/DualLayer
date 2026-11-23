@@ -3,7 +3,7 @@
 //            and what is solid can never disagree. Plain data: no Windows, no Direct3D (tested without a window).
 // Space:     left-handed, +Y up (docs/CONVENTIONS.md). UNITS: metres, radians, seconds.
 // Rules:     A shape is 1 metre big before the scale (a sphere: across). The world matrix of an object is
-//            Scale * RotationX(tilt) * RotationY(spinSpeed * time) * Translation (row vectors, read left to right).
+//            Scale * RotationX(tilt) * RotationY(spinSpeed * time + yaw) * Translation (row vectors, read left to right).
 //            The collision relies on the shapes being round where the table says so: SceneIsSupported() checks it when
 //            the program is compiled, so a wrong edit of the table is an error and not a bug.
 #pragma once
@@ -47,6 +47,7 @@ struct SceneObject
     float shininess;
     unsigned layerMask = kLayerBoth; // which layers have this object (not written = both)
     float glow = 0.0f;               // light of its own: 0 = none, 1 = its colour at full strength (a lamp, a hint, an orb)
+    float yaw = 0.0f;                // radians, a fixed turn round Y after the tilt (a house turned to its street); 0 = axis-aligned
 };
 
 // THE SCENE. Edit it to move or to change something. Every object stands on the floor: y = kFloorY + half of its height

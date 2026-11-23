@@ -13,6 +13,7 @@
    is the project folder, so `shaders/` and `config/` are found.
 2. `build\x64\<Config>\DualLayer.exe` also runs from Explorer: a post-build step copies `shaders\` and `config\` next to it.
 3. The logic tests alone: `.\tests\run_tests.ps1` in a Developer PowerShell for VS; one test: `.\tests\run_tests.ps1 -Only stage`.
+   The longest are `reach` and `terrain` (about a minute each with /O2).
 
 ## Keys
 
@@ -140,6 +141,15 @@ seen".
 | E-31 | reach the goal and look down from the balcony | the master sluice turns gold; the aqueduct and the waterfall stop; the pool, the trench and the canal drain in about 4 s; the crate settles on the bed |
 | E-32 | the east hall before the wheels are turned | a gold column of light over each wheel; R on the quay or the bed puts the canal back |
 | E-23 | anywhere: boxes of one world | wood or iron in A, fallen masonry in B, never plain red or blue; a thin red (A) or blue (B) edge at their base in their own world and an outline in the other; the aqueduct over the east of the square, its waterfall into the pool in A, fallen in B |
+| E-33 | the title bar after the start; the log | the start takes no longer than before (the ground and the plants are baked once); `static batch A` and `B` lines in the log count tens of thousands of triangles; the frame time is about as before |
+| E-34 | from the terrace look round in A and in B; walk to the side of the terrace and look down | the town on level ground all round, hills east and west, the mountain north, the bay and the sea south; under the terrace a ravine of rock with the sea in it, the terrace on its footing; no edge of the world and no void below the horizon; in B most of it in the fog |
+| E-35 | fall off the side of the terrace, off the east path on the courtyard wall, off the middle of the sky bridge in B | each time a fall: the body comes back at its lamp or entry, never stands on the ground outside |
+| E-36 | look over the town from the balcony of the cathedral | houses turned round the cathedral, ochre in the west, white in the east, grey in the north; gardens with lemon trees and cypresses; in B a quarter of the houses are roofless shells, merlons and pieces of the cornices missing; plinths and cornices on the walls; arched heads in the three openings of the square |
+| E-37 | in B, stand in the dry cellar and press Tab; on the floor of the dry pool and press Tab; on the causeway press Tab | refused in the cellar and in the pool (the ripple opens a little and turns back); allowed on the causeway |
+| E-38 | take the east seal, then watch the pool and the trench in A | the water rises a little over about 3 s; the rim and the causeway stay dry |
+| E-39 | take the west seal, then come to the canal without touching the wheel | the lock has opened by itself and the crate stands high; R puts it down and it rises again by itself |
+| E-40 | take the north seal, then stay in A for about 6 s | evening turns to night in A (a dark blue sky, a cool light); B does not change |
+| E-41 | take the light on the floor of the pool (B), then look at the south-west corner of the pool in B and in A | in B pale glowing steps lead up out of the pool there; in A there is nothing; the light inside the gate brings a pale bench beside the breach (B) |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

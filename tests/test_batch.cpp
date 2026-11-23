@@ -131,6 +131,59 @@ void TestLeftOut()
     CHECK(corners);
 }
 
+void TestYawAndAppend()
+{
+    // a box turned by a yaw (and a ramp-like tilt): every baked vertex on its surface (turned back by the collision code), every
+    // triangle clockwise from outside along its normals
+    SceneObject o{};
+    o.shape = ShapeKind::Cube;
+    o.position[0] = 4.0f;
+    o.position[1] = 1.0f;
+    o.position[2] = -2.0f;
+    o.scale[0] = 2.0f;
+    o.scale[1] = 0.5f;
+    o.scale[2] = 3.0f;
+    o.tilt = 0.3f;
+    o.yaw = 0.8f;
+    o.layerMask = kLayerA;
+    const dl::BatchMesh m = dl::BakeLayer(&o, 1, 0);
+    bool onSurface = true;
+    for (const dl::BatchVertex& v : m.vertices)
+    {
+        const dl::Vec3 l = dl::collision_detail::ToLocal(o, {v.position[0], v.position[1], v.position[2]}, 0.0f);
+        onSurface = onSurface && std::fabs(std::fabs(l.x) - 1.0f) < 1e-4f && std::fabs(std::fabs(l.y) - 0.25f) < 1e-4f && std::fabs(std::fabs(l.z) - 1.5f) < 1e-4f;
+    }
+    CHECK(m.objects == 1 && onSurface);
+    bool clockwise = true;
+    for (std::size_t t = 0; t + 2 < m.indices.size(); t += 3)
+    {
+        const dl::BatchVertex& a = m.vertices[m.indices[t]];
+        const dl::BatchVertex& b = m.vertices[m.indices[t + 1]];
+        const dl::BatchVertex& c = m.vertices[m.indices[t + 2]];
+        const float e1[3] = {b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]};
+        const float e2[3] = {c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]};
+        const float n[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
+        const float len = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        clockwise = clockwise && (n[0] * a.normal[0] + n[1] * a.normal[1] + n[2] * a.normal[2]) / len > 0.9999f;
+    }
+    CHECK(clockwise);
+    // joined: the indices of the second mesh move past the vertices of the first
+    dl::BatchMesh joined = m;
+    dl::AppendMesh(joined, m);
+    CHECK(joined.vertices.size() == 2 * m.vertices.size() && joined.indices.size() == 2 * m.indices.size() && joined.objects == 2);
+    CHECK(joined.indices[m.indices.size()] == m.indices[0] + static_cast<std::uint32_t>(m.vertices.size()));
+    // one flat triangle: its normal is cross(b - a, c - a), unit; a triangle without area is left out
+    dl::BatchMesh tri;
+    const float a[3] = {0.0f, 0.0f, 0.0f};
+    const float b[3] = {0.0f, 0.0f, 1.0f};
+    const float c[3] = {1.0f, 0.0f, 0.0f};
+    const float colour[4] = {0.5f, 0.4f, 0.3f, 0.0f};
+    dl::AddFlatTriangle(tri, a, b, c, colour);
+    dl::AddFlatTriangle(tri, a, a, c, colour);
+    CHECK(tri.vertices.size() == 3 && tri.indices.size() == 3 && std::fabs(tri.vertices[0].normal[1] - 1.0f) < 1e-6f && tri.vertices[2].color[0] == 0.5f &&
+          tri.vertices[1].params[1] == 0.0f);
+}
+
 void TestWholeFixedCity()
 {
     // what the game bakes: the first StaticDrawCount entries of the drawn table (the fixed boxes and the decor). Every one of
@@ -164,6 +217,7 @@ int main()
     TestLayer(0);
     TestLayer(1);
     TestLeftOut();
+    TestYawAndAppend();
     TestWholeFixedCity();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

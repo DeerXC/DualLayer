@@ -46,12 +46,15 @@
 #include "scene/Anchors.h"
 #include "scene/Camera.h"
 #include "scene/CityParts.h"
+#include "scene/CityState.h"
 #include "scene/Collision.h"
 #include "scene/EndScreen.h"
+#include "scene/Landscape.h"
 #include "scene/OrbReturn.h"
 #include "scene/Player.h"
 #include "scene/Prompts.h"
 #include "scene/Puzzle.h"
+#include "scene/Recovery.h"
 #include "scene/SceneData.h"
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
@@ -88,7 +91,8 @@ constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepes
 constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
 constexpr float kEyeEase = 30.0f;                   // UNITS: 1 / seconds; small changes of the eye height are eased over about 0.05 s
 constexpr float kEyeEaseMax = 0.5f;                 // UNITS: metres; a larger change (a respawn, a teleport) is followed at once
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount + 1 + 8; // + doors, gates, lifts, the crate, the water for orbs
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount + 1 + 8 + 8; // + doors, gates, lifts, the crate, the water for orbs, fragments
+static_assert(dl::kFarPlane <= dl::stage::kViewDistance, "scene/Landscape.h kViewDistance must reach the far plane: the sea and the land are sized by it");
 
 dl::log::Level ParseLevel(const std::string& text)
 {
@@ -206,6 +210,9 @@ struct Gpu
             dl::stage::BuildDrawTable(none, false, all);
             fixedCity.assign(all, all + dl::stage::StaticDrawCount());
         }
+        // the ground, the sea floor and the plants (scene/Landscape.h): baked once, joined to the static batch of each layer
+        static const std::array<dl::BatchMesh, 2> world = {dl::stage::BakeWorld(0), dl::stage::BakeWorld(1)};
+        models.SetStaticExtra(world[0], world[1]);
         models.SetStatic(fixedCity.data(), static_cast<int>(fixedCity.size()));
         return true;
     }
@@ -240,7 +247,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
                     const dl::mech::MechanismSet& mech, const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts,
                     const dl::canal::Canal& canal, const dl::stage::Waterworks& waters, const dl::stage::AnchorSet& anchors,
                     const Respawn& respawn, const Respawn& orbReturn,
-                    const dl::Player& player, const dl::Vec3& look, const dl::Config& config, float sinceClear,
+                    const dl::Player& player, const dl::Vec3& eye, const dl::Vec3& look, const dl::Config& config, float sinceClear,
                     dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
     namespace st = dl::stage;
@@ -252,6 +259,8 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = canal.AddDraw(table, count, st::kMaxDrawObjects);
     count = st::AddWaterDraw(waters, table, count, st::kMaxDrawObjects); // the water of A as it is now (it drains at the end)
     count = anchors.AddDraw(table, count, st::kMaxDrawObjects);
+    count = st::AddFragments(lights, true, table, count, st::kMaxDrawObjects); // the pieces of A that the lights brought back (B)
+    count = st::AddSea(eye, table, count, st::kMaxDrawObjects);              // the sea round the eye, wider than the far plane
     count = st::AddRespawnRing(respawn.at, respawn.since, table, count, st::kMaxDrawObjects);
     count = st::AddRespawnRing(orbReturn.at, orbReturn.since, table, count, st::kMaxDrawObjects);
     if (ghosts)
@@ -289,8 +298,9 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
 }
 
 /// The solid table of a body (or an orb) in `layer`: the puzzle's table (the boxes of the map, the block, the courtyard door
-/// while closed), the closed doors of the map and the gates of the wings that are there. Returns the count.
-int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::mech::MechanismSet& mech,
+/// while closed), the closed doors of the map, the gates of the wings that are there and the memory fragments brought back.
+/// Returns the count.
+int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights, const dl::mech::MechanismSet& mech,
                     const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts, const dl::canal::Canal& canal, int layer,
                     dl::scene::SceneObject (&table)[kMaxSolids])
 {
@@ -303,6 +313,7 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
     count = dl::stage::AddMapSolids(seals, table, count, kMaxSolids);
     count = dl::stage::AddLifts(lifts, table, count, kMaxSolids);
     count = canal.AddSolids(layer, table, count, kMaxSolids);
+    count = dl::stage::AddFragments(lights, false, table, count, kMaxSolids);
     return mech.AddSolids(layer, table, count, kMaxSolids);
 }
 
@@ -427,6 +438,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     dl::canal::Canal canal; // the canal and lock of the east district (scene/Canal.h)
     canal.Init(dl::stage::MakeCanal());
     dl::stage::Waterworks waters; // the water of A; the master sluice drains it at the end
+    dl::stage::CityState city;    // what the bells have changed (scene/CityState.h)
+    int bellsRung = 0;
     dl::stage::AnchorSet anchors; // the anchor lamps: where a fall or R comes back (scene/Anchors.h)
     Respawn respawn;
     Respawn orbReturn; // the ring where an orb came back to its start (scene/OrbReturn.h)
@@ -446,6 +459,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
     dl::Player player;
     ApplyPlayerConfig(config, player);
+    player.SetLand(&dl::stage::TheLand()); // the ground of the world (scene/Landscape.h): solid in both layers
     player.SetSpawn(dl::stage::kRooms[room].entry);
     player.Respawn();
     camera.SetPose(player.Eye(), camera.Yaw(), camera.Pitch()); // the first frame already looks from the start
@@ -584,8 +598,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             const int target = 1 - gpu.models.CollisionLayer();
             // WHY the whole solid table of the target layer (not only the map of the puzzle): a switch into a gate of a wing,
             // a lift or the crate must be refused as well (solidsA is scratch here; it is built again after the body moves)
-            const int targetCount = BuildSolidTable(puzzle, seals, mech, lifts, canal, target, solidsA);
-            const bool fits = !walking || dl::puzzle::Puzzle::FitsIn(player, target, gpu.models.SpinSeconds(), solidsA, targetCount);
+            const int targetCount = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, target, solidsA);
+            // ... and into the water of the other world (scene/Recovery.h): the body would only come up again at the entry
+            const bool fits = !walking || dl::stage::SwitchAllowed(player, target, gpu.models.SpinSeconds(), solidsA, targetCount, waters, canal);
             switch (guard.OnSwitchRequest(solidNow, gpu.models.LayerSwitching(), fits))
             {
             case dl::puzzle::LayerGuard::Action::Switch:
@@ -638,7 +653,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             mech.ResetRoom(room); // and the orbs of the room go back (what is latched stays)
             prompts.Used(dl::prompt::Kind::ResetRoom);
             secondsInRoom = 0.0;
-            player.SetSpawn(anchors.RespawnPoint(room));
+            player.SetSpawn(dl::stage::SafeRespawn(room, gpu.models.CollisionLayer(), anchors, waters, canal));
             player.Respawn();
             respawn = Respawn{player.Feet(), 0.0f};
             ++falls;
@@ -668,9 +683,21 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             orbReturn.since += dtf;
         }
+        // what the bells have changed (scene/CityState.h): the water of A, the machinery, the night
+        city.FromSeals(seals);
+        city.Update(dtf);
+        if (city.Count() != bellsRung)
+        {
+            DL_LOG_INFO("Stage", "a bell has rung (%d of %d): water +%.1f m, machinery %s, night %s", city.Count(), dl::stage::kBellCount,
+                        static_cast<double>(city.WaterRise()), city.Machinery() ? "on" : "off", city.Night() ? "falls" : "not yet");
+            bellsRung = city.Count();
+        }
+        waters.SetRaise(city.RiseNow());
+        canal.SetMachinery(city.Machinery());
+        gpu.models.SetNight(city.NightNow());
         waters.Update(dtf);
         canal.SetDrained(waters.Drained());
-        const int solidCount = BuildSolidTable(puzzle, seals, mech, lifts, canal, solidLayer, solidTable);
+        const int solidCount = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
@@ -703,9 +730,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                 action == dl::mech::Action::Took ? "taken" : (action == dl::mech::Action::Put ? "put down" : "not put down: something is in the way"));
                 }
             }
-            const int bodyA = BuildSolidTable(puzzle, seals, mech, lifts, canal, 0, solidsA);
+            const int bodyA = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, 0, solidsA);
             const int countA = canal.AddWaterForOrbs(solidsA, dl::stage::AddWaterForOrbs(solidsA, bodyA, kMaxSolids, waters), kMaxSolids); // orbs float
-            const int countB = BuildSolidTable(puzzle, seals, mech, lifts, canal, 1, solidsB);
+            const int countB = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, 1, solidsB);
             mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
             // an orb that came to rest where its world cannot take it back goes back to its start (scene/OrbReturn.h)
             const int stranded = dl::stage::ReturnStrandedOrbs(mech, solidsA, bodyA, solidsB, countB, canal);
@@ -741,7 +768,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             if (player.Feet().y < dl::stage::FallLine(room) || player.JustRespawned() || dl::stage::Submerged(player.Feet(), solidLayer, waters) ||
                 canal.Submerged(player.Feet(), solidLayer))
             {
-                player.SetSpawn(anchors.RespawnPoint(room)); // beside the lit lamp of the room, else at its entry
+                player.SetSpawn(dl::stage::SafeRespawn(room, solidLayer, anchors, waters, canal)); // the lamp, else the entry, out of the water
                 player.Respawn();
                 respawn = Respawn{player.Feet(), 0.0f};
                 ++falls;
@@ -764,6 +791,13 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             {
                 DL_LOG_INFO("Stage", "hidden light %d of %d: %s", lights.Count(), dl::stage::kHiddenLightCount,
                             dl::stage::kHiddenLights[light].name);
+                for (const dl::stage::Fragment& f : dl::stage::kFragments)
+                {
+                    if (f.light == light)
+                    {
+                        DL_LOG_INFO("Stage", "a memory comes back in B: %s", f.name);
+                    }
+                }
             }
 
             if (clearSeconds < 0.0 && dl::stage::ReachedGoal(player))
@@ -820,7 +854,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // ---- what is drawn: the map as it is now
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
-        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, anchors, respawn, orbReturn, player, camera.Forward(), config,
+        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, anchors, respawn, orbReturn, player, camera.Position(), camera.Forward(), config,
                                          static_cast<float>(sinceClear), drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();
         gpu.models.SetObjects(drawTable + fixedCount, drawn - fixedCount);

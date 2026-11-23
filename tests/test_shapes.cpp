@@ -248,6 +248,33 @@ void TestRoof()
     CHECK(cap.body.Grounded() && Near(cap.body.Feet().y, 6.15f, 0.02f));
 }
 
+void TestArch()
+{
+    // the head of an opening 2 m wide along Z in a wall 0.5 m thick, its top 2.4 m up, a curve of 0.6 m: pairs of steps, each pair
+    // mirrored, inside the opening and under its top, the inset growing toward the top (a quarter circle)
+    std::vector<SceneObject> drawn;
+    const int n = sh::ArchHead(false, 30.0f, 32.0f, -9.5f, -9.0f, 1.4f, 0.6f, drawn);
+    CHECK(n == static_cast<int>(drawn.size()) && n >= 4 && n % 2 == 0);
+    float lastInset = -1.0f;
+    bool ok = true;
+    for (int i = 0; i + 1 < n; i += 2)
+    {
+        const SceneObject& a = drawn[static_cast<std::size_t>(i)];
+        const SceneObject& b = drawn[static_cast<std::size_t>(i + 1)];
+        const float insetA = a.scale[2];
+        ok = ok && std::fabs(insetA - b.scale[2]) < 1e-5f && a.position[2] - 0.5f * a.scale[2] >= 30.0f - 1e-4f &&
+             b.position[2] + 0.5f * b.scale[2] <= 32.0f + 1e-4f && a.position[1] + 0.5f * a.scale[1] <= 1.4f + 1e-4f &&
+             a.position[1] - 0.5f * a.scale[1] >= 1.4f - 0.6f - 1e-4f && std::fabs(a.scale[0] - 0.5f) < 1e-5f;
+        // listed from the top down: each step lower is set in less
+        ok = ok && (lastInset < 0.0f || insetA < lastInset);
+        lastInset = insetA;
+    }
+    CHECK(ok);
+    // along X: the same shape, turned
+    std::vector<SceneObject> alongX;
+    CHECK(sh::ArchHead(true, -1.0f, 1.0f, 40.0f, 40.5f, 1.4f, 0.6f, alongX) == n && std::fabs(alongX[0].scale[0] - drawn[0].scale[2]) < 1e-5f);
+}
+
 void TestWater()
 {
     const sh::Water w{-2.0f, -2.0f, 2.0f, 2.0f, -0.4f, 2.0f};
@@ -348,6 +375,7 @@ int main()
     TestBridge();
     TestBreachWall();
     TestRoof();
+    TestArch();
     TestWater();
     TestLift();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);

@@ -369,6 +369,34 @@ inline constexpr float kPinnacleTop = kTowerTop + 2.0f;                         
 inline constexpr float kFallY = kFloorY - 8.0f; // an ORB whose centre is this low has fallen (a body: FallLine of its room)
 inline constexpr float kFallBelowRoom = 6.0f;   // UNITS: metres: a body this far below the bottom of its room has fallen
 
+// ---- the ground under the map (scene/Landscape.h, docs/LEVEL_DESIGN.md 5.4): the town is levelled at the street (kPlainY);
+// where the map has a floor below the street, or no floor at all (a gap, a trench, the sky bridge, the open sides of the
+// prologue), the ground drops into a pit, below every fall line, so that a fall stays a fall and nothing of the ground shows
+// inside a room. tests/test_terrain.cpp proves both for every room.
+inline constexpr float kPlainY = kFloorY - 0.05f; ///< the levelled ground of the town, just under the street floors
+inline constexpr float kPitY = kFloorY - 15.0f;   ///< -16: the floor of a pit, below every fall line (the lowest is -12)
+inline constexpr float kSeaY = kFloorY - 8.0f;    ///< -9: the sea; it fills the pits that open to it
+struct Pit
+{
+    float x0, z0, x1, z1;
+    const char* name;
+};
+inline constexpr Pit kPits[] = {
+    {-10.0f, -30.0f, 12.0f, 12.0f, "the ravine of the prologue"}, // the terrace, the ditch, the gap: open sides
+    {9.6f, 55.0f, 18.4f, 63.0f, "under the sky bridge"},           // broken in B, no parapets in B
+    {-6.5f, 24.5f, 6.5f, 37.5f, "under the pool"},
+    {-24.5f, 1.5f, -9.5f, 22.0f, "under the lower west"},           // the lower room, the vault, the mezzanine, the ramps
+    {-24.0f, 24.5f, -15.0f, 29.5f, "the trench"},
+    {-9.6f, 8.8f, 21.2f, 16.2f, "under the cellar"},
+    {14.8f, 13.8f, 24.2f, 29.8f, "under the canal"},                // the canal, its bed, the east leg of the cellar
+    {5.0f, 10.0f, 17.5f, 21.5f, "east of the east path"},          // the path on the courtyard wall is open to the east
+    {9.5f, 22.0f, 14.5f, 26.4f, "behind the east wall of the square"}, // a closed space between the square and the canal
+    {1.5f, 40.5f, 9.5f, 43.5f, "between the square and the north hall"}, // under the south edge of landing 2
+    {-24.0f, 44.0f, -9.5f, 61.0f, "west of the north hall"},       // over the wall of the passage from the ledge
+};
+inline constexpr int kPitCount = static_cast<int>(sizeof(kPits) / sizeof(kPits[0]));
+inline constexpr float kPitReach = 4.0f; ///< UNITS: metres round a pit in which the ground slopes into it (two cells of the fine field)
+
 /// The goal light, over the middle of the balcony at the top of the tower.
 inline constexpr Vec3 kGoal{0.0f, kSummitY + 0.9f, 28.25f};
 inline constexpr float kGoalRadius = 0.25f;
@@ -1373,7 +1401,67 @@ inline void Battlements(std::vector<SceneObject>& drawn)
             }
             if (clear)
             {
-                drawn.push_back(m);
+                SceneObject placed = m;
+                // B: the storm threw down about one merlon in four (the same ones every run)
+                const unsigned hash = (static_cast<unsigned>(std::lround(x * 10.0f)) * 73856093u) ^ (static_cast<unsigned>(std::lround(z * 10.0f)) * 19349663u);
+                placed.layerMask = (hash >> 4) % 4u == 0u ? kLayerA : kLayerBoth;
+                drawn.push_back(placed);
+            }
+        }
+    }
+}
+
+// ---- walls in three parts (docs/LEVEL_DESIGN.md, 5.7): every city wall that has battlements gets a plinth at its foot and a
+// cornice under its top, drawn only. In B the cornice is broken: one piece in three is gone.
+inline constexpr float kPlinthHeight = 0.5f;  ///< UNITS: metres
+inline constexpr float kPlinthProud = 0.06f;  ///< UNITS: metres out of each face
+inline constexpr float kCorniceHeight = 0.25f;
+inline constexpr float kCorniceProud = 0.12f;
+inline constexpr float kCorniceBelowTop = 0.1f; ///< UNITS: metres from the top of the wall to the top of the cornice
+inline constexpr float kCornicePiece = 1.5f;    ///< UNITS: metres: the cornice of B is laid in pieces this long
+inline constexpr Rgb kCorniceStone{0.60f, 0.61f, 0.64f};
+
+inline void WallParts(std::vector<SceneObject>& drawn)
+{
+    for (const SceneObject& w : kStageStatics)
+    {
+        if (!HasBattlements(w))
+        {
+            continue;
+        }
+        const bool alongX = w.scale[0] >= w.scale[2];
+        const float x0 = w.position[0] - 0.5f * w.scale[0];
+        const float x1 = w.position[0] + 0.5f * w.scale[0];
+        const float z0 = w.position[2] - 0.5f * w.scale[2];
+        const float z1 = w.position[2] + 0.5f * w.scale[2];
+        const float bottom = w.position[1] - 0.5f * w.scale[1];
+        const float top = w.position[1] + 0.5f * w.scale[1];
+        const float px = alongX ? 0.0f : kPlinthProud;
+        const float pz = alongX ? kPlinthProud : 0.0f;
+        drawn.push_back(Span(x0 - px, bottom, z0 - pz, x1 + px, bottom + kPlinthHeight, z1 + pz, kCorniceStone, kLayerBoth));
+        const float cx = alongX ? 0.0f : kCorniceProud;
+        const float cz = alongX ? kCorniceProud : 0.0f;
+        const float cy1 = top - kCorniceBelowTop;
+        const float cy0 = cy1 - kCorniceHeight;
+        drawn.push_back(Span(x0 - cx, cy0, z0 - cz, x1 + cx, cy1, z1 + cz, kCorniceStone, kLayerA)); // A: whole
+        const float length = alongX ? x1 - x0 : z1 - z0;
+        const int pieces = static_cast<int>(std::ceil(length / kCornicePiece));
+        for (int k = 0; k < pieces; ++k)
+        {
+            const unsigned hash = static_cast<unsigned>(std::lround((x0 + z0) * 7.0f)) + static_cast<unsigned>(k) * 2654435761u;
+            if ((hash >> 7) % 3u == 0u)
+            {
+                continue; // B: this piece has fallen
+            }
+            const float a = static_cast<float>(k) * length / static_cast<float>(pieces);
+            const float b = static_cast<float>(k + 1) * length / static_cast<float>(pieces);
+            if (alongX)
+            {
+                drawn.push_back(Span(x0 + a, cy0, z0 - cz, x0 + b, cy1, z1 + cz, kCorniceStone, kLayerB));
+            }
+            else
+            {
+                drawn.push_back(Span(x0 - cx, cy0, z0 + a, x1 + cx, cy1, z0 + b, kCorniceStone, kLayerB));
             }
         }
     }
@@ -1433,45 +1521,266 @@ inline bool PlotIsFree(float x0, float z0, float x1, float z1)
             return false;
         }
     }
+    // nothing stands where the ground drops into a pit (scene/Landscape.h): it would float over it
+    for (const Pit& p : kPits)
+    {
+        if (FootprintGap(x0, z0, x1, z1, p.x0, p.z0, p.x1, p.z1) < kPitReach + 0.5f)
+        {
+            return false;
+        }
+    }
     // the aqueduct crosses the roofs: no house stands under it
     return FootprintGap(x0, z0, x1, z1, kAqueductWest, kAqueductZ0 - 0.6f, kAqueductEast + 1.0f, kAqueductZ1 + 0.6f) >= kSkylineFromBox;
 }
-inline void Skyline(std::vector<SceneObject>& drawn)
+/// Turns objects v[from ..] about the vertical line through (cx, cz) by `yaw` (RotationY on a row vector: x' = x c + z s,
+/// z' = -x s + z c), each one turning about its own centre as well: the group turns as one piece.
+inline void TurnAbout(std::vector<SceneObject>& v, std::size_t from, float cx, float cz, float yaw)
 {
+    const float c = std::cos(yaw);
+    const float sn = std::sin(yaw);
+    for (std::size_t i = from; i < v.size(); ++i)
+    {
+        SceneObject& o = v[i];
+        const float dx = o.position[0] - cx;
+        const float dz = o.position[2] - cz;
+        o.position[0] = cx + dx * c + dz * sn;
+        o.position[2] = cz - dx * sn + dz * c;
+        o.yaw += yaw;
+    }
+}
+
+/// The axis-aligned box round `o` (its tilt round X and its yaw round Y taken into account).
+inline void AxisBounds(const SceneObject& o, float lo[3], float hi[3])
+{
+    const float hx = 0.5f * o.scale[0];
+    const float hy = 0.5f * o.scale[1];
+    const float hz = 0.5f * o.scale[2];
+    const float ct = std::fabs(std::cos(o.tilt));
+    const float st = std::fabs(std::sin(o.tilt));
+    const float ey = hy * ct + hz * st; // after the tilt
+    const float ez0 = hy * st + hz * ct;
+    const float cy = std::fabs(std::cos(o.yaw));
+    const float sy = std::fabs(std::sin(o.yaw));
+    const float ex = hx * cy + ez0 * sy; // after the yaw
+    const float ez = hx * sy + ez0 * cy;
+    const float e[3] = {ex, ey, ez};
+    for (int k = 0; k < 3; ++k)
+    {
+        lo[k] = o.position[k] - e[k];
+        hi[k] = o.position[k] + e[k];
+    }
+}
+
+// The houses of the town (docs/LEVEL_DESIGN.md, 5.3 and 5.5): the town grows round its cathedral, so every house is turned to
+// the street that runs round it (its walls face the cathedral or run round it, within a few degrees), and its colours follow
+// the quarter it is in: ochre plaster in the west, whitewash in the east, grey stone in the north, sandstone in the south,
+// blended by distance so that no quarter has a border. In B one house in four is a shell: no roof, the walls broken lower.
+// A plot that is not built is a garden (trees: scene/Landscape.h).
+enum class PlotKind
+{
+    House,
+    Tower,
+    Garden,
+};
+
+struct Plot
+{
+    float x0, z0, x1, z1; ///< the plot, without its street
+    PlotKind kind;
+    float height;      ///< UNITS: metres of the walls
+    float towerSize;   ///< half the width of a tower
+    float towerHeight; ///< over the roofs
+    float yaw;         ///< radians: the turn of the house on its plot
+    float side;        ///< UNITS: metres: the side of the house, so that it fits its plot when turned
+    bool ruin;         ///< B: a shell
+};
+
+inline constexpr float kCathedralX = 0.0f; ///< the middle of the cathedral, which the streets run round
+inline constexpr float kCathedralZ = 31.0f;
+
+/// Every plot of the town (fixed seed: the same town every run).
+inline std::vector<Plot> SkylinePlots()
+{
+    std::vector<Plot> plots;
     unsigned state = 2026u;
     const auto next = [&state]() {
         state = state * 1664525u + 1013904223u;
         return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f;
     };
+    constexpr float kQuarter = 1.5707963f;
     for (float x = kSkylineX0; x < kSkylineX1; x += kSkylineCell)
     {
         for (float z = kSkylineZ0; z < kSkylineZ1; z += kSkylineCell)
         {
-            const float x0 = x + 0.5f * kSkylineStreet;
-            const float z0 = z + 0.5f * kSkylineStreet;
-            const float x1 = x + kSkylineCell - 0.5f * kSkylineStreet;
-            const float z1 = z + kSkylineCell - 0.5f * kSkylineStreet;
+            Plot p{};
+            p.x0 = x + 0.5f * kSkylineStreet;
+            p.z0 = z + 0.5f * kSkylineStreet;
+            p.x1 = x + kSkylineCell - 0.5f * kSkylineStreet;
+            p.z1 = z + kSkylineCell - 0.5f * kSkylineStreet;
             const float roll = next(); // drawn for every plot, so that one change of the map does not reshuffle the whole city
-            const float height = 3.0f + 6.0f * next();
+            p.height = 3.0f + 6.0f * next();
             const float towerRoll = next();
-            const float towerSize = 1.2f + 0.6f * next();
-            const float towerHeight = 5.0f + 6.0f * next();
-            if (roll < 0.12f || !PlotIsFree(x0, z0, x1, z1)) // a few empty plots: squares and gardens
+            p.towerSize = 1.2f + 0.6f * next();
+            p.towerHeight = 5.0f + 6.0f * next();
+            const float jitter = next();
+            p.ruin = next() < 0.25f;
+            if (!PlotIsFree(p.x0, p.z0, p.x1, p.z1))
             {
                 continue;
             }
-            drawn.push_back(Span(x0, kFloorY, z0, x1, kFloorY + height, z1, kHouse, kLayerBoth));
-            if (towerRoll < 0.15f) // now and then a tower over the roofs
+            const float cx = 0.5f * (p.x0 + p.x1);
+            const float cz = 0.5f * (p.z0 + p.z1);
+            // the direction to the cathedral, folded into -45 .. 45 degrees (a square house looks the same turned by 90)
+            float yaw = std::atan2(cx - kCathedralX, cz - kCathedralZ);
+            yaw = yaw - kQuarter * std::floor(yaw / kQuarter + 0.5f);
+            p.yaw = yaw + (jitter - 0.5f) * 0.14f;
+            const float inner = p.x1 - p.x0;
+            p.side = inner / (std::fabs(std::cos(p.yaw)) + std::fabs(std::sin(p.yaw))); // its turned corners stay on the plot
+            p.kind = roll < 0.12f ? PlotKind::Garden : (towerRoll < 0.15f ? PlotKind::Tower : PlotKind::House);
+            plots.push_back(p);
+        }
+    }
+    return plots;
+}
+
+/// The colour of the walls and of the roof of a house at (x, z): the four quarters blended by distance.
+inline void QuarterColours(float x, float z, Rgb& wall, Rgb& roof)
+{
+    struct Quarter
+    {
+        float x, z;
+        Rgb wall, roof;
+    };
+    static constexpr Quarter kQuarters[] = {
+        {-36.0f, 31.0f, {0.66f, 0.55f, 0.42f}, {0.62f, 0.27f, 0.19f}}, // west: ochre plaster, deep red tiles
+        {38.0f, 31.0f, {0.70f, 0.69f, 0.65f}, {0.70f, 0.42f, 0.28f}},  // east: whitewash, light tiles
+        {0.0f, 75.0f, {0.52f, 0.52f, 0.52f}, {0.38f, 0.40f, 0.45f}},   // north: grey stone, slate
+        {0.0f, -25.0f, {0.62f, 0.56f, 0.47f}, {0.58f, 0.29f, 0.21f}},  // south: sandstone, red tiles
+    };
+    float w = 0.0f;
+    wall = {0.0f, 0.0f, 0.0f};
+    roof = {0.0f, 0.0f, 0.0f};
+    for (const Quarter& q : kQuarters)
+    {
+        const float d2 = (x - q.x) * (x - q.x) + (z - q.z) * (z - q.z);
+        const float k = std::exp(-d2 / (2.0f * 26.0f * 26.0f)) + 1.0e-6f;
+        w += k;
+        wall = {wall.r + k * q.wall.r, wall.g + k * q.wall.g, wall.b + k * q.wall.b};
+        roof = {roof.r + k * q.roof.r, roof.g + k * q.roof.g, roof.b + k * q.roof.b};
+    }
+    wall = {wall.r / w, wall.g / w, wall.b / w};
+    roof = {roof.r / w, roof.g / w, roof.b / w};
+}
+
+inline void Skyline(std::vector<SceneObject>& drawn)
+{
+    for (const Plot& p : SkylinePlots())
+    {
+        if (p.kind == PlotKind::Garden)
+        {
+            continue;
+        }
+        const float cx = 0.5f * (p.x0 + p.x1);
+        const float cz = 0.5f * (p.z0 + p.z1);
+        const float h = 0.5f * p.side;
+        Rgb wall{};
+        Rgb roof{};
+        QuarterColours(cx, cz, wall, roof);
+        const std::size_t first = drawn.size();
+        if (p.ruin)
+        {
+            drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + p.height, cz + h, wall, kLayerA));
+            drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + 0.55f * p.height, cz + h, wall, kLayerB)); // a shell in B
+        }
+        else
+        {
+            drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + p.height, cz + h, wall, kLayerBoth));
+        }
+        if (p.kind == PlotKind::Tower) // now and then a tower over the roofs
+        {
+            drawn.push_back(Span(cx - p.towerSize, kFloorY, cz - p.towerSize, cx + p.towerSize, kFloorY + p.height + p.towerHeight, cz + p.towerSize, kStone,
+                                 kLayerBoth));
+        }
+        else
+        {
+            const std::size_t roofFirst = drawn.size();
+            shapes::Roof(cx - h, cx + h, cz - h, cz + h, kFloorY + p.height, kFloorY + p.height + 0.3f * p.side + 0.4f, drawn);
+            for (std::size_t i = roofFirst; i < drawn.size(); ++i)
             {
-                const float cx = 0.5f * (x0 + x1);
-                const float cz = 0.5f * (z0 + z1);
-                drawn.push_back(Span(cx - towerSize, kFloorY, cz - towerSize, cx + towerSize, kFloorY + height + towerHeight, cz + towerSize, kStone,
-                                     kLayerBoth));
+                drawn[i].colorSrgb[0] = roof.r;
+                drawn[i].colorSrgb[1] = roof.g;
+                drawn[i].colorSrgb[2] = roof.b;
+                drawn[i].layerMask = p.ruin ? kLayerA : kLayerBoth;
             }
-            else
+        }
+        TurnAbout(drawn, first, cx, cz, p.yaw);
+    }
+}
+
+// ---- footings (docs/LEVEL_DESIGN.md, 5.4): where the ground drops into a pit, a floor or a wall of the city that stands at the
+// edge of it gets a footing of rock down to the floor of the pit, drawn only, so that nothing of the city floats: a wall that
+// stands at street level and a deck (a floor, the end of a bridge). Not under a box that stands on another box, never through
+// another box (a floor under a landing), and never through a room that lies below it (the cellar under the courtyard).
+inline constexpr Rgb kFootingRock{0.42f, 0.40f, 0.37f};
+
+inline void Footings(std::vector<SceneObject>& drawn)
+{
+    for (const SceneObject& o : kStageStatics)
+    {
+        if (o.shape != ShapeKind::Cube || o.tilt != 0.0f || o.yaw != 0.0f || o.layerMask != kLayerBoth || o.glow > 0.0f)
+        {
+            continue;
+        }
+        const float x0 = o.position[0] - 0.5f * o.scale[0];
+        const float x1 = o.position[0] + 0.5f * o.scale[0];
+        const float z0 = o.position[2] - 0.5f * o.scale[2];
+        const float z1 = o.position[2] + 0.5f * o.scale[2];
+        const float bottom = o.position[1] - 0.5f * o.scale[1];
+        if (bottom < kPitY + 1.0f || (bottom > kFloorY + 0.05f && o.scale[1] > 0.5f))
+        {
+            continue; // only what stands at street level, and decks (a lintel over an arch is carried by its walls)
+        }
+        bool atPit = false;
+        for (const Pit& p : kPits)
+        {
+            atPit = atPit || FootprintGap(x0, z0, x1, z1, p.x0, p.z0, p.x1, p.z1) < kPitReach;
+        }
+        if (!atPit)
+        {
+            continue;
+        }
+        bool standsOnBox = false; // on another box of both layers: that one carries it
+        for (const SceneObject& t : kStageStatics)
+        {
+            if (&t == &o || t.tilt != 0.0f || (t.layerMask & kLayerBoth) != kLayerBoth)
             {
-                shapes::Roof(x0, x1, z0, z1, kFloorY + height, kFloorY + height + 0.3f * (z1 - z0) + 0.4f, drawn);
+                continue;
             }
+            const float top = t.position[1] + 0.5f * t.scale[1];
+            const bool under = std::fabs(top - bottom) < 0.05f && FootprintGap(x0, z0, x1, z1, t.position[0] - 0.5f * t.scale[0], t.position[2] - 0.5f * t.scale[2],
+                                                                               t.position[0] + 0.5f * t.scale[0], t.position[2] + 0.5f * t.scale[2]) <= 0.0f &&
+                               std::fabs(o.position[0] - t.position[0]) < 0.5f * (o.scale[0] + t.scale[0]) - 1.0e-3f &&
+                               std::fabs(o.position[2] - t.position[2]) < 0.5f * (o.scale[2] + t.scale[2]) - 1.0e-3f;
+            standsOnBox = standsOnBox || under;
+        }
+        if (standsOnBox)
+        {
+            continue;
+        }
+        bool roomBelow = false;
+        for (const Room& r : kRooms)
+        {
+            roomBelow = roomBelow || (r.y1 < bottom - 0.3f && x0 < r.x1 && x1 > r.x0 && z0 < r.z1 && z1 > r.z0);
+        }
+        const SceneObject footing = Span(x0, kPitY, z0, x1, bottom, z1, kFootingRock, kLayerBoth);
+        bool throughBox = false; // a footing never passes through another box of the map (a floor under a landing)
+        for (const SceneObject& t : kStageStatics)
+        {
+            throughBox = throughBox || (&t != &o && t.tilt == 0.0f && BoxesOverlap(footing, t));
+        }
+        if (!roomBelow && !throughBox)
+        {
+            drawn.push_back(footing);
         }
     }
 }
@@ -1514,6 +1823,12 @@ inline std::vector<SceneObject> BuildDecor()
     AqueductDecor(drawn);
     CathedralDecor(drawn);
     Battlements(drawn);
+    WallParts(drawn);
+    // arched heads in the openings of the square into the wings (drawn only, above every head)
+    shapes::ArchHead(false, kWingDoorZ0, kWingDoorZ1, kHubWest - 0.5f, kHubWest, kOpeningTop, 0.6f, drawn);
+    shapes::ArchHead(false, kWingDoorZ0, kWingDoorZ1, kHubEast, kHubEast + 0.5f, kOpeningTop, 0.6f, drawn);
+    shapes::ArchHead(true, -1.0f, 1.0f, kHubNorth, kHubNorth + 0.5f, kOpeningTop, 0.6f, drawn);
+    Footings(drawn);
     Skyline(drawn);
     return drawn;
 }
@@ -1553,14 +1868,26 @@ class Waterworks
     {
         return m_drained;
     }
-    /// The surface of `w` now.
+    /// UNITS: metres the waters stand over their usual surface (the dawn bell opens the master sluice: scene/CityState.h).
+    void SetRaise(float metres)
+    {
+        m_raise = metres < 0.0f ? 0.0f : metres;
+    }
+    float Raise() const
+    {
+        return m_raise;
+    }
+    /// The surface of `w` now: raised by the dawn bell, drained toward its bed at the end.
     float Top(const shapes::Water& w) const
     {
-        return w.top - m_drained * w.depth;
+        const float top = w.top + m_raise;
+        const float bed = w.top - w.depth;
+        return top - m_drained * (top - bed);
     }
 
   private:
     float m_drained = 0.0f;
+    float m_raise = 0.0f;
     bool m_closed = false;
 };
 
@@ -1719,7 +2046,7 @@ inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObje
     return count;
 }
 
-inline constexpr int kMaxDrawObjects = 3000; ///< most of it is the static city (baked into one call per layer)
+inline constexpr int kMaxDrawObjects = 4000; ///< most of it is the static city (baked into one call per layer)
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the block, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is

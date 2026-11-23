@@ -10,7 +10,9 @@ round the cathedral that is water in one world and dry in the other, fed by an a
 other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers), the
 lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other)
 two prisms of the north district (a wall moved into the other world; two things moved at once), a cellar that closes the
-ring of districts, and an end in which the master sluice drains every water of one world are playable. The theatre, the
+ring of districts, and an end in which the master sluice drains every water of one world are playable. The map stands on
+the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their streets, and plants
+placed by the ground they grow on; three bells change the water, the machinery and the light of the city. The theatre, the
 graveyard and the rooms inside the cathedral are still to be built from [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md).
 
 ## Highlights
@@ -22,6 +24,9 @@ graveyard and the rooms inside the cathedral are still to be built from [docs/LE
   in one layer alone, and looks like 2 pushes to a player who ignores the other layer. Its layout was chosen by a search with
   the same solver, and the walls in the game are generated at compile time from the same rows, so the proof and the game
   cannot drift apart.
+- **A world without a void, proved.** The ground is a height field generated in code, flat-shaded and baked into the static
+  batch with the plants. Tests prove that it lies under every floor, that no walk or jump off an edge of the map ever ends on
+  it (about 10000 tried), and that every view down meets the map, the land or the sea.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
   room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 4900 places to
   stand, about 135000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five

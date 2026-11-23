@@ -78,17 +78,17 @@ inline Vec3 RotateX(const Vec3& v, float a)
     return {v.x, v.y * c - v.z * s, v.y * s + v.z * c};
 }
 
-/// The world matrix of the renderer is Scale * RotationX(tilt) * RotationY(spin) * Translation. So the way from the
+/// The world matrix of the renderer is Scale * RotationX(tilt) * RotationY(spin + yaw) * Translation. So the way from the
 /// local space of an object to the world is: tilt, then turn, then move; and back: move back, turn back, tilt back.
 inline Vec3 ToLocal(const scene::SceneObject& o, const Vec3& world, float spinSeconds)
 {
     const Vec3 moved = Sub(world, {o.position[0], o.position[1], o.position[2]});
-    return RotateX(RotateY(moved, -o.spinSpeed * spinSeconds), -o.tilt);
+    return RotateX(RotateY(moved, -(o.spinSpeed * spinSeconds + o.yaw)), -o.tilt);
 }
 
 inline Vec3 ToWorld(const scene::SceneObject& o, const Vec3& local, float spinSeconds)
 {
-    return Add(RotateY(RotateX(local, o.tilt), o.spinSpeed * spinSeconds), {o.position[0], o.position[1], o.position[2]});
+    return Add(RotateY(RotateX(local, o.tilt), o.spinSpeed * spinSeconds + o.yaw), {o.position[0], o.position[1], o.position[2]});
 }
 
 // Each Push function works in the local space of the object (scale already in it). It moves `c` so that a ball of

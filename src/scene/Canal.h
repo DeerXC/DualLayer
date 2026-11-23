@@ -9,6 +9,8 @@
 // Weir:      a second wheel, on the quay (machinery too: A only). Turned, it lets the current through, and the crate drifts
 //            west to the end of the canal (driftX). The crate of B lies under the crate of A, so it drifts with it: in A the
 //            crate was moved, in B it is now a step where there was none (docs/LEVEL_DESIGN.md, 14.8, E2).
+// Machinery: once the day bell has rung (scene/CityState.h), the machinery of the city turns by itself: the lock opens without
+//            the wheel (SetMachinery). The weir does not: it would move the crate off the main path.
 // Carry:     the crate moves while the water rises or while it drifts; a body standing on the crate of its layer is carried
 //            (Player::Carry), as on a lift.
 // Drain:     at the end the aqueduct is closed (scene/Stage.h, Waterworks): SetDrained moves the water toward the bed; the
@@ -75,6 +77,11 @@ class Canal
     bool Update(Body& body, int layer, float dt)
     {
         bool turned = false;
+        if (m_machinery && !m_open)
+        {
+            m_open = true; // the day bell: the lock opens by itself
+            turned = true;
+        }
         if (layer == 0 && !m_open && Touches(body, m_d.wheel))
         {
             m_open = true;
@@ -114,6 +121,12 @@ class Canal
     bool Open() const
     {
         return m_open;
+    }
+
+    /// True: the machinery turns by itself (the day bell); the lock opens at the next Update, also after Reset.
+    void SetMachinery(bool on)
+    {
+        m_machinery = on;
     }
     /// The surface now (the level of the lock, drained toward the bed at the end).
     float WaterTop() const
@@ -300,6 +313,7 @@ class Canal
     float m_drained = 0.0f;
     bool m_open = false;
     bool m_weirOpen = false;
+    bool m_machinery = false;
 };
 
 } // namespace dl::canal

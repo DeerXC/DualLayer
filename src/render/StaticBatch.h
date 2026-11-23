@@ -1,9 +1,10 @@
 // StaticBatch.h - bakes the boxes of the map that never move into one list of vertices per layer, so that the whole fixed city
 //            is drawn with one draw call per layer instead of one per box (render/Models.cpp puts the lists on the GPU).
-// What:      every object of the table that is a cube and does not turn (spinSpeed 0), in each layer of its mask. Anything
-//            else is left out and has to be drawn one by one (Accepts).
+// What:      every object of the table that is a cube and does not turn (spinSpeed 0; a fixed yaw is fine), in each layer of
+//            its mask. Anything else is left out and has to be drawn one by one (Accepts). Other fixed geometry (the terrain,
+//            the plants: scene/Landscape.h) is baked by its owner into a BatchMesh and joined with AppendMesh.
 // Vertex:    the world position and the world normal (already transformed: the world matrix is Scale * RotationX(tilt) *
-//            Translation, the same as the renderer, docs/CONVENTIONS.md), the linear colour with the "city" flag in alpha,
+//            RotationY(yaw) * Translation, the same as the renderer, docs/CONVENTIONS.md), the linear colour with the "city" flag in alpha,
 //            and the parameters of the model shader (checker, shine strength, shininess, glow): what the per-object constant
 //            buffer would have carried. So the model shader treats a baked box exactly as a box drawn alone.
 // Winding:   the cube of render/MeshData.h, turned and moved: still clockwise seen from outside (a scale does not flip it,
@@ -72,6 +73,8 @@ inline BatchMesh BakeLayer(const scene::SceneObject* objects, int count, int lay
         }
         const float c = std::cos(o.tilt);
         const float s = std::sin(o.tilt);
+        const float cy = std::cos(o.yaw);
+        const float sy = std::sin(o.yaw);
         const float city = (o.layerMask == scene::kLayerBoth && o.glow <= 0.0f) ? 1.0f : 0.0f;
         const float colour[4] = {batch_detail::SrgbToLinear(o.colorSrgb[0]), batch_detail::SrgbToLinear(o.colorSrgb[1]),
                                  batch_detail::SrgbToLinear(o.colorSrgb[2]), city};
@@ -79,19 +82,24 @@ inline BatchMesh BakeLayer(const scene::SceneObject* objects, int count, int lay
         for (const MeshVertex& v : cube.vertices)
         {
             BatchVertex b{};
-            // scale, then RotationX(tilt) on a row vector (y' = y c - z s, z' = y s + z c), then the move
+            // scale, then RotationX(tilt) on a row vector (y' = y c - z s, z' = y s + z c), then RotationY(yaw) (x' = x cy + z sy,
+            // z' = -x sy + z cy), then the move
             const float x = v.position[0] * o.scale[0];
             const float y = v.position[1] * o.scale[1];
             const float z = v.position[2] * o.scale[2];
-            b.position[0] = x + o.position[0];
-            b.position[1] = y * c - z * s + o.position[1];
-            b.position[2] = y * s + z * c + o.position[2];
-            // the normal of a face of a box keeps its axis under an axis-aligned scale; then it turns with the tilt
+            const float ty = y * c - z * s;
+            const float tz = y * s + z * c;
+            b.position[0] = x * cy + tz * sy + o.position[0];
+            b.position[1] = ty + o.position[1];
+            b.position[2] = -x * sy + tz * cy + o.position[2];
+            // the normal of a face of a box keeps its axis under an axis-aligned scale; then it turns with the tilt and the yaw
             const float ny = v.normal[1];
             const float nz = v.normal[2];
-            b.normal[0] = v.normal[0];
-            b.normal[1] = ny * c - nz * s;
-            b.normal[2] = ny * s + nz * c;
+            const float my = ny * c - nz * s;
+            const float mz = ny * s + nz * c;
+            b.normal[0] = v.normal[0] * cy + mz * sy;
+            b.normal[1] = my;
+            b.normal[2] = -v.normal[0] * sy + mz * cy;
             for (int k = 0; k < 4; ++k)
             {
                 b.color[k] = colour[k];
@@ -109,6 +117,56 @@ inline BatchMesh BakeLayer(const scene::SceneObject* objects, int count, int lay
         ++out.objects;
     }
     return out;
+}
+
+/// Adds `more` at the end of `into` (its indices moved past the vertices already there).
+inline void AppendMesh(BatchMesh& into, const BatchMesh& more)
+{
+    const std::uint32_t first = static_cast<std::uint32_t>(into.vertices.size());
+    into.vertices.insert(into.vertices.end(), more.vertices.begin(), more.vertices.end());
+    for (std::uint32_t i : more.indices)
+    {
+        into.indices.push_back(first + i);
+    }
+    into.objects += more.objects;
+}
+
+/// Adds one flat, matt triangle (a, b, c) in the linear colour `colour` (alpha: the city flag). Its normal is cross(b - a, c - a)
+/// made unit length, so (a, b, c) is clockwise seen from the side the normal points to. A triangle without area is left out.
+inline void AddFlatTriangle(BatchMesh& mesh, const float a[3], const float b[3], const float c[3], const float colour[4])
+{
+    const float e1[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float e2[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+    float n[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
+    const float length = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+    if (!(length > 1.0e-9f))
+    {
+        return;
+    }
+    for (float& v : n)
+    {
+        v /= length;
+    }
+    const std::uint32_t first = static_cast<std::uint32_t>(mesh.vertices.size());
+    const float* corners[3] = {a, b, c};
+    for (const float* p : corners)
+    {
+        BatchVertex v{};
+        for (int k = 0; k < 3; ++k)
+        {
+            v.position[k] = p[k];
+            v.normal[k] = n[k];
+        }
+        for (int k = 0; k < 4; ++k)
+        {
+            v.color[k] = colour[k];
+        }
+        v.params[2] = 1.0f; // shininess 1 with a strength of 0: matt
+        mesh.vertices.push_back(v);
+    }
+    mesh.indices.push_back(first);
+    mesh.indices.push_back(first + 1);
+    mesh.indices.push_back(first + 2);
 }
 
 } // namespace dl

@@ -26,6 +26,7 @@
 #include "core/Config.h"
 #include "render/LayerRipple.h"
 #include "render/MeshData.h"
+#include "render/StaticBatch.h"
 #include "scene/SceneData.h"
 
 #include <DirectXMath.h>
@@ -107,6 +108,16 @@ class Models
     /// The fixed boxes of the map (copied): every cube of them that does not turn is baked and drawn in one call per layer; the
     /// rest of them should be given to SetObjects. Call it once after Init (it survives a lost device).
     void SetStatic(const scene::SceneObject* objects, int count);
+
+    /// Fixed geometry that is not made of boxes (the ground and the plants: scene/Landscape.h), baked by its owner, one mesh per
+    /// layer (copied): joined to the static batch of that layer. Call it before SetStatic, once (it survives a lost device).
+    void SetStaticExtra(const BatchMesh& layerA, const BatchMesh& layerB);
+
+    /// 0 = the evening of A, 1 = its night (the night bell, scene/CityState.h): the theme of A is blended toward the night theme.
+    void SetNight(float amount)
+    {
+        m_night = amount < 0.0f ? 0.0f : (amount > 1.0f ? 1.0f : amount);
+    }
 
     /// How many draw calls the last Draw made (for the title bar and the log).
     int DrawCalls() const
@@ -195,6 +206,11 @@ class Models
     Microsoft::WRL::ComPtr<ID3D11InputLayout> m_batchLayout;
     int m_drawCalls = 0;
     std::array<Theme, 2> m_themes; // [0] = layer A, [1] = layer B (set by Init, changed by LoadThemes)
+    Theme m_nightTheme;            // the night of A (the night bell)
+    float m_night = 0.0f;          // 0 .. 1: how far the night has fallen in A
+    std::array<BatchMesh, 2> m_extra; // the ground and the plants of each layer (SetStaticExtra)
+    /// The theme a layer is drawn with now: B as it is, A blended toward its night.
+    Theme ThemeOf(int layer) const;
     int m_segments = 32;
     /// The drawn table as a range, so that a loop reads "for (const SceneObject& object : Objects())".
     struct ObjectRange

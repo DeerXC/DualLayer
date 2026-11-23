@@ -13,8 +13,9 @@
 //   3. a jump that ends on solid ground more than kRise above where it started is a SKIP unless the two places are in the
 //      same room or in rooms that are joined by walking (kWalkJoined), or it ends on a ramp that starts or ends in such a room:
 //      such a jump only shortens a way that exists anyway
-// The map is searched with every door open, every bridge laid, the portcullis moved by the prism, without the block and
-// without the crate of the canal: the most permissive state (a door adds
+// The map is searched with every door open, every bridge laid, the portcullis moved by the prism, every memory fragment brought
+// back (scene/CityState.h), without the block and without the crate of the canal: the most permissive state. The bells change no
+// solid of the current build (only the water of A, the machinery and the night), so this one search covers every set of bells (a door adds
 // no way round, and what the block and the orbs allow is checked by the heights and the walks in tests/test_stage.cpp). Places that are themselves out of reach (in no
 // room: wall tops) are not searched from; the jump onto them is the skip. The balcony at the top of the tower is not searched
 // from either: reaching it is the end of the run.
@@ -22,6 +23,7 @@
 // fails. The numbers of the search are printed, so that a change that makes it miss whole areas is seen.
 
 #include "scene/CityParts.h"
+#include "scene/CityState.h"
 #include "scene/Stage.h"
 
 #include <cmath>
@@ -186,6 +188,13 @@ const std::vector<SceneObject>& PermissiveMap()
                 SceneObject moved = g.box; // the portcullis, moved by the prism: the bridge under it is open in A
                 moved.layerMask = moved.layerMask == kLayerA ? kLayerB : kLayerA;
                 v.push_back(moved);
+            }
+        }
+        for (int f = 0; f < st::kFragmentCount; ++f) // every memory fragment brought back: a fragment never skips a puzzle
+        {
+            for (const SceneObject& o : st::Fragments().solid[f])
+            {
+                v.push_back(o);
             }
         }
         return v;

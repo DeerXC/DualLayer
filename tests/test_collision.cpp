@@ -364,6 +364,33 @@ void TestSettledAndWalking()
     }
 }
 
+void TestYaw()
+{
+    // a box turned by a fixed yaw (a house turned to its street): local and world round trip, and a ball pushed out of it to
+    // exactly its radius, measured in the frame of the box worked out forward (RotateY of the axes), not backward
+    SceneObject o{};
+    o.shape = ShapeKind::Cube;
+    o.position[0] = 2.0f;
+    o.position[1] = 0.5f;
+    o.position[2] = -1.0f;
+    o.scale[0] = 3.0f;
+    o.scale[1] = 1.0f;
+    o.scale[2] = 1.0f;
+    o.yaw = 0.6f;
+    o.layerMask = kLayerBoth;
+    const Vec3 p{2.7f, 0.3f, -0.2f};
+    CHECK(Near3(dl::collision_detail::ToWorld(o, dl::collision_detail::ToLocal(o, p, 0.0f), 0.0f), p, 1e-4f));
+    const Vec3 ax = dl::collision_detail::RotateY({1.0f, 0.0f, 0.0f}, o.yaw); // the long axis of the box in the world
+    const Vec3 start{2.0f + ax.x * 1.3f, 0.5f, -1.0f + ax.z * 1.3f};             // inside, 0.2 m from its end face
+    const dl::CollisionResult r = dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1);
+    CHECK(r.pushed);
+    const Vec3 d{r.position.x - 2.0f, r.position.y - 0.5f, r.position.z + 1.0f};
+    const float along = Dot(d, ax); // out through the end face: 1.5 + the radius along the long axis
+    CHECK(Near(along, 1.5f + kBall, 2e-3f));
+    o.yaw = 0.0f; // the same box without the yaw does not hold that point
+    CHECK(!dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1).pushed || dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1).position.x != r.position.x);
+}
+
 void TestBadInput()
 {
     const float notANumber = std::numeric_limits<float>::quiet_NaN();
@@ -386,6 +413,7 @@ int main()
     TestEachShape();
     TestNeverInside();
     TestSettledAndWalking();
+    TestYaw();
     TestBadInput();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

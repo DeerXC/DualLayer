@@ -192,8 +192,56 @@
   the map of the puzzle, parapets of 1.2 m. `src/main.cpp` compiles against stand-ins of the interfaces it uses.
 - Changed (2026-11-23, the documents): blank lines made regular (one blank line, one final newline), as `git audit` asks.
 - Not checked yet: the MSVC build and `tools/check.ps1`; the look by eye (docs/BUILD.md, E-29 .. E-32).
+- Decided (2026-11-23): the story is decided last (docs/LEVEL_DESIGN.md, 1.1); the rules of environmental storytelling (9.1),
+  the places of the pairs of props (9.2) and the rules of the plants (5.6) are written; steps 1 to 4 of section 12 are built
+  together.
+- Made (2026-11-23, step 1, recovery): new `scene/Recovery.h`. `SwitchAllowed`: a switch is refused into the water of the other
+  world as into a wall (a body of B in the dry cellar used to switch into the water of A and was sent to the entry of the
+  cellar, which is under water too, again and again). `SafeRespawn`: a fall or R comes back to the lamp of the room, else its
+  entry, and when that place is under the water of the layer of the body, to the entry of the dry room next to it
+  (`kWetFallbacks`: the cellar and the canal bed, to the east hall). `main.cpp` asks both.
+- Made (2026-11-23, step 2, the ground): new `scene/Terrain.h` (a height field of two triangles per cell, its noise, a land of a
+  fine field round the map pinned to a coarse one out past the far plane, and a ball pushed out of its triangles) and
+  `scene/Landscape.h` (the land of the current map: the town levelled 5 cm under the street, hills, a mountain in ridged
+  layers, a bay and a sea floor; the sea as one box per layer round the eye, 720 m across; the ground and the plants baked into
+  the static batch of each layer). `Stage::kPits`: under every part of the map without a floor at street level the ground is a
+  pit at -16, below every fall line, filled by the sea. `Stage::Footings`: drawn rock under the walls and decks at the edges of
+  the pits. Plants by the ground they grow on (docs/LEVEL_DESIGN.md, 5.6): pines on the heights and the coast, olives in rows
+  on sunny slopes, oaks in the shade, shrubs on steep ground, lemon trees and cypresses in the gardens of the town, cypresses
+  along the road round it, scattered with a distance per kind; B darker, the lemon trees dead. `Player::SetLand`: the ground is
+  solid. `Models::SetStaticExtra` joins the baked ground and plants to the static batch. The houses keep clear of the pits.
+- Made (2026-11-23, step 3, the vocabulary): `SceneObject::yaw`, a fixed turn round Y after the tilt (`Collision`, `StaticBatch`
+  and `Models` turn by it alike). The houses of the town are planned as plots (`Stage::SkylinePlots`): turned to the streets
+  round the cathedral, sized to stay on their plot, coloured by quarter (ochre west, white east, grey north, sandstone south,
+  blended), a garden in one plot in eight, a shell in B in one house in four. `Stage::WallParts`: a plinth and a cornice on every
+  city wall with battlements; in B a third of the cornice and a quarter of the merlons have fallen. `Shapes::ArchHead`: arched
+  heads in the three openings of the square. `Stage::kMaxDrawObjects` 4000.
+- Made (2026-11-23, step 4, the city state): new `scene/CityState.h`. The seals ring the bells (east: dawn, west: day, north:
+  night). The dawn bell raises every water of A by 0.3 m over 3 s (`Waterworks::SetRaise`), the day bell opens the lock of the
+  canal by itself (`Canal::SetMachinery`; the weir does not move), the night bell eases the theme of A to a night theme over 6 s
+  (`Models::SetNight`, `ThemeOf`). Memory fragments: the light on the floor of the pool brings back steps out of its south-west
+  corner, the light inside the gate a bench beside the breach, both in B, in pale glowing stone, solid in the tables of B.
+- Checked (2026-11-23) with g++ (`-Wall -Wextra -Wshadow -Wconversion`): `tests/test_terrain.cpp` (new, 138 checks: the noise;
+  a field exact at its vertices, continuous, every triangle up; the seam of the fields under 0.001 m and the hole of the coarse
+  one exactly the fine one; a ball pushed out to its radius from flat ground, a slope and from under it; the body walks up 15
+  degrees and slides off 60; at 10518 points of the rooms the ground is under the floor; from 1661 places at an edge, 9684 walks
+  and jumps off them never end on the ground; 2048 rays looking down from 32 eyes all meet something; the land reaches past the
+  far plane and is under the sea at its south edge; 194 houses on the levelled ground; 1318 plants by their rules and apart; the
+  baked ground on the land; 81 footings, none holding a place to stand). `tests/test_stage.cpp` (2591; new `TestRecovery`: the
+  switch refused in the cellar, the canal bed and the pool in B, allowed on the causeway and after the waters drained; 552
+  places of return, none under water, every distinct one a place to stand with every fragment there; `TestCityState`: the bells
+  from the seals, the rise and the night eased, the rim and the causeway dry after the rise, the lock open by itself after R,
+  the fragments in B only, the steps of the fountain walked up in B, the breach not closed by the bench). `tests/test_reach.cpp`:
+  0 skips with every fragment present (4909 places, 137664 jumps). `tests/test_hints.cpp` (350: the turned houses measured by
+  the box round them, the largest drawn table 2619 of 4000), `tests/test_batch.cpp` (20: a turned and tilted box baked on its
+  surface, joined meshes, a flat triangle), `tests/test_collision.cpp` (4582: a box turned round Y), `tests/test_shapes.cpp` (80:
+  the arched head). The other tests unchanged. Deliberate bugs, each caught: the yaw of the bake turned the other way, the water
+  left out of the switch and of the place of return, a pit left out (the east path), a footing through a floor. `src/main.cpp`
+  compiles against stand-ins of the interfaces it uses; `render/Models.cpp` is not compiled here.
+- Not checked yet: the MSVC build and `tools/check.ps1`; the look by eye (docs/BUILD.md, E-33 .. E-41), and the frame time with
+  the ground and the plants (about 45000 triangles more per layer).
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
-  (docs/LEVEL_DESIGN.md, 14.10).
+  (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 
 ## m1-models (built and run together with M2, 2026-11-17)
 

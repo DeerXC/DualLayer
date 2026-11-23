@@ -117,13 +117,16 @@
     <ClInclude Include="src\scene\BlockMaze.h" />
     <ClInclude Include="src\scene\Canal.h" />
     <ClInclude Include="src\scene\CityParts.h" />
+    <ClInclude Include="src\scene\CityState.h" />
     <ClInclude Include="src\scene\EndScreen.h" />
+    <ClInclude Include="src\scene\Landscape.h" />
     <ClInclude Include="src\scene\OrbReturn.h" />
     <ClInclude Include="src\scene\Camera.h" />
     <ClInclude Include="src\scene\Collision.h" />
     <ClInclude Include="src\scene\Player.h" />
     <ClInclude Include="src\scene\Courtyard.h" />
     <ClInclude Include="src\scene\Puzzle.h" />
+    <ClInclude Include="src\scene\Recovery.h" />
     <ClInclude Include="src\scene\Mechanisms.h" />
     <ClInclude Include="src\scene\Prompts.h" />
     <ClInclude Include="src\scene\Shapes.h" />
@@ -131,6 +134,7 @@
     <ClInclude Include="src\scene\Stage.h" />
     <ClInclude Include="src\scene\StageHints.h" />
     <ClInclude Include="src\scene\StageLights.h" />
+    <ClInclude Include="src\scene\Terrain.h" />
     <ClInclude Include="src\scene\SceneData.h" />
   </ItemGroup>
   <ItemGroup>

@@ -4,21 +4,27 @@
 
 ```
 WinMain > RunApp
-  once:   log file, config, window (DPI aware), Gpu::Init (Device, Triangle, Models), the map (Puzzle::Init from
-          Stage::MakeStage), the walking body at the entry of the start room
+  once:   log file, config, window (DPI aware), Gpu::Init (Device, Triangle, Models; the ground and the plants baked into the
+          static batch: Landscape::BakeWorld), the map (Puzzle::Init from Stage::MakeStage), the walking body at the entry
+          of the start room, with the ground of the world (Player::SetLand)
   frame:  1. Window::PumpMessages
           2. lost device (or F9)   > Gpu::Recover: every GPU object made again on a new Device; the map and the body stay
           3. F5                    > reload the config, the themes of the layers, the settings of the body
           4. resize                > Device::Resize
-          5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something is refused)
+          5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something, or into the
+                                     water of the other world, is refused: Recovery::SwitchAllowed)
           6. Models::Update        > the spin clock and the ripple clock
-          7. the solid table       > the lifts and the canal move; Puzzle::Solids(layer) + Stage::AddMapSolids (the closed
-                                     doors) + the lifts + the crate of the canal + the gates of the wings
+          7. the city state        > the seals ring the bells (CityState): the water of A rises, the machinery turns, night
+                                     falls in A (Models::SetNight)
+             the solid table       > the lifts and the canal move; Puzzle::Solids(layer) + Stage::AddMapSolids (the closed
+                                     doors) + the lifts + the crate of the canal + the memory fragments + the gates of the
+                                     wings
           8. walking               > Player::Update, Puzzle::Update, E (take or put an orb), MechanismSet::Update with the
                                      solid table of each layer, the room, a fall (below the fall line of the room or in
-                                     water: back to its lamp or entry), anchor lamps, seals and hidden lights, the goal;
+                                     water: back to Recovery::SafeRespawn), anchor lamps, seals and hidden lights, the goal;
              flying                > ResolveSphere on the camera ball
-          9. the drawn table       > Stage::BuildDrawTable + AddMapDraw + the hints + the lights > Models::SetObjects
+          9. the drawn table       > Stage::BuildDrawTable + AddMapDraw + the fragments + the sea round the eye + the hints +
+                                     the lights > Models::SetObjects
          10. render                > Device::BeginFrame, Models::Draw (one layer, or the ripple), Overlay::Draw (prompts,
                                      status line), Device::EndFrame (Present)
   end:    Gpu::Shutdown (Models, Triangle, Device: the debug layer reports leaks), log closed
@@ -34,7 +40,7 @@ main
              Overlay, OverlayBatch, Font5x7, StaticBatch                                           > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
-             Canal, OrbReturn, EndScreen                                                           > standard library only
+             Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState                  > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -63,11 +69,34 @@ vertex. `Models` draws it with one call per layer (`VSBatched`), then the moving
 both feed the same pixel shader. The baked list is kept on the CPU, so a new device after a lost one bakes it again. The
 drawn table keeps its order (`Stage::StaticDrawCount` fixed entries first), so `main.cpp` gives the renderer only the rest.
 
+## The ground
+
+`Terrain` is a height field: a grid of heights, each cell two triangles; `Height()` is the height of the triangles, so what is
+drawn and what is solid are the same surface. A `Land` is two fields: 2 m cells round the map and 8 m cells out past the far
+plane, with a hole under the fine one; the edge of the fine field is pinned to the coarse one, so they meet without a crack.
+`Land::PushOut` moves a ball out of the triangles near it (the closest point on each), and the walking body asks it with its
+solids (`Player::SetLand`): the ground is solid in both layers.
+
+`Landscape` makes the land of the current map from noise (the hills, the mountain, the coast) and the site data of `Stage`:
+the town levelled at the street, the pits (`Stage::kPits`) below every fall line. It places the plants by the ground they grow
+on, and bakes the ground (flat-shaded triangles) and the plants (boxes) of each layer into one mesh that `Models` joins to its
+static batch (`SetStaticExtra`). The sea is one box per layer round the eye, drawn each frame (`AddSea`). `Stage::Footings`
+adds drawn rock under the walls and decks at the edges of the pits. `tests/test_terrain.cpp` proves that the ground is under
+every floor, that no body reaches it from the map, and that every view down meets the map, the land or the sea.
+
+## Recovery and the city state
+
+`Recovery` keeps a body from getting stuck: `SwitchAllowed` refuses a switch into anything solid or into water of the target
+layer; `SafeRespawn` gives the place a fall or R comes back to, out of the water of the layer of the body. `CityState` reads
+the bells from the seals and eases what they change (the water of A, the night of A); the canal turns its lock by itself once
+the machinery runs (`Canal::SetMachinery`); `Waterworks::SetRaise` lifts every water of A. The memory fragments are pieces of B
+that appear once their hidden light is taken, solid in the tables of B.
+
 ## Collision and the walking body
 
-`ResolveSphere` (`scene/Collision.h`) pushes a ball out of every solid of a layer, exactly for boxes (also turned ones,
-such as ramps), spheres, cylinders and tori, in the local space of each object, in a few rounds. It only moves the ball;
-speed is the job of the body.
+`ResolveSphere` (`scene/Collision.h`) pushes a ball out of every solid of a layer, exactly for boxes (also turned ones:
+tilted round X, such as ramps, or turned round Y by a fixed yaw, such as the houses), spheres, cylinders and tori, in the
+local space of each object, in a few rounds. It only moves the ball; speed is the job of the body.
 
 `Player` is three balls of the collision radius (feet, halfway, eye); the camera is the eye. A frame is cut into steps
 shorter than the radius. In each step: the ground speed moves toward the keys with an acceleration; gravity (stronger while

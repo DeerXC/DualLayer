@@ -120,6 +120,25 @@ std::array<Models::Theme, 2> DefaultThemes()
     return {{a, b}};
 }
 
+/// The night of A (the night bell, scene/CityState.h): a low moon, a dark blue sky, the stone of the town cool.
+Models::Theme NightTheme()
+{
+    Models::Theme n;
+    n.toLight = XMFLOAT3(0.35f, 0.55f, 0.45f);
+    n.lightColor = XMFLOAT3(0.34f, 0.40f, 0.62f);
+    n.sky = XMFLOAT3(0.05f, 0.06f, 0.10f);
+    n.clear = XMFLOAT3(0.015f, 0.02f, 0.045f);
+    n.fogDensity = 0.010f;
+    n.tint = XMFLOAT3(0.80f, 0.84f, 1.00f);
+    n.weathering = 0.15f;
+    return n;
+}
+
+XMFLOAT3 Mix(const XMFLOAT3& a, const XMFLOAT3& b, float t)
+{
+    return XMFLOAT3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+}
+
 // the colours of the scene are written as the eye knows them (sRGB); the light works in linear space
 float SrgbToLinear(float c)
 {
@@ -251,6 +270,7 @@ bool Models::Init(ID3D11Device* device, int segments)
     m_device = device;
     m_segments = std::clamp(segments, 6, 128);
     m_themes = DefaultThemes(); // LoadThemes may change them from the config afterwards
+    m_nightTheme = NightTheme();
     m_ripple.SetSeconds(kDefaultRippleSeconds);
     m_rippleWidth = kDefaultRippleWidth;
     m_rippleDistortion = kDefaultRippleDistortion;
@@ -604,6 +624,35 @@ bool Models::CreateGpuMesh(Shape shape, const MeshData& data)
     return true;
 }
 
+Models::Theme Models::ThemeOf(int layer) const
+{
+    const Theme& base = m_themes[static_cast<std::size_t>(layer == 0 ? 0 : 1)];
+    if (layer != 0 || m_night <= 0.0f)
+    {
+        return base;
+    }
+    const float t = m_night;
+    Theme out;
+    out.toLight = Mix(base.toLight, m_nightTheme.toLight, t);
+    out.lightColor = Mix(base.lightColor, m_nightTheme.lightColor, t);
+    out.sky = Mix(base.sky, m_nightTheme.sky, t);
+    out.clear = Mix(base.clear, m_nightTheme.clear, t);
+    out.fogDensity = base.fogDensity + (m_nightTheme.fogDensity - base.fogDensity) * t;
+    out.tint = Mix(base.tint, m_nightTheme.tint, t);
+    out.weathering = base.weathering + (m_nightTheme.weathering - base.weathering) * t;
+    return out;
+}
+
+void Models::SetStaticExtra(const BatchMesh& layerA, const BatchMesh& layerB)
+{
+    m_extra[0] = layerA;
+    m_extra[1] = layerB;
+    if (m_device)
+    {
+        CreateBatchBuffers();
+    }
+}
+
 void Models::SetStatic(const SceneObject* objects, int count)
 {
     m_staticObjects.clear();
@@ -625,7 +674,8 @@ bool Models::CreateBatchBuffers()
     {
         GpuMesh& target = m_batch[static_cast<std::size_t>(layer)];
         target = GpuMesh{};
-        const BatchMesh baked = BakeLayer(m_staticObjects.data(), static_cast<int>(m_staticObjects.size()), layer);
+        BatchMesh baked = BakeLayer(m_staticObjects.data(), static_cast<int>(m_staticObjects.size()), layer);
+        AppendMesh(baked, m_extra[static_cast<std::size_t>(layer)]); // the ground and the plants
         if (baked.indices.empty())
         {
             continue;
@@ -704,7 +754,7 @@ void Models::LoadThemes(const Config& config)
 
 void Models::ClearColor(float out[4]) const
 {
-    const XMFLOAT3& clear = m_themes[static_cast<std::size_t>(m_ripple.Outer())].clear;
+    const XMFLOAT3 clear = ThemeOf(m_ripple.Outer()).clear;
     out[0] = clear.x;
     out[1] = clear.y;
     out[2] = clear.z;
@@ -790,7 +840,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
 {
     // ---- the frame: the camera and the light of this layer. View * Projection is worked out once
     // (docs/CONVENTIONS.md: row vectors, no transpose).
-    const Theme& theme = m_themes[static_cast<std::size_t>(layer)];
+    const Theme theme = ThemeOf(layer);
     FrameConstants frame{};
     XMStoreFloat4x4(&frame.viewProjection, view * projection);
     frame.eye = eye;
@@ -844,7 +894,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         // World = Scale * Rotation * Translation: first the size, then the tilt and the turn, then the place (row
         // vectors: read left to right)
         const XMMATRIX world = XMMatrixScaling(object.scale[0], object.scale[1], object.scale[2]) *
-                               XMMatrixRotationX(object.tilt) * XMMatrixRotationY(object.spinSpeed * m_spin) *
+                               XMMatrixRotationX(object.tilt) * XMMatrixRotationY(object.spinSpeed * m_spin + object.yaw) *
                                XMMatrixTranslation(object.position[0], object.position[1], object.position[2]);
         ObjectConstants data{};
         XMStoreFloat4x4(&data.world, world);
@@ -907,7 +957,7 @@ bool Models::DrawRipple(ID3D11DeviceContext* context, const XMMATRIX& view, cons
     for (std::size_t i = 0; i < 2; ++i)
     {
         const LayerTarget& target = m_targets[i];
-        const XMFLOAT3& clearColor = m_themes[static_cast<std::size_t>(layers[i])].clear;
+        const XMFLOAT3 clearColor = ThemeOf(layers[i]).clear;
         const float clear[4] = {clearColor.x, clearColor.y, clearColor.z, 1.0f}; // linear: written as sRGB
         context->ClearRenderTargetView(target.renderView.Get(), clear);
         context->ClearDepthStencilView(target.depthView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -931,7 +981,7 @@ bool Models::DrawRipple(ID3D11DeviceContext* context, const XMMATRIX& view, cons
     ripple.ringWidth = m_rippleWidth;
     ripple.aspect = aspect;
     ripple.distortion = m_rippleDistortion;
-    const XMFLOAT3& glow = m_themes[static_cast<std::size_t>(m_ripple.Inner())].lightColor;
+    const XMFLOAT3 glow = ThemeOf(m_ripple.Inner()).lightColor;
     ripple.glowColor = XMFLOAT3(glow.x * kRippleGlow, glow.y * kRippleGlow, glow.z * kRippleGlow);
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (FAILED(context->Map(m_rippleBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))

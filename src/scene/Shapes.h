@@ -12,6 +12,9 @@
 //   BreachWall    a wall of both layers with an opening: in A a panel closes it, in B the opening is a breach with rubble at
 //                 its sides: in B the breach is the way.
 //   Roof          two slopes and a ridge along X, draw-only (roofs are scenery over places no body can reach).
+//   ArchHead      the rounded head of a rectangular opening: a quarter circle in each upper corner, laid as flat steps, draw-only.
+//                 A wedge is a turned box (Slope); a wall in three parts (plinth, wall, cornice) is built by the map
+//                 (scene/Stage.h, WallParts).
 //   Water         a surface of layer A only: never solid for the body (a body whose feet go under it goes back to the room
 //                 entry), solid for orbs (they float). In B the water has gone.
 //   Lift          a platform that rises while a body stands on it and comes back down when it is left: the shortcut of a
@@ -216,6 +219,42 @@ inline int Roof(float x0, float x1, float z0, float z1, float eave, float ridge,
     drawn.push_back(Slope(x0, x1, mid, ridge, z1, eave, 0.15f, kRoofTile, kLayerBoth));
     drawn.push_back(Box(x0, ridge - 0.05f, mid - 0.12f, x1, ridge + 0.15f, mid + 0.12f, kStoneDark, kLayerBoth));
     return 3;
+}
+
+// ---- arches
+
+inline constexpr int kArchSteps = 4;
+
+/// The arched head of an opening that spans a0 .. a1 along X (`alongX`) or along Z, in a wall t0 .. t1 thick across it, with
+/// its flat top at `top`: in each upper corner a quarter circle of radius `rise`, laid as kArchSteps flat steps (the inset of
+/// each step is the circle at the middle of its height). Drawn only, both layers. Returns the number of boxes.
+inline int ArchHead(bool alongX, float a0, float a1, float t0, float t1, float top, float rise, std::vector<SceneObject>& drawn)
+{
+    int n = 0;
+    for (int k = 0; k < kArchSteps; ++k)
+    {
+        const float yHigh = top - rise * static_cast<float>(k) / static_cast<float>(kArchSteps);
+        const float yLow = top - rise * static_cast<float>(k + 1) / static_cast<float>(kArchSteps);
+        const float dy = 0.5f * (yLow + yHigh) - (top - rise); // 0 at the foot of the curve, rise at the top
+        const float under = rise * rise - dy * dy;
+        const float inset = rise - std::sqrt(under > 0.0f ? under : 0.0f);
+        if (inset < 0.02f)
+        {
+            continue;
+        }
+        if (alongX)
+        {
+            drawn.push_back(Box(a0, yLow, t0, a0 + inset, yHigh, t1, kStoneLight, kLayerBoth));
+            drawn.push_back(Box(a1 - inset, yLow, t0, a1, yHigh, t1, kStoneLight, kLayerBoth));
+        }
+        else
+        {
+            drawn.push_back(Box(t0, yLow, a0, t1, yHigh, a0 + inset, kStoneLight, kLayerBoth));
+            drawn.push_back(Box(t0, yLow, a1 - inset, t1, yHigh, a1, kStoneLight, kLayerBoth));
+        }
+        n += 2;
+    }
+    return n;
 }
 
 // ---- water

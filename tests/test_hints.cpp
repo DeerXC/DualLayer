@@ -243,8 +243,22 @@ void TestDoorFrame()
 }
 
 /// True when the segment from p to q meets the axis-aligned box `o`.
-bool SegmentHitsBox(const float p[3], const float q[3], const SceneObject& o)
+bool SegmentHitsBox(const float pWorld[3], const float qWorld[3], const SceneObject& o)
 {
+    // a box turned round Y (a house turned to its street): the segment is turned back into the frame of the box
+    const float c = std::cos(-o.yaw);
+    const float sn = std::sin(-o.yaw);
+    const auto turn = [&](const float v[3], float out[3]) {
+        const float dx = v[0] - o.position[0];
+        const float dz = v[2] - o.position[2];
+        out[0] = o.position[0] + dx * c + dz * sn;
+        out[1] = v[1];
+        out[2] = o.position[2] - dx * sn + dz * c;
+    };
+    float p[3];
+    float q[3];
+    turn(pWorld, p);
+    turn(qWorld, q);
     float t0 = 0.0f;
     float t1 = 1.0f;
     for (int a = 0; a < 3; ++a)
@@ -491,26 +505,40 @@ void TestSilhouette()
                               m.position[2] > st::kLedgeSouth && m.position[2] < 44.0f && m.position[1] < st::kNorthHighY + 1.0f);
     }
     CHECK(!onLedge);
-    // the skyline: every house and tower stands apart from every room by more than a running jump, and in no box of the map
+    // the skyline: every house and tower (turned to its street: measured by the box round it) stands apart from every room by more
+    // than a running jump, and in no box of the map
     std::vector<SceneObject> skyline;
     st::Skyline(skyline);
     bool apart = true;
+    int turned = 0;
     for (const SceneObject& o : skyline)
     {
         if (o.tilt != 0.0f)
         {
             continue; // a roof slope lies on its house
         }
+        turned += o.yaw != 0.0f ? 1 : 0;
+        float lo[3];
+        float hi[3];
+        st::AxisBounds(o, lo, hi);
         for (const st::Room& r : st::kRooms)
         {
-            apart = apart && st::FootprintGap(o.position[0] - 0.5f * o.scale[0], o.position[2] - 0.5f * o.scale[2], o.position[0] + 0.5f * o.scale[0],
-                                              o.position[2] + 0.5f * o.scale[2], r.x0, r.z0, r.x1, r.z1) > dl::Player::Settings{}.walkSpeed * 0.75f;
+            apart = apart && st::FootprintGap(lo[0], lo[2], hi[0], hi[2], r.x0, r.z0, r.x1, r.z1) > dl::Player::Settings{}.walkSpeed * 0.75f;
         }
         for (const SceneObject& m : st::kStageStatics)
         {
-            apart = apart && !st::BoxesOverlap(o, m);
+            float mlo[3];
+            float mhi[3];
+            st::AxisBounds(m, mlo, mhi);
+            bool overlap = true;
+            for (int k = 0; k < 3; ++k)
+            {
+                overlap = overlap && lo[k] < mhi[k] - 1e-4f && hi[k] > mlo[k] + 1e-4f;
+            }
+            apart = apart && !overlap;
         }
     }
+    CHECK(turned > 50); // the houses are turned to their streets
     std::printf("  skyline: %zu boxes\n", skyline.size());
     CHECK(apart && skyline.size() > 300);
     // the spire is seen from every district, over the walls and the battlements (the cathedral itself not counted)
@@ -550,7 +578,8 @@ void TestWholeFrameFits()
     const int largest = st::StaticDrawCount() + 4 + st::kLandmarkCount + 2 + 2 * st::kSealCount + 2 * st::kGhostCount * st::kBarsPerGhost +
                         9 /* the canal */ + 2 /* its beacons */ + st::kWaterDrawCount + st::kAnchorCount + 2 /* the respawn rings */ + moving * st::kBarsPerGhost /* own edges */ +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
-                        st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount;
+                        st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount +
+                        16 /* the memory fragments */ + 2 /* the sea */;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
     CHECK(largest <= st::kMaxDrawObjects);
 }
