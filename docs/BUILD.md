@@ -172,6 +172,8 @@ seen".
 | E-61 | from the balcony of the cathedral look south and north, in A and in B | in B the houses by the sea are shells, those of the lower town roofless with rafters, those behind the square stand; grass in the streets of the south; reeds on the silted harbour; felled pines on the headland; fields of grain in A |
 | E-62 | stand 30 s in the courtyard | the pale outlines of the other world grow bright |
 | E-63 | from the balcony of the cathedral and from the top of the lock walk, look over the town, in A and in B | paved streets winding round the middle of the town and out to the wall, houses in rows along them, turned to them, a lamp every few houses; in B grass on the streets of the south |
+| E-64 | walk round the outside of the halls (the terrace, the lock walk, the market lane, the theatre), in A and in B | the outer walls of the halls are plaster in the colour of their quarter (ochre west, white east, grey north) with a row of windows high up, some lit in A; in B stained, mossy at the foot, the windows dark; nothing of it inside a room |
+| E-65 | stand in the square, look round | a blind arcade round its walls at the height of the rim, its string course broken in B; the openings, the gallery and the ledge free |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

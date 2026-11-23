@@ -668,6 +668,55 @@ void TestCloister()
     CHECK(flat > 15 && onWall > 20 && above > 0 && bad == 0);
 }
 
+void TestFacades()
+{
+    // the halls clad as houses: every piece is a thin slab on the outside face of a stone wall, outside every room
+    std::vector<SceneObject> facades;
+    st::HallFacades(facades);
+    int bad = 0;
+    int lit = 0;
+    for (const SceneObject& f : facades)
+    {
+        const float thin = f.scale[0] < f.scale[2] ? f.scale[0] : f.scale[2];
+        bad += thin <= st::kWindowProud + 1e-4f ? 0 : 1;
+        bool onWall = false;
+        for (const SceneObject& w : st::kStageStatics)
+        {
+            if (!st::SameRgb(w, st::kStone) || w.layerMask != kLayerBoth)
+            {
+                continue;
+            }
+            const float gx = std::fabs(f.position[0] - w.position[0]) - 0.5f * (f.scale[0] + w.scale[0]);
+            const float gz = std::fabs(f.position[2] - w.position[2]) - 0.5f * (f.scale[2] + w.scale[2]);
+            onWall = onWall || (gx < 1e-3f && gz < 1e-3f);
+        }
+        bad += onWall ? 0 : 1;
+        for (const st::Room& r : st::kRooms)
+        {
+            const bool inside = f.position[0] > r.x0 && f.position[0] < r.x1 && f.position[2] > r.z0 && f.position[2] < r.z1 &&
+                                f.position[1] - 0.5f * f.scale[1] < r.y1 + 2.5f && f.position[1] + 0.5f * f.scale[1] > r.y0;
+            bad += inside ? 1 : 0;
+        }
+        lit += f.glow > 0.5f ? 1 : 0;
+    }
+    std::printf("  facades: %zu pieces, %d lit windows, %d wrong\n", facades.size(), lit, bad);
+    CHECK(facades.size() > 200 && lit > 10 && bad == 0);
+    // the arcade of the square stands on its walls (within 11 cm), never in the way
+    std::vector<SceneObject> arcade;
+    st::SquareArcade(arcade);
+    bool near = true;
+    for (const SceneObject& a : arcade)
+    {
+        const float lo0 = a.position[0] - 0.5f * a.scale[0];
+        const float hi0 = a.position[0] + 0.5f * a.scale[0];
+        const float lo2 = a.position[2] - 0.5f * a.scale[2];
+        const float hi2 = a.position[2] + 0.5f * a.scale[2];
+        near = near && ((lo0 >= st::kHubWest - 1e-3f && hi0 <= st::kHubWest + 0.11f) || (hi0 <= st::kHubEast + 1e-3f && lo0 >= st::kHubEast - 0.11f) ||
+                        (hi2 <= st::kHubNorth + 1e-3f && lo2 >= st::kHubNorth - 0.11f) || (lo2 >= st::kHubSouth - 1e-3f && hi2 <= st::kHubSouth + 0.11f));
+    }
+    CHECK(arcade.size() > 50 && near);
+}
+
 } // namespace
 
 int main()
@@ -684,6 +733,7 @@ int main()
     TestSilhouette();
     TestWholeFrameFits();
     TestCloister();
+    TestFacades();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

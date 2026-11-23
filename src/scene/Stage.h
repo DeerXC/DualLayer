@@ -2678,6 +2678,108 @@ inline void WaterTowerDecor(std::vector<SceneObject>& drawn)
     drawn.push_back(Span(kDawnBell.x - 0.04f, kDawnBell.y + 3.4f, kDawnBell.z - 0.04f, kDawnBell.x + 0.04f, kTowerRoomTop, kDawnBell.z + 0.04f, kIron, kLayerBoth));
 }
 
+// ---- the halls as houses of the town (docs/LEVEL_DESIGN.md 5.1): every stone wall of the map that shows its face to the
+// town outside (no room within 0.8 m of it, at any height of the wall) is clad as the wall of a house of its quarter: plaster in the colour of the
+// quarter (QuarterColours), weathered and stained in B, and a row of windows high up (some lit in A, all dark in B). So the
+// halls of the map read as houses among the houses, not as boxes. Drawn only, 3 to 6 cm proud of the wall, never inside a room.
+inline constexpr float kSkinProud = 0.03f;
+inline constexpr float kWindowProud = 0.06f;
+
+inline bool OutsideEveryRoom(float x, float y, float z)
+{
+    for (const Room& r : kRooms)
+    {
+        if (x > r.x0 - 0.1f && x < r.x1 + 0.1f && z > r.z0 - 0.1f && z < r.z1 + 0.1f && y > r.y0 - 1.0f && y < r.y1 + 3.0f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline void HallFacades(std::vector<SceneObject>& drawn)
+{
+    unsigned k = 0;
+    for (const SceneObject& o : kStageStatics)
+    {
+        if (o.shape != ShapeKind::Cube || o.tilt != 0.0f || o.yaw != 0.0f || o.layerMask != kLayerBoth || !SameRgb(o, kStone))
+        {
+            continue;
+        }
+        const bool alongX = o.scale[0] >= o.scale[2];
+        const float thin = alongX ? o.scale[2] : o.scale[0];
+        const float along = alongX ? o.scale[0] : o.scale[2];
+        const float bottom = o.position[1] - 0.5f * o.scale[1];
+        const float top = o.position[1] + 0.5f * o.scale[1];
+        const float base = bottom > kPlainY ? bottom : kPlainY;
+        if (thin > 0.6f || along < 2.0f || top - base < 2.5f)
+        {
+            continue;
+        }
+        const float a0 = (alongX ? o.position[0] : o.position[2]) - 0.5f * along;
+        const float a1 = a0 + along;
+        for (int side = -1; side <= 1; side += 2)
+        {
+            const float face = (alongX ? o.position[2] : o.position[0]) + 0.5f * thin * static_cast<float>(side);
+            bool outside = true;
+            for (float a = a0 + 0.1f; a < a1 && outside; a += 0.75f) // all along it
+            {
+                const float px = alongX ? a : face + 0.8f * static_cast<float>(side);
+                const float pz = alongX ? face + 0.8f * static_cast<float>(side) : a;
+                for (float y = base + 0.5f; y < top && outside; y += 1.0f) // at every height of the wall
+                {
+                    outside = OutsideEveryRoom(px, y, pz);
+                }
+            }
+            if (!outside)
+            {
+                continue;
+            }
+            const auto slab = [&](float lo, float hi, float y0, float y1, float proud, const Rgb& c, unsigned mask, float glow) {
+                const float f0 = side > 0 ? face : face - proud;
+                const float f1 = side > 0 ? face + proud : face;
+                SceneObject b = alongX ? Span(lo, y0, f0, hi, y1, f1, c, mask) : Span(f0, y0, lo, f1, y1, hi, c, mask);
+                b.glow = glow;
+                drawn.push_back(b);
+            };
+            const float mx = alongX ? 0.5f * (a0 + a1) : face;
+            const float mz = alongX ? face : 0.5f * (a0 + a1);
+            Rgb plaster{};
+            Rgb roof{};
+            QuarterColours(mx, mz, plaster, roof);
+            const Rgb stained{0.55f * plaster.r + 0.12f, 0.55f * plaster.g + 0.13f, 0.55f * plaster.b + 0.12f};
+            const float skinTop = top - 0.4f;
+            slab(a0, a1, base, skinTop, kSkinProud, plaster, kLayerA, 0.0f);
+            slab(a0, a1, base + 0.9f, skinTop, kSkinProud, stained, kLayerB, 0.0f);
+            slab(a0, a1, base, base + 0.9f, kSkinProud, Rgb{0.30f, 0.38f, 0.26f}, kLayerB, 0.0f); // B: moss up the foot of the wall
+            if (skinTop - base < 4.0f)
+            {
+                continue; // too low for an upper floor
+            }
+            const float wy0 = base + 2.8f;
+            const float wy1 = wy0 + 1.0f;
+            for (float w = a0 + 1.4f; w + 1.4f <= a1; w += 3.0f)
+            {
+                ++k;
+                const bool lit = (k * 2654435761u >> 9) % 10u < 3u;
+                slab(w - 0.35f, w + 0.35f, wy0, wy1, kWindowProud, lit ? Rgb{1.0f, 0.78f, 0.45f} : Rgb{0.13f, 0.13f, 0.15f}, kLayerA, lit ? 0.7f : 0.0f);
+                slab(w - 0.35f, w + 0.35f, wy0, wy1, kWindowProud, Rgb{0.11f, 0.11f, 0.12f}, kLayerB, 0.0f);
+            }
+        }
+    }
+}
+
+// ---- the square as a square of the town: a blind arcade round its walls at the level of the rim (the openings, the gallery
+// and the ledge left free), as round the cloister
+inline void SquareArcade(std::vector<SceneObject>& drawn)
+{
+    BlindArcade(false, kHubWest, 1.0f, kHubSouth, kWingDoorZ0 - 0.2f, 0.0f, 0.0f, drawn);
+    BlindArcade(false, kHubWest, 1.0f, kWingDoorZ1 + 0.2f, kHubNorth, 0.0f, 0.0f, drawn);
+    BlindArcade(false, kHubEast, -1.0f, 34.6f, kHubNorth, 0.0f, 0.0f, drawn); // (south of it the gallery runs along the wall)
+    BlindArcade(true, kHubNorth, -1.0f, kHubWest, kHubEast, -1.2f, 1.2f, drawn);
+    BlindArcade(true, kHubSouth, 1.0f, kHubWest, kHubEast, kDoorX - kDoorwayHalfWidth - 0.2f, kDoorX + kDoorwayHalfWidth + 0.2f, drawn);
+}
+
 inline std::vector<SceneObject> BuildDecor()
 {
     std::vector<SceneObject> solid;
@@ -2700,6 +2802,8 @@ inline std::vector<SceneObject> BuildDecor()
     GraveyardDecor(drawn);
     WaterTowerDecor(drawn);
     MarketDecor(drawn);
+    HallFacades(drawn);
+    SquareArcade(drawn);
     Battlements(drawn);
     WallParts(drawn);
     // arched heads in the openings of the square into the wings (drawn only, above every head)
@@ -2942,7 +3046,7 @@ inline int AddLifts(const std::array<shapes::Lift, kLiftCount>& lifts, SceneObje
     return count;
 }
 
-inline constexpr int kMaxDrawObjects = 5000; ///< most of it is the static city (baked into one call per layer)
+inline constexpr int kMaxDrawObjects = 6000; ///< most of it is the static city (baked into one call per layer)
 
 /// The table that is drawn: the fixed objects (with the same indices as in the puzzle), the crate and its bands, the door while it is
 /// closed for a body in B, the plate (brighter while pressed), the landmarks and, until it is taken, the goal light. A refused push is

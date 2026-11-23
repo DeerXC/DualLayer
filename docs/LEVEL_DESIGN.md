@@ -172,7 +172,13 @@ Its rules, which the game follows:
 | Plants | A kept: lemon yards, olive rows, fields of grain. B let go: grass through the paving, figs in roofless houses, scrub over the groves, pines felled by the storm, reeds on the silted harbour | the same (5.6.4) |
 | Puzzles | a room asks for one or two switches, at places it shows; the rest is walked in one world | 6.1 .. 6.5; the courtyard is proved to need two at the fewest (`BlockMaze::MinSwitches`, tests/test_maze.cpp) |
 
-The rooms of the game are being moved to the places of the model in two steps (section 12).
+Where the rooms stand: the districts of the game already lie where the model puts them (the harbour and the gate in the
+south, the square in the middle, the market and its well in the west, the locks and the water tower in the east, the theatre
+and the graveyard in the north), so the rooms keep their places and their proofs. What made them read as a greybox inside a
+town was their look: the stone walls of the halls now wear the plaster of their quarter with windows high up, weathered in B
+(`Stage::HallFacades`), and the square is a square of the town with a blind arcade round its walls (`Stage::SquareArcade`).
+What stays different from the model: the prologue runs on a terrace, not on the wall walk; the square is a rectangle; the
+cathedral stands in its pool rather than a round tower in a round square.
 
 ### 5.3 One town, four kinds of house
 
@@ -623,7 +629,7 @@ search for skips checks this for the whole map.
 | The ground, the sea, the plants, the town, the scenery | built (5.3 .. 5.8) |
 | Rebuild after the model, step 1: the ground of the model, the pits as sunken lanes, the open-ground rule, the red and blue edges gone, A and B told apart by damage and plants | built 2026-11-23 (5.1, 5.4) |
 | Rebuild after the model, step 2a: the streets and the houses in rows along them; the courtyard proved to need two switches | built 2026-11-23 (5.1) |
-| Rebuild after the model, step 2b: the rooms at the places of the model (the prologue on the wall walk, the round square, the districts moved) | next |
+| Rebuild after the model, step 2b: the halls clad as houses of their quarters, the square arcaded; the rooms keep their places (5.1, "Where the rooms stand") | built 2026-11-23 |
 | Recovery (no switch into water, places of return out of water) | built (14.4) |
 | The prologue, the harbour, the courtyard | built (6.1) |
 | The square, the cathedral, the bell tower, the ring of lights | built (6.2, 6.6) |
@@ -648,6 +654,7 @@ search for skips checks this for the whole map.
 | 2026-11-23 | the first plan is dropped: the model of a round square on a hillside, the tower in the square and its floors, the cistern, the separate bell tower west of the town. The cathedral carries the bell tower and the ring of the lights (6.6); the map is one town round the square |
 | 2026-11-23 | the model (5.1) is the target of the map again; the first plan that was dropped is the greybox, not the model. The rebuild in two steps: first the ground, the look and the two worlds told apart; then the rooms at their places |
 | 2026-11-23 | the courtyard stays as it is: the new count of switches (`MinSwitches`) shows it needs two, the number a room may ask for. The rooms are moved to the places of the model in a step of their own (2b), so that each move is proved on its own |
+| 2026-11-23 | the rooms keep their places: the districts already stand where the model puts them, and moving them would rebuild every proved room for little gain in play. The halls are clad as houses and the square arcaded instead (5.1). A round square and the prologue on the wall walk are left for a later change, if play-tests ask for them |
 
 ## 14. The vertical city
 

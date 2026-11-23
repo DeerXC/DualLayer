@@ -401,6 +401,15 @@
   1, a step or a push 0). The courtyard needs two: it stays as it is.
 - Checked (2026-11-23): `tests/test_maze.cpp` (43: `MinSwitches` on small grids and the courtyard), `tests/test_hints.cpp` (357),
   `tests/test_terrain.cpp`, `tests/test_reach.cpp`, `tests/test_stage.cpp` (below).
+- Changed (2026-11-23, rebuild after the model, step 2b, docs/LEVEL_DESIGN.md 5.1): the rooms keep their places (the districts
+  already stand where the model puts them). Every stone wall of the map that faces the town outside, at every height and all
+  along it, is clad as a house of its quarter (`Stage::HallFacades`: plaster in the colour of the quarter, a row of windows
+  high up, some lit in A; stained, mossy at the foot and dark in B; 3 to 6 cm proud). The square has a blind arcade round its
+  walls at the height of the rim, its openings, the gallery and the ledge left free (`Stage::SquareArcade`).
+  `kMaxDrawObjects` 6000.
+- Checked (2026-11-23): `tests/test_hints.cpp` (359; new `TestFacades`: 596 pieces, every one a thin slab on the outer face of a
+  stone wall and outside every room, caught when the inner faces of the water tower were clad; the arcade on the walls of the
+  square), `tests/test_terrain.cpp` (185), `tests/test_reach.cpp`, `tests/test_stage.cpp` (below), the others unchanged.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 
