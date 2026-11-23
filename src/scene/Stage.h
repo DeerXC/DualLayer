@@ -418,6 +418,7 @@ inline constexpr float kGraveLaneX0 = 8.0f;          // the lane, x 8 .. 10, fro
 inline constexpr float kGraveLaneX1 = 10.0f;
 inline constexpr float kGraveWallTop = kGraveY + 3.2f; // its parapet: the hill is seen over it, not reached (also from a pedestal)
 inline constexpr Vec3 kNightBell{10.5f, kGraveY, 99.4f}; ///< the place in front of the night bell
+inline constexpr Vec3 kDayBell{-48.0f, kFloorY - 8.0f, 46.1f}; ///< the place before the day bell, on the floor of the well (B)
 inline constexpr Vec3 kDawnBell{59.5f, kFloorY + 6.6f, 21.2f}; ///< the place under the dawn bell, in the water tower
 inline constexpr float kBellReach = 1.0f;            ///< UNITS: metres from that place to ring it
 inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
@@ -1178,7 +1179,7 @@ inline constexpr AnchorDesc kAnchors[] = {
     {{-35.2f, kFloorY, 58.6f}, {-35.2f, kFloorY, 57.3f}, "market", "the market"},
     {{13.0f, kFloorY, 72.5f}, {11.7f, kFloorY, 72.5f}, "theatre", "the theatre"},
     {{6.5f, kGraveY, 93.0f}, {6.5f, kGraveY, 94.3f}, "graveyard", "the graveyard"},
-    {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the bell tower"},
+    {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the north hall"},
 };
 inline constexpr int kAnchorCount = static_cast<int>(sizeof(kAnchors) / sizeof(kAnchors[0]));
 inline constexpr float kAnchorHalf = 0.25f;   ///< UNITS: metres: the pedestal is 0.5 m square
@@ -1523,7 +1524,6 @@ bool ReachedGoal(const Body& body)
 // ---- the landmarks: one per wing, tall enough to be seen over the hub walls, so that a player in the hub knows where each
 // wing is before entering it (docs/LEVEL_DESIGN.md, section 9). Drawn only, never solid: each stands outside every room,
 // behind walls that are out of reach (tests/test_hints.cpp checks both).
-inline constexpr Rgb kArchive{0.36f, 0.29f, 0.25f};
 constexpr SceneObject Landmark(ShapeKind shape, float x, float y, float z, float size, float tilt, float spin, Rgb c)
 {
     SceneObject o = Span(x - 0.5f * size, y - 0.5f * size, z - 0.5f * size, x + 0.5f * size, y + 0.5f * size, z + 0.5f * size, c, kLayerBoth);
@@ -1535,11 +1535,7 @@ constexpr SceneObject Landmark(ShapeKind shape, float x, float y, float z, float
     return o;
 }
 inline constexpr SceneObject kLandmarks[] = {
-    Span(-29.0f, kFloorY, 36.5f, -26.0f, 20.0f, 47.0f, kArchive, kLayerBoth),                       // west: the archive, a wall of shelves
-    Span(-29.5f, 20.0f, 40.5f, -25.5f, 21.0f, 42.5f, kGold, kLayerBoth),                            // its gold crown (north of the lane)
     Span(57.0f, 31.0f, 19.75f, 62.0f, 35.0f, 24.75f, Rgb{0.72f, 0.66f, 0.56f}, kLayerA),             // east: the tank of the water tower (A)
-    Span(-2.5f, kFloorY, 61.0f, 2.5f, 21.0f, 65.5f, kStone, kLayerBoth),                            // north: the stage tower of the theatre
-    Landmark(ShapeKind::Sphere, 0.0f, 23.0f, 63.25f, 3.0f, 0.0f, 0.0f, kGold),                       // its bell
 };
 inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / sizeof(kLandmarks[0]));
 
@@ -1662,6 +1658,7 @@ inline void AqueductDecor(std::vector<SceneObject>& drawn)
 // ---- the cathedral, drawn only: a rose window over the portal and a spire on the north wall, the highest point of the
 // map, seen from every district. Above every place a body can reach inside (the spire starts 13 m up), so the camera never
 // enters it.
+inline constexpr float kBelfryY = 17.0f;  ///< UNITS: metres (world y): the floor of the belfry (A) and the broken top (B)
 inline constexpr float kSpireTop = 28.5f; ///< UNITS: metres (world y): over the bell tower (24.5) and under the beacon (30)
 inline constexpr Rgb kRose{1.00f, 0.72f, 0.40f};
 inline void CathedralDecor(std::vector<SceneObject>& drawn)
@@ -1685,20 +1682,42 @@ inline void CathedralDecor(std::vector<SceneObject>& drawn)
         o.glow = 0.7f;
         drawn.push_back(o);
     }
-    // the spire: a collar on the north wall, then four storeys, each narrower, and a gold tip
+    // the bell tower of the city (docs/LEVEL_DESIGN.md 6.6): on the north wall of the cathedral, a collar and a shaft (both
+    // worlds); in A a belfry of four piers with the great bell, then three storeys, each narrower, and a gold tip; in B the
+    // shaft ends at the belfry in broken teeth, and the great bell lies cracked on top of it. The ring of the memory lights
+    // round the shaft is drawn each frame (StageLights AddLightRing)
     const float sz = 0.5f * (kTowerInnerNorth + kTowerNorth); // over the middle of the north wall
     drawn.push_back(Span(-1.5f, kTowerTop, kTowerInnerNorth, 1.5f, 13.0f, kTowerNorth, kTowerStone, kLayerBoth));
-    const float halves[] = {1.6f, 1.2f, 0.8f, 0.45f};
-    const float tops[] = {17.0f, 21.0f, 24.5f, 27.5f};
-    float bottom = 13.0f;
+    drawn.push_back(Span(-1.6f, 13.0f, sz - 1.6f, 1.6f, kBelfryY, sz + 1.6f, kTowerStone, kLayerBoth));
+    for (int k = 0; k < 4; ++k) // A: the belfry
+    {
+        const float px = k % 2 == 0 ? -1.6f : 1.2f;
+        const float pz = sz + (k < 2 ? -1.6f : 1.2f);
+        drawn.push_back(Span(px, kBelfryY, pz, px + 0.4f, kBelfryY + 4.0f, pz + 0.4f, kTowerStone, kLayerA));
+    }
+    SceneObject bell = Span(-0.8f, kBelfryY + 0.8f, sz - 0.8f, 0.8f, kBelfryY + 2.8f, sz + 0.8f, kGold, kLayerA);
+    bell.glow = 0.5f;
+    drawn.push_back(bell);
+    const float halves[] = {1.8f, 1.2f, 0.8f, 0.45f};
+    const float tops[] = {kBelfryY + 4.5f, 24.5f, 26.5f, 27.5f};
+    float bottom = kBelfryY + 4.0f;
     for (int i = 0; i < 4; ++i)
     {
-        drawn.push_back(Span(-halves[i], bottom, sz - halves[i], halves[i], tops[i], sz + halves[i], kTowerStone, kLayerBoth));
+        drawn.push_back(Span(-halves[i], bottom, sz - halves[i], halves[i], tops[i], sz + halves[i], kTowerStone, kLayerA));
         bottom = tops[i];
     }
-    SceneObject tip = Span(-0.2f, bottom, sz - 0.2f, 0.2f, kSpireTop, sz + 0.2f, kGold, kLayerBoth);
+    SceneObject tip = Span(-0.2f, bottom, sz - 0.2f, 0.2f, kSpireTop, sz + 0.2f, kGold, kLayerA);
     tip.glow = 0.4f;
     drawn.push_back(tip);
+    for (int k = 0; k < 4; ++k) // B: broken teeth and the cracked bell lying on the stump
+    {
+        const float px = k % 2 == 0 ? -1.6f : 0.6f;
+        const float pz = sz + (k < 2 ? -1.6f : 0.6f);
+        drawn.push_back(Span(px, kBelfryY, pz, px + 1.0f, kBelfryY + 0.6f + 0.5f * static_cast<float>(k), pz + 1.0f, Rgb{0.47f, 0.48f, 0.49f}, kLayerB));
+    }
+    SceneObject cracked = Span(-0.9f, kBelfryY, sz - 0.6f, 0.7f, kBelfryY + 1.2f, sz + 0.9f, Rgb{0.62f, 0.50f, 0.30f}, kLayerB);
+    cracked.tilt = 0.5f;
+    drawn.push_back(cracked);
 }
 inline constexpr int kWaterCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0]));
 
@@ -1867,15 +1886,6 @@ inline constexpr Zone kZones[] = {
     {53.0f, 12.0f, 64.0f, 25.0f, "the water tower"},
 };
 
-// the bell tower west of the west wing and the line along which its top fell in B (scene/Scenery.h draws them)
-inline constexpr float kBellTowerX = -36.0f;  ///< the middle of the bell tower (west of the west wing, clear of every room)
-inline constexpr float kBellTowerZ = 14.0f;
-inline constexpr float kBellTowerR = 4.0f;   ///< UNITS: metres: the corner radius of its octagon
-inline constexpr float kBellTowerTop = 64.0f; ///< the tip of the spire (A)
-inline constexpr float kBrokenAt = 24.0f;    ///< B: the shaft ends here (with broken teeth above)
-inline constexpr float kFallZ1 = kBellTowerZ - 5.0f;      ///< B: the line of the fall runs south from here to kFallZ0, at x kBellTowerX
-inline constexpr float kFallZ0 = kBellTowerZ - 44.0f;
-
 /// The horizontal gap between two footprints (0 when they overlap).
 inline float FootprintGap(float ax0, float az0, float ax1, float az1, float bx0, float bz0, float bx1, float bz1)
 {
@@ -1884,11 +1894,6 @@ inline float FootprintGap(float ax0, float az0, float ax1, float az1, float bx0,
     return std::sqrt(dx * dx + dz * dz);
 }
 
-/// True when the footprint lies under the line of the fall of the tower in B (the houses there stand in A only).
-inline bool UnderTheFall(float x0, float z0, float x1, float z1)
-{
-    return FootprintGap(x0, z0, x1, z1, kBellTowerX - 4.5f, kFallZ0 - 1.0f, kBellTowerX + 4.5f, kFallZ1 + 1.0f) <= 0.0f;
-}
 /// True when a house may stand on the footprint (x0 .. x1, z0 .. z1).
 inline bool PlotIsFree(float x0, float z0, float x1, float z1)
 {
@@ -1927,11 +1932,6 @@ inline bool PlotIsFree(float x0, float z0, float x1, float z1)
         {
             return false;
         }
-    }
-    // nothing stands on the foot of the bell tower (scene/Scenery.h)
-    if (FootprintGap(x0, z0, x1, z1, kBellTowerX - 6.0f, kBellTowerZ - 6.0f, kBellTowerX + 6.0f, kBellTowerZ + 6.0f) < 0.5f)
-    {
-        return false;
     }
     // nothing stands where the ground drops into a pit (scene/Landscape.h): it would float over it
     for (const Pit& p : kPits)
@@ -2099,12 +2099,7 @@ inline void Skyline(std::vector<SceneObject>& drawn)
         Rgb roof{};
         QuarterColours(cx, cz, wall, roof);
         const std::size_t first = drawn.size();
-        const bool crushed = UnderTheFall(p.x0, p.z0, p.x1, p.z1); // B: the fallen tower lies here
-        if (crushed)
-        {
-            drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + p.height, cz + h, wall, kLayerA));
-        }
-        else if (p.ruin)
+        if (p.ruin)
         {
             drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + p.height, cz + h, wall, kLayerA));
             drawn.push_back(Span(cx - h, kFloorY, cz - h, cx + h, kFloorY + 0.55f * p.height, cz + h, wall, kLayerB)); // a shell in B
@@ -2116,7 +2111,7 @@ inline void Skyline(std::vector<SceneObject>& drawn)
         if (p.kind == PlotKind::Tower) // now and then a tower over the roofs
         {
             drawn.push_back(Span(cx - p.towerSize, kFloorY, cz - p.towerSize, cx + p.towerSize, kFloorY + p.height + p.towerHeight, cz + p.towerSize, kStone,
-                                 crushed ? kLayerA : kLayerBoth));
+                                 kLayerBoth));
         }
         else
         {
@@ -2127,7 +2122,7 @@ inline void Skyline(std::vector<SceneObject>& drawn)
                 drawn[i].colorSrgb[0] = roof.r;
                 drawn[i].colorSrgb[1] = roof.g;
                 drawn[i].colorSrgb[2] = roof.b;
-                drawn[i].layerMask = (p.ruin || crushed) ? kLayerA : kLayerBoth;
+                drawn[i].layerMask = p.ruin ? kLayerA : kLayerBoth;
             }
         }
         TurnAbout(drawn, first, cx, cz, p.yaw);

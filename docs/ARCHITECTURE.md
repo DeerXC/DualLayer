@@ -81,7 +81,7 @@ solids (`Player::SetLand`): the ground is solid in both layers.
 `Landscape` makes the land of the current map from noise (the hills, the mountain, the coast) and the site data of `Stage`:
 the town levelled at the street, the pits (`Stage::kPits`) below every fall line. It places the plants by the ground they grow
 on, and bakes the ground (flat-shaded triangles) and the plants (boxes) of each layer into one mesh that `Models` joins to its
-static batch (`SetStaticExtra`), with the scenery of `Scenery` (the harbour, the town wall, the bell tower, the doors and
+static batch (`SetStaticExtra`), with the scenery of `Scenery` (the harbour, the town wall, the doors and
 windows of the houses, the districts round the map: the market and its well, the theatre, the graveyard, the water tower, the
 street lamps; boxes, drawn only). The sea is one box per layer round the eye, drawn each frame (`AddSea`). `Stage::Footings`
 adds drawn rock under the walls and decks at the edges of the pits. `tests/test_terrain.cpp` proves that the ground is under

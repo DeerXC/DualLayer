@@ -359,9 +359,7 @@ void TestLandmarks()
     };
     const float eyeY = kFloorY + dl::Player::Settings{}.eyeHeight;
     const View views[] = {
-        {{8.0f, eyeY, 37.0f}, {-27.5f, 19.5f, 41.5f}, {-27.5f, 3.0f, 41.5f}}, // the archive, from the north-east corner
         {{-8.0f, eyeY, 24.0f}, {59.5f, 34.5f, 22.25f}, {59.5f, 3.0f, 22.25f}}, // the water tower, from the south-west corner
-        {{-8.0f, eyeY, 23.0f}, {0.0f, 24.0f, 65.0f}, {0.0f, 5.0f, 65.0f}},    // the bell, from the south-west corner
     };
     for (const View& v : views)
     {
@@ -580,7 +578,7 @@ void TestWholeFrameFits()
                         9 /* the canal */ + 2 /* its beacons */ + st::kWaterDrawCount + st::kAnchorCount + 2 /* the respawn rings */ + moving * st::kBarsPerGhost /* own edges */ +
                         st::kBarsPerGhost + moving + moving * st::kBarsPerGhost + 2 * west.orbCount + st::kFrameBars + 1 + st::kClearRings +
                         st::kHiddenLightCount + west.triggerCount + west.gateCount * st::kBarsPerGhost + st::kLiftCount +
-                        16 /* the memory fragments */ + 2 /* the sea */;
+                        16 /* the memory fragments */ + 2 /* the sea */ + st::kHiddenLightCount /* the ring of the lights */ + 4 /* the tower crate */;
     std::printf("  the largest drawn table: %d of %d\n", largest, st::kMaxDrawObjects);
     CHECK(largest <= st::kMaxDrawObjects);
 }

@@ -359,6 +359,22 @@
   overflow) under MSVC: every `World` held its two solid tables (about 90 KB) on the stack, and with the larger map many Worlds
   live at once past the 1 MB stack of Windows (Linux gives 8 MB, so g++ did not see it). The tables are now on the heap
   (`World::Table`). Checked with a 1 MB stack under g++: the old test stops, the new one passes; the other tests pass with it.
+- Removed (2026-11-23, the first plan dropped): the separate bell tower drawn west of the west wing and its line of fall
+  (`Scenery::BellTower`, `Stage::kBellTower*`, `UnderTheFall`); the landmarks of the first greybox (the shelves of the archive,
+  the stage tower and its bell); in `docs/LEVEL_DESIGN.md` the model of the planned city and its pictures (which were never in
+  the repository), the seams and the round square of the plan, the tower of the plan and its floors, the cistern, the planned
+  columns of the room tables, the feasibility and the risks of the plan, the decisions of the dropped drafts.
+- Made (2026-11-23, the map as one town): the cathedral carries the bell tower of the city (`Stage::CathedralDecor`): a shaft
+  to the belfry at 17 m; in A four piers, the great bell, a spire to 28.5 m; in B broken teeth with the cracked bell on them. A
+  ring of lamps at the foot of the belfry, one for each hidden light, lit as they are taken (`StageLights::AddLightRing`). The day
+  bell is rung by walking up to it on the floor of the well (`kDayBell`), as the dawn and the night bell are in their districts.
+  `docs/LEVEL_DESIGN.md` rewritten to the map as built: the summary, the bells, the rooms of every district (the west: the
+  archive, the market and the well; the east: the canal, the lock walk, the tower lock and the water tower; the north: the north
+  hall, the theatre and the graveyard), the views, the nine lights, the state; the section numbers the code points to are kept.
+  The lamp of the north hall is named the north hall.
+- Checked (2026-11-23): `tests/test_stage.cpp` (4054; the day bell rung on the floor of the well; new `TestLightRing`),
+  `tests/test_hints.cpp` (357: two landmarks fewer), `tests/test_terrain.cpp` (163), `tests/test_reach.cpp` (0 skips, 410112
+  jumps), the others unchanged; with a stack of 1 MB as well.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

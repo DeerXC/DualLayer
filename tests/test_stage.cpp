@@ -2166,6 +2166,14 @@ void TestMarketWell()
         lights.Collect(w.player);
     }
     CHECK(lights.Taken(7));
+    {
+        st::CityState city; // the day bell lies here (B): walking up to it rings it
+        World d = w;
+        CHECK(!city.RingAt(d.player));
+        CHECK(d.WalkPath({{-45.5f, kFloorY, 46.4f}, {-48.0f, kFloorY, 46.4f}}));
+        const bool rung = city.RingAt(d.player);
+        CHECK(rung && city.Rung(st::Bell::Day) && city.Machinery());
+    }
     // back up in B to the south-west corner; the fallen stretch stops it there
     CHECK(w.WalkPath({{-44.2f, kFloorY, 47.5f}, {-44.2f, kFloorY, zn}, {xw, kFloorY, zn}, {xw, kFloorY, zs}}) && w.At(xw, st::kLandingSW, zs, 0.4f));
     {
@@ -2576,6 +2584,22 @@ void TestTowerLock()
     CHECK(w.lockCrate.AddDraw(drawn, 0, 8) == 4 && drawn[0].layerMask == kLayerA && drawn[2].layerMask == kLayerB);
 }
 
+/// The ring of the memory lights round the bell tower: a lamp a light, lit once it is taken, out of reach of every room.
+void TestLightRing()
+{
+    st::LightSet lights;
+    SceneObject ring[16] = {};
+    CHECK(st::AddLightRing(lights, ring, 0, 16) == st::kHiddenLightCount);
+    for (int i = 0; i < st::kHiddenLightCount; ++i)
+    {
+        CHECK(ring[i].glow == 0.0f && ring[i].layerMask == kLayerBoth && ring[i].position[1] > st::kSummitY + 4.5f);
+    }
+    lights.Collect(Touch{st::kHiddenLights[2].centre});
+    st::AddLightRing(lights, ring, 0, 16);
+    CHECK(ring[2].glow > 1.0f && ring[1].glow == 0.0f);
+    CHECK(st::AddLightRing(lights, ring, 16, 16) == 16);
+}
+
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
 {
@@ -2830,6 +2854,7 @@ int main()
     TestLastMoment();
     TestGuidance();
     TestTowerLock();
+    TestLightRing();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

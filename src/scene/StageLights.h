@@ -176,4 +176,24 @@ inline bool RecolourGoal(SceneObject* out, int count)
     return false;
 }
 
+/// The ring of the memory lights round the bell tower of the cathedral (docs/LEVEL_DESIGN.md 8): one lamp for each hidden
+/// light, at the foot of the belfry; a lamp burns once its light is taken, so the progress is seen from all over the city.
+/// Drawn only, both worlds. Returns the new count.
+inline int AddLightRing(const LightSet& set, SceneObject* out, int count, int capacity)
+{
+    const float cz = 0.5f * (kTowerInnerNorth + kTowerNorth);
+    for (int i = 0; i < kHiddenLightCount && out != nullptr && count >= 0 && count < capacity; ++i)
+    {
+        const float a = 6.2831853f * static_cast<float>(i) / static_cast<float>(kHiddenLightCount);
+        const float x = 2.2f * std::cos(a);
+        const float z = cz + 2.2f * std::sin(a);
+        const bool lit = set.Taken(i);
+        SceneObject o = Span(x - 0.2f, kBelfryY - 0.4f, z - 0.2f, x + 0.2f, kBelfryY, z + 0.2f, lit ? Rgb{1.0f, 0.86f, 0.46f} : Rgb{0.30f, 0.30f, 0.32f},
+                             kLayerBoth);
+        o.glow = lit ? 1.4f : 0.0f;
+        out[count++] = o;
+    }
+    return count;
+}
+
 } // namespace dl::stage

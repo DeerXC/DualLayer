@@ -1,5 +1,5 @@
 // Landscape.h - the world round the map: the ground of the town, the hills, the mountain, the coast and the sea, and the
-//            plants, all generated from fixed seeds (docs/LEVEL_DESIGN.md, 5.4 .. 5.6; step 2 of section 12).
+//            plants, all generated from fixed seeds (docs/LEVEL_DESIGN.md, 5.4 .. 5.6).
 // Ground:    a height field (scene/Terrain.h) in two parts: 2 m cells round the map, 8 m cells to well past the far plane.
 //            The town is levelled at the street (kPlainY, just under the floors of the map), the land round it is shaped by
 //            noise: hills east and west, a mountain to the north in ridged layers, rough ground outside the town, a bank that

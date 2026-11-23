@@ -1,8 +1,8 @@
-// CityState.h - what the bells have changed in the city (docs/LEVEL_DESIGN.md, 1 and 4; step 4 of section 12), and the memory
+// CityState.h - what the bells have changed in the city (docs/LEVEL_DESIGN.md, 1 and 4), and the memory
 //            fragments that the hidden lights bring back (section 8).
 // Bells:     three: dawn, day and night. In the current build each one is rung by taking the seal of a wing: the east seal is
 //            the dawn bell, the west seal the day bell, the north seal the night bell (kSealOfBell). The night bell is also rung
-//            where it hangs, in the graveyard, and the dawn bell in the water tower (RingAt). What a bell changes, it
+//            where it hangs, in the graveyard, the dawn bell in the water tower and the day bell at the foot of the well (RingAt). What a bell changes, it
 //            changes for good and in both worlds, and never on the main path (any order of the bells finishes the game):
 //              dawn   the master sluice of the aqueduct opens: every water of A stands kDawnRise higher (Waterworks::SetRaise)
 //              day    the machinery of the city turns by itself: the lock of the canal opens without its wheel
@@ -80,6 +80,10 @@ class CityState
         if (under(kDawnBell))
         {
             first = Ring(Bell::Dawn) || first;
+        }
+        if (under(kDayBell))
+        {
+            first = Ring(Bell::Day) || first;
         }
         return first;
     }

@@ -20,8 +20,7 @@
 //      the distance of their kinds; the wild ones outside the town; the trees of the gardens inside their plots
 //  10. the baked ground: one triangle pair per drawn cell, every vertex on the land, every normal up, flat-shaded
 //  11. footings: none holds a place where a body can stand
-//  12. the scenery (scene/Scenery.h): nothing near a room within reach; the bell tower whole in A, broken in B with its pieces
-//      on the ground; the houses under its fall in A only
+//  12. the scenery (scene/Scenery.h): nothing near a room within reach
 // Returns 1 when a check fails.
 
 #include "scene/CityParts.h"
@@ -832,47 +831,6 @@ void TestScenery()
     }
     std::printf("  scenery: %zu boxes, %d near a room and out of reach, %d wrong\n", scenery.size(), near - bad, bad);
     CHECK(scenery.size() > 1000 && bad == 0);
-    // the bell tower: in A whole to its spire, in B broken; its fallen pieces lie on the ground of B, none in the air
-    float topA = 0.0f;
-    float topB = 0.0f;
-    bool resting = true;
-    const tr::Land& land = st::TheLand();
-    std::vector<SceneObject> tower;
-    st::BellTower(tower);
-    for (const SceneObject& o : tower)
-    {
-        float lo[3];
-        float hi[3];
-        st::AxisBounds(o, lo, hi);
-        if (o.layerMask == kLayerA)
-        {
-            topA = hi[1] > topA ? hi[1] : topA;
-        }
-        if (o.layerMask == kLayerB)
-        {
-            topB = hi[1] > topB ? hi[1] : topB;
-            const bool lying = o.position[2] < st::kBellTowerZ - st::kBellTowerR - 0.5f;
-            if (lying)
-            {
-                resting = resting && lo[1] <= land.Height(o.position[0], o.position[2]) + 0.6f; // on the ground, sunk a little
-            }
-        }
-    }
-    std::printf("  bell tower: %.1f m in A, %.1f m in B\n", static_cast<double>(topA), static_cast<double>(topB));
-    CHECK(topA >= st::kBellTowerTop - 0.01f && topB < st::kBrokenAt + 6.0f && topB > st::kBrokenAt && resting);
-    // the houses under the line of the fall stand in A only
-    std::vector<SceneObject> skyline;
-    st::Skyline(skyline);
-    int crushed = 0;
-    for (const SceneObject& o : skyline)
-    {
-        if (st::UnderTheFall(o.position[0], o.position[2], o.position[0], o.position[2]))
-        {
-            ++crushed;
-            CHECK(o.layerMask == kLayerA);
-        }
-    }
-    CHECK(crushed > 0);
 }
 
 } // namespace

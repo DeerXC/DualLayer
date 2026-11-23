@@ -298,6 +298,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = st::AddGoalBeacon(table, count, st::kMaxDrawObjects, sinceClear);
     count = st::AddClearRings(table, count, st::kMaxDrawObjects, sinceClear);
     count = lights.AddToDrawTable(table, count, st::kMaxDrawObjects);
+    count = st::AddLightRing(lights, table, count, st::kMaxDrawObjects); // the ring of lamps round the bell tower
     if (lights.All())
     {
         st::RecolourGoal(table, count); // every hidden light taken: the goal light turns cool white

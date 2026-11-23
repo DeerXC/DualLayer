@@ -22,7 +22,8 @@ the other world. Round it every district has a part that is played:
 The map stands on the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their
 streets, plants placed by the ground they grow on; three bells change the water, the machinery and the light of the city,
 once one has rung, the lit lamps are a way to travel, and once two have rung, the lantern pulses near a hidden light.
-What is still to be built is listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md) (14.10).
+The cathedral carries the bell tower of the city; a ring of lamps on it shows the hidden lights taken. What is still open is
+listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.md) (14.10).
 
 ## Highlights
 

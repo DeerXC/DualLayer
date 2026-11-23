@@ -1,4 +1,4 @@
-// Recovery.h - nobody gets stuck (docs/LEVEL_DESIGN.md, 11 "Recovery"; step 1 of section 12).
+// Recovery.h - nobody gets stuck (docs/LEVEL_DESIGN.md, 11 "Recovery").
 // Water:     a switch of worlds is refused into the water of the other world, as it is refused into a wall (SwitchAllowed):
 //            the body would only come up again at the entry of its room. Before this rule a body of B in the dry cellar could
 //            switch to A, where the cellar is flooded, and was sent to the entry of the cellar, which is under the water of A

@@ -1,15 +1,10 @@
 // Scenery.h - the town round the map that no body reaches, drawn only and baked into the static batch with the ground
-//            (scene/Landscape.h BakeWorld): the harbour of beat 0, the town wall round the town, the bell tower, and the doors
-//            and windows of the houses (docs/LEVEL_DESIGN.md 5.5, 6.1 and 6.6; step 5 and part of step 6 of section 12).
+//            (scene/Landscape.h BakeWorld): the harbour of beat 0, the town wall round the town, and the doors
+//            and windows of the houses (docs/LEVEL_DESIGN.md 5.5, 5.8 and 6.1).
 // Harbour:   the basin under the town wall: its side walls, the sea wall beside the guardhouse (the sea gate of the town), a
 //            mole with a lighthouse to the south-east, boats moored on the west side (A); in B the mole is broken, the
 //            lighthouse a stump, a wreck lies on the west side, and the boats are gone.
 // Wall:      the town wall round the levelled town, with merlons (a quarter fallen in B) and towers (one in three a stump in B).
-// Tower:     the bell tower stands west of the west wing at (kBellTowerX, kBellTowerZ) until the square is rebuilt (step 6). A:
-//            an octagonal shaft, a ring of twelve lamps (the memory lights taken), a belfry with its bell, a stepped spire to
-//            about 64 m. B: the shaft broken at about 24 m; its top fell south and lies on the ground in three pieces along
-//            the line of the fall (the shaft, the belfry, the spire), as a tall tower falls; the bell cracked at its foot. The
-//            houses under the line of the fall stand in A only; in B a low heap of rubble is where they were.
 // Houses:    each house gets a door on the side that faces the cathedral and windows on its upper floor; in A some windows
 //            are lit (the evening); in B the shells have none above the height they were broken at.
 // Districts: the water tower over the locks of the east;
@@ -185,74 +180,6 @@ inline void TownWall(std::vector<SceneObject>& out)
     }
 }
 
-// ---- the bell tower
-
-inline void BellTower(std::vector<SceneObject>& out)
-{
-    const float x = kBellTowerX;
-    const float z = kBellTowerZ;
-    const float r = kBellTowerR;
-    const float base = kPlainY - 1.0f;
-    // A: the shaft, a cornice, the ring of twelve lamps, the belfry, the bell, the spire in steps
-    Octagon(x, z, r + 0.6f, base, kFloorY + 3.0f, kBellStone, kLayerBoth, out); // the plinth (both: it stands in B as well)
-    Octagon(x, z, r, kFloorY + 3.0f, 40.0f, kBellStone, kLayerA, out);
-    Octagon(x, z, r + 0.4f, 40.0f, 40.8f, kBellStone, kLayerA, out);
-    for (int k = 0; k < 12; ++k)
-    {
-        const float a = 6.2831853f * static_cast<float>(k) / 12.0f;
-        SceneObject lamp = Span(x + (r + 0.7f) * std::cos(a) - 0.25f, 30.0f, z + (r + 0.7f) * std::sin(a) - 0.25f, x + (r + 0.7f) * std::cos(a) + 0.25f,
-                                30.6f, z + (r + 0.7f) * std::sin(a) + 0.25f, Rgb{0.82f, 0.92f, 1.0f}, kLayerA);
-        lamp.glow = 0.5f;
-        out.push_back(lamp);
-    }
-    for (int k = 0; k < 8; ++k) // the piers of the belfry
-    {
-        const float a = 0.3926991f + 0.7853982f * static_cast<float>(k);
-        const float px = x + (r - 0.4f) * std::cos(a);
-        const float pz = z + (r - 0.4f) * std::sin(a);
-        SceneObject pier = Span(px - 0.45f, 40.8f, pz - 0.45f, px + 0.45f, 48.0f, pz + 0.45f, kBellStone, kLayerA);
-        pier.yaw = -a;
-        out.push_back(pier);
-    }
-    Octagon(x, z, 1.9f, 42.0f, 45.5f, kBellBronze, kLayerA, out);
-    out.back().glow = 0.25f;
-    out[out.size() - 2].glow = 0.25f;
-    Octagon(x, z, r + 0.3f, 48.0f, 49.0f, kBellStone, kLayerA, out);
-    for (int k = 0; k < 8; ++k) // the spire: eight tiers, each smaller
-    {
-        const float f = 1.0f - static_cast<float>(k) / 8.0f;
-        Octagon(x, z, 0.3f + (r - 0.3f) * f, 49.0f + 1.875f * static_cast<float>(k), 49.0f + 1.875f * static_cast<float>(k + 1), kBellStone, kLayerA, out);
-    }
-    Octagon(x, z, 0.25f, kBellTowerTop - 1.0f, kBellTowerTop, Rgb{1.0f, 0.82f, 0.36f}, kLayerA, out);
-    // B: the stump, broken teeth, the fallen top in three pieces along the line of the fall, the cracked bell at its foot
-    Octagon(x, z, r, kFloorY + 3.0f, kBrokenAt, kBellStoneB, kLayerB, out);
-    for (int k = 0; k < 6; ++k)
-    {
-        const float a = 6.2831853f * static_cast<float>(k) / 6.0f;
-        const float tx = x + (r - 0.8f) * std::cos(a);
-        const float tz = z + (r - 0.8f) * std::sin(a);
-        SceneObject tooth = Span(tx - 0.9f, kBrokenAt, tz - 0.5f, tx + 0.9f, kBrokenAt + 1.0f + static_cast<float>((k * 5) % 4), tz + 0.5f, kBellStoneB, kLayerB);
-        tooth.yaw = -a;
-        out.push_back(tooth);
-    }
-    const float z1 = kFallZ1; // the fall runs south from here (z1 - 16: the end of the shaft)
-    LyingOctagon(x, kPlainY + r - 0.4f, z1 - 8.0f, r, 16.0f, kBellStoneB, kLayerB, out);                                      // the shaft, 16 m
-    SceneObject belfry = Span(x - 4.0f, kPlainY - 0.5f, z1 - 25.0f, x + 4.0f, kPlainY + 6.5f, z1 - 17.5f, kBellStoneB, kLayerB); // the belfry
-    belfry.yaw = 0.35f;
-    out.push_back(belfry);
-    for (int k = 0; k < 4; ++k) // the spire, tier after tier along the fall
-    {
-        const float rr = 2.8f - 0.6f * static_cast<float>(k);
-        LyingOctagon(x + 0.4f * static_cast<float>(k), kPlainY + rr - 0.3f, z1 - 28.0f - 3.0f * static_cast<float>(k), rr, 3.0f, kBellStoneB, kLayerB, out);
-    }
-    SceneObject bellA = Span(x + 5.0f, kPlainY - 0.4f, z - 2.0f, x + 8.6f, kPlainY + 2.4f, z + 1.6f, kBellBronze, kLayerB); // the bell, cracked
-    bellA.tilt = 0.5f;
-    bellA.yaw = 0.4f;
-    out.push_back(bellA);
-    // the rubble over the plots under the line of the fall (their houses stand in A only: Skyline)
-    out.push_back(Span(x - 4.5f, kPlainY - 0.2f, kFallZ0, x + 4.5f, kPlainY + 1.2f, kFallZ1, kDebris, kLayerB));
-}
-
 // ---- doors and windows of the houses
 
 inline void HouseDetails(std::vector<SceneObject>& out)
@@ -271,7 +198,7 @@ inline void HouseDetails(std::vector<SceneObject>& out)
         const float cx = 0.5f * (p.x0 + p.x1);
         const float cz = 0.5f * (p.z0 + p.z1);
         const float h = 0.5f * p.side;
-        const unsigned inB = UnderTheFall(p.x0, p.z0, p.x1, p.z1) ? 0u : kLayerB;
+        const unsigned inB = kLayerB;
         // the face toward the cathedral, in the frame of the house (local +x: world (c, -s); local +z: world (s, c))
         const float c = std::cos(p.yaw);
         const float s = std::sin(p.yaw);
@@ -372,7 +299,6 @@ void Scenery(HeightAt heightAt, std::vector<SceneObject>& out)
 {
     HarbourScenery(out);
     TownWall(out);
-    BellTower(out);
     HouseDetails(out);
     (void)heightAt;
     WaterTowerScenery(out);
