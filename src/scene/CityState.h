@@ -2,7 +2,7 @@
 //            fragments that the hidden lights bring back (section 8).
 // Bells:     three: dawn, day and night. In the current build each one is rung by taking the seal of a wing: the east seal is
 //            the dawn bell, the west seal the day bell, the north seal the night bell (kSealOfBell). The night bell is also rung
-//            where it hangs, in the graveyard (RingAt). What a bell changes, it
+//            where it hangs, in the graveyard, and the dawn bell in the water tower (RingAt). What a bell changes, it
 //            changes for good and in both worlds, and never on the main path (any order of the bells finishes the game):
 //              dawn   the master sluice of the aqueduct opens: every water of A stands kDawnRise higher (Waterworks::SetRaise)
 //              day    the machinery of the city turns by itself: the lock of the canal opens without its wheel
@@ -61,14 +61,27 @@ class CityState
         return first;
     }
 
-    /// The night bell of the graveyard: rung by a body whose feet come within kBellReach of the place in front of it.
+    /// The bells that hang where a body reaches them: the night bell of the graveyard and the dawn bell of the water tower. Rung
+    /// by a body whose feet come within kBellReach of the place under it. True the first time a bell rings.
     template <class Body>
     bool RingAt(const Body& body)
     {
         const Vec3 f = body.Feet();
-        const float dx = f.x - kNightBell.x;
-        const float dz = f.z - kNightBell.z;
-        return dx * dx + dz * dz < kBellReach * kBellReach && f.y > kNightBell.y - 0.5f && f.y < kNightBell.y + 0.5f && Ring(Bell::Night);
+        const auto under = [&](const Vec3& p) {
+            const float dx = f.x - p.x;
+            const float dz = f.z - p.z;
+            return dx * dx + dz * dz < kBellReach * kBellReach && f.y > p.y - 0.5f && f.y < p.y + 0.5f;
+        };
+        bool first = false;
+        if (under(kNightBell))
+        {
+            first = Ring(Bell::Night) || first;
+        }
+        if (under(kDawnBell))
+        {
+            first = Ring(Bell::Dawn) || first;
+        }
+        return first;
     }
 
     bool Rung(Bell b) const

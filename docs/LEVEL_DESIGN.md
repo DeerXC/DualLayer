@@ -484,8 +484,23 @@ locks, and a switch into it is refused. In B the basins are dry rooms, each with
 of the middle one lies a hidden light (the lesson of the canal bed in a room of its own). Between two basins a lock head as
 high as the next terrace. Walls 8 m high close the walk on the north (the backs of houses), the east and the south.
 
-What waits: the crate carried from lock to lock (the puzzle of E3), E4 inside the water tower, and E2b (the dry lock). The
-dawn bell hangs in the water tower but is still rung by the east seal (1.2).
+#### 6.4.2 The tower lock and the water tower (E3 and E4, as built)
+
+South of the top terrace a fourth basin, the tower lock, lies against the foot of the water tower (rooms `tower lock`, `water
+tower`). Its bed is 3 m under the terrace, reached by a stair at its east end; in A it holds water 1 m under the terrace. A
+crate (the wood of the crates of the town) lies in it by the terrace (`scene/LockCrate.h`). The door of the water tower is in
+the south wall, 0.6 m over the terrace but 6 m from it, and 2.4 m over the crate as it lies in B.
+
+The puzzle, "pushed in B, lifted in A" (E2b and E3 in one room): in B, on the dry bed, the crate is pushed south, a step at a
+time, four steps to the wall under the door; in A it cannot be pushed (it floats on its mooring), but it floats wherever B left
+it, its top 0.5 m over the water. So: push it under the door in B, climb onto it, jump and switch to A in the air: the body
+lands on the crate of A, 1.3 m higher, and the door is a hop up. Every other way fails (TestTowerLock, the search for skips):
+the crate of A at its start is too far from the door, the terrace and the lock head west of the basin are too far, the crate
+of B too low. A parapet on that lock head adds a margin (the search finds no skip without it either). A switch on the bed into the water of A is
+refused. R in the tower lock puts the crate back.
+
+Inside the tower (E4) the dawn bell hangs low in a vaulted room; walking under it rings it (`CityState::RingAt`), as the east
+seal does: the waters of A rise. Over the room the shaft of the tower is drawn (in A to the tank, a landmark; in B broken).
 
 ### 6.5 North: the theatre and the graveyard (the prism)
 
@@ -731,7 +746,7 @@ until then the current map stays playable.
 | 4 city state | the bells as data: the water levels, the machinery, the night of A; memory fragments; the search for skips per set of bells | built 2026-11-23 (12.3) |
 | 5 prologue | the harbour, the ridge road, the gate, the barbican, the wall walk | the harbour built 2026-11-23 (6.1.2); the rest waits for the move of the prologue |
 | 6 square and tower outside | the round square, the fallen bell, the tower in both worlds, the ring of lamps | the tower in both worlds and the ring of lamps built 2026-11-23, east of the square (6.6.1); the square itself waits |
-| 7 east | the lock walk, E3, E4, the dawn bell, the aqueduct walk | the lock walk built 2026-11-23 (6.4.1); the water tower drawn (5.8); the puzzle of E3, E4 and E2b wait |
+| 7 east | the lock walk, E3, E4, the dawn bell, the aqueduct walk | the lock walk, the tower lock (E3 with E2b), the water tower and its dawn bell (E4) built 2026-11-23 (6.4.1, 6.4.2); the aqueduct walk is not needed |
 | 8 west | the well, W1 .. W4 round it, the day bell, the bucket lift | the market and the well built 2026-11-23 (6.3.1), reached from the west hall; W1 .. W4 stay in the hall for now |
 | 9 north | the theatre bowl, N1 .. N4, the cliff path, the graveyard, the night bell | the theatre, N3, the graveyard and the night bell built 2026-11-23 (6.5.1, 6.5.2); N1, N2 stay in the north hall; the cliff path is not needed (the graveyard is reached through the theatre) |
 | 10 links | the cistern, the fall of the theatre, the fallen tower | |
@@ -790,6 +805,7 @@ until then the current map stays playable.
 | 9 (part) | the theatre and N3 (6.5.1) | `Stage.h` (the lane, the stage, `TheatreRow`, `TheatreStairs`, `TheatreDecor`) |
 | 9, 12 (part) | the graveyard and the night bell rung there (6.5.2); lamp travel (1.3) | `Stage.h` (the lane, the yard, `GraveyardDecor`, `kNightBell`), `CityState::Ring`, `RingAt`, `scene/LampTravel.h`, `main.cpp` |
 | 11 (part), 12 (part) | the last moment and the three endings (1.5); resonance (1.3); the brightening of a room after 30 s and its pulse after 60 s (9.3) | `scene/Ending.h`, `scene/Guidance.h`, `EndScreen::Make` with a title, `Waterworks::Reopen`, `main.cpp` |
+| 7 (rest) | the tower lock, its crate pushed in B and floating in A, the water tower and the dawn bell rung in it (6.4.2) | `Stage.h` (the basin, the door, the room, `WaterTowerDecor`, `kTowerLockWaters`, `kDawnBell`), `scene/LockCrate.h`, `CityState::RingAt`, `Recovery::kWetFallbacks` |
 
 ## 13. Decisions
 
@@ -815,6 +831,7 @@ until then the current map stays playable.
 | 2026-11-23 | the north district becomes walkable: the theatre north of the north hall, with N3 (a jump from a floor of A through a breach of B, 6.5.1). Straight rows of seats instead of a curved bowl: simpler to walk, to prove and to read. Every district now has a walked part; what waits is listed in 14.10 |
 | 2026-11-23 | the graveyard is a room in the town behind the theatre, with the night bell rung by walking up to it (6.5.2); lamp travel is built with a list chosen by A and D (1.3) |
 | 2026-11-23 | the endings are built on the cathedral as it stands (1.5): the world at the third stroke decides, Both needs the three bells and Tab held, R plays the last moment again. Resonance and the stuck timer are built; the guide figure is replaced by a pulse of the outlines |
+| 2026-11-23 | E3, E4 and E2b become one room: the tower lock, where a crate pushed in B floats in A as the step to the water tower and its dawn bell (6.4.2). One crate, one basin, one switch in the air: the lesson of the courtyard (a thing in both worlds) and of the canal (water lifts it) joined |
 
 ## 14. The vertical city
 
@@ -858,7 +875,7 @@ Whole red or blue boxes are gone; red and blue are only edges and outlines.
 
 A stone lamp that looks the same in both worlds. It is lit the first time a body passes it; from then on a fall or R in its
 room comes back beside it, and a ring spreads from where the body appears. Rooms without a lamp have a carved tile at their
-entry. Eleven lamps in the current build: the quay, the locks, the market, the theatre, the graveyard, the terrace, before the gap, the square, the archive, the canal, the bell tower;
+entry. Eleven lamps in the current build (the tower lock has none: R and a fall come back to its bed, or to the lamp of the locks when that is under water): the quay, the locks, the market, the theatre, the graveyard, the terrace, before the gap, the square, the archive, the canal, the bell tower;
 twelve in the plan (section 8).
 
 ### 14.6 The prologue
@@ -909,7 +926,7 @@ and it reaches 2 m past the landing on both sides, so no jump goes round it.
 
 | Item | State |
 |---|---|
-| The puzzle of the crate in the locks (E3), the inside of the water tower (E4), the dry lock (E2b) | the lock walk is walked; the crate stays in the canal |
+| E3, E4, E2b | built: the tower lock and the water tower (6.4.2) |
 | W1 .. W4 round the well | they stay in the west hall; the market and the well are their own room (6.3.1) |
 | The cliff path | not needed: the graveyard is reached through the theatre (6.5.2) |
 | The round square, the tower in the square, T0 .. T5 | the cathedral stays in the pool and is climbed by its six ramps; the endings are built (1.5) |

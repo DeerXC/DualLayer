@@ -156,7 +156,12 @@ inline void TownWall(std::vector<SceneObject>& out)
     int n = 0;
     const auto tower = [&](float x, float z) {
         ++n;
-        const bool stump = n % 3 == 0;
+        bool nearRoom = false; // a stump is lower: never beside a room, where it could be reached
+        for (const Room& r : kRooms)
+        {
+            nearRoom = nearRoom || FootprintGap(x - 2.6f, z - 2.6f, x + 2.6f, z + 2.6f, r.x0, r.z0, r.x1, r.z1) < kSkylineFromRoom;
+        }
+        const bool stump = n % 3 == 0 && !nearRoom;
         out.push_back(Span(x - 2.6f, y0, z - 2.6f, x + 2.6f, h + 4.0f, z + 2.6f, kStone, stump ? kLayerA : kLayerBoth));
         if (stump)
         {
@@ -326,18 +331,10 @@ inline constexpr float kGraveyardZ1 = 104.0f;
 
 inline void WaterTowerScenery(std::vector<SceneObject>& out)
 {
+    // the tower itself is part of the map (scene/Stage.h, WaterTowerDecor); here only what of it fell in B, south of it
     const float x = kWaterTowerX;
     const float z = kWaterTowerZ;
-    Octagon(x, z, 2.8f, kPlainY - 1.0f, 27.0f, kStone, kLayerA, out);
-    for (int k = 0; k < 4; ++k)
-    {
-        const float px = x + (k % 2 == 0 ? -2.4f : 1.8f);
-        const float pz = z + (k < 2 ? -2.4f : 1.8f);
-        out.push_back(Span(px, 27.0f, pz, px + 0.6f, 31.0f, pz + 0.6f, kStone, kLayerA));
-    }
-    Octagon(x, z, 1.1f, 28.0f, 30.0f, kBellBronze, kLayerA, out); // the dawn bell
-    Octagon(x, z, 2.8f, kPlainY - 1.0f, 20.0f, kBellStoneB, kLayerB, out);
-    for (int k = 0; k < 3; ++k) // B: the tank and the bell stage lie south of it
+    for (int k = 0; k < 3; ++k)
     {
         SceneObject piece = Span(x - 2.5f + 1.5f * static_cast<float>(k), kPlainY - 0.3f, z - 7.5f - 1.2f * static_cast<float>(k), x - 0.5f + 1.5f * static_cast<float>(k),
                                  kPlainY + 1.6f - 0.3f * static_cast<float>(k), z - 5.0f - 1.2f * static_cast<float>(k), kBellStoneB, kLayerB);

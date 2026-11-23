@@ -11,8 +11,9 @@ the other world. Round it every district has a part that is played:
 
 - the west: an orb carried between the layers, and a market whose well is climbed down half in one world and half in the
   other;
-- the east: a crate that floats on water of one world and is moved in it to be used in the other, and a walk that climbs
-  beside three locks (water in one world, dry rooms in the other);
+- the east: a crate that floats on water of one world and is moved in it to be used in the other, a walk that climbs
+  beside three locks (water in one world, dry rooms in the other), and a lock whose crate is pushed in one world to float
+  under the door of the water tower in the other;
 - the north: two prisms (a wall moved into the other world; two things moved at once), a theatre whose fallen back wall
   is passed with a switch in the air, and a graveyard where the night bell is rung;
 - a cellar that closes the ring of districts, and a last moment at the top of the cathedral: three strokes of the great
@@ -37,7 +38,7 @@ What is still to be built is listed in [docs/LEVEL_DESIGN.md](docs/LEVEL_DESIGN.
   it (about 14000 tried), and that every view down meets the map, the land or the sea.
 - **A map that is walked and searched by its tests.** A test drives the real walking body through the whole map: every
   room, every shortcut, every ramp, the cathedral to its top. Another one searches it for skips: from about 11000 places to
-  stand, about 400000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
+  stand, about 410000 jumps in every direction, with and without a switch of layers in the air. Its first runs found five
   ways round the map that no play-test had found.
 - **Objects that react to the switch.** An orb is in one layer: carried, it goes with the body; put down, it stays, and it
   falls through a floor that exists only in the other layer. The west wing is built on that: an orb that lays a bridge of

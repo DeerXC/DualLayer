@@ -43,6 +43,7 @@ struct WetFallback
 inline constexpr WetFallback kWetFallbacks[] = {
     {"cellar", "east hall"},
     {"canal bed", "east hall"},
+    {"tower lock", "lock walk"},
 };
 
 /// Where a body of `room` in `layer` comes back after a fall or R: beside the lit lamp of the room, else at its entry; when that

@@ -360,7 +360,7 @@ void TestLandmarks()
     const float eyeY = kFloorY + dl::Player::Settings{}.eyeHeight;
     const View views[] = {
         {{8.0f, eyeY, 37.0f}, {-27.5f, 19.5f, 41.5f}, {-27.5f, 3.0f, 41.5f}}, // the archive, from the north-east corner
-        {{-8.0f, eyeY, 24.0f}, {59.5f, 34.5f, 19.5f}, {59.5f, 3.0f, 19.5f}}, // the water tower, from the south-west corner
+        {{-8.0f, eyeY, 24.0f}, {59.5f, 34.5f, 22.25f}, {59.5f, 3.0f, 22.25f}}, // the water tower, from the south-west corner
         {{-8.0f, eyeY, 23.0f}, {0.0f, 24.0f, 65.0f}, {0.0f, 5.0f, 65.0f}},    // the bell, from the south-west corner
     };
     for (const View& v : views)

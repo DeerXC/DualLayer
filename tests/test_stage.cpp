@@ -45,6 +45,7 @@
 #include "scene/Ending.h"
 #include "scene/Guidance.h"
 #include "scene/LampTravel.h"
+#include "scene/LockCrate.h"
 #include "scene/OrbReturn.h"
 #include "scene/Recovery.h"
 #include "scene/Stage.h"
@@ -56,6 +57,7 @@
 #include <array>
 #include <initializer_list>
 #include <string_view>
+#include <vector>
 
 namespace
 {
@@ -116,7 +118,7 @@ struct Touch
     }
 };
 
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 8 + 8;
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + st::kLiftCount + 1 + 8 + 8 + 1;
 
 int Room(const char* name)
 {
@@ -139,11 +141,26 @@ struct World
     std::array<dl::shapes::Lift, st::kLiftCount> lifts = st::MakeLifts();
     dl::canal::Canal canal;
     st::LightSet lights; ///< the hidden lights taken: their memory fragments are solid in B (scene/CityState.h)
+    st::LockCrate lockCrate; ///< the crate of the tower lock (scene/LockCrate.h)
     Player player;
     int layer = 0;
     float spin = 0.0f;
     int orbsReturned = 0; ///< how many times an orb came back to its start (scene/OrbReturn.h, or a fall)
-    SceneObject solids[2][kMaxSolids] = {};
+    /// WHY on the heap: a World is copied often and many live on the stack at once; with the tables inside it the test ran past
+    /// the 1 MB stack of MSVC (it passed with the 8 MB stack of Linux)
+    struct Table
+    {
+        std::vector<SceneObject> v = std::vector<SceneObject>(static_cast<std::size_t>(kMaxSolids));
+        operator SceneObject*()
+        {
+            return v.data();
+        }
+        operator const SceneObject*() const
+        {
+            return v.data();
+        }
+    };
+    Table solids[2];
     int counts[2] = {0, 0};
 
     World()
@@ -160,7 +177,7 @@ struct World
     }
 
     World(const World& o)
-        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), lights(o.lights), player(o.player), layer(o.layer), spin(o.spin),
+        : puzzle(o.puzzle), seals(o.seals), mech(o.mech), lifts(o.lifts), canal(o.canal), lights(o.lights), lockCrate(o.lockCrate), player(o.player), layer(o.layer), spin(o.spin),
           orbsReturned(o.orbsReturned)
     {
     }
@@ -180,6 +197,7 @@ struct World
             count = st::AddLifts(lifts, solids[l], count, kMaxSolids);
             count = canal.AddSolids(l, solids[l], count, kMaxSolids);
             count = st::AddFragments(lights, false, solids[l], count, kMaxSolids);
+            count = lockCrate.AddSolids(l, solids[l], count, kMaxSolids);
             counts[l] = mech.AddSolids(l, solids[l], count, kMaxSolids);
         }
     }
@@ -219,6 +237,7 @@ struct World
         spin += kDt;
         player.Update(input, look, layer, spin, kDt);
         puzzle.Update(player, kDt);
+        lockCrate.Update(player, layer, player.GetSettings().radius, kDt);
         BuildSolids();
         const int bodyA = counts[0];
         const int orbCountA = canal.AddWaterForOrbs(solids[0], st::AddWaterForOrbs(solids[0], bodyA, kMaxSolids), kMaxSolids); // orbs float
@@ -1784,6 +1803,10 @@ float WaterTopOf(std::string_view name)
         const int k = name == "the lower lock" ? 0 : (name == "the middle lock" ? 1 : 2);
         return st::kLockWaters[k].top;
     }
+    if (name == "the tower lock")
+    {
+        return st::kTowerLockWater;
+    }
     if (name == "the well")
     {
         return st::kWellWater;
@@ -1798,7 +1821,7 @@ float WaterTopOf(std::string_view name)
 void TestWater()
 {
     // every water of A is fed, through a chain, by the aqueduct; each feed runs downhill
-    CHECK(st::kWaterFeedCount == st::kWaterCount + 2 + st::kLockCount + 1); // the static waters, the canal, the cellar, the locks, the well
+    CHECK(st::kWaterFeedCount == st::kWaterCount + 2 + st::kLockCount + 1 + 1); // the static waters, the canal, the cellar, the locks, the well, the tower lock
     for (const st::WaterFeed& f : st::kWaterFeeds)
     {
         CHECK(Near(f.top, WaterTopOf(f.water), 1e-4f));
@@ -2046,8 +2069,10 @@ void TestLockWalk()
     for (const Vec3& d : {kNorth, kSouth, E})
     {
         World j = hub;
-        j.JumpFrom({59.0f, st::kTerraceFloor[3], 30.0f}, d, 0.4f);
-        CHECK(st::RoomAt(j.player.Feet()) == Room("lock walk"));
+        j.JumpFrom({59.0f, st::kTerraceFloor[3], 34.0f}, d, 0.4f);
+        const int landed = st::RoomAt(j.player.Feet());
+        CHECK(landed == Room("lock walk") || landed == Room("tower lock")); // south: down into the tower lock
+        CHECK(landed != Room("water tower"));
     }
     // a lock: in A water (a body that goes in is in it), in B a dry room with its stair back up
     for (int k = 0; k < st::kLockCount; ++k)
@@ -2430,6 +2455,127 @@ void TestGuidance()
           table[1].glow == st::kHintGlow && table[2].glow == 1.0f);
 }
 
+/// E3 and E4, the tower lock and the water tower (docs/LEVEL_DESIGN.md 6.4.2): the crate is pushed in B along the dry bed to
+/// the door; in A it floats there, a step to the door; the dawn bell inside is rung by walking under it. Every other way to the
+/// door fails.
+void TestTowerLock()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const float x = st::LockCrate::kX;
+    const float bed = st::kTowerLockBed;
+    const float terrace = st::kTerraceFloor[3];
+    const float sx = st::kLockEast - 0.5f * st::kBasinStairWidth; // the stair out of the basin
+    // the numbers: the door is out of reach from the crate of B, a step from the crate of A, and far from the terrace
+    st::LockCrate probe;
+    CHECK(st::kTowerDoorSill - probe.TopB() >= 2.3f && st::kTowerDoorSill - probe.TopA() <= 1.2f && st::kTowerDoorSill - probe.TopA() > 0.0f);
+    CHECK(probe.TopA() < terrace && st::kLockWalkZ0 - (st::kBasinZ0) > 3.6f + 1.0f);
+    // from the top terrace in both layers: down the stair into the basin (B: dry; A: under water)
+    World w = hub;
+    w.layer = 1;
+    w.PlaceFeet({sx, terrace, 33.0f});
+    CHECK(w.WalkPath({{sx, kFloorY, 31.0f}, {sx, kFloorY, 25.8f}, {61.0f, kFloorY, 26.0f}}) && w.At(61.0f, bed, 26.0f, 0.4f));
+    CHECK(st::RoomAt(w.player.Feet()) == Room("tower lock"));
+    {
+        World a = w; // a switch on the bed into the water of A: refused
+        a.BuildSolids();
+        CHECK(!st::SwitchAllowed(a.player, 0, a.spin, a.solids[0], a.counts[0], st::Waterworks{}, a.canal));
+    }
+    // push it south, four steps, from the north side
+    CHECK(w.WalkPath({{61.0f, kFloorY, 30.9f}, {x, kFloorY, 30.9f}}));
+    int steps = 0;
+    float settled = w.lockCrate.Z();
+    for (int i = 0; i < 600 && !w.lockCrate.UnderDoor(); ++i)
+    {
+        w.Frame(Keys(1.0f), kSouth);
+        if (!w.lockCrate.Sliding() && w.lockCrate.Z() < settled - 0.5f)
+        {
+            ++steps;
+            settled = w.lockCrate.Z();
+        }
+    }
+    std::printf("  tower lock: pushed in %d steps\n", steps);
+    CHECK(w.lockCrate.UnderDoor() && steps == 4);
+    // in A it does not move: from the start, a body in A on the terrace walking into it (it floats) leaves it where it is
+    {
+        World a = hub;
+        a.layer = 0;
+        a.PlaceFeet({x, terrace, 32.0f});
+        a.Run(1.5f, Keys(1.0f), kSouth);
+        CHECK(Near(a.lockCrate.Z(), st::LockCrate::kZMax, 1e-4f));
+    }
+    // B: on the crate under the door: the door is out of reach
+    World b = w;
+    b.PlaceFeet({x, b.lockCrate.TopB(), st::LockCrate::kZMin + 0.2f});
+    CHECK(b.player.Grounded() && Near(b.player.Feet().y, b.lockCrate.TopB(), 0.05f));
+    {
+        World j = b;
+        j.JumpFrom({x, b.lockCrate.TopB(), st::LockCrate::kZMin + 0.3f}, kSouth, 0.0f);
+        CHECK(st::RoomAt(j.player.Feet()) != Room("water tower"));
+    }
+    // the way: jump in B from the crate, switch to A in the air: land on the crate of A, then step through the door
+    int through = 0;
+    for (float after : {0.15f, 0.25f, 0.35f})
+    {
+        World j = b;
+        j.PlaceFeet({x, b.lockCrate.TopB(), st::LockCrate::kZMin + 0.3f});
+        j.Frame(Keys(0.0f, true), kSouth);
+        bool switched = false;
+        for (int i = 0; i < 120; ++i)
+        {
+            if (!switched && static_cast<float>(i) * kDt >= after)
+            {
+                switched = j.Switch(0);
+            }
+            j.Frame(Keys(0.0f), kSouth);
+        }
+        bool on = switched && j.player.Grounded() && Near(j.player.Feet().y, j.lockCrate.TopA(), 0.05f);
+        if (on) // a hop up the sill, then on into the room
+        {
+            j.Frame(Keys(1.0f, true), kSouth);
+            on = j.WalkPath({{x, kFloorY, 23.4f}});
+        }
+        if (on && st::RoomAt(j.player.Feet()) == Room("water tower"))
+        {
+            ++through;
+        }
+    }
+    std::printf("  tower lock: %d of 3 tried timings reach the water tower\n", through);
+    CHECK(through >= 2);
+    // the dawn bell: rung by walking under it
+    World t = hub;
+    t.layer = 0;
+    t.PlaceFeet(st::kRooms[Room("water tower")].entry);
+    st::CityState city;
+    bool rung = false;
+    for (int i = 0; i < 240 && !rung; ++i)
+    {
+        t.Frame(Keys(1.0f), kSouth);
+        rung = city.RingAt(t.player);
+    }
+    CHECK(rung && city.Rung(st::Bell::Dawn) && Near(city.WaterRise(), st::kDawnRise, 1e-6f));
+    // without the push: the crate of A at its start is no step to the door (on it, a running jump south falls short)
+    {
+        World a = hub;
+        a.layer = 0;
+        a.PlaceFeet({x, a.lockCrate.TopA(), st::LockCrate::kZMax + 0.4f});
+        CHECK(a.player.Grounded());
+        a.JumpFrom({x, a.lockCrate.TopA(), st::LockCrate::kZMax + 0.4f}, kSouth, 0.2f);
+        CHECK(st::RoomAt(a.player.Feet()) != Room("water tower"));
+        World r = hub; // and from the top terrace a running jump toward the door
+        r.layer = 0;
+        r.JumpFrom({x, terrace, 33.5f}, kSouth, 0.4f);
+        CHECK(st::RoomAt(r.player.Feet()) != Room("water tower"));
+    }
+    // R puts it back
+    w.lockCrate.Reset();
+    CHECK(Near(w.lockCrate.Z(), st::LockCrate::kZMax, 1e-6f));
+    // the drawn crate: two worlds, with bands
+    SceneObject drawn[8] = {};
+    CHECK(w.lockCrate.AddDraw(drawn, 0, 8) == 4 && drawn[0].layerMask == kLayerA && drawn[2].layerMask == kLayerB);
+}
+
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
 {
@@ -2683,6 +2829,7 @@ int main()
     TestLampTravel();
     TestLastMoment();
     TestGuidance();
+    TestTowerLock();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

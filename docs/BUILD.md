@@ -165,6 +165,7 @@ seen".
 | E-54 | reach the goal light; stay in A through the three strokes; after the panel press R, switch to B before the third stroke; then with the three bells rung, hold Tab through the third | three strokes with a ring each; the panel says THE PAST (the water stays), THE PRESENT (the water drains), BOTH; R puts the body back on the balcony and the water is full again |
 | E-55 | after two bells (two seals, or a seal and the night bell), walk toward a hidden light not yet taken, turn away from it | a small gold light at the bottom of the screen pulses faster as it comes nearer; turned away, a gold mark at the left or right edge |
 | E-56 | stay in the courtyard (or any room) without leaving it for 30 s, then 60 s | the outlines of the other world in the room grow brighter, then pulse |
+| E-57 | the top terrace of the lock walk: look into the tower lock in A and in B; go down its stair in B and push the crate south to the wall; climb it, jump, Tab in the air; hop through the door; walk under the bell | in A water and the crate floating by the terrace; in B a dry bed; the crate slides a step for each push and stops at the wall; in A it floats under the door; the room with the bell; the log says a bell is rung and the water of A rises |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

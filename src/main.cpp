@@ -52,6 +52,7 @@
 #include "scene/Ending.h"
 #include "scene/Guidance.h"
 #include "scene/LampTravel.h"
+#include "scene/LockCrate.h"
 #include "scene/Landscape.h"
 #include "scene/OrbReturn.h"
 #include "scene/Player.h"
@@ -94,7 +95,7 @@ constexpr float kDefaultLandDipMax = 0.15f;         // UNITS: metres, the deepes
 constexpr float kLandDipReturn = 14.0f;             // UNITS: 1 / seconds; the eye comes back up in about 0.2 s
 constexpr float kEyeEase = 30.0f;                   // UNITS: 1 / seconds; small changes of the eye height are eased over about 0.05 s
 constexpr float kEyeEaseMax = 0.5f;                 // UNITS: metres; a larger change (a respawn, a teleport) is followed at once
-constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount + 1 + 8 + 8; // + doors, gates, lifts, the crate, the water for orbs, fragments
+constexpr int kMaxSolids = dl::puzzle::Puzzle::kMaxSolids + 4 + dl::mech::kMaxGates + dl::stage::kLiftCount + 1 + 8 + 8 + 1; // + doors, gates, lifts, the crate, the water for orbs, fragments
 static_assert(dl::kFarPlane <= dl::stage::kViewDistance, "scene/Landscape.h kViewDistance must reach the far plane: the sea and the land are sized by it");
 
 dl::log::Level ParseLevel(const std::string& text)
@@ -248,8 +249,8 @@ struct Respawn
 
 int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights,
                     const dl::mech::MechanismSet& mech, const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts,
-                    const dl::canal::Canal& canal, const dl::stage::Waterworks& waters, const dl::stage::AnchorSet& anchors,
-                    const Respawn& respawn, const Respawn& orbReturn,
+                    const dl::canal::Canal& canal, const dl::stage::Waterworks& waters, const dl::stage::LockCrate& lockCrate,
+                    const dl::stage::AnchorSet& anchors, const Respawn& respawn, const Respawn& orbReturn,
                     const dl::Player& player, const dl::Vec3& eye, const dl::Vec3& look, const dl::Config& config, float sinceClear,
                     int room, float secondsInRoom, float clock, dl::scene::SceneObject (&table)[dl::stage::kMaxDrawObjects])
 {
@@ -260,6 +261,7 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
     count = st::AddMapDraw(seals, table, count, st::kMaxDrawObjects);
     count = st::AddLifts(lifts, table, count, st::kMaxDrawObjects);
     count = canal.AddDraw(table, count, st::kMaxDrawObjects);
+    count = lockCrate.AddDraw(table, count, st::kMaxDrawObjects); // the crate of the tower lock (scene/LockCrate.h)
     count = st::AddWaterDraw(waters, table, count, st::kMaxDrawObjects); // the water of A as it is now (it drains at the end)
     count = anchors.AddDraw(table, count, st::kMaxDrawObjects);
     count = st::AddFragments(lights, true, table, count, st::kMaxDrawObjects); // the pieces of A that the lights brought back (B)
@@ -306,7 +308,8 @@ int BuildFrameTable(const dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& 
 /// The solid table of a body (or an orb) in `layer`: the puzzle's table (the boxes of the map, the block, the courtyard door
 /// while closed), the closed doors of the map, the gates of the wings that are there and the memory fragments brought back.
 /// Returns the count.
-int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights, const dl::mech::MechanismSet& mech,
+int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals, const dl::stage::LightSet& lights, const dl::stage::LockCrate& lockCrate,
+                    const dl::mech::MechanismSet& mech,
                     const std::array<dl::shapes::Lift, dl::stage::kLiftCount>& lifts, const dl::canal::Canal& canal, int layer,
                     dl::scene::SceneObject (&table)[kMaxSolids])
 {
@@ -320,6 +323,7 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
     count = dl::stage::AddLifts(lifts, table, count, kMaxSolids);
     count = canal.AddSolids(layer, table, count, kMaxSolids);
     count = dl::stage::AddFragments(lights, false, table, count, kMaxSolids);
+    count = lockCrate.AddSolids(layer, table, count, kMaxSolids);
     return mech.AddSolids(layer, table, count, kMaxSolids);
 }
 
@@ -462,6 +466,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
     dl::stage::CityState city;    // what the bells have changed (scene/CityState.h)
     dl::stage::LampTravel travel; // the list of the lit lamps (scene/LampTravel.h)
     dl::stage::Ending ending;     // the last moment and its ending (scene/Ending.h)
+    dl::stage::LockCrate lockCrate; // the crate of the tower lock (scene/LockCrate.h)
     bool travelLeftWasDown = false;
     bool travelRightWasDown = false;
     int bellsRung = 0;
@@ -623,7 +628,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             const int target = 1 - gpu.models.CollisionLayer();
             // WHY the whole solid table of the target layer (not only the map of the puzzle): a switch into a gate of a wing,
             // a lift or the crate must be refused as well (solidsA is scratch here; it is built again after the body moves)
-            const int targetCount = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, target, solidsA);
+            const int targetCount = BuildSolidTable(puzzle, seals, lights, lockCrate, mech, lifts, canal, target, solidsA);
             // ... and into the water of the other world (scene/Recovery.h): the body would only come up again at the entry
             const bool fits = !walking || dl::stage::SwitchAllowed(player, target, gpu.models.SpinSeconds(), solidsA, targetCount, waters, canal);
             switch (guard.OnSwitchRequest(solidNow, gpu.models.LayerSwitching(), fits))
@@ -685,6 +690,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                 canal.Reset(); // R by the canal puts back the water, the weir and the crate (docs/LEVEL_DESIGN.md, 14.4)
             }
             landDip = 0.0f;
+            if (room == dl::stage::RoomIndex("tower lock") || room == dl::stage::RoomIndex("water tower"))
+            {
+                lockCrate.Reset(); // R by the tower lock puts its crate back at its start
+            }
             if (room == dl::stage::RoomIndex("courtyard"))
             {
                 puzzle.Reset(); // R in the courtyard also puts the block back: a block in a dead end never ends the game
@@ -736,7 +745,8 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         gpu.models.SetNight(city.NightNow());
         waters.Update(dtf);
         canal.SetDrained(waters.Drained());
-        const int solidCount = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, solidLayer, solidTable);
+        lockCrate.SetWaterTop(waters.Top(dl::stage::kTowerLockWaters[0]));
+        const int solidCount = BuildSolidTable(puzzle, seals, lights, lockCrate, mech, lifts, canal, solidLayer, solidTable);
 
         // ---- the body or the ball: after the camera and the shapes have moved, keep it out of what is solid
         if (walking)
@@ -785,6 +795,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             player.SetScene(solidTable, solidCount);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
             puzzle.Update(player, dtf);
+            lockCrate.Update(player, solidLayer, player.GetSettings().radius, dtf);
             if (usePressed && !lampUsed)
             {
                 int which = -1;
@@ -805,9 +816,9 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
                                 action == dl::mech::Action::Took ? "taken" : (action == dl::mech::Action::Put ? "put down" : "not put down: something is in the way"));
                 }
             }
-            const int bodyA = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, 0, solidsA);
+            const int bodyA = BuildSolidTable(puzzle, seals, lights, lockCrate, mech, lifts, canal, 0, solidsA);
             const int countA = canal.AddWaterForOrbs(solidsA, dl::stage::AddWaterForOrbs(solidsA, bodyA, kMaxSolids, waters), kMaxSolids); // orbs float
-            const int countB = BuildSolidTable(puzzle, seals, lights, mech, lifts, canal, 1, solidsB);
+            const int countB = BuildSolidTable(puzzle, seals, lights, lockCrate, mech, lifts, canal, 1, solidsB);
             mech.Update(player, solidLayer, solidsA, countA, solidsB, countB, dtf);
             // an orb that came to rest where its world cannot take it back goes back to its start (scene/OrbReturn.h)
             const int stranded = dl::stage::ReturnStrandedOrbs(mech, solidsA, bodyA, solidsB, countB, canal);
@@ -852,7 +863,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
             }
             if (city.RingAt(player))
             {
-                DL_LOG_INFO("Stage", "the night bell is rung in the graveyard");
+                DL_LOG_INFO("Stage", "a bell is rung where it hangs (%d of %d rung)", city.Count(), dl::stage::kBellCount);
             }
             const int lamp = anchors.Update(player);
             if (lamp >= 0)
@@ -949,7 +960,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
 
         // ---- what is drawn: the map as it is now
         // the fixed city (the first StaticDrawCount entries of the table) is in the static batch: only the rest is given
-        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, anchors, respawn, orbReturn, player, camera.Position(), camera.Forward(), config,
+        const int drawn = BuildFrameTable(puzzle, seals, lights, mech, lifts, canal, waters, lockCrate, anchors, respawn, orbReturn, player, camera.Position(), camera.Forward(), config,
                                          static_cast<float>(sinceClear), room, static_cast<float>(secondsInRoom), static_cast<float>(stageSeconds),
                                          drawTable);
         const int fixedCount = dl::stage::StaticDrawCount();

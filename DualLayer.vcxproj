@@ -123,6 +123,7 @@
     <ClInclude Include="src\scene\Guidance.h" />
     <ClInclude Include="src\scene\LampTravel.h" />
     <ClInclude Include="src\scene\Landscape.h" />
+    <ClInclude Include="src\scene\LockCrate.h" />
     <ClInclude Include="src\scene\OrbReturn.h" />
     <ClInclude Include="src\scene\Camera.h" />
     <ClInclude Include="src\scene\Collision.h" />

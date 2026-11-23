@@ -342,6 +342,23 @@
   reopened, the place of the replay on the balcony, every title drawable; caught when Both is given without the bells; new
   `TestGuidance`: silent with one bell, stronger and faster nearer, the side left and right, silent with every light taken,
   only hint bars of the room brightened and only after 30 s). `src/main.cpp` compiles against stand-ins with `-Wpedantic`.
+- Made (2026-11-23, the tower lock and the water tower, docs/LEVEL_DESIGN.md 6.4.2): a fourth basin south of the top terrace,
+  3 m deep, water of A 1 m under the terrace (`Stage::kTowerLockWaters`, fed from the aqueduct; it now feeds the upper lock),
+  a stair at its east end, a parapet on the lock head west of it; a door in the south wall 0.6 m over the terrace into the
+  room of the water tower, where the dawn bell hangs and is rung by walking under it (`CityState::RingAt`, now for the night
+  and the dawn bell). New `scene/LockCrate.h`: a crate pushed a step at a time along the dry bed in B, floating in A where B
+  left it; R puts it back. The shaft of the tower is drawn over the room (`Stage::WaterTowerDecor`); the landmark tank moves
+  over it. Rooms `tower lock`, `water tower`; the tower lock comes back to the lamp of the locks under water
+  (`Recovery::kWetFallbacks`). A stump of the town wall is never beside a room. `Puzzle::kMaxSolids` 480.
+- Checked (2026-11-23): `tests/test_stage.cpp` (4006; new `TestTowerLock`: the stair into the dry basin, the switch refused on the
+  bed, four pushes to the wall, no push in A, the door out of reach from the crate of B, through it at 3 of 3 timings from the
+  crate of B with a switch in the air, the dawn bell rung, no way from the crate of A at its start or from the terrace; caught
+  when the crate does not float), `tests/test_terrain.cpp` (181), `tests/test_reach.cpp` (0 skips, 410112 jumps; the water tower
+  is a room that no jump reaches), `tests/test_hints.cpp` (505).
+- Fixed (2026-11-23, found by `tools/check.ps1`): `tests/test_stage.cpp` stopped with exit code -1073741571 (0xC00000FD, a stack
+  overflow) under MSVC: every `World` held its two solid tables (about 90 KB) on the stack, and with the larger map many Worlds
+  live at once past the 1 MB stack of Windows (Linux gives 8 MB, so g++ did not see it). The tables are now on the heap
+  (`World::Table`). Checked with a 1 MB stack under g++: the old test stops, the new one passes; the other tests pass with it.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

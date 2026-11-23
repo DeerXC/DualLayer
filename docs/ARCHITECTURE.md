@@ -41,7 +41,7 @@ main
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
              Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery,
-             LampTravel, Ending, Guidance                                                          > standard library only
+             LampTravel, Ending, Guidance, LockCrate                                               > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -95,7 +95,8 @@ the bells from the seals and eases what they change (the water of A, the night o
 the machinery runs (`Canal::SetMachinery`); `Waterworks::SetRaise` lifts every water of A. The memory fragments are pieces of B
 that appear once their hidden light is taken, solid in the tables of B. `LampTravel` holds the list of the lit lamps that E opens at a
 lamp once a bell has rung; `main.cpp` freezes the walk while it is open and moves the body to the chosen lamp. `Ending` runs the last moment (three strokes; the world at the
-third decides the ending). `Guidance` gives the resonance of the lantern near a hidden light, drawn by `BuildHud`, and brightens
+third decides the ending). `LockCrate` is the crate of the tower lock: pushed in B, floating in
+A, solid in both tables. `Guidance` gives the resonance of the lantern near a hidden light, drawn by `BuildHud`, and brightens
 the outlines of a room the body has stayed in (`BuildFrameTable`).
 
 ## Collision and the walking body
