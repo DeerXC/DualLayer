@@ -40,7 +40,7 @@ main
              Overlay, OverlayBatch, Font5x7, StaticBatch                                           > core, scene (data only)
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
-             Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState                  > standard library only
+             Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery         > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -80,7 +80,8 @@ solids (`Player::SetLand`): the ground is solid in both layers.
 `Landscape` makes the land of the current map from noise (the hills, the mountain, the coast) and the site data of `Stage`:
 the town levelled at the street, the pits (`Stage::kPits`) below every fall line. It places the plants by the ground they grow
 on, and bakes the ground (flat-shaded triangles) and the plants (boxes) of each layer into one mesh that `Models` joins to its
-static batch (`SetStaticExtra`). The sea is one box per layer round the eye, drawn each frame (`AddSea`). `Stage::Footings`
+static batch (`SetStaticExtra`), with the scenery of `Scenery` (the harbour, the town wall, the bell tower, the doors and
+windows of the houses: boxes, drawn only). The sea is one box per layer round the eye, drawn each frame (`AddSea`). `Stage::Footings`
 adds drawn rock under the walls and decks at the edges of the pits. `tests/test_terrain.cpp` proves that the ground is under
 every floor, that no body reaches it from the map, and that every view down meets the map, the land or the sea.
 

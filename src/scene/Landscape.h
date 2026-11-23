@@ -18,6 +18,7 @@
 
 #include "render/StaticBatch.h"
 #include "scene/SceneData.h"
+#include "scene/Scenery.h"
 #include "scene/Stage.h"
 #include "scene/Terrain.h"
 
@@ -30,7 +31,7 @@ namespace dl::stage
 // ---- the extent: the fine field lies on whole cells of the coarse one (Land::PinEdge)
 inline constexpr float kNearX0 = -64.0f;
 inline constexpr float kNearX1 = 72.0f;
-inline constexpr float kNearZ0 = -48.0f;
+inline constexpr float kNearZ0 = -72.0f; // (the harbour reaches to z -62)
 inline constexpr float kNearZ1 = 112.0f;
 inline constexpr float kNearCell = 2.0f;
 inline constexpr float kFarX0 = -336.0f;
@@ -506,7 +507,7 @@ inline void PlantBoxes(const Plant& p, std::vector<SceneObject>& out)
     }
 }
 
-/// The ground and the plants of `layer`, as one mesh for the static batch.
+/// The ground, the plants and the scenery of `layer`, as one mesh for the static batch.
 inline BatchMesh BakeWorld(int layer)
 {
     BatchMesh mesh = BakeGround(TheLand(), layer);
@@ -515,6 +516,7 @@ inline BatchMesh BakeWorld(int layer)
     {
         PlantBoxes(p, boxes);
     }
+    Scenery(boxes); // the harbour, the town wall, the bell tower, the doors and windows (scene/Scenery.h)
     AppendMesh(mesh, BakeLayer(boxes.data(), static_cast<int>(boxes.size()), layer));
     return mesh;
 }

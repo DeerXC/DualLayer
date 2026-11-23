@@ -5,7 +5,7 @@
 > English: a 3D action puzzle about two overlapping worlds, red and blue, built without a game engine on C++20 / Direct3D 11.
 
 Status: in development (milestone M2). The whole map can be walked from the start to the top of the cathedral. It begins
-in a guardhouse on the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square: a pool
+on the quay of a harbour under the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square: a pool
 round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in the
 other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers), the
 lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other)

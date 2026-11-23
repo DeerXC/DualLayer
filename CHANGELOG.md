@@ -251,6 +251,20 @@
   and every drawn part of the cloister is flat on the floor, on a wall face within 11 cm, on a wall of the puzzle or above the
   walls; caught when the arcade stands 0.4 m out or a joint of a stack reaches 0.3 m into the yard), `tests/test_stage.cpp`
   (2722), `tests/test_maze.cpp` and `tests/test_puzzle.cpp` unchanged.
+- Made (2026-11-23, the map toward the plan, docs/LEVEL_DESIGN.md 6.1.2 and 6.6.1): the game starts on the quay of a harbour
+  under the town wall (rooms `quay` and `sea stair`, `kStartRoom`): a basin of the sea, a stair of 26 degrees between two harbour
+  walls up to a new south door of the guardhouse, the lantern of the quay (a seventh anchor lamp). New `scene/Scenery.h`, baked
+  with the ground: the walls of the basin and the sea wall, a mole and a lighthouse (broken in B), boats and ships in A, a wreck
+  in B; a town wall with merlons and towers round the town (a quarter of the merlons and a third of the towers fallen in B); the
+  bell tower east of the square, whole in A (64 m, a ring of twelve lamps, a belfry, a stepped spire) and broken in B, its top
+  lying on the ground in three pieces along the line of the fall, the houses under it in A only; a door and upper windows on
+  every house, some lit in A. The fine field of the ground reaches to z -72 (the harbour). `tools/check.ps1` expects the start
+  on the quay.
+- Checked (2026-11-23): `tests/test_stage.cpp` (2784; new `TestHarbour`: the quay is the start, the stair walked to the terrace in
+  both layers, the sea a fall, a sideways jump on the stair stays between its walls: caught with a wall lowered),
+  `tests/test_terrain.cpp` (167; new `TestScenery`: 2019 boxes, none within reach of a room: caught with the boats 3 m from the
+  quay; the bell tower 64 m in A and 28 m in B, its fallen pieces on the ground; the houses under the fall in A only; under the
+  map, no escape (10188 walks and jumps) and immersion with the harbour), `tests/test_reach.cpp` (0 skips, 150208 jumps).
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

@@ -20,6 +20,8 @@
 //      the distance of their kinds; the wild ones outside the town; the trees of the gardens inside their plots
 //  10. the baked ground: one triangle pair per drawn cell, every vertex on the land, every normal up, flat-shaded
 //  11. footings: none holds a place where a body can stand
+//  12. the scenery (scene/Scenery.h): nothing near a room within reach; the bell tower whole in A, broken in B with its pieces
+//      on the ground; the houses under its fall in A only
 // Returns 1 when a check fails.
 
 #include "scene/CityParts.h"
@@ -27,6 +29,7 @@
 #include "scene/Landscape.h"
 #include "scene/Player.h"
 #include "scene/Puzzle.h"
+#include "scene/Scenery.h"
 #include "scene/Stage.h"
 
 #include <cmath>
@@ -793,6 +796,83 @@ void TestFootings()
     CHECK(footings > 5 && bad == 0);
 }
 
+void TestScenery()
+{
+    // nothing of the scenery stands where a body can land on it or walk into it: each box is 4.5 m or more from every room, or
+    // beside it (not over it) with its top out of reach of a jump from the floor of the room
+    std::vector<SceneObject> scenery;
+    st::Scenery(scenery);
+    int near = 0;
+    int bad = 0;
+    for (const SceneObject& o : scenery)
+    {
+        float lo[3];
+        float hi[3];
+        st::AxisBounds(o, lo, hi);
+        for (const st::Room& r : st::kRooms)
+        {
+            const float gap = st::FootprintGap(lo[0], lo[2], hi[0], hi[2], r.x0, r.z0, r.x1, r.z1);
+            if (gap >= st::kSkylineFromRoom)
+            {
+                continue;
+            }
+            ++near;
+            const bool beside = gap > 0.0f && hi[1] > r.entry.y + Player::Settings{}.jumpHeight + 0.3f;
+            if (!beside)
+            {
+                if (bad++ < 5)
+                {
+                    std::printf("  scenery too near the %s: a box at %.2f %.2f %.2f, top %.2f, %.2f m away\n", r.name, static_cast<double>(o.position[0]),
+                                static_cast<double>(o.position[1]), static_cast<double>(o.position[2]), static_cast<double>(hi[1]), static_cast<double>(gap));
+                }
+            }
+        }
+    }
+    std::printf("  scenery: %zu boxes, %d near a room and out of reach, %d wrong\n", scenery.size(), near - bad, bad);
+    CHECK(scenery.size() > 1000 && bad == 0);
+    // the bell tower: in A whole to its spire, in B broken; its fallen pieces lie on the ground of B, none in the air
+    float topA = 0.0f;
+    float topB = 0.0f;
+    bool resting = true;
+    const tr::Land& land = st::TheLand();
+    std::vector<SceneObject> tower;
+    st::BellTower(tower);
+    for (const SceneObject& o : tower)
+    {
+        float lo[3];
+        float hi[3];
+        st::AxisBounds(o, lo, hi);
+        if (o.layerMask == kLayerA)
+        {
+            topA = hi[1] > topA ? hi[1] : topA;
+        }
+        if (o.layerMask == kLayerB)
+        {
+            topB = hi[1] > topB ? hi[1] : topB;
+            const bool lying = o.position[2] < st::kBellTowerZ - st::kBellTowerR - 0.5f;
+            if (lying)
+            {
+                resting = resting && lo[1] <= land.Height(o.position[0], o.position[2]) + 0.6f; // on the ground, sunk a little
+            }
+        }
+    }
+    std::printf("  bell tower: %.1f m in A, %.1f m in B\n", static_cast<double>(topA), static_cast<double>(topB));
+    CHECK(topA >= st::kBellTowerTop - 0.01f && topB < st::kBrokenAt + 6.0f && topB > st::kBrokenAt && resting);
+    // the houses under the line of the fall stand in A only
+    std::vector<SceneObject> skyline;
+    st::Skyline(skyline);
+    int crushed = 0;
+    for (const SceneObject& o : skyline)
+    {
+        if (st::UnderTheFall(o.position[0], o.position[2], o.position[0], o.position[2]))
+        {
+            ++crushed;
+            CHECK(o.layerMask == kLayerA);
+        }
+    }
+    CHECK(crushed > 0);
+}
+
 } // namespace
 
 int main()
@@ -807,6 +887,7 @@ int main()
     TestPlants();
     TestBakedGround();
     TestFootings();
+    TestScenery();
     TestNoEscape();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

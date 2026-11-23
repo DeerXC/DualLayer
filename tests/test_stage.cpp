@@ -6,7 +6,7 @@
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   0. the tables: the walls of the courtyard are exactly the rows of scene/Courtyard.h; every ramp is at most 27 degrees;
 //      the heights against the body (every wall out of reach from every place next to it); the drawn and solid tables fit
-//   1. the prologue: the guardhouse, the gate (A stops, B passes), the heap of B, the ditch (one layer never crosses, B
+//   1. the prologue: the quay of the harbour and its stair (TestHarbour), the guardhouse, the gate (A stops, B passes), the heap of B, the ditch (one layer never crosses, B
 //      never climbs round the heap, the stairs lead back); the gap (neither layer alone crosses it, even with the running jump; from
 //      the stone in B alone the curtain stops every jump; the stone in B and a switch to A in the air crosses it at most of
 //      the tried moments); the overlook lands in the courtyard
@@ -148,7 +148,8 @@ struct World
             ++g_failed;
             std::printf("FAIL: the stage does not Init\n");
         }
-        player.SetSpawn(st::kRooms[st::kStartRoom].entry);
+        // the walks of these tests start at the guardhouse (beat 1); the harbour before it is walked by TestHarbour
+        player.SetSpawn(st::kRooms[st::RoomIndex("guardhouse")].entry);
         player.Respawn();
     }
 
@@ -1711,19 +1712,20 @@ void TestAnchors()
     World w;
     st::AnchorSet anchors;
     const int terrace = Room("terrace");
-    CHECK(st::AnchorSet::AnchorOf(terrace) == 0 && Near(anchors.RespawnPoint(terrace).z, st::kRooms[terrace].entry.z, 1e-5f));
+    const int first = st::AnchorSet::AnchorOf(terrace);
+    CHECK(first == 1 && Near(anchors.RespawnPoint(terrace).z, st::kRooms[terrace].entry.z, 1e-5f));
     int lit = -1;
     for (int i = 0; i < 360 && lit < 0; ++i)
     {
         w.Frame(Keys(1.0f), kNorth);
         lit = anchors.Update(w.player);
     }
-    CHECK(lit == 0 && anchors.Lit(0) && !anchors.Lit(1));
-    CHECK(Near(anchors.RespawnPoint(terrace).x, st::kAnchors[0].stand.x, 1e-5f) && Near(anchors.RespawnPoint(terrace).z, st::kAnchors[0].stand.z, 1e-5f));
+    CHECK(lit == first && anchors.Lit(first) && !anchors.Lit(0) && !anchors.Lit(first + 1));
+    CHECK(Near(anchors.RespawnPoint(terrace).x, st::kAnchors[first].stand.x, 1e-5f) && Near(anchors.RespawnPoint(terrace).z, st::kAnchors[first].stand.z, 1e-5f));
     CHECK(Near(anchors.RespawnPoint(Room("courtyard")).x, st::kRooms[Room("courtyard")].entry.x, 1e-5f)); // a room without a lamp
     SceneObject table[8] = {};
-    CHECK(anchors.AddDraw(table, 0, 8) == st::kAnchorCount && table[0].glow > 1.0f && table[1].glow < 0.5f);
-    CHECK(table[0].layerMask == kLayerBoth && st::AddRespawnRing({0, 0, 0}, 0.2f, table, 0, 8) == 1 && st::AddRespawnRing({0, 0, 0}, -1.0f, table, 0, 8) == 0);
+    CHECK(anchors.AddDraw(table, 0, 8) == st::kAnchorCount && table[first].glow > 1.0f && table[0].glow < 0.5f);
+    CHECK(table[first].layerMask == kLayerBoth && st::AddRespawnRing({0, 0, 0}, 0.2f, table, 0, 8) == 1 && st::AddRespawnRing({0, 0, 0}, -1.0f, table, 0, 8) == 0);
     // a pedestal is the same in both layers (both, and a trace of light: not the stone of the layer)
     int pedestals = 0;
     for (const SceneObject& o : st::kStageStatics)
@@ -1952,6 +1954,52 @@ struct Hand
     {
     }
 };
+
+/// Beat 0 of the prologue (docs/LEVEL_DESIGN.md 6.1): the game starts on the quay; the stair between the harbour walls leads up
+/// to the south door of the guardhouse; the sea is a fall; the harbour walls are out of reach.
+void TestHarbour()
+{
+    World w;
+    w.PlaceFeet(st::kRooms[st::kStartRoom].entry);
+    CHECK(std::string_view(st::kRooms[st::RoomAt(w.player.Feet())].name) == "quay" && w.player.Grounded());
+    // in both layers: along the quay, up the stair, through the south door, out of the north arch onto the terrace
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World u = w;
+        u.layer = layer;
+        CHECK(u.WalkPath({{0.0f, kFloorY, -50.0f}, {0.0f, kFloorY, -45.0f}, {0.0f, kFloorY, -26.0f}}) && u.At(0.0f, st::kTerraceY, -26.0f, 0.4f));
+        CHECK(st::RoomAt(u.player.Feet()) == Room("sea stair"));
+        CHECK(u.WalkPath({{0.0f, kFloorY, -22.0f}, {0.0f, kFloorY, -17.0f}}) && st::RoomAt(u.player.Feet()) == Room("terrace"));
+    }
+    // off the edge of the quay into the sea: a fall (below the fall line of the quay), in both layers
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World f = w;
+        f.layer = layer;
+        f.PlaceFeet({10.0f, st::kHarbourY, -48.0f});
+        float lowest = 1000.0f;
+        for (int i = 0; i < 270; ++i)
+        {
+            f.Frame(Keys(1.0f), kNorth);
+            lowest = f.player.Feet().y < lowest ? f.player.Feet().y : lowest;
+        }
+        CHECK(lowest < st::FallLine(Room("quay")));
+    }
+    // the harbour walls beside the stair: a jump sideways from the stair or the landing stays between them (in the room of
+    // the stair, on its floor)
+    for (float z : {-44.0f, -36.0f, -30.0f, -26.0f})
+    {
+        const float y = z > st::kSeaStairTop ? st::kTerraceY : st::kHarbourY + (st::kTerraceY - st::kHarbourY) * (z - st::kQuayZ1) / (st::kSeaStairTop - st::kQuayZ1);
+        for (float side : {-1.0f, 1.0f})
+        {
+            World j = w;
+            j.JumpFrom({side, y + 0.02f, z}, {side, 0.0f, 0.0f}, 0.2f);
+            CHECK(std::fabs(j.player.Feet().x) < st::kSeaStairHalf + 0.05f && j.player.Grounded() && st::RoomAt(j.player.Feet()) == Room("sea stair"));
+        }
+    }
+    // the stair is a walk: at most 27 degrees
+    CHECK(std::atan2(st::kTerraceY - st::kHarbourY, st::kSeaStairTop - st::kQuayZ1) * 180.0f / 3.14159265f <= 27.0f);
+}
 
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
 void TestRecovery()
@@ -2198,6 +2246,7 @@ int main()
     TestRooms();
     TestRecovery();
     TestCityState();
+    TestHarbour();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

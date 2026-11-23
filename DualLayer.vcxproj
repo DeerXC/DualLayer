@@ -136,6 +136,7 @@
     <ClInclude Include="src\scene\StageLights.h" />
     <ClInclude Include="src\scene\Terrain.h" />
     <ClInclude Include="src\scene\SceneData.h" />
+    <ClInclude Include="src\scene\Scenery.h" />
   </ItemGroup>
   <ItemGroup>
     <!-- shaders are compiled at run time by the game (hot reload comes later): VS must NOT compile them -->

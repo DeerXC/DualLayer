@@ -82,7 +82,7 @@ It starts from any PowerShell, finds the project and the Visual Studio build too
 2. a full rebuild of `Debug | x64` and `Release | x64` (Release treats warnings as errors), then a check that the exe was
    written by this build and is newer than every source file. An unzipped file can carry an old time stamp, and an
    incremental build would then keep the old exe. `-Fast` builds incrementally; the time check still runs;
-3. the game, with a fresh `logs\dual.log`: it starts in the guardhouse, walks out through its arch, jumps with Space held, switches walking and
+3. the game, with a fresh `logs\dual.log`: it starts on the quay of the harbour, walks along it, jumps with Space held, switches walking and
    flying, switches layers (also during a resize), turns collision off and on, closes, and reads the title bar and the log
    (no error, the ripple pictures were made, a normal end, no fall, the jump height). It presses keys for about 35 seconds:
    the keyboard and the mouse must stay untouched. No key is left down, even when the script is stopped;
@@ -109,7 +109,7 @@ seen".
 
 | No. | Do | Expected |
 |---|---|---|
-| E-1 | start, look north; Tab | in the guardhouse; its arch frames the cathedral and the beacon; no D3D11 / DXGI message in the output window. A: a warm evening, sandstone, a light haze, the iron gate shut. B: a cold grey light, dark wet stone with moss on top faces, a thick fog, the wall broken open where the gate was |
+| E-1 | start, look north; Tab | on the quay of the harbour: the stair between two walls up to the guardhouse, the town wall, the bell tower over the town (whole in A, a stump in B); boats and ships in A, a wreck in B; no D3D11 / DXGI message in the output window |
 | E-2 | Tab, then Tab again during the ripple | a ring opens from the centre and the other layer shows inside it; the second Tab turns it round without a jump |
 | E-3 | at the gap: onto the beam of B; jump, Tab in the air | the body lands on the planks of A; at their end the courtyard is seen from above |
 | E-4 | in the courtyard, in A, push the block west | refused; the outline of the blue wall flashes on the floor in both layers; no blue box appears in A |
@@ -151,6 +151,8 @@ seen".
 | E-40 | take the north seal, then stay in A for about 6 s | evening turns to night in A (a dark blue sky, a cool light); B does not change |
 | E-41 | take the light on the floor of the pool (B), then look at the south-west corner of the pool in B and in A | in B pale glowing steps lead up out of the pool there; in A there is nothing; the light inside the gate brings a pale bench beside the breach (B) |
 | E-42 | the courtyard from the overlook, then inside it, in A and in B; push the crate | flagstones with joints; a blind arcade on three walls; in A stacks of crates as walls, in B fallen masonry with a broken top, moss in a few joints and a broken string course; the crate (wood, three iron bands) slides from flagstone to flagstone; the plate is brass and brightens when pressed; nothing of the arcade is in the way |
+| E-43 | walk off the quay into the sea; climb the stair and jump sideways at its middle and at the landing | the sea is a fall back to the lantern of the quay; a sideways jump on the stair stays between its walls |
+| E-44 | from the balcony of the cathedral and from the terrace, look east and round the town | the bell tower beside the square (64 m, a ring of lamps, a belfry, a stepped spire) in A; in B a stump of 24 m and its top lying on the ground to the south in three pieces, houses gone under it; a town wall with towers round the town; doors on the houses and lit windows in A |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
