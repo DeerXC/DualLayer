@@ -17,6 +17,9 @@
 //                         reaches it, after the prism has moved the cage out of B and the step into B.
 //   5 "under the courtyard"  in the middle of the cellar, under the puzzle that the player solved at the start: the place is
 //                         known, the side is new.
+//   6 "the bottom of the middle lock"  on the bed of the middle basin of the lock walk. In A it lies under the water; in B
+//                         the basin is dry and its stair leads down to it: the lesson of the canal bed, a third time, in a
+//                         room of its own.
 // A light is taken when one of the three balls of the body touches it. Taken lights stay taken for the rest of the run (R
 // and a fall do not bring them back). With every light taken, the goal light changes its colour.
 // Drawn:     every light not yet taken, in both layers, as a small turning sphere. Never solid.
@@ -50,6 +53,7 @@ inline constexpr HiddenLight kHiddenLights[] = {
     {{12.5f, kUndercroftY + 0.6f, 0.5f * (kBayZ0 + kBayZ1)}, "behind the bars"},
     {{-9.15f, kN2LedgeTop + 1.6f, 57.7f}, "in the wall of the north hall"},
     {{0.0f, kCellarY + 0.6f, 0.5f * (kCellarZ0 + kCellarZ1)}, "under the courtyard"},
+    {{39.0f, kFloorY + 2.0f - kBasinDepth + 0.6f, 27.0f}, "the bottom of the middle lock"},
 };
 inline constexpr int kHiddenLightCount = static_cast<int>(sizeof(kHiddenLights) / sizeof(kHiddenLights[0]));
 

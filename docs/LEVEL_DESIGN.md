@@ -322,6 +322,20 @@ questions: what grows on this ground, how thick, and who planted it.
 | Ivy on north faces, grass in cracks, figs in roofless houses, reeds in dry beds, shrubs over abandoned terraces | planned (with the rooms of each district) |
 | Never a plant where a puzzle of B needs a clear floor; plants are drawn only | rule |
 
+### 5.8 The districts round the map, as built
+
+Until each district is moved to its place in the plan (section 12), the town round the playable map carries the landmarks of
+its districts, drawn only and baked with the ground (`scene/Scenery.h`). Houses keep out of their places (`Stage::kZones`).
+
+| District | Where (x, z) | A | B |
+|---|---|---|---|
+| West: the market | -62 .. -34, 30 .. 60 | a paved square round the great well (a shaft 12 m across, a square spiral down its walls, water at its foot); stalls with awnings; the clock tower with its faces and the day bell | the shaft dry and the day bell lying at its foot; one stretch of the spiral fallen; the stalls bare frames with rotten crates; the top of the clock tower gone |
+| North: the theatre | -20 .. 20, 66 .. 100 | the orchestra, the stage with the scenery of the evening's play against its front wall, seven rows of seats rising north; the stage tower (a landmark) | the stage front low and broken, the upper rows of the west fallen into a heap, grass in the orchestra |
+| North: the graveyard | -19 .. 19, 112 .. 128, outside the north wall on the hillside | rows of stones with fresh flowers; the night bell tower with its roof; cypresses round it | the stones without flowers; one grave apart, with a stone lantern (9.2) |
+| East: the water tower | (59.5, 19.5), over the top of the lock walk | the shaft, an open stage with the dawn bell, the tank (a landmark seen from the square) | the shaft broken at 20 m, its top lying south of it |
+| The bell tower | (-36, 14), west of the west wing | 6.6.1 | its top fallen south along the line of the fall, over the houses there |
+| The streets | every other crossing of the plots | a lamp post with a lit lantern | the post only |
+
 ### 5.7 Art style: lantern and stone
 
 A style that the engine already draws, made into a rule set rather than a lack of detail.
@@ -429,11 +443,24 @@ the hillside along the lock walk, from the fountain stair (-1.5) to the water to
 | E1 the lock | the wheel (A only) raises the water; the crate rises with it and becomes the step onto the quay | yes (14.8) |
 | E2 the drift | the weir lets the crate drift in both worlds; in B it is the step into a breach: moved in A, used in B | yes, with the undercroft |
 | E2b the dry lock | the second lesson of the pushed crate, the other way round: in B the basin of a lock is dry and its floor is flagstones; the crate lies there and is pushed, in B, under the lip of the upper basin; then, in A, the wheel fills the basin and the crate floats up beside the lip: the step to the next basin. Pushed in B, lifted in A | no |
-| E3 the locks | basins two to four. One crate, three wheels: each lock lifts it one basin; the wheel of the next lock must not be turned before the crate is in it. In B the basins are dry rooms, one with a light | no |
+| E3 the locks | basins two to four. One crate, three wheels: each lock lifts it one basin; the wheel of the next lock must not be turned before the crate is in it. In B the basins are dry rooms, one with a light | built as the lock walk (6.4.1): the walk and the three locks, without the crate between them |
 | E4 the water tower | the top basin (+11); the stair of the tower stands in A, the top has fallen in B; the dawn bell hangs under the tank | no |
 
 Ways in and out: the fountain stair from the square; the cistern (B) from the canal bed; the hill lane to the theatre; the
 walk of A along the aqueduct.
+
+#### 6.4.1 The lock walk (E3, as built)
+
+A door in the east wall of the east hall opens onto a walk that climbs east beside three locks to a top terrace under the
+water tower (room `lock walk`). Four terraces (floors -1, +1, +3, +5) are joined by stairs that climb along X (27 degrees);
+south of the first three, a basin each, 2.5 m deep. In A each basin holds water 0.6 m under its terrace, fed from the
+aqueduct and each from the one above (`Stage::kLockWaters`, `kWaterFeeds`); a body that goes in comes back at the lamp of the
+locks, and a switch into it is refused. In B the basins are dry rooms, each with a stair back up at its east end; on the bed
+of the middle one lies a hidden light (the lesson of the canal bed in a room of its own). Between two basins a lock head as
+high as the next terrace. Walls 8 m high close the walk on the north (the backs of houses), the east and the south.
+
+What waits: the crate carried from lock to lock (the puzzle of E3), E4 inside the water tower, and E2b (the dry lock). The
+dawn bell hangs in the water tower but is still rung by the east seal (1.2).
 
 ### 6.5 North: the theatre and the graveyard (the prism)
 
@@ -454,8 +481,8 @@ the stage and the seats (6.6).
 
 #### 6.6.1 The bell tower of the current build
 
-Until the square is rebuilt (step 6) the cathedral stays in the pool, and the bell tower stands beside the square to the east,
-at (35, 26), clear of every room (`scene/Scenery.h`, drawn only). A: an octagonal shaft to 40 m, a ring of twelve lamps at
+Until the square is rebuilt (step 6) the cathedral stays in the pool, and the bell tower stands west of the west wing, at
+(-36, 14) (moved from the east of the square, where the lock walk now runs), clear of every room (`scene/Scenery.h`, drawn only). A: an octagonal shaft to 40 m, a ring of twelve lamps at
 30 m, a belfry of eight piers with its bell, a spire in eight tiers to 64 m. B: the shaft broken at 24 m with broken teeth; its
 top fell south and lies on the ground in three pieces along the line of the fall (the shaft, 16 m; the belfry, tumbled; the
 spire, tier after tier), the cracked bell at its foot, as the campanile of St Mark's fell into a heap along its own line in
@@ -534,7 +561,7 @@ appear only after a bell, so each bell sends the player back. The numbers are th
 | 7 | In the wall of the well | west | -47.6, -10, 31 | B | first | the orb dropped onto the other socket | the chain of the bucket, a ladder up the shaft |
 | 8 | In the clockwork | west | -30, 12.5, 46 | A | after the day bell | machinery runs only in A | the stair of the clock tower |
 | 9 | The bed of the canal | east | 18, -3.4, 31.4 | B | first | the lesson of the pool, again | a footbridge over the canal |
-| 10 | The bottom of the fourth lock | east | 49, 5.8, 28.8 | B | first | a lock is a room when it is dry | the fallen part of the aqueduct |
+| 10 | The bottom of the fourth lock (built as the bottom of the middle lock, 6.4.1) | east | 49, 5.8, 28.8 | B | first | a lock is a room when it is dry | the fallen part of the aqueduct |
 | 11 | Under the stage | north | 9, 0.6, 47.6 | B | first | one prism, two things | the upper seats of the theatre |
 | 12 | The keeper's lantern | north | 10, 23.4, 85 | B | after the night bell | a light that shines only after dark | the stair of the night bell tower |
 
@@ -654,7 +681,7 @@ until then the current map stays playable.
 | 4 city state | the bells as data: the water levels, the machinery, the night of A; memory fragments; the search for skips per set of bells | built 2026-11-23 (12.3) |
 | 5 prologue | the harbour, the ridge road, the gate, the barbican, the wall walk | the harbour built 2026-11-23 (6.1.2); the rest waits for the move of the prologue |
 | 6 square and tower outside | the round square, the fallen bell, the tower in both worlds, the ring of lamps | the tower in both worlds and the ring of lamps built 2026-11-23, east of the square (6.6.1); the square itself waits |
-| 7 east | the lock walk, E3, E4, the dawn bell, the aqueduct walk | |
+| 7 east | the lock walk, E3, E4, the dawn bell, the aqueduct walk | the lock walk built 2026-11-23 (6.4.1); the water tower drawn (5.8); the puzzle of E3, E4 and E2b wait |
 | 8 west | the well, W1 .. W4 round it, the day bell, the bucket lift | |
 | 9 north | the theatre bowl, N1 .. N4, the cliff path, the graveyard, the night bell | |
 | 10 links | the cistern, the fall of the theatre, the fallen tower | |
@@ -699,7 +726,7 @@ until then the current map stays playable.
 | Fun cannot be proved | each district played as grey boxes before polish; where a player stops decides the changes |
 | Draw calls | the static batch per layer, the terrain in one mesh; only moving things one by one |
 
-### 12.3 Steps 1 to 6, as built
+### 12.3 Steps 1 to 7, as built
 
 | Step | What the code does | Where |
 |---|---|---|
@@ -708,6 +735,7 @@ until then the current map stays playable.
 | 3 | `SceneObject::yaw` (a fixed turn round Y after the tilt; drawn, baked and solid alike); the houses of the town turned to their streets and coloured by quarter, a quarter of them shells in B; plinths and cornices on the city walls, the cornices and a quarter of the merlons broken in B; arched heads in the openings of the square | `scene/SceneData.h`, `scene/Collision.h`, `render/StaticBatch.h`, `Stage::SkylinePlots`, `Stage::WallParts`, `Shapes::ArchHead` |
 | 4 | the seals ring the bells (1.2): the dawn bell raises the water of A, the day bell turns the machinery (the lock), the night bell brings the night of A; two memory fragments (the steps of the fountain, the bench by the gate), solid in B once their light is taken | `scene/CityState.h`, `Waterworks::SetRaise`, `Canal::SetMachinery`, `Models::SetNight` |
 | 5, 6 (part) | the harbour of beat 0 (6.1.2), the start on its quay; the town wall round the town; the bell tower in both worlds (6.6.1); doors and windows on every house (in A some lit), all of it drawn only and baked with the ground | `Stage.h` (the quay, the stair, the rooms `quay` and `sea stair`, the lamp of the quay), `scene/Scenery.h`, `Landscape::BakeWorld` |
+| 7 (part), the town | the lock walk (6.4.1); the districts round the map (5.8): the market and its well, the theatre, the graveyard and the night bell tower, the water tower, street lamps; the bell tower moved west | `Stage.h` (the lock walk, `kZones`, the well pit), `scene/Scenery.h`, `Shapes::StairsX` |
 
 ## 13. Decisions
 
@@ -728,6 +756,7 @@ until then the current map stays playable.
 | 2026-11-23 | steps 1 to 4 built (12.3). The ground under the current map: the town levelled at the street, pits below every fall line where the map has no floor (a fall stays a fall), the sea filling them, footings at their edges; the ground is solid, and a test proves that no body reaches it. Plants by the ground they grow on (5.6). Houses turned to their streets, coloured by quarter, shells in B. In the current build the seals ring the bells |
 | 2026-11-23 | the block puzzle stays and becomes part of the town (6.1.1): the block is the crate of the canal, pushed on the flagstones of a cloister; walls of A are stacked crates, walls of B fallen masonry, the plate brass. The pushed crate gets a second room, the other way round (E2b: pushed in B, lifted in A) |
 | 2026-11-23 | the map toward the plan, without moving the playable rooms: the game starts on the quay of a harbour under the town wall (6.1.2); a town wall rings the town; the bell tower stands beside the square, whole in A and fallen on the ground in B (6.6.1); the houses get doors and windows. The move of the prologue, the round square and the districts stay for their steps |
+| 2026-11-23 | the east district starts to move: the lock walk climbs east from the east hall beside three locks (6.4.1). The rest of the town carries the landmarks of its districts as scenery (5.8), so the town reads as the planned city before its rooms are rebuilt; the bell tower moves west to make room for the locks |
 
 ## 14. The vertical city
 
@@ -771,7 +800,7 @@ Whole red or blue boxes are gone; red and blue are only edges and outlines.
 
 A stone lamp that looks the same in both worlds. It is lit the first time a body passes it; from then on a fall or R in its
 room comes back beside it, and a ring spreads from where the body appears. Rooms without a lamp have a carved tile at their
-entry. Seven lamps in the current build: the quay, the terrace, before the gap, the square, the archive, the canal, the bell tower;
+entry. Eight lamps in the current build: the quay, the locks, the terrace, before the gap, the square, the archive, the canal, the bell tower;
 twelve in the plan (section 8).
 
 ### 14.6 The prologue

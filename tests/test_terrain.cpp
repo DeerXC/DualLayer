@@ -801,7 +801,7 @@ void TestScenery()
     // nothing of the scenery stands where a body can land on it or walk into it: each box is 4.5 m or more from every room, or
     // beside it (not over it) with its top out of reach of a jump from the floor of the room
     std::vector<SceneObject> scenery;
-    st::Scenery(scenery);
+    st::Scenery([](float x, float z) { return st::TheLand().Height(x, z); }, scenery);
     int near = 0;
     int bad = 0;
     for (const SceneObject& o : scenery)

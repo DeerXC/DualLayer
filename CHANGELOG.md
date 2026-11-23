@@ -265,6 +265,24 @@
   `tests/test_terrain.cpp` (167; new `TestScenery`: 2019 boxes, none within reach of a room: caught with the boats 3 m from the
   quay; the bell tower 64 m in A and 28 m in B, its fallen pieces on the ground; the houses under the fall in A only; under the
   map, no escape (10188 walks and jumps) and immersion with the harbour), `tests/test_reach.cpp` (0 skips, 150208 jumps).
+- Made (2026-11-23, the lock walk, docs/LEVEL_DESIGN.md 6.4.1): a door in the east wall of the east hall opens onto a walk that
+  climbs east on four terraces joined by stairs along X (`Shapes::StairsX`: the stairs of `Stairs` turned by a quarter) beside
+  three locks; water in A (`Stage::kLockWaters`, fed from the aqueduct, each from the one above), dry rooms in B with a stair
+  back up each; a hidden light on the bed of the middle lock; the lamp of the locks (the eighth); walls 8 m high round it. Room
+  `lock walk`. The landmark of the east is now the tank of the water tower.
+- Made (2026-11-23, the districts round the map, 5.8): `scene/Scenery.h` draws the market of the west (a paved square round the
+  great well, a shaft with a square spiral, stalls, the clock tower with the day bell; dry in B with the bell at its foot), the
+  theatre of the north (the orchestra, the stage, seven rows of seats; broken in B), the graveyard outside the north wall with
+  the night bell tower and a lone grave with a lantern in B, the water tower over the locks (broken in B), and street lamps
+  (lit in A). `Stage::kZones` keeps the houses out of the districts; the great well is a pit. The bell tower moves west of the
+  west wing. Cypresses round the graveyard; the town is levelled to z 104, the hillside starts behind the north wall; the far
+  field reaches 368 m east and west.
+- Checked (2026-11-23): `tests/test_stage.cpp` (new `TestLockWalk`: walked up and down in both layers; the walls hold a running
+  jump from the top terrace; each lock water in A and a dry room in B with its stair; no jump from a bed reaches its terrace;
+  the light of the middle lock taken in B only), `tests/test_terrain.cpp` (161: 2029 scenery boxes, none within reach of a room;
+  no escape from 2193 places, 12624 walks and jumps; under the map 13404 points), `tests/test_reach.cpp` (0 skips, 171584 jumps),
+  `tests/test_hints.cpp` (371: the water tower seen from the square), `tests/test_lights.cpp` (47). The north wall of the walk
+  lowered to 1 m over the top terrace is caught by the search for skips and the search for escapes.
 - Next: play the whole map once and fix what is found; the theatre, the graveyard and the rooms of the cathedral
   (docs/LEVEL_DESIGN.md, 14.10); then the rendering steps (shadows, the water, the sky).
 

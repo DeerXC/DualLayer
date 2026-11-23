@@ -328,6 +328,25 @@ inline constexpr float kUndercroftTop = 1.0f;        // the top of the opening i
 inline constexpr float kBreachTop = 2.2f;            // the top of the breach and of the passage: a body jumps in from the crate
 inline constexpr float kCanalParapetX1 = 18.6f;      // the parapets on the west end of the hall floor and of the quay:
                                                      // no jump from them, even one that turns in the air, ends in the breach
+// the lock walk (docs/LEVEL_DESIGN.md 6.4, E3 as built): from a door in the east wall of the east hall a walk climbs east beside
+// three locks to a top terrace under the water tower. Four terraces joined by stairs that climb along X; south of them the
+// basins, each 2.5 m deep, its water 0.6 m under its terrace in A, dry in B with a stair back up at its east end; between two
+// basins a lock head, as high as the next terrace. High walls close the walk on the north, the east and the south
+inline constexpr float kLockDoorZ0 = 33.6f;          // the door in the east wall of the east hall, 2.2 m high
+inline constexpr float kLockDoorZ1 = 35.6f;
+inline constexpr float kLockWalkZ0 = 31.5f;          // the walk, z 31.5 .. 36
+inline constexpr float kLockWalkZ1 = 36.0f;
+inline constexpr float kBasinZ0 = 25.0f;             // the basins, z 25 .. 31.5
+inline constexpr float kLockWallTop = 8.0f;          // the walls round the walk and the basins
+inline constexpr float kLockEast = 63.5f;            // the east wall of the top terrace
+inline constexpr int kLockCount = 3;
+/// Terrace k (0 .. 3): x from, x to, floor. Stair k climbs from terrace k to terrace k + 1 over the 4 m between them.
+inline constexpr float kTerraceX0[4] = {24.5f, 36.0f, 46.0f, 56.0f};
+inline constexpr float kTerraceX1[4] = {32.0f, 42.0f, 52.0f, kLockEast};
+inline constexpr float kTerraceFloor[4] = {kFloorY, kFloorY + 2.0f, kFloorY + 4.0f, kFloorY + 6.0f};
+inline constexpr float kBasinDepth = 2.5f;           // the bed of basin k: 2.5 m under terrace k
+inline constexpr float kLockWaterBelow = 0.6f;       // its water (A): 0.6 m under terrace k
+inline constexpr float kBasinStairWidth = 1.5f;      // the stair out of a dry basin, at its east end
 inline constexpr float kDriftX = 16.0f;              // the centre of the crate once it has drifted under the breach
 // the cellar (docs/LEVEL_DESIGN.md, 14.8): the fourth link of the ring, from the canal bed of the east district west under the
 // courtyard to the lower room of the west wing. It carries the water of the canal: in A it is flooded and an iron sluice panel
@@ -393,6 +412,9 @@ inline constexpr float kFallBelowRoom = 6.0f;   // UNITS: metres: a body this fa
 inline constexpr float kPlainY = kFloorY - 0.05f; ///< the levelled ground of the town, just under the street floors
 inline constexpr float kPitY = kFloorY - 15.0f;   ///< -16: the floor of a pit, below every fall line (the lowest is -12)
 inline constexpr float kSeaY = kFloorY - 8.0f;    ///< -9: the sea; it fills the pits that open to it
+inline constexpr float kWellX = -48.0f; ///< the great well of the market
+inline constexpr float kWellZ = 44.0f;
+inline constexpr float kWellR = 6.0f;
 struct Pit
 {
     float x0, z0, x1, z1;
@@ -406,7 +428,9 @@ inline constexpr Pit kPits[] = {
     {-24.5f, 1.5f, -9.5f, 22.0f, "under the lower west"},           // the lower room, the vault, the mezzanine, the ramps
     {-24.0f, 24.5f, -15.0f, 29.5f, "the trench"},
     {-9.6f, 8.8f, 21.2f, 16.2f, "under the cellar"},
-    {14.8f, 13.8f, 24.2f, 29.8f, "under the canal"},                // the canal, its bed, the east leg of the cellar
+    {14.8f, 13.8f, 24.2f, 29.8f, "under the canal"},
+    {24.0f, 24.5f, 56.5f, 31.6f, "the locks"},                        // the basins of the lock walk
+    {kWellX - kWellR, kWellZ - kWellR, kWellX + kWellR, kWellZ + kWellR, "the great well"}, // the shaft of the market (drawn)                // the canal, its bed, the east leg of the cellar
     {5.0f, 10.0f, 17.5f, 21.5f, "east of the east path"},          // the path on the courtyard wall is open to the east
     {9.5f, 22.0f, 14.5f, 26.4f, "behind the east wall of the square"}, // a closed space between the square and the canal
     {1.5f, 40.5f, 9.5f, 43.5f, "between the square and the north hall"}, // under the south edge of landing 2
@@ -688,7 +712,30 @@ inline constexpr SceneObject kFixed[] = {
     Span(kCellarEastX0, kCellarCeiling, 22.0f, kCellarEastX1, kQuayY, kCanalSouth, kGrey, kLayerBoth, 1.0f), // cellar
     Span(kCellarEastX0, kCanalBed - 0.2f, 22.0f, kCellarEastX1, kCanalBed, kCanalSouth, kGrey, kLayerBoth, 1.0f),
     Floor(15.0f, kCanalSouth, 24.0f, kCanalNorth, kCanalBed),
-    Wall(24.0f, kCanalBed - 0.2f, 21.5f, 24.5f, kCityWallTop, 40.5f),
+    Wall(24.0f, kCanalBed - 0.2f, 21.5f, 24.5f, kCityWallTop, kLockDoorZ0),                          // the east wall of the
+    Wall(24.0f, kCanalBed - 0.2f, kLockDoorZ1, 24.5f, kCityWallTop, 40.5f),                           // hall, with the door
+    Wall(24.0f, kFloorY + 2.2f, kLockDoorZ0, 24.5f, kCityWallTop, kLockDoorZ1),                       // to the lock walk
+    // ---- the lock walk (E3): the terraces, solid down to the pit of the basins
+    Span(kTerraceX0[0], kPitY, kLockWalkZ0, kTerraceX1[0], kTerraceFloor[0], kLockWalkZ1, kGrey, kLayerBoth, 1.0f),
+    Span(kTerraceX0[1], kPitY, kLockWalkZ0, kTerraceX1[1], kTerraceFloor[1], kLockWalkZ1, kGrey, kLayerBoth, 1.0f),
+    Span(kTerraceX0[2], kPitY, kLockWalkZ0, kTerraceX1[2], kTerraceFloor[2], kLockWalkZ1, kGrey, kLayerBoth, 1.0f),
+    Span(kTerraceX0[3], kPitY, kBasinZ0, kTerraceX1[3], kTerraceFloor[3], kLockWalkZ1, kGrey, kLayerBoth, 1.0f), // the top terrace
+    // under each stair, the stone it rests on
+    Span(kTerraceX1[0], kPitY, kLockWalkZ0, kTerraceX0[1], kTerraceFloor[0], kLockWalkZ1, kStone, kLayerBoth),
+    Span(kTerraceX1[1], kPitY, kLockWalkZ0, kTerraceX0[2], kTerraceFloor[1], kLockWalkZ1, kStone, kLayerBoth),
+    Span(kTerraceX1[2], kPitY, kLockWalkZ0, kTerraceX0[3], kTerraceFloor[2], kLockWalkZ1, kStone, kLayerBoth),
+    // the lock heads between the basins, as high as the next terrace
+    Span(kTerraceX1[0], kPitY, kBasinZ0, kTerraceX0[1], kTerraceFloor[1], kLockWalkZ0, kStone, kLayerBoth),
+    Span(kTerraceX1[1], kPitY, kBasinZ0, kTerraceX0[2], kTerraceFloor[2], kLockWalkZ0, kStone, kLayerBoth),
+    Span(kTerraceX1[2], kPitY, kBasinZ0, kTerraceX0[3], kTerraceFloor[3], kLockWalkZ0, kStone, kLayerBoth),
+    // the beds of the basins
+    Span(kTerraceX0[0], kPitY, kBasinZ0, kTerraceX1[0], kTerraceFloor[0] - kBasinDepth, kLockWalkZ0, kGrey, kLayerBoth, 1.0f),
+    Span(kTerraceX0[1], kPitY, kBasinZ0, kTerraceX1[1], kTerraceFloor[1] - kBasinDepth, kLockWalkZ0, kGrey, kLayerBoth, 1.0f),
+    Span(kTerraceX0[2], kPitY, kBasinZ0, kTerraceX1[2], kTerraceFloor[2] - kBasinDepth, kLockWalkZ0, kGrey, kLayerBoth, 1.0f),
+    // the high walls round it: north (the backs of the houses), east, south
+    Span(kTerraceX0[0], kPitY, kLockWalkZ1, kLockEast + 0.5f, kLockWallTop, kLockWalkZ1 + 0.5f, kStone, kLayerBoth),
+    Span(kLockEast, kPitY, kBasinZ0 - 0.5f, kLockEast + 0.5f, kLockWallTop, kLockWalkZ1 + 0.5f, kStone, kLayerBoth),
+    Span(kTerraceX0[0], kPitY, kBasinZ0 - 0.5f, kLockEast + 0.5f, kLockWallTop, kBasinZ0, kStone, kLayerBoth),
     Wall(14.5f, kFloorY, 40.0f, kStairsX0, kCityWallTop, 40.5f),                                      // north, with the door of
     Wall(kStairsX1, kFloorY, 40.0f, 24.5f, kCityWallTop, 40.5f),                                      // the stairs from the lookout
     Wall(kStairsX0, kOpeningTop, 40.0f, kStairsX1, kCityWallTop, 40.5f),
@@ -816,7 +863,7 @@ inline const std::array<SceneObject, kArcadeCount> kArcade = BuildArcade();
 
 /// Pieces of scene/Shapes.h: the breach in the north wall of the west hall (5 boxes), the slope of the stairs from the lookout
 /// (1), and the slopes of the two stairs down into the pool of the square (2). Their steps are drawn in kDecor.
-inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1 + 1;
+inline constexpr int kPieceCount = 5 + 1 + 2 + 1 + 1 + 1 + 3 + kLockCount;
 /// The two stairs down into the pool: south-east (from the south rim, beside the east rim) and north-west (from the north rim,
 /// beside the west rim), so that the pool is entered at its two opposite corners.
 inline void PoolStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
@@ -839,6 +886,20 @@ inline void SeaStair(std::vector<SceneObject>& solid, std::vector<SceneObject>& 
 {
     shapes::Stairs(-kSeaStairHalf, kSeaStairHalf, kQuayZ1, kHarbourY, kSeaStairTop, kTerraceY, shapes::kStoneLight, solid, drawn);
 }
+/// The three stairs of the lock walk (along X, from terrace k to terrace k + 1) and the stair out of each dry basin (along Z,
+/// from its bed up to its terrace, at its east end).
+inline void LockStairs(std::vector<SceneObject>& solid, std::vector<SceneObject>& drawn)
+{
+    for (int k = 0; k < 3; ++k)
+    {
+        shapes::StairsX(kLockWalkZ0, kLockWalkZ1, kTerraceX1[k], kTerraceFloor[k], kTerraceX0[k + 1], kTerraceFloor[k + 1], shapes::kStoneLight, solid, drawn);
+    }
+    for (int k = 0; k < kLockCount; ++k)
+    {
+        shapes::Stairs(kTerraceX1[k] - kBasinStairWidth, kTerraceX1[k], kBasinZ0 + 0.5f, kTerraceFloor[k] - kBasinDepth, kLockWalkZ0, kTerraceFloor[k],
+                       shapes::kStoneLight, solid, drawn);
+    }
+}
 inline std::array<SceneObject, kPieceCount> BuildPieces()
 {
     std::vector<SceneObject> v;
@@ -849,6 +910,7 @@ inline std::array<SceneObject, kPieceCount> BuildPieces()
     DitchStairs(v, steps);
     CanalStairs(v, steps);
     SeaStair(v, steps);
+    LockStairs(v, steps);
     std::array<SceneObject, kPieceCount> out{};
     for (std::size_t i = 0; i < out.size() && i < v.size(); ++i)
     {
@@ -875,6 +937,7 @@ inline constexpr AnchorDesc kAnchors[] = {
     {{-5.0f, kFloorY, 22.6f}, {-5.0f, kFloorY, 23.7f}, "square", "the square"},
     {{-16.0f, kFloorY, 38.6f}, {-16.0f, kFloorY, 37.3f}, "west hall", "the archive"},
     {{23.2f, kFloorY, 33.0f}, {21.9f, kFloorY, 33.0f}, "east hall", "the canal"},
+    {{29.0f, kFloorY, 35.5f}, {29.0f, kFloorY, 34.2f}, "lock walk", "the locks"},
     {{-7.6f, kFloorY, 52.0f}, {-6.3f, kFloorY, 52.0f}, "north hall", "the bell tower"},
 };
 inline constexpr int kAnchorCount = static_cast<int>(sizeof(kAnchors) / sizeof(kAnchors[0]));
@@ -1001,6 +1064,7 @@ inline constexpr Room kRooms[] = {
     {"east upper", kCourtEast, 2.0f, 2.0f, 24.0f, 7.0f, 23.0f, {20.0f, kEastHighY, 6.0f}, false},
     {"north hall", -9.0f, -2.0f, kHubNorth, 9.0f, 8.0f, 60.0f, {0.0f, kFloorY, 42.0f}, false},
     {"gallery", kCourtEast, 0.5f, 23.0f, kHubEast, 2.5f, 34.0f, {8.0f, kGalleryY, 28.0f}, false},
+    {"lock walk", 24.0f, kTerraceFloor[0] - kBasinDepth - 0.5f, kBasinZ0, kLockEast, kTerraceFloor[3] + 1.5f, kLockWalkZ1, {26.5f, kFloorY, 34.5f}, false},
     {"quay", kQuayX0, kHarbourY - 0.5f, kQuayZ0, kQuayX1, kHarbourY + 0.5f, kQuayZ1, {6.0f, kHarbourY, -52.5f}, false},
     {"sea stair", -kSeaStairHalf, kHarbourY - 0.5f, kQuayZ1, kSeaStairHalf, kTerraceY + 0.5f, kTerraceSouth, {0.0f, kTerraceY, -26.0f}, false},
 };
@@ -1223,8 +1287,8 @@ constexpr SceneObject Landmark(ShapeKind shape, float x, float y, float z, float
 inline constexpr SceneObject kLandmarks[] = {
     Span(-29.0f, kFloorY, 25.0f, -26.0f, 20.0f, 37.0f, kArchive, kLayerBoth),                       // west: the archive, a wall of shelves
     Span(-29.5f, 20.0f, 30.0f, -25.5f, 21.0f, 32.0f, kGold, kLayerBoth),                            // its gold crown
-    Landmark(ShapeKind::Torus, 29.0f, 15.0f, 31.0f, 6.0f, 1.5708f, 0.15f, Rgb{0.70f, 0.86f, 0.95f}), // east: the water ring, turning
-    Span(-2.5f, kFloorY, 63.0f, 2.5f, 21.0f, 67.0f, kStone, kLayerBoth),                            // north: the bell tower
+    Span(57.0f, 31.0f, 17.0f, 62.0f, 35.0f, 22.0f, Rgb{0.72f, 0.66f, 0.56f}, kLayerA),             // east: the tank of the water tower (A)
+    Span(-2.5f, kFloorY, 63.0f, 2.5f, 21.0f, 67.0f, kStone, kLayerBoth),                            // north: the stage tower of the theatre
     Landmark(ShapeKind::Sphere, 0.0f, 23.0f, 65.0f, 3.0f, 0.0f, 0.0f, kGold),                       // its bell
 };
 inline constexpr int kLandmarkCount = static_cast<int>(sizeof(kLandmarks) / sizeof(kLandmarks[0]));
@@ -1245,6 +1309,13 @@ inline constexpr shapes::Water kCellarWaters[] = {
     {kCellarSouthX0, kCellarZ0, kCellarEastX0, kCellarZ1, kCellarWater, kCellarWater - kCellarY},     // middle leg
     {kCellarSouthX0, kCellarWestZ0, kCellarSouthX1, kCellarZ0, kCellarWater, kCellarWater - kWestLowY}, // south leg
     {-9.5f, kCellarWestZ0, kCellarSouthX0, kCellarWestZ1, kCellarWater, kCellarWater - kWestLowY},     // west leg
+};
+
+/// The water of the three locks of the lock walk (A): 0.6 m under each terrace, down to its bed.
+inline constexpr shapes::Water kLockWaters[kLockCount] = {
+    {kTerraceX0[0], kBasinZ0, kTerraceX1[0], kLockWalkZ0, kTerraceFloor[0] - kLockWaterBelow, kBasinDepth - kLockWaterBelow},
+    {kTerraceX0[1], kBasinZ0, kTerraceX1[1], kLockWalkZ0, kTerraceFloor[1] - kLockWaterBelow, kBasinDepth - kLockWaterBelow},
+    {kTerraceX0[2], kBasinZ0, kTerraceX1[2], kLockWalkZ0, kTerraceFloor[2] - kLockWaterBelow, kBasinDepth - kLockWaterBelow},
 };
 
 /// The canal of the east district (scene/Canal.h): the crate floats 0.5 m out of the water; low, its top is 2.4 m under the
@@ -1294,6 +1365,9 @@ inline constexpr WaterFeed kWaterFeeds[] = {
     {"the trench", "the pool", kFloorY - 0.5f},      // a drain under the arcade, out through a culvert into the west trench
     {"the canal", "the aqueduct", kFloorY - 0.5f},   // the sluice of the lock, opened by the wheel
     {"the cellar", "the canal", kCellarWater},        // through the sluice panel under the quay
+    {"the upper lock", "the aqueduct", kFloorY + 4.0f - 0.6f}, // a spout from the aqueduct over the walk
+    {"the middle lock", "the upper lock", kFloorY + 2.0f - 0.6f}, // each lock fills the one below it
+    {"the lower lock", "the middle lock", kFloorY - 0.6f},
 };
 inline constexpr int kWaterFeedCount = static_cast<int>(sizeof(kWaterFeeds) / sizeof(kWaterFeeds[0]));
 
@@ -1517,14 +1591,30 @@ inline constexpr float kSkylineCell = 7.0f;     ///< UNITS: metres: one plot, a 
 inline constexpr float kSkylineStreet = 1.2f;
 inline constexpr Rgb kHouse{0.50f, 0.47f, 0.44f};
 
-// the bell tower east of the square and the line along which its top fell in B (scene/Scenery.h draws them)
-inline constexpr float kBellTowerX = 35.0f;  ///< the middle of the bell tower (east of the square, clear of every room)
-inline constexpr float kBellTowerZ = 26.0f;
+// the places of the districts that are drawn round the map (scene/Scenery.h, docs/LEVEL_DESIGN.md 5.8): no house stands there
+struct Zone
+{
+    float x0, z0, x1, z1;
+    const char* name;
+};
+inline constexpr float kTheatreX = 0.0f; ///< the middle of the orchestra; the seats rise north
+inline constexpr float kTheatreZ = 74.0f;
+inline constexpr float kWaterTowerX = 59.5f;
+inline constexpr float kWaterTowerZ = 19.5f;
+inline constexpr Zone kZones[] = {
+    {-62.0f, 30.0f, -34.0f, 60.0f, "the market"},
+    {-20.0f, 66.0f, 20.0f, 100.0f, "the theatre"},
+    {53.0f, 12.0f, 64.0f, 24.0f, "the water tower"},
+};
+
+// the bell tower west of the west wing and the line along which its top fell in B (scene/Scenery.h draws them)
+inline constexpr float kBellTowerX = -36.0f;  ///< the middle of the bell tower (west of the west wing, clear of every room)
+inline constexpr float kBellTowerZ = 14.0f;
 inline constexpr float kBellTowerR = 4.0f;   ///< UNITS: metres: the corner radius of its octagon
 inline constexpr float kBellTowerTop = 64.0f; ///< the tip of the spire (A)
 inline constexpr float kBrokenAt = 24.0f;    ///< B: the shaft ends here (with broken teeth above)
-inline constexpr float kFallZ1 = 21.0f;      ///< B: the line of the fall runs south from here to kFallZ0, at x kBellTowerX
-inline constexpr float kFallZ0 = -18.0f;
+inline constexpr float kFallZ1 = kBellTowerZ - 5.0f;      ///< B: the line of the fall runs south from here to kFallZ0, at x kBellTowerX
+inline constexpr float kFallZ0 = kBellTowerZ - 44.0f;
 
 /// The horizontal gap between two footprints (0 when they overlap).
 inline float FootprintGap(float ax0, float az0, float ax1, float az1, float bx0, float bz0, float bx1, float bz1)
@@ -1567,6 +1657,13 @@ inline bool PlotIsFree(float x0, float z0, float x1, float z1)
     for (const SceneObject& o : kLandmarks)
     {
         if (!clearOf(o, kSkylineFromBox))
+        {
+            return false;
+        }
+    }
+    for (const Zone& zone : kZones) // the districts drawn round the map
+    {
+        if (FootprintGap(x0, z0, x1, z1, zone.x0, zone.z0, zone.x1, zone.z1) < 0.5f)
         {
             return false;
         }
@@ -2089,6 +2186,10 @@ void ForEachWater(F f)
     {
         f(w);
     }
+    for (const shapes::Water& w : kLockWaters)
+    {
+        f(w);
+    }
 }
 
 /// True when a body whose feet are at `feet` in `layer` is under water.
@@ -2130,7 +2231,7 @@ inline int AddWaterForOrbs(SceneObject* out, int count, int capacity, const Wate
 
 inline constexpr Vec3 kMasterSluice{2.7f, kSummitY + 1.1f, 28.25f}; ///< the wheel on the balcony, beside the goal light
 inline constexpr int kWaterDrawCount = static_cast<int>(sizeof(kWaters) / sizeof(kWaters[0])) +
-                                       static_cast<int>(sizeof(kCellarWaters) / sizeof(kCellarWaters[0])) + 3 + 3;
+                                       static_cast<int>(sizeof(kCellarWaters) / sizeof(kCellarWaters[0])) + kLockCount + 3 + 3;
 
 /// Adds to a DRAWN table the water of A as it is now (the trench, the pool, the cellar; while the aqueduct runs, the water in
 /// its channel, the waterfall into the pool and the spill of the culvert) and the master sluice on the balcony (an iron wheel

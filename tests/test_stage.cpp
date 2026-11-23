@@ -31,6 +31,8 @@
 //      A flooded and closed by its sluice panels
 //  13. N2: no way onto the ledge before the prism (also with a switch in the air); after it, B by the step to the light
 //  14. the end: the master sluice drains every water of A, the canal and its crate
+//  15. the lock walk (E3): walked in both layers up its four terraces; its walls hold; each lock water in A and a dry room in
+//      B with a stair back up; the light of the middle lock taken in B only
 //   6. the rooms: every entry is in its own room and is a place to stand in both layers; the courtyard entry is a cell the
 //      block can never be in
 // The walks between the points of a path are played frame by frame (the body steers to each point). Returns 1 when a check
@@ -1773,6 +1775,11 @@ float WaterTopOf(std::string_view name)
     {
         return st::kCellarWater;
     }
+    if (name == "the lower lock" || name == "the middle lock" || name == "the upper lock")
+    {
+        const int k = name == "the lower lock" ? 0 : (name == "the middle lock" ? 1 : 2);
+        return st::kLockWaters[k].top;
+    }
     if (name == "the aqueduct")
     {
         return st::kAqueductBottom;
@@ -1783,7 +1790,7 @@ float WaterTopOf(std::string_view name)
 void TestWater()
 {
     // every water of A is fed, through a chain, by the aqueduct; each feed runs downhill
-    CHECK(st::kWaterFeedCount == st::kWaterCount + 2); // the static waters, the canal and the cellar
+    CHECK(st::kWaterFeedCount == st::kWaterCount + 2 + st::kLockCount); // the static waters, the canal, the cellar, the locks
     for (const st::WaterFeed& f : st::kWaterFeeds)
     {
         CHECK(Near(f.top, WaterTopOf(f.water), 1e-4f));
@@ -1929,7 +1936,7 @@ void TestRooms()
     const int last = Room("east hall");
     CHECK(st::CurrentRoom({0.0f, kFloorY, 30.0f}, false, last) == last);       // in the air: the last room
     CHECK(st::CurrentRoom({0.0f, kFloorY, 25.0f}, true, last) == Room("square")); // standing in the hub
-    CHECK(st::CurrentRoom({50.0f, kFloorY, 25.0f}, true, last) == last);      // standing in no room: the last one
+    CHECK(st::CurrentRoom({-50.0f, kFloorY, 25.0f}, true, last) == last);     // standing in no room: the last one
 }
 
 } // namespace
@@ -1999,6 +2006,84 @@ void TestHarbour()
     }
     // the stair is a walk: at most 27 degrees
     CHECK(std::atan2(st::kTerraceY - st::kHarbourY, st::kSeaStairTop - st::kQuayZ1) * 180.0f / 3.14159265f <= 27.0f);
+}
+
+/// E3, the lock walk (docs/LEVEL_DESIGN.md 6.4): from the east hall up four terraces beside three locks; the basins are water in
+/// A and dry rooms in B, each with a stair back up; the light on the bed of the middle lock is taken in B only.
+void TestLockWalk()
+{
+    bool ok = false;
+    const World hub = ReachTheHub(ok);
+    CHECK(ok);
+    const Vec3 E{1.0f, 0.0f, 0.0f};
+    const float zw = 0.5f * (st::kLockWalkZ0 + st::kLockWalkZ1) - 0.5f; // the middle of the walk (south of the lamp)
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        World w = hub;
+        w.layer = layer;
+        CHECK(w.WalkPath({{kEastRim, kFloorY, 23.5f}, {kEastRim, kFloorY, 31.0f}, {12.0f, kFloorY, 31.0f}, {20.0f, kFloorY, 34.6f},
+                          {26.0f, kFloorY, 34.6f}}));
+        CHECK(st::RoomAt(w.player.Feet()) == Room("lock walk"));
+        CHECK(w.WalkPath({{26.0f, kFloorY, zw}, {60.0f, kFloorY, zw}}) && w.At(60.0f, st::kTerraceFloor[3], zw, 0.4f));
+        CHECK(st::RoomAt(w.player.Feet()) == Room("lock walk"));
+        World back = w; // and back down
+        CHECK(back.WalkPath({{27.0f, kFloorY, zw}}) && back.At(27.0f, kFloorY, zw, 0.4f));
+    }
+    // the walls round it hold: from the top terrace and from each terrace, a running jump north, east or south never lands
+    // out of the room, and every wall top is out of reach
+    for (int k = 0; k < 4; ++k)
+    {
+        CHECK(st::kLockWallTop > st::kTerraceFloor[k] + 2.0f + 0.6f);
+    }
+    for (const Vec3& d : {kNorth, kSouth, E})
+    {
+        World j = hub;
+        j.JumpFrom({59.0f, st::kTerraceFloor[3], 30.0f}, d, 0.4f);
+        CHECK(st::RoomAt(j.player.Feet()) == Room("lock walk"));
+    }
+    // a lock: in A water (a body that goes in is in it), in B a dry room with its stair back up
+    for (int k = 0; k < st::kLockCount; ++k)
+    {
+        const float x = 0.5f * (st::kTerraceX0[k] + st::kTerraceX1[k]) - 1.0f;
+        World a = hub;
+        a.layer = 0;
+        a.PlaceFeet({x, st::kTerraceFloor[k], st::kLockWalkZ0 + 0.6f});
+        bool wet = false;
+        for (int i = 0; i < 240 && !wet; ++i)
+        {
+            a.Frame(Keys(1.0f), kSouth);
+            wet = a.InWater();
+        }
+        CHECK(wet);
+        World b = hub;
+        b.layer = 1;
+        const float bed = st::kTerraceFloor[k] - st::kBasinDepth;
+        b.PlaceFeet({x, bed, 27.0f});
+        CHECK(b.player.Grounded() && !b.InWater() && st::RoomAt(b.player.Feet()) == Room("lock walk"));
+        const float sx = st::kTerraceX1[k] - 0.5f * st::kBasinStairWidth;
+        CHECK(b.WalkPath({{sx, kFloorY, 26.0f}, {sx, kFloorY, st::kLockWalkZ0 + 1.0f}}) && b.At(sx, st::kTerraceFloor[k], st::kLockWalkZ0 + 1.0f, 0.4f));
+        World s = hub; // no jump from the bed reaches the terrace without the stair
+        s.layer = 1;
+        CHECK(s.JumpFrom({x, bed, 29.5f}, kNorth, 0.3f) < st::kTerraceFloor[k] - 1.0f);
+    }
+    // the light of the middle lock: taken on its bed in B; in A every pose that touches it is under the water
+    const Vec3 c = st::kHiddenLights[6].centre;
+    World t = hub;
+    t.layer = 1;
+    t.PlaceFeet({c.x, st::kTerraceFloor[1] - st::kBasinDepth, c.z});
+    st::LightSet set;
+    CHECK(set.Collect(t.player) == 6);
+    bool dryTouch = false;
+    for (float y = st::kTerraceFloor[1] - st::kBasinDepth; y < st::kTerraceFloor[1] + 1.0f; y += 0.05f)
+    {
+        World u = hub;
+        u.layer = 0;
+        u.player.Place({c.x, y + Player::Settings{}.eyeHeight, c.z});
+        st::LightSet probe;
+        const bool touches = probe.Collect(u.player) == 6;
+        dryTouch = dryTouch || (touches && !st::InWater({c.x, y, c.z}, 0, st::Waterworks{}, u.canal));
+    }
+    CHECK(!dryTouch);
 }
 
 /// Step 1 of docs/LEVEL_DESIGN.md 12: a switch is refused into water; every place of return is a place to stand out of water.
@@ -2247,6 +2332,7 @@ int main()
     TestRecovery();
     TestCityState();
     TestHarbour();
+    TestLockWalk();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

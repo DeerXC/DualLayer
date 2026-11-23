@@ -34,8 +34,8 @@ inline constexpr float kNearX1 = 72.0f;
 inline constexpr float kNearZ0 = -72.0f; // (the harbour reaches to z -62)
 inline constexpr float kNearZ1 = 112.0f;
 inline constexpr float kNearCell = 2.0f;
-inline constexpr float kFarX0 = -336.0f;
-inline constexpr float kFarX1 = 344.0f;
+inline constexpr float kFarX0 = -368.0f;
+inline constexpr float kFarX1 = 368.0f;
 inline constexpr float kFarZ0 = -152.0f;
 inline constexpr float kFarZ1 = 368.0f;
 inline constexpr float kFarCell = 8.0f;
@@ -56,7 +56,7 @@ inline float TownMask(float x, float z)
 {
     const float ax = x < 0.0f ? -x : x;
     const float tx = 1.0f - terrain::SmoothStep(66.0f, 90.0f, ax);
-    const float tz = terrain::SmoothStep(-60.0f, -46.0f, z) * (1.0f - terrain::SmoothStep(108.0f, 132.0f, z));
+    const float tz = terrain::SmoothStep(-60.0f, -46.0f, z) * (1.0f - terrain::SmoothStep(104.0f, 118.0f, z));
     return tx * tz;
 }
 
@@ -428,6 +428,17 @@ inline std::vector<Plant> PlacePlants(const terrain::Land& land)
             add(x, z, PlantKind::Cypress, 0.9f + 0.3f * next());
         }
     }
+    // the cypresses round the graveyard outside the north wall (scene/Scenery.h)
+    for (float t = -19.0f; t <= 19.0f; t += 3.8f)
+    {
+        for (float z : {kGraveyardZ0 - 2.0f, kGraveyardZ1 + 2.0f})
+        {
+            if (land.Height(t, z) > kSeaY + 1.5f && land.Slope(t, z) < 0.6f && farFromOthers(t, z, PlantKind::Cypress))
+            {
+                add(t, z, PlantKind::Cypress, 1.0f + 0.2f * next());
+            }
+        }
+    }
     // the wild ones: a jittered grid of candidates, each kept by the rule of its ground and the distance to the others
     const float step = 2.6f;
     for (float z = kPlantRegionZ0; z < kPlantRegionZ1; z += step)
@@ -516,7 +527,7 @@ inline BatchMesh BakeWorld(int layer)
     {
         PlantBoxes(p, boxes);
     }
-    Scenery(boxes); // the harbour, the town wall, the bell tower, the doors and windows (scene/Scenery.h)
+    Scenery([](float x, float z) { return TheLand().Height(x, z); }, boxes); // the harbour, the walls, the districts (scene/Scenery.h)
     AppendMesh(mesh, BakeLayer(boxes.data(), static_cast<int>(boxes.size()), layer));
     return mesh;
 }

@@ -8,7 +8,8 @@ Status: in development (milestone M2). The whole map can be walked from the star
 on the quay of a harbour under the town wall and teaches its one rule in seven wordless beats. Its centre is a sunken square: a pool
 round the cathedral that is water in one world and dry in the other, fed by an aqueduct that the storm has broken in the
 other world. The parts form a ring of districts. The prologue, the west wing (an orb carried between the layers), the
-lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other)
+lock and the weir of the east district (a crate that floats on water of one world and is moved in it to be used in the other),
+a walk that climbs beside three locks (water in one world, dry rooms in the other)
 two prisms of the north district (a wall moved into the other world; two things moved at once), a cellar that closes the
 ring of districts, and an end in which the master sluice drains every water of one world are playable. The map stands on
 the ground of a town by the sea: hills, a mountain and a bay made from noise, houses turned to their streets, and plants

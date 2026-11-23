@@ -29,6 +29,7 @@
 #include "scene/SceneData.h"
 
 #include <cmath>
+#include <initializer_list>
 #include <vector>
 
 namespace dl::shapes
@@ -125,6 +126,32 @@ inline int Stairs(float x0, float x1, float z0, float y0, float z1, float y1, Rg
         const float za = zFront < zBack ? zFront : zBack;
         const float zb = zFront < zBack ? zBack : zFront;
         drawn.push_back(Box(x0, low - 0.2f, za, x1, top, zb, c, kLayerBoth));
+    }
+    return n;
+}
+
+/// Stairs between z0 and z1 from (x0, y0) to (x1, y1): the stairs of Stairs, turned by a quarter round Y so that they climb
+/// along X (a yaw of 90 degrees maps the local +Z of Stairs onto world +X and its local X onto world -Z). Returns the number of
+/// steps.
+inline int StairsX(float z0, float z1, float x0, float y0, float x1, float y1, Rgb c, std::vector<SceneObject>& solid,
+                   std::vector<SceneObject>& drawn)
+{
+    const float cz = 0.5f * (z0 + z1);
+    const float hw = 0.5f * (z1 - z0);
+    const std::size_t solidFirst = solid.size();
+    const std::size_t drawnFirst = drawn.size();
+    const int n = Stairs(-hw, hw, x0, y0, x1, y1, c, solid, drawn);
+    for (std::vector<SceneObject>* v : {&solid, &drawn})
+    {
+        for (std::size_t i = v == &solid ? solidFirst : drawnFirst; i < v->size(); ++i)
+        {
+            SceneObject& o = (*v)[i];
+            const float lx = o.position[0];
+            const float lz = o.position[2];
+            o.position[0] = lz;     // x' = x c + z s with c = 0, s = 1
+            o.position[2] = cz - lx; // z' = -x s + z c
+            o.yaw += 1.5707963f;
+        }
     }
     return n;
 }
