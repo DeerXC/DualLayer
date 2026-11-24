@@ -1,5 +1,9 @@
 # Architecture
 
+The code as built. It runs the greybox of the previous map; the design it is being rebuilt toward is
+[DESIGN.md](DESIGN.md). Some comments in the code still point to sections of the level design that DESIGN.md replaced
+(see the known issues in the CHANGELOG).
+
 ## One frame
 
 ```
@@ -14,7 +18,7 @@ WinMain > RunApp
           5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something, or into the
                                      water of the other world, is refused: Recovery::SwitchAllowed)
           6. Models::Update        > the spin clock and the ripple clock
-          7. the city state        > the seals ring the bells (CityState): the water of A rises, the machinery turns, night
+          7. the city state        > the bells, rung by a seal or where they hang (CityState): the water of A rises, the machinery turns, night
                                      falls in A (Models::SetNight)
              the solid table       > the lifts and the canal move; Puzzle::Solids(layer) + Stage::AddMapSolids (the closed
                                      doors) + the lifts + the crate of the canal + the memory fragments + the gates of the
@@ -41,7 +45,7 @@ main
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
              Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery,
-             LampTravel, Ending, Guidance, LockCrate                                               > standard library only
+             LampTravel, Ending, Guidance, LockCrate, WaterFx                                      > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -52,7 +56,7 @@ of `core` and `render` (`MeshData`, `LayerRipple`, `OverlayBatch`, `Font5x7`, `S
 
 Every object carries a layer mask (A = 1, B = 2, both = 3); a draw call and a collision skip an object whose mask does not
 hold the layer. Each layer has its own theme (light, sky, background, fog, and the stone of the city), never mixed: A is
-the whole city in a warm evening, B the same city after a storm, cold and foggy, its stone dark and mossy. The model shader
+the past, the whole city in a warm evening, B the present, the same city after a storm, cold and foggy, its stone dark and mossy. The model shader
 gives the city (objects of both layers that do not glow) the tint and the weathering of the layer, and fogs everything by
 its distance into the background colour; glowing things are seen through more of the fog.
 
@@ -190,8 +194,8 @@ The switch guard (`LayerGuard`) is asked with the whole solid table of the targe
 gates of the wings, the lifts and the crate. `Collision::PushOutOf` skips a solid whose bounding sphere the ball cannot
 reach, an exact broad phase.
 
-Single-layer boxes are drawn in their material (wood or iron in A, fallen masonry in B); red and blue are only their edges
-in their own layer and their outlines in the other (`StageHints::WorldTinted`, `AddWorldEdges`). The water of A is fed by the
+Single-layer boxes are drawn in their material (wood or iron in A, fallen masonry in B); in the other layer they leave a pale
+outline tinted red (A) or blue (B) (`StageHints::WorldTinted`). The water of A is fed by the
 aqueduct (`Stage::kWaterFeeds`, drawn by `AqueductDecor`), which is broken in B.
 
 `StageHints` adds to the drawn table what the map says without words: an outline in the other layer for every
