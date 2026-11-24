@@ -1,7 +1,7 @@
 # Architecture
 
-The code as built. It runs the greybox of the previous map; the design it is being rebuilt toward is
-[DESIGN.md](DESIGN.md). Some comments in the code still point to sections of the level design that DESIGN.md replaced
+The code as built. By default it runs the town of the layout model, loaded as data (below, "The town"); with
+`[map] town = false` it runs the greybox of the previous map, with all its puzzles. The design is [DESIGN.md](DESIGN.md). Some comments in the code still point to sections of the level design that DESIGN.md replaced
 (see the known issues in the CHANGELOG).
 
 ## One frame
@@ -45,12 +45,31 @@ main
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
              Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery,
-             LampTravel, Ending, Guidance, LockCrate, WaterFx                                      > standard library only
+             LampTravel, Ending, Guidance, LockCrate, WaterFx, Town, TriMesh                       > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
 A dependency only points down. `render` is the only place that talks to Direct3D. Everything in `scene` and the pure parts
 of `core` and `render` (`MeshData`, `LayerRipple`, `OverlayBatch`, `Font5x7`, `StaticBatch`) have no Windows or Direct3D dependency and are tested without a window.
+
+## The town
+
+The layout model `tools/layout/city_model.py` writes the town as data: `python tools/layout/city_model.py export` checks the
+model and writes `data/town.dlt` (the format is in the docstring of its `export`). `scene/Town.h` reads it: the lights of the
+two moments, the materials (an sRGB colour in A and in B, and whether it shines), the stations of the main path, the middle
+lines of the streets, and the polygons of the town with their moment and their kind (solid, terrain, overlay, water).
+
+- Drawn: `TownData::BakeLayer` gives one batch per moment, each polygon as a fan of triangles with one normal (Newell's), from
+  both sides because the model's polygons have no fixed winding (the terrain and a surface of water only from above). The
+  colours are the model's own (`color.a` 0: not the stone of the greybox city). `BakeWater` gives the water of A, drawn by
+  `Models::SetStaticWater` in the water pass. The looks of the two moments come from the model's lights (`ApplyTownThemes`
+  in `main.cpp`).
+- Solid: `TownData::BuildMesh` gives a `TriMesh` per moment (its solid and terrain polygons), triangles filed in a grid of 4 m
+  cells; `TriMesh::PushOut` moves a ball out of them as the ground does. The walking body takes them with
+  `Player::SetMeshes`.
+- The loop: `RunTown` in `main.cpp` walks, switches (refused into a surface or into the water of the other moment), sinks
+  in water, falls, and comes back to the last place the body stood still on (also R). It draws the sea round the eye and
+  the ring of a return; the town is in the static batch. No puzzle runs yet.
 
 ## Layers and the ripple
 

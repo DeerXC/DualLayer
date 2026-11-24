@@ -235,7 +235,7 @@ inline constexpr float kSeaSnap = 20.0f;
 inline constexpr float kSeaNorth = kTerraceSouth;                  ///< the plane moves in steps of this, so its pattern does not slide
 
 /// Adds the sea, centred under the eye (both worlds, each in its own colour). Returns the new count.
-inline int AddSea(const Vec3& eye, SceneObject* out, int count, int capacity)
+inline int AddSea(const Vec3& eye, SceneObject* out, int count, int capacity, float level = kSeaY, float northEdge = kSeaNorth)
 {
     const float cx = kSeaSnap * std::floor(eye.x / kSeaSnap + 0.5f);
     const float cz = kSeaSnap * std::floor(eye.z / kSeaSnap + 0.5f);
@@ -243,12 +243,12 @@ inline int AddSea(const Vec3& eye, SceneObject* out, int count, int capacity)
     const unsigned masks[2] = {kLayerA, kLayerB};
     for (int k = 0; k < 2 && out != nullptr && count >= 0 && count < capacity; ++k)
     {
-        const float north = cz + kSeaHalf < kSeaNorth ? cz + kSeaHalf : kSeaNorth;
+        const float north = cz + kSeaHalf < northEdge ? cz + kSeaHalf : northEdge;
         if (north <= cz - kSeaHalf)
         {
             break; // the eye is so far north that the sea is out of sight
         }
-        SceneObject o = Span(cx - kSeaHalf, kSeaY - 0.2f, cz - kSeaHalf, cx + kSeaHalf, kSeaY, north, colours[k], masks[k]);
+        SceneObject o = Span(cx - kSeaHalf, level - 0.2f, cz - kSeaHalf, cx + kSeaHalf, level, north, colours[k], masks[k]);
         o.shineStrength = 0.6f;
         o.shininess = 60.0f;
         o.checker = scene::kMatSea; // drawn as the sea (shaders/models.hlsl): swells, crests, the sky in it

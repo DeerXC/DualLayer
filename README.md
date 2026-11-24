@@ -8,9 +8,10 @@
 
 Status: in development (milestone M2). The design was revised on 2026-11-24 ([docs/DESIGN.md](docs/DESIGN.md)): one hill
 town climbed in a spiral round a rock with a bell tower, a warm past against a cold present, a causal rule (what is done in
-the past leaves its trace in the present) and the lantern. The current build is the greybox of the previous map: every
-district, the bells and the three endings are played from the harbour to the top of the cathedral, and every system below
-runs in it. The town is being rebuilt on the layout model `tools/layout/city_model.py`.
+the past leaves its trace in the present) and the lantern. The game now loads the town of the layout model
+(`tools/layout/city_model.py`, exported as `data/town.dlt`) and walks it in both moments; its puzzles are being rebuilt.
+The greybox of the previous map, with every district, the bells and the three endings, is still played with
+`[map] town = false`, and every system below runs in it.
 
 ## Highlights
 

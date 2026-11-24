@@ -173,8 +173,14 @@ The optional twist of section 9 may change what the endings mean.
 The layout comes from one model, `tools/layout/city_model.py` (Python 3, numpy, matplotlib). It draws both moments from
 over the sea, from the cliff and from the street, and a plan with the main path:
 
-    python tools/layout/city_model.py            (every view, into docs/images/city2_*.png)
-    python tools/layout/city_model.py plan       (one view: aerial_a, aerial_b, vista_a, vista_b, plan)
+    python tools/layout/city_model.py            (every view, into docs/images/city2_*.png, and the check)
+    python tools/layout/city_model.py check      (only the check of its numbers against the limits of section 11)
+    python tools/layout/city_model.py plan       (one view: aerial_a, aerial_b, street_a, street_b, vista_a, vista_b, plan)
+
+The check measures every street against its slope limit and every joint of the main path (a street onto the bastion, the
+quays, the graveyard, the top of the theatre) for a step; it reports nothing on the current model. The game's tests walk
+every street with the real body (tests/test_town.cpp): in A every street is open; in B fallen arches and the rubble of the
+sea gate close two of them, to be passed by a jump or by A.
 
 The game will load the model's terrain, streets and buildings as data, so the game and the model are one town.
 
@@ -184,11 +190,11 @@ The game will load the model's terrain, streets and buildings as data, so the ga
 |---|---|---|
 | The harbour | -6 (the quay) | the start; quays, a lighthouse, the sea gate |
 | The lower town | -3 .. 0 | narrow streets under arches; the storm hit it hardest |
-| The cistern and the gorge | -10 .. -6 | under the centre: water in A, walked in B |
-| West: the market and the well | 6 .. 11 | goes down: the great well to the cistern; the day bell |
-| Centre: the Rock of the Bell | 14 | a round plaza on a rock in a gorge, reached by two bridges; the church and the bell tower |
-| East: the locks | 3 .. 21 | climbs: five locks to the water tower; the dawn bell |
-| North: the upper town and the theatre | 20 .. 28 | high: the theatre bowl faces the rock |
+| The cistern and the gorge | -10 .. -6 | under the centre: the well, a tunnel, the floor of the gorge; water in A, walked in B |
+| West: the market and the well | 0 .. 6, the bastion 14 | goes down: the great well to the cistern; the day bell |
+| Centre: the Rock of the Bell | 14 | a round plaza on a rock in a gorge 20 m deep, reached by two bridges; the church and the bell tower |
+| East: the locks | 3 .. 21 | climbs: the east stair down from the rock, five locks to the water tower; the dawn bell |
+| North: the upper street and the theatre | 21 .. 30 | high: the street ends at the top row of the theatre, which faces the rock |
 | The cliff: the graveyard | 42 | the view over everything; the night bell |
 
 ### 7.3 Rules
@@ -219,19 +225,23 @@ The game will load the model's terrain, streets and buildings as data, so the ga
 6. Up the locks to the water tower, along the upper town to the theatre, up the cliff stair to the graveyard.
 7. From the cliff, the way to the top of the bell tower (to be designed) and the last moment.
 
-### 7.5 Fixes to the model
+### 7.5 The model checked
 
-Measured against the limits of section 11.
+Fixed on 2026-11-24 and kept true by `city_model.py check`:
 
-| Place | Problem | Fix |
-|---|---|---|
-| Market street to the west bastion | the street ends at 11.2 m, the bastion is at 14 m | a stair up the last 10 m, or the bastion lowered |
-| The upper ring at the market stairs | 12.6 m against 6 m | the ring ends at the theatre |
-| The cliff stair to the graveyard | 42.2 m against 44 m | the graveyard at 42 m |
-| Streets | five streets over 27 degrees in places (the model allows 29) | limit 24 degrees, stairs where steeper |
-| The locks | five levels 4.5 m apart, no way between them | a stair beside each lock head |
-| The cliff to the bell tower | no way built | designed with the last puzzle |
-| The shortcuts of the plan | they lead back to places already done | the lift and the gorge become the main path (7.4); the ring back to the market is removed |
+| Item | Now |
+|---|---|
+| Street heights | each street starts and ends at the height of what it meets (an earlier street, the bastion, a quay, the graveyard); between, half the ground and half an even climb; never steeper than its kind: streets and lanes 24 degrees, stairs 32 |
+| The west bastion | the market street climbs to it (14 m); a gate tower on the bastion frames the bridge |
+| The east of the rock | the east stair goes down from the east bastion (14 m) to the first quay of the locks (3 m) |
+| The locks | a stair beside each lock head on both quays, 4.5 m over 8 m (29 degrees); the lock heads hold a fall of water in A |
+| The north | the upper street runs from the top quay (21 m) to the top row of the theatre (30 m); the ring back to the market is gone |
+| The cliff | the cliff stair climbs straight to the graveyard (42 m, z 78 .. 96) through a gate in the town wall |
+| The harbour | the sea stair goes through the middle of the sea gate |
+| The market | the market stairs pass west of the well, clear of its parapet |
+| The centre | the tunnel from the well opens into the gorge under the west bridge (under the water of A); the lift: in A the cage at the plaza, in B its frame leaning up the face of the rock; the west bridge: its middle in A only, its gate on the rock end shut in A and open in ruin in B |
+| The lantern | the street_b view shows its circle on the west bridge: the middle of the bridge of A standing in B |
+| Still open | the way from the graveyard to the top of the bell tower (designed with the last puzzle) |
 
 ## 8. Puzzles by district (draft)
 
@@ -295,7 +305,8 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 ## 12. Order of work
 
 1. Fix the model (7.5).
-2. Export the model as data the game loads; the game draws and walks the model's town.
+2. Export the model as data the game loads; the game draws and walks the model's town (done 2026-11-24: `data/town.dlt`,
+   `scene/Town.h`; ARCHITECTURE.md, "The town").
 3. The lantern circle and the traces in code, with their tests.
 4. The districts rebuilt on the model with their puzzles (the whole town), each room proved as in section 11.
 5. Refine by play; then the story and the sound.

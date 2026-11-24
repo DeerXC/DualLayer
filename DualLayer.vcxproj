@@ -57,7 +57,7 @@
       <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /I /Q "$(ProjectDir)shaders\*.*" "$(OutDir)shaders\" &amp;&amp; xcopy /Y /I /Q "$(ProjectDir)config\*.*" "$(OutDir)config\"</Command>
+      <Command>xcopy /Y /I /Q "$(ProjectDir)shaders\*.*" "$(OutDir)shaders\" &amp;&amp; xcopy /Y /I /Q "$(ProjectDir)config\*.*" "$(OutDir)config\" &amp;&amp; xcopy /Y /I /Q "$(ProjectDir)data\*.*" "$(OutDir)data\"</Command>
       <Message>Copy shaders and config next to the exe (so it also runs when started from Explorer)</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -140,6 +140,8 @@
     <ClInclude Include="src\scene\StageHints.h" />
     <ClInclude Include="src\scene\StageLights.h" />
     <ClInclude Include="src\scene\Terrain.h" />
+    <ClInclude Include="src\scene\Town.h" />
+    <ClInclude Include="src\scene\TriMesh.h" />
     <ClInclude Include="src\scene\SceneData.h" />
     <ClInclude Include="src\scene\Scenery.h" />
   </ItemGroup>

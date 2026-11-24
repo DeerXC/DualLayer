@@ -221,8 +221,9 @@ function Wait-Title($proc, [string]$text, [double]$seconds)
     return $false
 }
 
-# the stage starts on the quay of the harbour: the eye at -7.5 + 1.55 m (scene/Stage.h kHarbourY, Player eye height)
-$standY = -5.95
+# the town starts on the quay of the harbour: the eye at -6.2 + 1.55 m (tools/layout/city_model.py QUAY_Y, Player eye height).
+# The greybox map ([map] town = false) started at -7.5 + 1.55 = -5.95
+$standY = -4.65
 Write-Host "== 4. the game (do not touch the keyboard or the mouse)" -ForegroundColor Cyan
 $jumpTried = $false
 $logPath = Join-Path $root "logs\dual.log"
@@ -271,7 +272,7 @@ else
             {
                 # ---- walking (Q-15 .. Q-18)
                 Add-Result "walking is the default (Q-15)" (Verdict ((Get-Title $proc) -like "*walk*")) "the title bar says walk"
-                Hold-Key 0x57 800    # W held for 0.8 s: about 3.5 m ahead along x = 6, on the quay, short of its edge (6.5 m away)
+                Hold-Key 0x57 800    # W held for 0.8 s: about 3.5 m north along x = 14, on the quay (6 m deep), clear of the sea stair
                 Start-Sleep -Milliseconds 700
                 $p1 = Get-CameraPos $proc
                 if ($p0 -and $p1)

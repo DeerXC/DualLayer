@@ -1,29 +1,32 @@
-"""city_model.py - the model of the map, version 2 (docs/LEVEL_DESIGN.md 5, ART_AND_MAP_PLAN_v2.md).
+"""city_model.py - the layout model of the map (docs/DESIGN.md 6 and 7).
 
-A design model, not game data (yet): the town, its ground and its two worlds, drawn so that the plan can be judged before it
-is moved into the game.
+A design model, not game data (yet): the town, its ground and its two moments, drawn so that the layout can be judged and
+checked before it is moved into the game.
 
-The town: one hill over a harbour, climbed in a spiral round the Rock of the Bell.
-    sea      -8    the harbour (start), the headland and its lighthouse
-    low      -4..0 the lower town, behind the sea wall
-    centre    8    the Rock of the Bell: a round plaza on a rock, the bell tower; round it a gorge, the open part of the
-                   cistern: a moat of water in A, a dry gorge in B; two bridges cross it
-    west     0..8  the market terraces round the great well
-    east     4..18 the lock stairs: five locks climbing the hill to the water tower
-    north   16..20 the upper town, a ring street round the theatre, which faces the rock
-    top      28    the graveyard on the cliff, the night bell
-Shortcuts that loop back: the lift down the face of the rock to the gorge and the lower town; the gorge (B) under both
-bridges; the upper ring street back down to the market.
+The town: one hill over a harbour, climbed in a spiral round the Rock of the Bell (heights in metres, y up):
+    harbour   -6     the quay (the start), the sea gate, the headland and its lighthouse
+    lower      -3..0  the lower town behind the sea wall, arches over its streets
+    cistern  -10..-6  under the centre: the well, a tunnel, the floor of the gorge; water in A, walked in B
+    west       0..14  the market stairs, the market and its great well, the west bastion
+    centre    14      the Rock of the Bell: a round plaza in a gorge, the church, the bell tower; two bridges
+    east       3..21  the east stair down from the rock, five locks climbing to the water tower
+    north     21..28  the upper street to the top of the theatre, which faces the rock
+    cliff     42      the graveyard and the night bell
+The main path (docs/DESIGN.md 7.4) has no shortcuts back to finished places: its turns come from seeing a place first and
+reaching it from an unexpected direction (the bridge seen from the bastion, reached from the floor of the gorge).
 
-The worlds (the art style): A, 7:11, warm dusk: amber light from a low sun in the west, violet shade, terracotta and copper,
-lit windows. B, now, cold ruin: moonlight from high, blue-grey stone, slate, verdigris and moss; the only warm colours are a
-few lanterns. The storm came from the sea: the lower town is in ruins in B, the upper town stands.
+The moments: A, the past, warm dusk (amber light from a low sun, violet shade, terracotta, copper, lit windows); B, the
+present, a cold ruin (moonlight, blue-grey stone, slate, verdigris, moss; the only warm light is a few lanterns and the
+circle of the lantern). The storm came from the sea: damage follows how exposed a place was. The lantern, set down in A,
+keeps a circle of A standing in B (the street_b view shows it on the west bridge).
 
-    python tools/layout/city_model.py           (all views; Python 3, numpy, matplotlib; about a minute each)
-    python tools/layout/city_model.py aerial_a  (one view: aerial_a, aerial_b, street_a, street_b, plan)
+    python tools/layout/city_model.py            (every view and the check; Python 3, numpy, matplotlib)
+    python tools/layout/city_model.py check      (only the check of the numbers against the limits of the game)
+    python tools/layout/city_model.py export     (the check, then the town as data for the game: data/town.dlt)
+    python tools/layout/city_model.py aerial_a   (one view: aerial_a, aerial_b, street_a, street_b, vista_a, vista_b, plan)
 
-Units: metres; x east, z north, y up. Views are drawn with a painter's algorithm (polygons sorted far to near) and flat
-shading, the look the game has: one colour per face, an outline on every edge.
+Units: metres; x east, z north, y up. Views are drawn with a painter's algorithm and flat shading, the look of the game:
+one colour per face, an outline on every edge.
 """
 
 import math
@@ -171,27 +174,35 @@ MOAT_Y = -3.6
 TOWER = (0.0, 3.0)
 WELL = (-50.0, 6.0)
 WELL_R = 6.0
+MARKET_Y = 6.0
 THEATRE = (0.0, 38.0)  # the centre of the orchestra; the seats rise north, facing the rock
-THEATRE_Y = 20.0
-GRAVE_Y = 44.0
+THEATRE_Y = 22.0
+GRAVE_Y = 42.0
+GRAVE_Z0 = 78.0          # the graveyard: |x| < 24, z 78 .. 96, on the hill north of the town wall
 BRIDGEHEADS = {"west": (-27.0, 0.0), "east": (27.0, 0.0)}
 LOCK_LINE = spline([(36, -16), (48, -19), (60, -12), (70, -1), (77, 10), (80, 22)], 1.0)
 LOCK_LEVELS = [3.0, 7.5, 12.0, 16.5, 21.0]
 HARBOUR = (-22.0, -96.0, 34.0, -70.0)  # the basin: x0, z0, x1, z1
 QUAY_Y = -6.2
+LOCK_HEAD_RUN = 8.0      # the stair beside each lock head climbs 4.5 m over this
+SLOPE = {"street": 0.445, "lane": 0.445, "stair": 0.625}  # tan 24 and 32 degrees (docs/DESIGN.md 11)
+JUMP_UP = 1.2            # the step up on the main path
+LANTERN_DEMO = (-19.0, ROCK_Y + 0.05, 0.0, 3.0)  # x, y, z, radius: the lantern on the west bridge (street_b)
+TUNNEL_PORTAL = (-22.6, 0.0)                     # where the tunnel from the well opens into the gorge
 
 STREETS = [
-    # name, points, width, kind ("street", "stair", "lane")
-    ("sea stair", [(8, -71), (6, -66), (2, -61), (-1, -56)], 3.0, "stair"),
-    ("lower street", [(-1, -56), (-14, -51), (-28, -47), (-40, -42), (-50, -35)], 4.0, "street"),
-    ("lower east lane", [(-1, -56), (14, -53), (28, -46), (36, -34), (37, -20)], 3.0, "lane"),
-    ("market stairs", [(-50, -35), (-58, -24), (-61, -11), (-58, 2), (-54, 14)], 4.0, "stair"),
-    ("market street", [(-61, -11), (-46, -7), (-35, -3), (-27, 0)], 4.6, "street"),
-    ("east approach", [(27, 0), (33, -5), (37, -14)], 3.6, "street"),
-    ("upper ring", [(80, 26), (66, 36), (52, 46), (34, 52), (16, 56), (-4, 57), (-24, 54), (-40, 46), (-50, 34), (-54, 14)], 4.0, "street"),
-    ("cliff stair", [(10, 57), (16, 61), (8, 64), (15, 67), (6, 71)], 2.6, "stair"),
+    # name, points, width, kind ("street", "stair", "lane"). In this order: a street that starts or ends on an earlier one
+    # takes its height there
     ("harbour road", [(-22, -73), (0, -72), (34, -72)], 4.0, "lane"),
     ("headland path", [(-22, -73), (-44, -78), (-66, -84), (-86, -86)], 2.4, "lane"),
+    ("sea stair", [(8, -72), (4, -67), (0, -62), (-1, -56)], 3.0, "stair"),          # through the middle of the sea gate
+    ("lower street", [(-1, -56), (-14, -51), (-28, -47), (-40, -42), (-50, -35)], 4.0, "street"),
+    ("lower east lane", [(-1, -56), (14, -53), (26, -46), (31, -33)], 3.0, "lane"),
+    ("market stairs", [(-50, -35), (-58, -24), (-61, -11), (-62, 2), (-59, 11)], 4.0, "stair"),  # clear of the well
+    ("market street", [(-61, -11), (-46, -7), (-35, -3), (-27, 0)], 4.6, "street"),
+    ("east stair", [(27, 0), (33, -3), (38, -8), (42, -11)], 3.6, "stair"),
+    ("upper street", [(78, 28), (66, 36), (52, 46), (34, 52), (16, 56), (2, 57)], 4.0, "street"),
+    ("cliff stair", [(10, 57), (8, 68), (6, 78.6)], 2.6, "stair"),                     # straight through its gate
 ]
 STREET = {n: (spline(p), w, k) for n, p, w, k in STREETS}
 WALL_POINTS = [(0, -62), (30, -63), (60, -50), (88, -22), (96, 12), (88, 38), (62, 58), (30, 64), (-20, 65), (-52, 58), (-74, 38),
@@ -246,16 +257,48 @@ def lock_index(s):
     return int(np.clip(s / total * len(LOCK_LEVELS), 0, len(LOCK_LEVELS) - 1))
 
 
-def street_heights(curve, ground_before):
+def quay_level(s):
+    """The quay beside the locks at distance s along LOCK_LINE: the level of its lock, and a stair of LOCK_HEAD_RUN m beside
+    each lock head from one level to the next."""
+    s = np.asarray(s, float)
+    total = lengths(LOCK_LINE)[-1]
+    n = len(LOCK_LEVELS)
+    y = np.array([lock_level(lock_index(v)) for v in np.ravel(s)]).reshape(np.shape(s))
+    for k in range(1, n):
+        head = total * k / n
+        t = np.clip((s - head + LOCK_HEAD_RUN / 2) / LOCK_HEAD_RUN, 0.0, 1.0)
+        ramp = LOCK_LEVELS[k - 1] + (LOCK_LEVELS[k] - LOCK_LEVELS[k - 1]) * t
+        y = np.where(np.abs(s - head) < LOCK_HEAD_RUN / 2, ramp, y)
+    return y
+
+
+PROBLEMS = []  # what the check found: (place, what)
+
+
+def street_heights(name, curve, kind, h0, h1, ground_before):
+    """The heights along a street: the ground, smoothed, between its two ends (pinned), never steeper than its kind allows.
+    An end that cannot be reached within the slope is a problem of the layout and is reported."""
+    k = SLOPE[kind]
     h = ground_before(curve[:, 0], curve[:, 1])
-    k = np.ones(9) / 9.0
-    h = np.convolve(np.r_[np.full(4, h[0]), h, np.full(4, h[-1])], k, mode="valid")
-    ds = np.maximum(np.linalg.norm(np.diff(curve, axis=0), axis=1), 1e-6)
-    for _ in range(4):
+    kern = np.ones(9) / 9.0
+    h = np.convolve(np.r_[np.full(4, h[0]), h, np.full(4, h[-1])], kern, mode="valid")
+    d = lengths(curve)
+    total = d[-1]
+    h = 0.5 * h + 0.5 * (h0 + (h1 - h0) * d / total)    # half the ground, half an even climb: no wall of steps at one end
+    if abs(h1 - h0) > k * total + 1e-6:
+        PROBLEMS.append((name, "its ends differ by %.1f m over %.0f m: steeper than %s allows" % (h1 - h0, total, kind)))
+    lo = np.maximum(h0 - k * d, h1 - k * (total - d))
+    hi = np.minimum(h0 + k * d, h1 + k * (total - d))
+    hi = np.maximum(hi, lo)
+    ds = np.maximum(np.diff(d), 1e-6)
+    for _ in range(8):
+        h = np.clip(h, lo, hi)
+        h[0], h[-1] = h0, h1
         for i in range(1, len(h)):
-            h[i] = np.clip(h[i], h[i - 1] - 0.55 * ds[i - 1], h[i - 1] + 0.55 * ds[i - 1])
+            h[i] = np.clip(h[i], h[i - 1] - k * ds[i - 1], h[i - 1] + k * ds[i - 1])
         for i in range(len(h) - 2, -1, -1):
-            h[i] = np.clip(h[i], h[i + 1] - 0.55 * ds[i], h[i + 1] + 0.55 * ds[i])
+            h[i] = np.clip(h[i], h[i + 1] - k * ds[i], h[i + 1] + k * ds[i])
+    h[0], h[-1] = h0, h1
     return h
 
 
@@ -272,21 +315,39 @@ def carved(x, z):
     d, i = distance_to(LOCK_LINE, x, z)                                                                         # the locks
     s = lengths(LOCK_LINE)[np.minimum(i, len(LOCK_LINE) - 1)]
     lv = np.array([lock_level(lock_index(v)) for v in np.ravel(s)]).reshape(np.shape(s))
-    y = np.where(d < 4.0, lv - 4.0, np.where(d < 8.5, lv, y))                                                 # the basins and quays
-    y = np.where(np.hypot(x - WELL[0], z - WELL[1]) < WELL_R + 5.0, 6.0, y)                                    # the market of the well
+    y = np.where(d < 4.0, lv - 4.0, np.where(d < 8.5, quay_level(s), y))                                     # the basins and quays
+    y = np.where(np.hypot(x - WELL[0], z - WELL[1]) < WELL_R + 5.0, MARKET_Y, y)                                    # the market of the well
     rt = np.hypot(x - THEATRE[0], z - THEATRE[1])                                                               # the theatre
     bowl = (z > THEATRE[1] - 3.0) & (rt < 17.0)
     seats = np.where(rt < 6.0, THEATRE_Y, THEATRE_Y + 0.9 * np.minimum(np.ceil((rt - 6.0) / 1.3), 9.0))
     y = np.where(bowl, seats, y)
     y = np.where((np.abs(x - THEATRE[0]) < 10.0) & (z > THEATRE[1] - 9.0) & (z <= THEATRE[1] - 3.0), THEATRE_Y, y)   # the stage terrace
-    y = np.where((np.abs(x) < 24.0) & (z > 70.0) & (z < 90.0), GRAVE_Y, y)                                     # the graveyard
+    y = np.where((np.abs(x) < 24.0) & (z > GRAVE_Z0) & (z < GRAVE_Z0 + 18.0), GRAVE_Y, y)                                     # the graveyard
     x0, z0, x1, z1 = HARBOUR
     quay = (x > x0 - 4.0) & (x < x1 + 4.0) & (z > z0 + 18.0) & (z < z1 + 4.0)
     y = np.where(quay, QUAY_Y, y)
     return y
 
 
-_HEIGHTS = {name: street_heights(c, carved) for name, (c, w, k) in STREET.items()}
+def _build_heights():
+    """Each street in turn: an end on an earlier street takes that street's height there, else the carved ground."""
+    out = {}
+    for name, (c, w, kind) in STREET.items():
+        ends = []
+        for p in (c[0], c[-1]):
+            pin = None
+            for other, h in out.items():
+                oc, ow, _ = STREET[other]
+                dist, idx = distance_to(oc, p[0], p[1])
+                if dist < ow / 2 + 0.6:
+                    pin = float(h[idx])
+                    break
+            ends.append(pin if pin is not None else float(carved(p[0], p[1])))
+        out[name] = street_heights(name, c, kind, ends[0], ends[1], carved)
+    return out
+
+
+_HEIGHTS = _build_heights()
 
 
 def ground(x, z):
@@ -513,21 +574,47 @@ def build_rock():
     for name, sgn in (("west", -1.0), ("east", 1.0)):
         x0, x1 = sgn * (ROCK_R - 0.2), BRIDGEHEADS[name][0] - sgn * 3.0    # from the rock to the bastion
         n = 8
-        for k in range(n):
-            xa = x0 + (x1 - x0) * k / n
-            xb = x0 + (x1 - x0) * (k + 1) / n
-            world = "A" if (name == "west" and 3 <= k <= 5) else "both"
+        runs = [(0, 3, "both"), (3, 6, "A"), (6, 8, "both")] if name == "west" else [(0, 8, "both")]
+        for k0, k1, world in runs:                                     # whole runs: a rail is one piece, not steps
+            xa = x0 + (x1 - x0) * k0 / n
+            xb = x0 + (x1 - x0) * k1 / n
             beam((xa, ROCK_Y + 0.05, 0.0), (xb, ROCK_Y + 0.05, 0.0), 3.2, 1.0, "stone", world)
             for sz in (-1.5, 1.5):
                 beam((xa, ROCK_Y + 1.0, sz), (xb, ROCK_Y + 1.0, sz), 0.3, 0.95, "stone", world)
+        if name == "west":                                             # the gate on the rock end: shut in A, open in ruin in B
+            gx = x0 - 0.6
+            for sz in (-1.7, 1.7):
+                prism(rect(gx, sz, 0.7, 0.7, 0.0), ROCK_Y, ROCK_Y + 3.6, "stone")
+            prism(rect(gx, 0.0, 0.15, 3.0, 0.0), ROCK_Y, ROCK_Y + 3.0, "iron", "A")
+            prism(rect(gx - 1.2, 0.9, 1.5, 0.15, 0.5), ROCK_Y, ROCK_Y + 2.6, "iron", "B")
         mid = (x0 + x1) / 2
         prism(rect(mid, 0.0, 1.6, 3.2, 0.0), GORGE_Y, ROCK_Y - 2.5, "stone_dark", "A" if name == "west" else "both")
         if name == "west":
             prism(rect(mid + 0.8, 0.6, 4.0, 3.4, 0.3), GORGE_Y, GORGE_Y + 1.6, "debris", "B")
-    # the lift down the south face of the rock to the floor of the gorge (a shortcut, opened from above)
-    prism(rect(0.0, -ROCK_R - 1.2, 2.6, 2.6, 0.0), GORGE_Y, ROCK_Y + 3.0, "stone_dark")
-    gable(0.0, -ROCK_R - 1.2, 3.0, 3.0, 0.0, ROCK_Y + 3.0, 1.2, "roof")
-    prism(rect(0.0, -ROCK_R - 2.6, 1.6, 0.3, 0.0), GORGE_Y, GORGE_Y + 2.4, "iron", "A")
+    # the lift on the south face of the rock (docs/DESIGN.md 7.4): the shaft and its house at the top; in A the cage is up
+    # at the plaza, its chains down to the lift house at the foot; in B the cage lies at the foot, its frame leaning up the
+    # face of the rock: a way up made by what was done in A
+    lz = -ROCK_R - 1.2
+    prism(rect(-1.9, lz, 0.6, 2.6, 0.0), GORGE_Y, ROCK_Y + 3.0, "stone_dark")
+    prism(rect(1.9, lz, 0.6, 2.6, 0.0), GORGE_Y, ROCK_Y + 3.0, "stone_dark")
+    gable(0.0, lz, 4.4, 3.0, 0.0, ROCK_Y + 3.0, 1.2, "roof")
+    prism(rect(0.0, lz - 3.0, 3.2, 2.4, 0.0), GORGE_Y, GORGE_Y + 2.6, "stone_dark", "both", True, "roof")   # the lift house
+    prism(rect(0.0, lz, 2.4, 2.0, 0.0), ROCK_Y - 0.1, ROCK_Y + 2.3, "iron", "A")                          # A: the cage, up
+    for sx in (-0.8, 0.8):
+        beam((sx, ROCK_Y + 2.3, lz), (sx, GORGE_Y + 2.6, lz - 3.0), 0.06, 0.06, "iron", "A")
+    for sx in (-1.0, 1.0):                                                                                  # B: the frame
+        beam((sx, GORGE_Y + 0.1, lz - 2.2), (sx, ROCK_Y - 4.0, lz + 0.4), 0.18, 0.18, "iron", "B")
+    for t in np.linspace(0.08, 0.92, 9):
+        y = GORGE_Y + 0.1 + (ROCK_Y - 4.1 - GORGE_Y) * t
+        zz = lz - 2.2 + 2.6 * t
+        beam((-1.0, y, zz), (1.0, y, zz), 0.12, 0.12, "iron", "B")
+    # the tunnel from the well opens into the gorge under the west bridge: flooded in A (under the moat), walked in B
+    px, pz = TUNNEL_PORTAL
+    for sz in (-1.6, 1.6):
+        prism(rect(px, pz + sz, 1.0, 0.8, 0.0), GORGE_Y, GORGE_Y + 3.0, "stone_dark")
+    prism(rect(px, pz, 1.0, 4.0, 0.0), GORGE_Y + 3.0, GORGE_Y + 3.7, "stone_dark")
+    poly([(px + 0.52, GORGE_Y, pz - 1.2), (px + 0.52, GORGE_Y, pz + 1.2), (px + 0.52, GORGE_Y + 3.0, pz + 1.2), (px + 0.52, GORGE_Y + 3.0, pz - 1.2)],
+         "iron", "both", "overlay")
     for x, z in ((-8.0, -9.5), (8.0, -9.5), (-9.0, 8.0), (9.0, 8.0)):                            # plane trees on the plaza
         prism(ngon(x, z, 0.3, 5), ROCK_Y, ROCK_Y + 2.5, "wood")
         cone(x, z, 2.6, ROCK_Y + 2.0, ROCK_Y + 6.5, "tree", "A", 9)
@@ -535,6 +622,9 @@ def build_rock():
     for x, z in ((-5.0, -11.5), (5.0, -11.5)):                                                  # lamp posts: lit in both
         prism(ngon(x, z, 0.12, 4), ROCK_Y, ROCK_Y + 3.4, "iron")
         prism(ngon(x, z, 0.3, 6), ROCK_Y + 3.4, ROCK_Y + 4.0, "lantern", "A" if x < 0 else "both")
+
+
+GATES = {}
 
 
 def build_wall():
@@ -545,6 +635,12 @@ def build_wall():
         if t < 0.012 or t > 0.988:
             continue                                                                    # the sea gate
         a, b = WALL[i], WALL[i + 1]
+        m = (a + b) / 2
+        through = [nm for nm, (c, w, k) in STREET.items() if nm != "sea stair" and distance_to(c, m[0], m[1])[0] < w / 2 + 1.6]
+        if through:                                                                     # a gate where a street goes through
+            if through[0] not in GATES:
+                GATES[through[0]] = m
+            continue
         base = min(h[i], h[i + 1]) - 3.0
         top = max(h[i], h[i + 1]) + 4.0
         v = (b - a) / max(np.linalg.norm(b - a), 1e-9)
@@ -561,6 +657,18 @@ def build_wall():
         cone(x, z, 3.4, y + 13.0, y + 17.0, "roof", "A", 10)
         if fallen:
             prism(ngon(x, z, 3.0, 10), y - 3.0, y + 6.0 + k % 3, "stone", "B")
+    for name, (mx, mz) in GATES.items():                                                # the gates of the streets
+        c, w, _ = STREET[name]
+        dist, idx = distance_to(c, mx, mz)
+        idx = int(min(idx, len(c) - 2))
+        v = c[idx + 1] - c[idx]
+        ang = math.atan2(v[1], v[0])
+        y = float(_HEIGHTS[name][idx])
+        for sg in (-1, 1):
+            px_, pz_ = mx - v[1] / np.linalg.norm(v) * sg * (w / 2 + 1.0), mz + v[0] / np.linalg.norm(v) * sg * (w / 2 + 1.0)
+            prism(rect(px_, pz_, 1.6, 2.0, ang), y - 2.0, y + 7.0, "stone")
+        lint = rect(mx, mz, 2.0, w + 3.6, ang)
+        prism(lint, y + 4.2, y + 5.4, "stone", "A")
     gx, gz = WALL_POINTS[0]                                                             # the sea gate
     yg = float(ground(gx, gz))
     for dx in (-4.5, 4.5):
@@ -624,11 +732,20 @@ def build_west():
     cx, cz = WELL
     for k in range(24):                                                                 # the parapet of the well
         a0, a1 = 2 * math.pi * k / 24, 2 * math.pi * (k + 1) / 24
-        beam((cx + (WELL_R + 0.5) * math.cos(a0), 5.0, cz + (WELL_R + 0.5) * math.sin(a0)),
-             (cx + (WELL_R + 0.5) * math.cos(a1), 5.0, cz + (WELL_R + 0.5) * math.sin(a1)), 1.0, 1.0, "stone")
-    for i, (x, z) in enumerate(ngon(cx, cz, WELL_R, 24)):
-        x2, z2 = ngon(cx, cz, WELL_R, 24)[(i + 1) % 24]
-        poly([(x, -10.0, z), (x2, -10.0, z2), (x2, 4.0, z2), (x, 4.0, z)], "stone_dark")
+        beam((cx + (WELL_R + 0.5) * math.cos(a0), MARKET_Y + 1.0, cz + (WELL_R + 0.5) * math.sin(a0)),
+             (cx + (WELL_R + 0.5) * math.cos(a1), MARKET_Y + 1.0, cz + (WELL_R + 0.5) * math.sin(a1)), 1.0, 1.0, "stone")
+    ring = ngon(cx, cz, WELL_R, 24)
+    for i, (x, z) in enumerate(ring):
+        x2, z2 = ring[(i + 1) % 24]
+        poly([(x, -10.0, z), (x2, -10.0, z2), (x2, MARKET_Y, z2), (x, MARKET_Y, z)], "stone_dark")
+    for k in range(16):                                                                 # the stair down its wall (A: wood)
+        a0 = 2 * math.pi * k / 16
+        a1 = a0 + 2 * math.pi / 16
+        y = MARKET_Y - 1.0 - k
+        world = "A" if 6 <= k <= 9 else "both"
+        pts = [(cx + (WELL_R - 1.4) * math.cos(a0), cz + (WELL_R - 1.4) * math.sin(a0)), (cx + WELL_R * math.cos(a0), cz + WELL_R * math.sin(a0)),
+               (cx + WELL_R * math.cos(a1), cz + WELL_R * math.sin(a1)), (cx + (WELL_R - 1.4) * math.cos(a1), cz + (WELL_R - 1.4) * math.sin(a1))]
+        prism(pts, y - 0.3, y, "wood" if world == "A" else "stone_dark", world)
     poly([(x, -10.0, z) for x, z in ngon(cx, cz, WELL_R, 24)], "paving")
     poly([(x, -6.0, z) for x, z in ngon(cx, cz, WELL_R - 0.05, 24)], "water", "A", "water")
     prism(ngon(cx + 1.0, cz - 1.0, 1.6, 10), -10.0, -8.0, "gold", "B")                   # the day bell, fallen
@@ -641,9 +758,8 @@ def build_west():
     prism(rect(tx, tz, 4.5, 4.5, 0.2), y, y + 20.0, "stone")
     prism(ngon(tx, tz, 1.4, 10), y + 16.5, y + 18.5, "gold", "A")
     gable(tx, tz, 4.5, 4.5, 0.2, y + 20.0, 3.0, "roof", "A")
-    for k in range(4):
-        poly([(tx - 1.0 + 0.0, y + 13.0, tz - 2.27), (tx + 1.0, y + 13.0, tz - 2.27), (tx + 1.0, y + 15.0, tz - 2.27),
-              (tx - 1.0, y + 15.0, tz - 2.27)], "window", "A") if k == 0 else None
+    poly([(tx - 1.0, y + 13.0, tz - 2.27), (tx + 1.0, y + 13.0, tz - 2.27), (tx + 1.0, y + 15.0, tz - 2.27), (tx - 1.0, y + 15.0, tz - 2.27)],
+         "gold", "A")                                                                   # the clock face
     curve, width, _ = STREET["market street"]                                           # awnings (A), bare frames (B)
     for k, t in enumerate(np.linspace(0.1, 0.8, 6)):
         p, v = at(curve, t)
@@ -668,10 +784,23 @@ def build_east():
         a = seg[-1]
         v = (seg[-1] - seg[-2]) / max(np.linalg.norm(seg[-1] - seg[-2]), 1e-9)
         ang = math.atan2(v[1], v[0])
-        prism(rect(a[0], a[1], 0.6, 5.4, ang), bed, lv + 3.2 if i < 4 else lv + 1.0, "wood", "A")     # the gates (A)
-        prism(rect(a[0], a[1], 0.8, 5.4, ang), bed, bed + 1.2, "debris", "B")
-        if i < 4:                                                                       # the fall into the next (A)
-            pass
+        if i < len(LOCK_LEVELS) - 1:
+            prism(rect(a[0], a[1], 0.8, 8.0, ang), bed, LOCK_LEVELS[i + 1] - 0.6, "stone_dark")     # the lock head
+            prism(rect(a[0] - v[0] * 0.5, a[1] - v[1] * 0.5, 0.3, 7.6, ang), lv - 0.6, LOCK_LEVELS[i + 1] - 0.2, "wood", "A")  # its gate
+            poly([(a[0] - v[0] * 0.7 - v[1] * 1.2, LOCK_LEVELS[i + 1] - 0.7, a[1] - v[1] * 0.7 + v[0] * 1.2),
+                  (a[0] - v[0] * 0.7 + v[1] * 1.2, LOCK_LEVELS[i + 1] - 0.7, a[1] - v[1] * 0.7 - v[0] * 1.2),
+                  (a[0] - v[0] * 0.7 + v[1] * 1.2, lv - 0.6, a[1] - v[1] * 0.7 - v[0] * 1.2),
+                  (a[0] - v[0] * 0.7 - v[1] * 1.2, lv - 0.6, a[1] - v[1] * 0.7 + v[0] * 1.2)], "water", "A", "water")   # the fall (A)
+    total = d[-1]                                                                       # the stairs beside the lock heads
+    for k in range(1, len(LOCK_LEVELS)):
+        head = total * k / len(LOCK_LEVELS)
+        for side in (-1, 1):
+            for u in np.arange(-LOCK_HEAD_RUN / 2, LOCK_HEAD_RUN / 2 + 0.01, 0.5):
+                p, v = at(LOCK_LINE, float(np.clip((head + u) / total, 0, 1)))
+                n = np.array([-v[1], v[0]]) * side
+                y = float(quay_level(head + u)) + 0.04
+                q0, q1 = p + n * 4.4, p + n * 8.2
+                poly([(q0[0], y, q0[1]), (q1[0], y, q1[1]), (q1[0], y - 0.28, q1[1]), (q0[0], y - 0.28, q0[1])], "stone_dark", "both", "overlay")
     tx, tz = 84.0, 26.0                                                                 # the water tower and the dawn bell
     y = float(ground(tx, tz))
     prism(ngon(tx, tz, 3.0, 10), y, y + 18.0, "stone")
@@ -712,23 +841,23 @@ def build_north():
     gable(cx, cz - 6.0, 18.0, 5.0, 0.0, THEATRE_Y + 8.0, 1.4, "cloth", "A")                       # an awning over the stage (A)
     for k in range(30):                                                                 # the graveyard
         x = -18.0 + (k * 37 % 36)
-        z = 74.0 + (k * 13 % 14)
+        z = GRAVE_Z0 + 4.0 + (k * 13 % 14)
         prism(rect(x, z, 0.8, 0.35, (k % 5) * 0.1), GRAVE_Y, GRAVE_Y + 1.0 + (k % 3) * 0.2, "stone", "A" if k % 7 == 0 else "both")
     for k in range(10):
-        x, z = -22.0 + k * 5.0, 91.0
+        x, z = -22.0 + k * 5.0, GRAVE_Z0 + 17.0
         cone(x, z, 0.9, GRAVE_Y, GRAVE_Y + 7.0, "cypress", "both", 6)
-    nx_, nz_ = 16.0, 84.0                                                               # the night bell tower
+    nx_, nz_ = 16.0, GRAVE_Z0 + 10.0                                                               # the night bell tower
     prism(rect(nx_, nz_, 4.0, 4.0, 0.1), GRAVE_Y, GRAVE_Y + 14.0, "stone")
     cone(nx_, nz_, 3.2, GRAVE_Y + 14.0, GRAVE_Y + 19.0, "roof", "both", 4)
     prism(ngon(nx_, nz_, 1.2, 10), GRAVE_Y + 10.5, GRAVE_Y + 12.6, "gold")
-    prism(ngon(-12.0, 78.0, 0.3, 6), GRAVE_Y + 0.4, GRAVE_Y + 1.2, "lantern", "B")       # a lantern on a new grave (B)
+    prism(ngon(-12.0, GRAVE_Z0 + 4.0, 0.3, 6), GRAVE_Y + 0.4, GRAVE_Y + 1.2, "lantern", "B")       # a lantern on a new grave (B)
 
 
 def build_arches():
     """Arches over the streets: a house front that bridges the street, every 25 m or so on the lower and market streets and
     the market stairs; in B a third of them have fallen (a heap under the gap)."""
     k = 0
-    for name in ("lower street", "market stairs", "market street", "upper ring"):
+    for name in ("lower street", "market stairs", "market street", "upper street"):
         c, w, kind = STREET[name]
         hs = _HEIGHTS[name]
         d = lengths(c)
@@ -739,6 +868,9 @@ def build_arches():
             p, v = c[i], (c[i + 1] - c[i]) / max(np.linalg.norm(c[i + 1] - c[i]), 1e-9)
             nx, nz = -v[1], v[0]
             y = float(hs[i])
+            if min(math.hypot(p[0] - bx, p[1] - bz) for bx, bz in BRIDGEHEADS.values()) < 14.0:
+                s += 6.0
+                continue                                                                # the bastion stays open
             fallen = hash01(k, 51) < 0.33 and damage(p[0], p[1]) > 0.3
             for side in (-1, 1):
                 px_, pz_ = p[0] + nx * side * (w / 2 + 0.4), p[1] + nz * side * (w / 2 + 0.4)
@@ -753,6 +885,17 @@ def build_arches():
             if fallen:
                 prism(rect(p[0], p[1], w * 0.7, 2.2, 0.3), y, y + 1.0, "debris", "B")
             s += 22.0 + 8.0 * hash01(k, 53)
+
+
+def build_bastion_gate():
+    """The gate tower of the west bridge on the bastion: the dark frame close by of the street view, the bridge through it,
+    the rock beyond (three depths, docs/DESIGN.md 6.3)."""
+    gx = BRIDGEHEADS["west"][0] + 2.2
+    for sz in (-2.7, 2.7):
+        prism(rect(gx, sz, 1.2, 1.2, 0.0), ROCK_Y - 1.0, ROCK_Y + 8.0, "stone_dark")
+    prism(rect(gx, 0.0, 1.2, 6.6, 0.0), ROCK_Y + 6.4, ROCK_Y + 8.0, "stone_dark", "both", True, "stone")
+    gable(gx, 0.0, 1.8, 7.0, 0.0, ROCK_Y + 8.0, 1.2, "roof", "A")
+    prism(rect(gx, 0.0, 1.2, 6.6, 0.0), ROCK_Y + 8.0, ROCK_Y + 8.6, "stone", "B")
 
 
 def build_streets():
@@ -774,11 +917,11 @@ def build_streets():
             side = 1 if k2 % 2 else -1
             x, z = p[0] - v[1] * side * (w / 2 - 0.3), p[1] + v[0] * side * (w / 2 - 0.3)
             y = float(ground(x, z))
-            prism(ngon(x, z, 0.1, 4), y, y + 3.2, "iron")
             if min(math.hypot(x - bx, z - bz) for bx, bz in BRIDGEHEADS.values()) < 9.0:
                 s += 14.0
                 continue
-            on_path = name in ("sea stair", "lower street", "market stairs", "market street", "east approach", "upper ring", "cliff stair")
+            prism(ngon(x, z, 0.1, 4), y, y + 3.2, "iron")
+            on_path = name in ("sea stair", "lower street", "market stairs", "market street", "east stair", "upper street", "cliff stair")
             lit_b = (on_path and k2 % 2 == 0) or hash01(int(x * 10), int(z * 10)) < 0.08
             prism(ngon(x, z, 0.5 if lit_b else 0.25, 6), y + 3.2, y + 4.0, "lantern", "both" if lit_b else "A")
             if lit_b:                                                                  # B: a pool of warm light under it
@@ -817,7 +960,9 @@ def site_free(out):
             return False
         if any(math.hypot(x - bx, z - bz) < 6.0 for bx, bz in BRIDGEHEADS.values()):
             return False
-    if distance_to(LOCK_LINE, xs, zs)[0].min() < 6.5 or distance_to(WALL, xs, zs)[0].min() < 2.4:
+        if any(math.hypot(x - gx, z - gz) < 6.0 for gx, gz in GATES.values()):
+            return False
+    if distance_to(LOCK_LINE, xs, zs)[0].min() < 9.0 or distance_to(WALL, xs, zs)[0].min() < 2.4:
         return False
     for name, (c, w, k) in STREET.items():
         if distance_to(c, xs, zs)[0].min() < w / 2 + 0.25:
@@ -962,7 +1107,7 @@ def build_country():
             if any(distance_to(c, x, z)[0] < w / 2 + 2.0 for c, w, _ in STREET.values()):
                 continue
             y = float(ground(x, z))
-            if y < SEA + 1.5 or (abs(x) < 26 and 66 < z < 92):
+            if y < SEA + 1.5 or (abs(x) < 26 and GRAVE_Z0 - 4.0 < z < GRAVE_Z0 + 20.0):
                 continue
             r = hash01(k, 3)
             wild = fbm(x / 25.0, z / 25.0, 2, 41)
@@ -983,13 +1128,59 @@ def build_country():
 
 
 # ---- the main path and the shortcuts (for the plan) -------------------------------------------------------------------------
-MAIN_PATH = [("start: the quay", 6, -72), ("sea gate", 0, -62), ("lower town", -28, -47), ("market stairs", -58, -24),
-             ("the well", -50, 6), ("west bridge", -20, 0), ("Rock of the Bell", 0, -6), ("east bridge", 20, 0),
-             ("the locks", 48, -18), ("lock stairs", 72, 0), ("water tower: dawn bell", 84, 26), ("upper ring", 40, 50),
-             ("the theatre", 0, 38), ("cliff stair", 12, 62), ("graveyard: night bell", 0, 80), ("back to the rock", 0, 4)]
-SHORTCUTS = [("lift: the plaza to the gorge (B) and the lower town", [(0, -12), (0, -20), (-4, -40)]),
-             ("the gorge (B): under both bridges", [(-18, -8), (0, -19), (18, -8)]),
-             ("the upper ring back down to the market", [(-40, 46), (-54, 14)])]
+MAIN_PATH = [  # (label, x, z, how the next leg goes: "walk", "under" (in the cistern), "to design")
+    ("1 start: the quay", 6, -72, "walk"), ("sea gate", 0, -62, "walk"), ("lower town", -28, -47, "walk"),
+    ("market stairs", -58, -24, "walk"), ("the market", -46, -7, "walk"), ("2 west bastion: the bridge seen, its gate shut", -29, 0, "walk"),
+    ("3 the well: down", -50, 6, "under"), ("4 the gorge floor (B), under the bridge", -21, 0, "walk"),
+    ("5 the lift: its cage, a frame up the rock (B)", 0, -18, "walk"), ("6 the plaza: the bridge gate opened (A)", 0, -8, "walk"),
+    ("east bridge", 18, 0, "walk"), ("east stair", 38, -8, "walk"), ("the locks", 52, -10, "walk"),
+    ("water tower: dawn bell", 80, 24, "walk"), ("upper street", 34, 52, "walk"), ("the theatre", 2, 56, "walk"),
+    ("cliff stair", 8, 68, "walk"), ("7 graveyard: night bell", 0, 86, "to design"), ("the bell tower: the end", 0, 8.5, ""),
+]
+
+
+def check():
+    """The numbers of the layout against the limits of the game (docs/DESIGN.md 11). Returns the list of problems."""
+    rows = []
+    for name, (c, w, kind) in STREET.items():
+        h = _HEIGHTS[name]
+        ds = np.maximum(np.linalg.norm(np.diff(c, axis=0), axis=1), 1e-6)
+        worst = float((np.abs(np.diff(h)) / ds).max())
+        ok = worst <= SLOPE[kind] + 1e-3
+        rows.append("  %-16s %-6s %6.1f -> %6.1f m  steepest %4.1f deg (limit %2.0f) %s" % (
+            name, kind, h[0], h[-1], math.degrees(math.atan(worst)), math.degrees(math.atan(SLOPE[kind])), "" if ok else "TOO STEEP"))
+        if not ok:
+            PROBLEMS.append((name, "steepest %.0f degrees" % math.degrees(math.atan(worst))))
+    joints = [("market street at the west bastion", _HEIGHTS["market street"][-1], ROCK_Y),
+              ("east stair at the east bastion", _HEIGHTS["east stair"][0], ROCK_Y),
+              ("east stair at the first quay", _HEIGHTS["east stair"][-1], float(quay_level(0.0))),
+              ("upper street at the last quay", _HEIGHTS["upper street"][0], LOCK_LEVELS[-1]),
+              ("cliff stair at the graveyard", _HEIGHTS["cliff stair"][-1], GRAVE_Y),
+              ("upper street at the top row of the theatre", _HEIGHTS["upper street"][-1], THEATRE_Y + 0.9 * 9),
+              ("sea stair at the quay", _HEIGHTS["sea stair"][0], QUAY_Y),
+              ("market stairs at the market", _HEIGHTS["market stairs"][-1], MARKET_Y)]
+    for name, a, b in joints:
+        ok = abs(a - b) <= 0.3
+        rows.append("  %-36s %6.1f against %6.1f %s" % (name, a, b, "" if ok else "STEP %.1f m" % abs(a - b)))
+        if not ok:
+            PROBLEMS.append((name, "a step of %.1f m" % abs(a - b)))
+    total = lengths(LOCK_LINE)[-1]
+    sl = (LOCK_LEVELS[1] - LOCK_LEVELS[0]) / LOCK_HEAD_RUN
+    rows.append("  lock stairs: %.1f m over %.1f m, %.0f degrees (limit 32); lock line %.0f m" % (
+        LOCK_LEVELS[1] - LOCK_LEVELS[0], LOCK_HEAD_RUN, math.degrees(math.atan(sl)), total))
+    if sl > SLOPE["stair"]:
+        PROBLEMS.append(("lock stairs", "too steep"))
+    rows.append("  the gorge: %.0f m from the plaza down to its floor; the bridges %.1f m long" % (ROCK_Y - GORGE_Y, abs(BRIDGEHEADS["west"][0]) - 3.0 - ROCK_R + 0.2))
+    rows.append("  gates in the town wall for: %s" % (", ".join(GATES) if GATES else "none"))
+    print("check:")
+    print("\n".join(rows))
+    if PROBLEMS:
+        print("problems:")
+        for place, what in PROBLEMS:
+            print("  %s: %s" % (place, what))
+    else:
+        print("no problems")
+    return PROBLEMS
 
 
 # ---- the renderer -----------------------------------------------------------------------------------------------------------
@@ -999,8 +1190,12 @@ def colour(mat, world):
     return np.array(a if world == "A" else b, float)
 
 
-def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None):
+def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None, lantern=None):
+    """`lantern` (x, y, z, r), in B: the lantern set down in A; inside its circle what stands is A, lit by A (docs/DESIGN.md
+    3.2)."""
     to_light, light, amb, sky_top, horizon, fog = LIGHT[world]
+    La, light_a, amb_a = np.array(LIGHT["A"][0], float), LIGHT["A"][1], LIGHT["A"][2]
+    La /= np.linalg.norm(La)
     L = np.array(to_light, float)
     L /= np.linalg.norm(L)
     W, H = size
@@ -1014,9 +1209,14 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None)
     focal = (W / 2) / math.tan(math.radians(fov) / 2) if ortho is None else None
     polys, cols, depths, edges, widths = [], [], [], [], []
     for pts, mat, w, kind in POLYS:
-        if w not in ("both", world):
+        inside = False
+        if lantern is not None and world == "B":
+            cx_, cy_, cz_ = pts.mean(axis=0)
+            inside = math.hypot(cx_ - lantern[0], cz_ - lantern[2]) <= lantern[3] and abs(cy_ - lantern[1]) < 8.0 and kind != "sea"
+        shown = "A" if inside else world
+        if w not in ("both", shown):
             continue
-        if mat in ("water",) and world == "B" and kind == "water":
+        if mat in ("water",) and shown == "B" and kind == "water":
             continue
         rel = pts - eye
         cam = np.stack([rel @ right, rel @ up, rel @ f], axis=1)
@@ -1054,21 +1254,22 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None)
         view = (eye - centre) if ortho is None else -f
         if nrm @ view < 0:
             nrm = -nrm
-        alb = colour(mat, world)
-        emissive = mat in EMISSIVE and EMISSIVE[mat][0 if world == "A" else 1]
+        alb = colour(mat, shown)
+        emissive = mat in EMISSIVE and EMISSIVE[mat][0 if shown == "A" else 1]
         if emissive:
             c = alb * 1.15
         else:
-            ndl = max(0.0, float(nrm @ L))
+            Lw, lw, aw = (La, light_a, amb_a) if inside else (L, light, amb)
+            ndl = max(0.0, float(nrm @ Lw))
             hemi = 0.65 + 0.35 * nrm[1]
-            c = alb * (np.array(amb) * hemi * 1.15 + np.array(light) * ndl * 1.05)
+            c = alb * (np.array(aw) * hemi * 1.15 + np.array(lw) * ndl * 1.05)
             if kind in ("water", "sea"):                                               # the sky in the water
                 c = 0.85 * alb * (0.7 + 0.3 * np.array(light)) + 0.15 * np.array(horizon)
         dist = np.linalg.norm(centre - eye)
         fo = 1.0 - math.exp(-dist * fog * (0.6 if kind == "sea" else 1.0))
-        if emissive:
+        if emissive or inside:
             fo *= 0.5
-        c = c * (1 - fo) + np.array(horizon) * fo
+        c = c * (1 - fo) + np.array(LIGHT["A"][4] if inside else horizon) * fo
         c = np.clip(c, 0, 1)
         depth = cam[:, 2].mean() if ortho is None else -float(rel.mean(axis=0) @ f)
         if kind == "sea":
@@ -1093,6 +1294,21 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None)
     pc = PolyCollection([polys[i] for i in order], facecolors=[cols[i] for i in order], edgecolors=[edges[i] for i in order],
                         linewidths=[widths[i] for i in order], zorder=1)
     ax.add_collection(pc)
+    if lantern is not None and world == "B" and ortho is None:                          # the rim of the circle, and the lantern
+        ring = [np.array([lantern[0] + lantern[3] * math.cos(a), lantern[1] + 0.1, lantern[2] + lantern[3] * math.sin(a)]) for a in np.linspace(0, 2 * math.pi, 64)]
+        scr = []
+        for p in ring:
+            rel = p - eye
+            zc = rel @ f
+            if zc > 0.6:
+                scr.append((W / 2 + focal * (rel @ right) / zc, H / 2 - focal * (rel @ up) / zc))
+        if scr:
+            xs_, ys_ = zip(*scr)
+            ax.plot(xs_, ys_, color=(1.0, 0.78, 0.42), lw=3.0, alpha=0.85, zorder=2)
+        rel = np.array([lantern[0], lantern[1] + 0.4, lantern[2]]) - eye
+        zc = rel @ f
+        if zc > 0.6:
+            ax.plot(W / 2 + focal * (rel @ right) / zc, H / 2 - focal * (rel @ up) / zc, "o", ms=11, color=(1.0, 0.86, 0.5), mec=(0.5, 0.3, 0.1), zorder=3)
     if overlay is not None:
         overlay(ax, eye, right, up, f, focal, W, H, ortho)
     ax.set_xlim(0, W)
@@ -1104,24 +1320,92 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None)
     return len(polys)
 
 
+HEIGHT_OF = {"2": ROCK_Y, "4": GORGE_Y, "5": GORGE_Y, "6": ROCK_Y, "east bridge": ROCK_Y, "the bell tower: the end": ROCK_Y + 40.0}
+
+
 def plan_overlay(ax, eye, right, up, f, focal, W, H, ortho):
     def project(x, y, z):
         rel = np.array([x, y, z]) - eye
         return W / 2 + ortho * (rel @ right), H / 2 - ortho * (rel @ up)
 
-    pts = [project(x, float(ground(x, z)) + 1.0, z) for _, x, z in MAIN_PATH]
-    xs, ys = zip(*pts)
-    ax.plot(xs, ys, color=(0.75, 0.10, 0.15), lw=3.0, zorder=3)
-    for (name, x, z), (px, py) in zip(MAIN_PATH, pts):
+    pts = [project(x, float(ground(x, z)) + 1.0, z) for _, x, z, _ in MAIN_PATH]
+    for k in range(len(MAIN_PATH) - 1):
+        how = MAIN_PATH[k][3]
+        (ax0, ay0), (ax1, ay1) = pts[k], pts[k + 1]
+        style = {"walk": ("-", (0.75, 0.10, 0.15)), "under": ("--", (0.10, 0.35, 0.80)), "to design": (":", (0.35, 0.35, 0.35))}[how]
+        ax.plot([ax0, ax1], [ay0, ay1], ls=style[0], color=style[1], lw=3.0, zorder=3)
+    offsets = {"2": (-8, -16, "right"), "3": (-8, -10, "right"), "the market": (-8, 4, "right"), "4": (8, 22, "left"),
+               "5": (8, 22, "left"), "6": (-8, -4, "right"), "east bridge": (8, -10, "left"), "east stair": (8, 10, "left")}
+    for (name, x, z, _), (px, py) in zip(MAIN_PATH, pts):
         ax.plot(px, py, "o", color=(0.75, 0.10, 0.15), ms=7, zorder=4)
-        ax.text(px + 8, py - 6, name, fontsize=9, weight="bold", zorder=5,
+        key = name.split(" ")[0] if name[0].isdigit() else name
+        dx, dy, ha = offsets.get(key, (8, -6, "left"))
+        ax.text(px + dx, py + dy, "%s (%.0f m)" % (name, HEIGHT_OF.get(key, float(ground(x, z)))), fontsize=8.5, weight="bold", zorder=5, ha=ha,
                 bbox=dict(boxstyle="round,pad=0.15", fc="white", alpha=0.8, ec="none"))
-    for name, line in SHORTCUTS:
-        q = [project(x, 0.0, z) for x, z in line]
-        qx, qy = zip(*q)
-        ax.plot(qx, qy, color=(0.12, 0.35, 0.80), lw=2.5, ls="--", zorder=3)
-        ax.text(qx[-1] + 8, qy[-1] + 14, name, fontsize=8, color=(0.12, 0.35, 0.80), zorder=5,
-                bbox=dict(boxstyle="round,pad=0.15", fc="white", alpha=0.7, ec="none"))
+
+
+# ---- the town as data for the game (src/scene/Town.h reads it) -------------------------------------------------------------
+TOWN_MAGIC = b"DLTOWN\0\0"
+TOWN_VERSION = 1
+KIND_CODE = {"solid": 0, "terrain": 1, "overlay": 2, "water": 3}
+WORLD_CODE = {"A": 1, "B": 2, "both": 3}
+SPAWN = (14.0, QUAY_Y, -72.0, 0.0)  # x, y (the feet), z, yaw (0 looks north, +z): on the quay, east of the sea stair
+
+
+def export(path):
+    """Writes the town: little-endian, every number a float32 unless said otherwise.
+        magic (8 bytes) "DLTOWN" 0 0, version (u32)
+        sea level, spawn x, y, z, yaw
+        2 lights (A, B): to the light (3), its colour (3), the shade (3), the sky top (3), the horizon (3), fog density
+        materials (u32 count): name (u8 length, bytes), colour in A (3), in B (3), shines in A (u8), in B (u8); sRGB albedo
+        places (u32 count): name (u8 length, bytes), x, y, z: the stations of the main path
+        streets (u32 count): name (u8 length, bytes), kind (u8: 0 street, 1 stair, 2 lane), width, point count (u16), the
+            points of its middle line (x, y, z each): what the tests walk
+        polygons (u32 count): world (u8: 1 A, 2 B, 3 both), kind (u8: 0 solid, 1 terrain, 2 overlay, 3 water), material
+            (u16), vertex count (u8), the vertices (x, y, z each)
+    The sea is not written: the game draws its own. Returns the number of polygons written."""
+    import struct
+    names = list(MAT.keys())
+    index = {n: i for i, n in enumerate(names)}
+    out = bytearray()
+    out += TOWN_MAGIC + struct.pack("<I", TOWN_VERSION)
+    out += struct.pack("<5f", SEA, *SPAWN)
+    for w in ("A", "B"):
+        to_light, light, amb, sky_top, horizon, fog = LIGHT[w]
+        out += struct.pack("<16f", *to_light, *light, *amb, *sky_top, *horizon, fog)
+    out += struct.pack("<I", len(names))
+    for n in names:
+        a, b = MAT[n]
+        em = EMISSIVE.get(n, (False, False))
+        raw = n.encode("ascii")
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<6f2B", *a, *b, int(em[0]), int(em[1]))
+    out += struct.pack("<I", len(MAIN_PATH))
+    for name, x, z, _ in MAIN_PATH:
+        key = name.split(" ")[0] if name[0].isdigit() else name
+        raw = name.encode("ascii")[:255]
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<3f", x, HEIGHT_OF.get(key, float(ground(x, z))), z)
+    out += struct.pack("<I", len(STREET))
+    for name, (c, w, kind) in STREET.items():
+        raw = name.encode("ascii")
+        hs = _HEIGHTS[name]
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<BfH", {"street": 0, "stair": 1, "lane": 2}[kind], w, len(c))
+        out += np.stack([c[:, 0], hs, c[:, 1]], axis=1).astype("<f4").tobytes()
+    body = bytearray()
+    count = 0
+    for pts, mat, world, kind in POLYS:
+        if kind == "sea" or len(pts) < 3:
+            continue
+        if len(pts) > 255:
+            raise ValueError("a polygon of %d vertices" % len(pts))
+        body += struct.pack("<BBHB", WORLD_CODE[world], KIND_CODE[kind], index[mat], len(pts))
+        body += np.asarray(pts, dtype="<f4").tobytes()
+        count += 1
+    out += struct.pack("<I", count) + body
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(out)
+    print("%s: %d polygons, %d materials, %.1f MB" % (os.path.relpath(path), count, len(names), len(out) / 1e6))
+    return count
 
 
 def main():
@@ -1135,34 +1419,46 @@ def main():
     build_east()
     build_north()
     build_arches()
+    build_bastion_gate()
     build_houses()
     build_country()
     print("%d polygons, %d houses" % (len(POLYS), len(HOUSES)))
+    if only in ("", "check", "export"):
+        check()
+        if only == "check":
+            return 1 if PROBLEMS else 0
+        if only == "export":
+            if PROBLEMS:
+                print("not exported: the check found problems")
+                return 1
+            export(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "town.dlt"))
+            return 0
     os.makedirs(OUT, exist_ok=True)
     views = {
         "aerial_a": ("A", "city2_aerial_a.png", (-70.0, 120.0, -235.0), (8.0, 4.0, -8.0), 44.0, (1600, 1000),
                      "World A - 7:11, warm dusk (from over the sea)"),
         "aerial_b": ("B", "city2_aerial_b.png", (-70.0, 120.0, -235.0), (8.0, 4.0, -8.0), 44.0, (1600, 1000),
                      "World B - now, cold ruin (from over the sea)"),
-        "street_a": ("A", "city2_street_a.png", (0.0, 0.0, 0.0), (0.0, ROCK_Y + 12.0, 4.0), 72.0, (1600, 900),
+        "street_a": ("A", "city2_street_a.png", (0.0, 0.0, 0.0), (0.0, ROCK_Y + 12.0, 4.0), 58.0, (1600, 900),
                      "World A - on the west bastion: the bridge over the gorge to the Rock of the Bell"),
-        "street_b": ("B", "city2_street_b.png", (0.0, 0.0, 0.0), (0.0, ROCK_Y + 12.0, 4.0), 72.0, (1600, 900),
-                     "World B - the same place: the bridge has fallen in the middle"),
+        "street_b": ("B", "city2_street_b.png", (0.0, 0.0, 0.0), (0.0, ROCK_Y + 12.0, 4.0), 58.0, (1600, 900),
+                     "World B - the bridge has fallen; the lantern set down on it in A keeps its middle standing"),
         "vista_a": ("A", "city2_vista_a.png", (10.0, GRAVE_Y + 15.0, 92.0), (0.0, 10.0, -12.0), 74.0, (1600, 900),
                     "World A - from the night bell tower over the graveyard: the theatre, the Rock of the Bell, the town, the sea"),
         "vista_b": ("B", "city2_vista_b.png", (10.0, GRAVE_Y + 15.0, 92.0), (0.0, 10.0, -12.0), 74.0, (1600, 900),
                     "World B - the same view, after the storm"),
     }
     for key, (world, name, eye, target, fov, size, title) in views.items():
-        if key.startswith("street"):                                                 # on the west bastion, at the bridge
-            eye = (-31.0, ROCK_Y + 1.7, -1.6)
-            target = (0.0, ROCK_Y + 7.0, 2.0)
+        if key.startswith("street"):                     # on the bastion: the gate tower, the bridge through it, the rock
+            eye = (BRIDGEHEADS["west"][0] - 4.3, ROCK_Y + 1.7, -0.4)
+            target = (-4.0, ROCK_Y + 4.0, 0.4)
         if only in ("", key):
-            n = render(world, os.path.join(OUT, name), eye, target, fov, size, title)
+            n = render(world, os.path.join(OUT, name), eye, target, fov, size, title,
+                       lantern=LANTERN_DEMO if key == "street_b" else None)
             print("%s: %d polygons drawn" % (name, n))
     if only in ("", "plan"):
         n = render("A", os.path.join(OUT, "city2_plan.png"), (4.0, 300.0, -2.0), (4.0, 0.0, -2.0001), 0.0, (1400, 1300),
-                   "Plan: red = the main path (a spiral round the rock), blue = shortcuts that loop back", plan_overlay, ortho=5.4)
+                   "Plan: the main path (red: walked, blue dashed: the cistern under the town, grey dotted: to be designed)", plan_overlay, ortho=5.4)
         print("city2_plan.png: %d polygons drawn" % n)
     return 0
 

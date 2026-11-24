@@ -372,6 +372,10 @@ void Models::Shutdown()
     {
         mesh = GpuMesh{};
     }
+    for (GpuMesh& mesh : m_waterBatch)
+    {
+        mesh = GpuMesh{};
+    }
     m_batchLayout.Reset();
     m_batchVertexShader.Reset();
     for (LayerTarget& target : m_targets)
@@ -678,6 +682,16 @@ void Models::SetStaticExtra(const BatchMesh& layerA, const BatchMesh& layerB)
     }
 }
 
+void Models::SetStaticWater(const BatchMesh& layerA, const BatchMesh& layerB)
+{
+    m_waterMesh[0] = layerA;
+    m_waterMesh[1] = layerB;
+    if (m_device)
+    {
+        CreateBatchBuffers();
+    }
+}
+
 void Models::SetStatic(const SceneObject* objects, int count)
 {
     m_staticObjects.clear();
@@ -691,45 +705,61 @@ void Models::SetStatic(const SceneObject* objects, int count)
     }
 }
 
-// The fixed boxes of each layer, baked into one immutable vertex and index buffer. Nothing to bake is not an error.
+// One baked mesh into an immutable vertex and index buffer. An empty mesh leaves `target` empty (not an error).
+bool Models::UploadBatch(const BatchMesh& baked, GpuMesh& target, const char* vertexName, const char* indexName)
+{
+    target = GpuMesh{};
+    if (baked.indices.empty())
+    {
+        return true;
+    }
+    D3D11_BUFFER_DESC desc{};
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.ByteWidth = static_cast<UINT>(baked.vertices.size() * sizeof(BatchVertex));
+    D3D11_SUBRESOURCE_DATA initial{};
+    initial.pSysMem = baked.vertices.data();
+    HRESULT hr = m_device->CreateBuffer(&desc, &initial, &target.vertexBuffer);
+    if (SUCCEEDED(hr))
+    {
+        desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        desc.ByteWidth = static_cast<UINT>(baked.indices.size() * sizeof(std::uint32_t));
+        initial.pSysMem = baked.indices.data();
+        hr = m_device->CreateBuffer(&desc, &initial, &target.indexBuffer);
+    }
+    if (FAILED(hr))
+    {
+        DL_LOG_ERROR("Models", "%s could not be made (0x%08X)", vertexName, static_cast<unsigned>(hr));
+        target = GpuMesh{};
+        return false;
+    }
+    target.indexCount = static_cast<UINT>(baked.indices.size());
+    SetDebugName(target.vertexBuffer.Get(), vertexName);
+    SetDebugName(target.indexBuffer.Get(), indexName);
+    return true;
+}
+
+// The fixed boxes of each layer, baked into one immutable vertex and index buffer; the still water of each layer into its
+// own. Nothing to bake is not an error.
 bool Models::CreateBatchBuffers()
 {
-    static const char* const kNames[2][2] = {{"Models.Batch.A.VB", "Models.Batch.A.IB"}, {"Models.Batch.B.VB", "Models.Batch.B.IB"}};
+    static const char* const kNames[2][4] = {{"Models.Batch.A.VB", "Models.Batch.A.IB", "Models.Water.A.VB", "Models.Water.A.IB"},
+                                             {"Models.Batch.B.VB", "Models.Batch.B.IB", "Models.Water.B.VB", "Models.Water.B.IB"}};
     for (int layer = 0; layer < 2; ++layer)
     {
-        GpuMesh& target = m_batch[static_cast<std::size_t>(layer)];
-        target = GpuMesh{};
+        const std::size_t l = static_cast<std::size_t>(layer);
         BatchMesh baked = BakeLayer(m_staticObjects.data(), static_cast<int>(m_staticObjects.size()), layer);
-        AppendMesh(baked, m_extra[static_cast<std::size_t>(layer)]); // the ground and the plants
-        if (baked.indices.empty())
+        AppendMesh(baked, m_extra[l]); // the ground and the plants
+        if (!UploadBatch(baked, m_batch[l], kNames[layer][0], kNames[layer][1]) ||
+            !UploadBatch(m_waterMesh[l], m_waterBatch[l], kNames[layer][2], kNames[layer][3]))
         {
-            continue;
-        }
-        D3D11_BUFFER_DESC desc{};
-        desc.Usage = D3D11_USAGE_IMMUTABLE;
-        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-        desc.ByteWidth = static_cast<UINT>(baked.vertices.size() * sizeof(BatchVertex));
-        D3D11_SUBRESOURCE_DATA initial{};
-        initial.pSysMem = baked.vertices.data();
-        HRESULT hr = m_device->CreateBuffer(&desc, &initial, &target.vertexBuffer);
-        if (SUCCEEDED(hr))
-        {
-            desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-            desc.ByteWidth = static_cast<UINT>(baked.indices.size() * sizeof(std::uint32_t));
-            initial.pSysMem = baked.indices.data();
-            hr = m_device->CreateBuffer(&desc, &initial, &target.indexBuffer);
-        }
-        if (FAILED(hr))
-        {
-            DL_LOG_ERROR("Models", "the static batch of layer %s could not be made (0x%08X)", layer == 0 ? "A" : "B", static_cast<unsigned>(hr));
-            target = GpuMesh{};
             return false;
         }
-        target.indexCount = static_cast<UINT>(baked.indices.size());
-        SetDebugName(target.vertexBuffer.Get(), kNames[layer][0]);
-        SetDebugName(target.indexBuffer.Get(), kNames[layer][1]);
-        DL_LOG_INFO("Models", "static batch %s: %d boxes, %zu triangles in one draw call", layer == 0 ? "A" : "B", baked.objects,
-                    baked.indices.size() / 3);
+        if (!baked.indices.empty())
+        {
+            DL_LOG_INFO("Models", "static batch %s: %d boxes, %zu triangles in one draw call", layer == 0 ? "A" : "B", baked.objects,
+                        baked.indices.size() / 3);
+        }
     }
     return true;
 }
@@ -960,7 +990,27 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         drawOne(object);
     }
 
-    // ---- the water: after everything opaque, blended, far to near (the sea first: it is under everything else)
+    // ---- the water: after everything opaque, blended; the still water of the static batch first, then the water objects far
+    // to near (the sea first: it is under everything else)
+    const GpuMesh& stillWater = m_waterBatch[static_cast<std::size_t>(layer)];
+    if (stillWater.indexCount > 0)
+    {
+        context->OMSetBlendState(m_waterBlend.Get(), nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(m_waterDepth.Get(), 0);
+        context->IASetInputLayout(m_batchLayout.Get());
+        context->VSSetShader(m_batchVertexShader.Get(), nullptr, 0);
+        ID3D11Buffer* waterBuffer = stillWater.vertexBuffer.Get();
+        const UINT waterStride = sizeof(BatchVertex);
+        const UINT waterOffset = 0;
+        context->IASetVertexBuffers(0, 1, &waterBuffer, &waterStride, &waterOffset);
+        context->IASetIndexBuffer(stillWater.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+        context->DrawIndexed(stillWater.indexCount, 0, 0);
+        ++m_drawCalls;
+        context->IASetInputLayout(m_inputLayout.Get());
+        context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+        context->OMSetBlendState(m_blendState.Get(), nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(m_depthState.Get(), 0);
+    }
     if (!m_water.empty())
     {
         const auto farness = [&](const SceneObject* o) {

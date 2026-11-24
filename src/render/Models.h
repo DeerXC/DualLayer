@@ -113,6 +113,18 @@ class Models
     /// layer (copied): joined to the static batch of that layer. Call it before SetStatic, once (it survives a lost device).
     void SetStaticExtra(const BatchMesh& layerA, const BatchMesh& layerB);
 
+    /// Water that does not move, baked by its owner, one mesh per layer (copied; scene/Town.h BakeWater): drawn in the water
+    /// pass, blended over what is behind it. Call it before SetStatic, once (it survives a lost device).
+    void SetStaticWater(const BatchMesh& layerA, const BatchMesh& layerB);
+
+    /// The looks of both layers at once (the town of the model brings its own: scene/Town.h). LoadThemes sets them from the
+    /// config again.
+    void SetThemes(const Theme& layerA, const Theme& layerB)
+    {
+        m_themes[0] = layerA;
+        m_themes[1] = layerB;
+    }
+
     /// 0 = the evening of A, 1 = its night (the night bell, scene/CityState.h): the theme of A is blended toward the night theme.
     void SetNight(float amount)
     {
@@ -171,6 +183,7 @@ class Models
 
     bool CreateMeshes(int segments);
     bool CreateBatchBuffers();
+    bool UploadBatch(const BatchMesh& baked, GpuMesh& target, const char* vertexName, const char* indexName);
     bool CreateGpuMesh(Shape shape, const MeshData& data);
     bool CreateStates();
     bool CreateRippleResources();
@@ -212,6 +225,8 @@ class Models
     Theme m_nightTheme;            // the night of A (the night bell)
     float m_night = 0.0f;          // 0 .. 1: how far the night has fallen in A
     std::array<BatchMesh, 2> m_extra; // the ground and the plants of each layer (SetStaticExtra)
+    std::array<BatchMesh, 2> m_waterMesh; // the water that does not move (SetStaticWater)
+    std::array<GpuMesh, 2> m_waterBatch;
     /// The theme a layer is drawn with now: B as it is, A blended toward its night.
     Theme ThemeOf(int layer) const;
     int m_segments = 32;

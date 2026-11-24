@@ -68,6 +68,14 @@ no sense are pulled into a working range.
 | `[models]` | `segments` (32) | how round the round shapes are |
 | `[debug]` | `device_reset_key` (false) | F9 tests the device recovery |
 | `[test_triangle]` | `show` (false), `spin_deg_per_sec` (0) | the first test triangle |
+| `[map]` | `town` (true) | the town of the layout model (`data/town.dlt`); false: the greybox of the previous map with its puzzles |
+
+The town is data made by the layout model. After a change of `tools/layout/city_model.py`, write it again (Python 3, numpy,
+matplotlib; about a minute):
+
+    python tools/layout/city_model.py export
+
+It checks the model first and writes nothing when the check finds a problem.
 
 ## One command
 
@@ -132,6 +140,11 @@ seen".
 | E-21 | The city | stay 30 s, then 60 s in one room | the pale outlines of the other world grow bright, then pulse |
 | E-22 | The city | from the balcony and the top of the lock walk, look round in A and in B | streets winding round the centre with houses turned to them and lamps; the halls clad as houses; in B shells by the sea, roofless houses with rafters in the lower town, grass in the streets, reeds in the harbour, felled pines; long swells on the sea; nothing floats, no void |
 | E-23 | The city | reach the goal: stay in A through the three strokes; R and switch to B; with the three bells hold Tab | THE PAST (the water stays), THE PRESENT (the water drains and the walls stay wet for a while), BOTH; R plays the last moment again |
+| E-24 | The town | start (the town is the default) | on the quay in warm dusk: the sea gate ahead, the town rising on its hill, the bell tower on the rock; the title bar says the quay |
+| E-25 | The town | Tab, look round; Tab back | B: the same town in cold moonlight, roofs gone by the sea, the bell tower broken; a few lanterns still lit along the main path |
+| E-26 | The town | walk up the sea stair, the lower street, the market stairs and the market street to the west bastion; look at the bridge | streets walked without a jump; arches over the streets; the market with its well; the bridge over the gorge to the rock, whole in A, fallen in the middle in B |
+| E-27 | The town | in A walk off the bastion into the moat; jump off the quay into the sea | the moat: the view tinted under water for half a second, then back on the bastion; the sea: back on the quay; the title bar counts the falls |
+| E-28 | The town | walk to the locks, the theatre and up the cliff stair to the graveyard | five locks with water in A and stairs beside each head; the theatre facing the rock; the graveyard over the town |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

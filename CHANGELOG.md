@@ -5,6 +5,26 @@ git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
 
+### 2026-11-24: the town of the model in the game
+
+- Made: the layout model is the map. `python tools/layout/city_model.py export` checks the model and writes `data/town.dlt`
+  (1.5 MB: lights, 32 materials, 19 stations, 10 streets, about 28700 polygons). `scene/Town.h` reads it, bakes one batch per
+  moment (each polygon a fan with one normal, both sides; terrain and water from above) and the water of A, and builds the
+  solid of each moment; `scene/TriMesh.h` is a solid of triangles in a grid of 4 m cells with a push-out like the ground's.
+  `Player::SetMeshes`; `Models::SetStaticWater` (still water baked and drawn in the water pass), `Models::SetThemes`;
+  `Landscape::AddSea` takes the level of the sea. `main.cpp`: `[map] town` (default true) runs `RunTown`: walk, switch
+  (refused into a surface or into the water of the other moment), sink, fall, come back to the last place stood still on (and
+  R); the looks of both moments from the model's lights. The greybox map stays with `[map] town = false`.
+- Fixed in the model (found by the walking test): the sea stair ran into a tower of the sea gate (now through its middle);
+  the market stairs ran into the parapet of the well (now west of it); the cliff stair zig-zagged into its own gate and ended
+  in a pit in the graveyard (now straight; the graveyard at z 78 .. 96). The start is at x 14 on the quay, clear of the sea
+  stair.
+- Changed: `tools/check.ps1` expects the eye on the quay at -4.65 m. The post-build step copies `data\` next to the exe.
+- Checked: `tests/test_town.cpp` (new, 35: the file refused when damaged; the data; the triangle solid on a floor and a
+  wall from both sides; the drawn fronts face their normals, the water of A only; the body stands at the start in both
+  moments, fits there and walks north on the quay; every street walked end to end in A without a jump; in B the sea stair
+  and the lower street are closed by rubble; the moat is water in A and not in B), the other tests unchanged.
+
 ### 2026-11-24: the design revised
 
 - Decided: A is the past and B the present; the causal rule (what is done in A leaves its trace in B, never the other
@@ -18,6 +38,13 @@ git history of this file; it is summarised here.
   edges, ravines with the sea in them). `docs/ARCHITECTURE.md` and `docs/CONVENTIONS.md`: the pale outline instead of the
   edges, the sunken lanes and the open ground instead of the pits at -16, `WaterFx` among the modules, the two rows of the
   switch guard merged into one. This file is summarised.
+- The model checked and fixed (`tools/layout/city_model.py`, `docs/DESIGN.md` 7.5): a `check` mode measures every street
+  against its slope limit and every joint of the main path; street ends are pinned to what they meet; the market street
+  reaches the west bastion, the east stair the first quay, the upper street the top of the theatre, the cliff stair the
+  graveyard through a gate in the wall; stairs beside the lock heads; the well rim and stair fixed (they were under the
+  ground of the market); the tunnel portal in the gorge, the lift cage and frame, the gate of the west bridge, the gate
+  tower of the bastion; the shortcuts of the plan removed and the main path drawn as in 7.4; the street_b view shows the
+  circle of the lantern.
 - The model of the map (`tools/layout/city_model.py`, version 2): one hill town round the Rock of the Bell, a gorge with two
   bridges, the market and its well, five locks, the theatre and the graveyard on the cliff; a warm A and a cold B; storm
   damage by exposure; arches over the streets; varied houses. Its numbers are checked against the limits of the game in
@@ -96,6 +123,8 @@ git history of this file; it is summarised here.
 | KI-06 | Comments in the code point to sections of `docs/LEVEL_DESIGN.md`, which `docs/DESIGN.md` replaced | read a comment such as "docs/LEVEL_DESIGN.md 6.4.2" | the design document was merged on 2026-11-24 | the section is found only in the git history | the comments are rewritten with the rebuild of the town |
 | KI-07 | Most logic tests build without `/WX` | `tests/run_tests.ps1` | only `core` and `camera` have `/WX` | a new warning in a test is reported as WARN, not as a failure | turn `/WX` on test by test once a run shows no warning |
 | KI-08 | `.github/workflows/build.yml` has not run on a hosted runner | - | - | the CI file is untested | run it once the repository is public |
+| KI-09 | The town has no puzzles, no lamps and no bells yet | start with `[map] town = true` | the rebuild is at step 2 of `docs/DESIGN.md` 12 | the town is walked, nothing more | steps 3 and 4 |
+| KI-10 | In the town a fall comes back to the last place the body stood still on, which may be just before a jump that keeps failing | jump short of a gap and fall | no anchor lamps in the town yet | a player may need R | the lamps of the town with step 4 |
 
 ## Closed issues
 

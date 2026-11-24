@@ -63,6 +63,7 @@
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
+#include "scene/Town.h"
 #include "scene/WaterFx.h"
 
 #include <DirectXMath.h>
@@ -189,6 +190,29 @@ dl::CameraInput ReadCameraKeys()
     return input;
 }
 
+/// The looks of the two moments from the lights of the model (tools/layout/city_model.py LIGHT): its colours are sRGB, the
+/// renderer works in linear light.
+void ApplyTownThemes(dl::Models& models, const dl::town::TownData& town)
+{
+    const auto lin = [](const float c[3]) {
+        return DirectX::XMFLOAT3(dl::batch_detail::SrgbToLinear(c[0]), dl::batch_detail::SrgbToLinear(c[1]), dl::batch_detail::SrgbToLinear(c[2]));
+    };
+    dl::Models::Theme themes[2];
+    for (int i = 0; i < 2; ++i)
+    {
+        const dl::town::Light& l = town.lights[i];
+        dl::Models::Theme& t = themes[i];
+        t.toLight = DirectX::XMFLOAT3(l.toLight[0], l.toLight[1], l.toLight[2]);
+        t.lightColor = lin(l.color);
+        t.sky = lin(l.shade);
+        t.clear = lin(l.horizon);
+        t.fogDensity = l.fog;
+        t.tint = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f); // the town has its own colours: no stone tint
+        t.weathering = 0.0f;
+    }
+    models.SetThemes(themes[0], themes[1]);
+}
+
 /// Everything that lives on the GPU. A lost device takes all of it, so all of it is made again together (Recover).
 struct Gpu
 {
@@ -196,6 +220,7 @@ struct Gpu
     dl::Triangle triangle;
     dl::Models models;
     dl::Overlay overlay;
+    const dl::town::TownData* town = nullptr; // set: the town of the model is drawn instead of the greybox map
 
     bool Init(const dl::Window& window, const dl::Config& config, int adapter)
     {
@@ -206,6 +231,16 @@ struct Gpu
             return false;
         }
         models.LoadThemes(config); // the looks of the layers: built in, [layer_a] / [layer_b] in the config change them
+        if (town != nullptr)
+        {
+            // the town of the model (scene/Town.h): its own looks, its polygons baked into the static batch of each layer,
+            // its still water into the water pass; nothing of the greybox map
+            ApplyTownThemes(models, *town);
+            models.SetStaticExtra(town->BakeLayer(0), town->BakeLayer(1));
+            models.SetStaticWater(town->BakeWater(0), town->BakeWater(1));
+            models.SetStatic(nullptr, 0);
+            return true;
+        }
         // the fixed city: baked once into one draw call per layer (render/StaticBatch.h); the drawn table then holds the rest
         static std::vector<dl::scene::SceneObject> fixedCity;
         if (fixedCity.empty())
@@ -425,6 +460,310 @@ void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl:
     }
 }
 
+/// True when a body with its feet at `feet` fits in `layer` of the town: none of its three balls overlaps a surface (a hair
+/// less than its radius, so that standing on a floor fits) and its feet are not under the water of that layer.
+bool FitsInTown(const dl::Player& player, const dl::town::TriMesh& mesh, const dl::town::TownData& town, int layer)
+{
+    const float r = player.GetSettings().radius;
+    for (int i = 0; i < 3; ++i)
+    {
+        dl::Vec3 c = player.Ball(i);
+        if (mesh.PushOut(c, r - 0.03f) > 0.005f)
+        {
+            return false;
+        }
+    }
+    return !town.Submerged(player.Feet(), layer);
+}
+
+/// The town of the model (scene/Town.h), walked in both moments. It has no puzzles yet (docs/DESIGN.md 12, step 4): this
+/// loop walks, switches, falls, sinks and draws. A fall or the water brings the body back to the last place it stood still
+/// on; R does the same. Returns the exit code.
+int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera, int adapter, const dl::town::TownData& town)
+{
+    namespace st = dl::stage;
+    const std::array<dl::town::TriMesh, 2> meshes = {town.BuildMesh(0), town.BuildMesh(1)};
+    DL_LOG_INFO("Main", "town solid: %d triangles in A, %d in B", meshes[0].TriangleCount(), meshes[1].TriangleCount());
+    dl::Player player;
+    ApplyPlayerConfig(config, player);
+    player.SetScene(nullptr, 0);
+    player.SetMeshes(&meshes[0], &meshes[1]);
+    player.SetSpawn(town.spawn);
+    player.Respawn();
+    camera.SetPose(player.Eye(), town.spawnYaw, 0.0f);
+    dl::puzzle::LayerGuard guard;
+    static dl::scene::SceneObject drawTable[64] = {};
+    static dl::OverlayBatch hud; // WHY static: 288 KB, too large for the stack
+    Respawn respawn;
+    dl::Vec3 safe = town.spawn; // the last place the body stood still on: where a fall comes back to
+    float stood = 0.0f;         // UNITS: seconds the body has stood on the ground without a break
+    float sinking = -1.0f;      // UNITS: seconds left of sinking in water before it comes back; negative: not sinking
+    int falls = 0;
+
+    LARGE_INTEGER frequency{};
+    LARGE_INTEGER last{};
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&last);
+    double fpsTimer = 0.0;
+    int fpsFrames = 0;
+    double seconds = 0.0;
+    float landDip = 0.0f;
+    float eyeY = player.Eye().y;
+    bool keyDown[8] = {}; // Z, X, C, N, F, Space, Tab, R
+    bool resetTestKeyWasDown = false;
+    bool collide = config.GetBool("collision", "enabled", true);
+    bool walk = config.GetBool("player", "walk", true);
+    bool wasWalking = walk && collide;
+    int recoveries = 0;
+
+    while (window.PumpMessages())
+    {
+        const bool focused = GetForegroundWindow() == window.Handle();
+        const bool resetTest = config.GetBool("debug", "device_reset_key", false) && PressedOnce(VK_F9, resetTestKeyWasDown, focused);
+        if (gpu.device->Lost() || resetTest)
+        {
+            DL_LOG_WARN("Main", "%s", resetTest ? "F9: the GPU objects are made again (test)" : "the device is lost: making it again");
+            ++recoveries;
+            if (recoveries > kMaxRecoveries || !gpu.Recover(window, config, adapter))
+            {
+                DL_LOG_ERROR("Main", "the device could not be made again (%d tries)", recoveries);
+                MessageBoxA(window.Handle(), "The graphics device was lost and could not be recovered. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
+                return 1;
+            }
+            DL_LOG_INFO("Main", "recovered (%d of at most %d)", recoveries, kMaxRecoveries);
+            QueryPerformanceCounter(&last);
+            continue;
+        }
+        if (window.ConsumeReloadKey())
+        {
+            LoadConfig(config, camera);
+            gpu.models.LoadThemes(config);
+            ApplyTownThemes(gpu.models, town);
+            gpu.device->SetVsync(config.GetBool("render", "vsync", true));
+            ApplyPlayerConfig(config, player);
+            collide = config.GetBool("collision", "enabled", true);
+            walk = config.GetBool("player", "walk", true);
+        }
+        if (window.ConsumeResized())
+        {
+            gpu.device->Resize(window.Width(), window.Height());
+        }
+        if (window.IsMinimized())
+        {
+            Sleep(50);
+            continue;
+        }
+        LARGE_INTEGER now{};
+        QueryPerformanceCounter(&now);
+        const double dt = static_cast<double>(now.QuadPart - last.QuadPart) / static_cast<double>(frequency.QuadPart);
+        last = now;
+        const float dtf = static_cast<float>(dt);
+        seconds += dt;
+
+        long mouseDx = 0;
+        long mouseDy = 0;
+        window.ConsumeMouseDelta(mouseDx, mouseDy);
+        if (mouseDx != 0 || mouseDy != 0)
+        {
+            const float sensitivity = std::clamp(config.GetFloat("mouse", "sensitivity", kDefaultMouseSensitivity), 0.0002f, 0.02f);
+            const float invert = config.GetBool("mouse", "invert_y", false) ? -1.0f : 1.0f;
+            camera.SetPose(camera.Position(), camera.Yaw() + static_cast<float>(mouseDx) * sensitivity,
+                           camera.Pitch() - invert * static_cast<float>(mouseDy) * sensitivity);
+        }
+
+        // ---- keys
+        const dl::CameraInput keys = focused ? ReadCameraKeys() : dl::CameraInput{};
+        if (PressedOnce('Z', keyDown[0], focused))
+        {
+            gpu.models.ToggleWireframe();
+        }
+        if (PressedOnce('X', keyDown[1], focused))
+        {
+            gpu.models.CycleDetail();
+        }
+        if (PressedOnce('C', keyDown[2], focused))
+        {
+            gpu.models.ToggleSpin();
+        }
+        if (PressedOnce('N', keyDown[3], focused))
+        {
+            collide = !collide;
+            DL_LOG_INFO("Main", "collision %s", collide ? "on" : "off");
+        }
+        if (PressedOnce('F', keyDown[4], focused))
+        {
+            walk = !walk;
+            DL_LOG_INFO("Main", "movement: %s", walk ? "walk" : "fly");
+        }
+        const bool jumpPressed = PressedOnce(VK_SPACE, keyDown[5], focused);
+        const bool walking = walk && collide;
+
+        // ---- the switch, through the guard: refused into a wall or into the water of the other moment
+        if (PressedOnce(VK_TAB, keyDown[6], focused && !IsDown(VK_MENU) && sinking < 0.0f))
+        {
+            const int solidNow = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
+            const int target = 1 - gpu.models.CollisionLayer();
+            const bool fits = !walking || FitsInTown(player, meshes[static_cast<std::size_t>(target)], town, target);
+            switch (guard.OnSwitchRequest(solidNow, gpu.models.LayerSwitching(), fits))
+            {
+            case dl::puzzle::LayerGuard::Action::Switch:
+                gpu.models.ToggleLayer();
+                break;
+            case dl::puzzle::LayerGuard::Action::Refuse:
+                gpu.models.ToggleLayer();
+                DL_LOG_INFO("Main", "switch refused: the body would be inside something in layer %s", target == 0 ? "A" : "B");
+                break;
+            case dl::puzzle::LayerGuard::Action::Ignore:
+                break;
+            }
+        }
+        if (guard.Update(dtf))
+        {
+            gpu.models.ToggleLayer();
+        }
+
+        // ---- the camera
+        if (walking && !wasWalking)
+        {
+            player.Place(camera.Position());
+        }
+        wasWalking = walking;
+        if (walking)
+        {
+            dl::CameraInput lookOnly;
+            lookOnly.lookRight = keys.lookRight;
+            lookOnly.lookUp = keys.lookUp;
+            camera.Update(lookOnly, dtf);
+        }
+        else
+        {
+            camera.Update(keys, dtf);
+        }
+        gpu.models.Update(dtf);
+        const int solidLayer = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
+
+        const bool resetPressed = PressedOnce('R', keyDown[7], focused);
+        if (walking)
+        {
+            dl::Player::Input move;
+            move.moveForward = sinking >= 0.0f ? 0.0f : keys.moveForward;
+            move.moveRight = sinking >= 0.0f ? 0.0f : keys.moveRight;
+            move.jumpPressed = jumpPressed && sinking < 0.0f;
+            move.jumpHeld = focused && IsDown(VK_SPACE);
+            player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
+
+            // into the water: it sinks for a moment, then comes back; below the sea or the town: a fall
+            if (sinking < 0.0f && town.Submerged(player.Feet(), solidLayer))
+            {
+                sinking = st::kSinkSeconds;
+                DL_LOG_INFO("Main", "into the water");
+            }
+            bool back = resetPressed;
+            if (sinking >= 0.0f)
+            {
+                sinking -= dtf;
+                back = back || sinking < 0.0f;
+            }
+            back = back || player.Feet().y < town.sea - 3.0f || player.JustRespawned();
+            if (back)
+            {
+                sinking = -1.0f;
+                player.SetSpawn(safe);
+                player.Respawn();
+                respawn = Respawn{player.Feet(), 0.0f};
+                landDip = 0.0f;
+                stood = 0.0f;
+                if (!resetPressed)
+                {
+                    ++falls;
+                    DL_LOG_INFO("Main", "fell: back at the %s", town.NearestPlace(safe.x, safe.z));
+                }
+            }
+            // the last place it stood still on, out of the water, in both moments (a switch must not leave it in a wall)
+            stood = player.Grounded() && sinking < 0.0f ? stood + dtf : 0.0f;
+            if (stood > 0.5f && FitsInTown(player, meshes[0], town, 0) && FitsInTown(player, meshes[1], town, 1))
+            {
+                safe = player.Feet();
+            }
+            float peak = 0.0f;
+            if (player.ConsumeLanding(peak))
+            {
+                DL_LOG_INFO("Player", "jump peak %.2f m", peak);
+            }
+            float impact = 0.0f;
+            if (player.ConsumeImpact(impact))
+            {
+                const float perSpeed = std::clamp(config.GetFloat("camera", "land_dip", kDefaultLandDip), 0.0f, 0.05f);
+                const float deepest = std::clamp(config.GetFloat("camera", "land_dip_max", kDefaultLandDipMax), 0.0f, 0.5f);
+                landDip = std::max(landDip, std::min(impact * perSpeed, deepest));
+            }
+            landDip *= std::exp(-kLandDipReturn * dtf);
+            dl::Vec3 eye = player.Eye();
+            const float rise = eye.y - eyeY;
+            eyeY = (player.Grounded() && std::fabs(rise) < kEyeEaseMax) ? eyeY + rise * (1.0f - std::exp(-kEyeEase * dtf)) : eye.y;
+            eye.y = eyeY - landDip;
+            camera.SetPose(eye, camera.Yaw(), camera.Pitch());
+        }
+        else if (collide) // flying with collision: the camera is a ball pushed out of the town
+        {
+            dl::Vec3 c = camera.Position();
+            if (meshes[static_cast<std::size_t>(solidLayer)].PushOut(c, std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f)) > 0.0f)
+            {
+                camera.SetPose(c, camera.Yaw(), camera.Pitch());
+            }
+        }
+        respawn.since += dtf;
+
+        // ---- what is drawn: the town is in the static batch; here only the sea and the ring of a return
+        int drawn = st::AddSea(camera.Position(), drawTable, 0, 64, town.sea, -60.0f);
+        drawn = st::AddRespawnRing(respawn.at, respawn.since, drawTable, drawn, 64);
+        gpu.models.SetObjects(drawTable, drawn);
+
+        const dl::Vec3 pos = camera.Position();
+        const dl::Vec3 dir = camera.Forward();
+        const DirectX::XMMATRIX view = DirectX::XMMatrixLookToLH(DirectX::XMVectorSet(pos.x, pos.y, pos.z, 1.0f), DirectX::XMVectorSet(dir.x, dir.y, dir.z, 0.0f),
+                                                                  DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+        float clear[4] = {};
+        gpu.models.ClearColor(clear);
+        {
+            dl::GpuEvent frame(gpu.device->GetAnnotation(), L"Frame");
+            gpu.device->BeginFrame(clear);
+            const float aspect = static_cast<float>(gpu.device->Width()) / static_cast<float>(gpu.device->Height());
+            {
+                dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Opaque.Models");
+                gpu.models.Draw(gpu.device->GetContext(), view, dl::MakeProjection(aspect, config.GetFloat("camera", "fov_deg", dl::kDefaultFovYDegrees)),
+                                DirectX::XMFLOAT3(pos.x, pos.y, pos.z));
+            }
+            {
+                char status[160];
+                std::snprintf(status, sizeof(status), "%s", town.NearestPlace(pos.x, pos.z));
+                const std::array<dl::prompt::Shown, 2> none{};
+                const float under = sinking >= 0.0f ? 1.0f : 0.0f;
+                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), none, status, nullptr, st::Resonance{}, static_cast<float>(seconds), under);
+                dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
+                gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
+            }
+        }
+        gpu.device->EndFrame();
+
+        fpsTimer += dt;
+        ++fpsFrames;
+        if (fpsTimer >= 0.5)
+        {
+            const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
+            wchar_t title[384];
+            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | town: %hs | falls %d%s",
+                       gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer, 1000.0 * fpsTimer / fpsFrames,
+                       pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode, town.NearestPlace(pos.x, pos.z), falls,
+                       window.MouseCaptured() ? L"" : L" | click for mouse look");
+            window.SetTitle(title);
+            fpsTimer = 0.0;
+            fpsFrames = 0;
+        }
+    }
+    return 0;
+}
+
 int RunApp(HINSTANCE instance, int argc, char** argv)
 {
     CreateDirectoryA("logs", nullptr);
@@ -448,12 +787,36 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         adapter = adapterArg;
     }
 
+    // ---- which map: the town of the model (docs/DESIGN.md 12, step 2) or the greybox of the previous map ([map] town = false)
+    static dl::town::TownData town; // WHY static: a few MB, kept for the whole run
+    const bool townMode = config.GetBool("map", "town", true);
+    if (townMode)
+    {
+        std::string error;
+        if (!town.Load(dl::town::kPath, error))
+        {
+            DL_LOG_ERROR("Main", "the town could not be loaded: %s", error.c_str());
+            MessageBoxA(window.Handle(), "The town could not be loaded. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
+            return 1;
+        }
+        DL_LOG_INFO("Main", "town: %zu polygons, %zu materials, %zu places", town.polygons.size(), town.materials.size(), town.places.size());
+    }
+
     Gpu gpu;
+    gpu.town = townMode ? &town : nullptr;
     if (!gpu.Init(window, config, adapter))
     {
         MessageBoxA(window.Handle(), "Initialisation failed. See logs/dual.log", "DualLayer", MB_OK | MB_ICONERROR);
         gpu.Shutdown();
         return 1;
+    }
+    if (townMode)
+    {
+        const int code = RunTown(window, gpu, config, camera, adapter, town);
+        DL_LOG_INFO("Main", "shutdown");
+        gpu.Shutdown();
+        dl::log::Close();
+        return code;
     }
 
     // ---- the map: its puzzle, the guard of the layer switch, the room the body is in, the seals, the hidden lights
@@ -567,6 +930,10 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         {
             LoadConfig(config, camera);
             gpu.models.LoadThemes(config);
+            if (gpu.town != nullptr)
+            {
+                ApplyTownThemes(gpu.models, *gpu.town);
+            }
             gpu.device->SetVsync(config.GetBool("render", "vsync", true));
             ApplyPlayerConfig(config, player);
             collide = config.GetBool("collision", "enabled", true);
