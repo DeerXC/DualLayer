@@ -42,7 +42,8 @@ struct FrameConstants
     XMFLOAT3 toLight; // unit vector from a surface TO the light
     float ambient;
     XMFLOAT3 lightColor; // linear
-    float pad1;
+    float lanternMode;   // 0: none; 1: this is B, what is inside the circle of the lantern is not drawn; 2: this is the A
+                         // inside the circle, what is outside it is not drawn (scene/Lantern.h)
     XMFLOAT3 skyUp; // linear: the sky light on a surface that looks up
     float pad2;
     XMFLOAT3 skyDown; // linear: the ground light on a surface that looks down
@@ -51,6 +52,7 @@ struct FrameConstants
     float fogDensity;  // UNITS: 1 / metres
     XMFLOAT3 tint;     // the stone of the city in this layer (multiplies the albedo of the city)
     float weathering;  // 0 .. 1
+    XMFLOAT4 lantern;  // xyz: the centre of the circle of the lantern (world); w: its radius (metres)
 };
 
 struct ObjectConstants
@@ -74,7 +76,7 @@ struct RippleConstants
     float pad1;
 };
 
-static_assert(sizeof(FrameConstants) == 176, "cbuffer Frame is 11 registers of 16 bytes");
+static_assert(sizeof(FrameConstants) == 192, "cbuffer Frame is 12 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
 
@@ -894,34 +896,40 @@ void Models::BindScenePipeline(ID3D11DeviceContext* context)
 void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMATRIX& projection,
                          const XMFLOAT3& eye, int layer)
 {
-    // ---- the frame: the camera and the light of this layer. View * Projection is worked out once
-    // (docs/CONVENTIONS.md: row vectors, no transpose).
-    const Theme theme = ThemeOf(layer);
-    FrameConstants frame{};
-    XMStoreFloat4x4(&frame.viewProjection, view * projection);
-    frame.eye = eye;
-    frame.time = m_time;
-    XMStoreFloat3(&frame.toLight, XMVector3Normalize(XMLoadFloat3(&theme.toLight)));
-    frame.ambient = 1.0f;
-    frame.lightColor = theme.lightColor;
-    frame.skyUp = theme.sky;
-    frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale, theme.sky.y * kSkyDownScale, theme.sky.z * kSkyDownScale);
-    frame.fogColor = theme.clear; // the fog is the colour of the sky behind it: what is far melts into the background
-    frame.fogDensity = theme.fogDensity;
-    frame.tint = theme.tint;
-    frame.weathering = theme.weathering;
-    D3D11_MAPPED_SUBRESOURCE mapped{};
-    if (FAILED(context->Map(m_frameBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-    {
-        return;
-    }
-    std::memcpy(mapped.pData, &frame, sizeof(frame));
-    context->Unmap(m_frameBuffer.Get(), 0);
-
-    // ---- the fixed city of this layer: one draw call (render/StaticBatch.h)
-    const GpuMesh& batch = m_batch[static_cast<std::size_t>(layer)];
-    if (batch.indexCount > 0)
-    {
+    // ---- the frame: the camera and the light of a layer. View * Projection is worked out once
+    // (docs/CONVENTIONS.md: row vectors, no transpose). `mode`: the clip of the circle of the lantern (FrameConstants).
+    const auto setFrame = [&](int themeLayer, float mode) {
+        const Theme theme = ThemeOf(themeLayer);
+        FrameConstants frame{};
+        XMStoreFloat4x4(&frame.viewProjection, view * projection);
+        frame.eye = eye;
+        frame.time = m_time;
+        XMStoreFloat3(&frame.toLight, XMVector3Normalize(XMLoadFloat3(&theme.toLight)));
+        frame.ambient = 1.0f;
+        frame.lightColor = theme.lightColor;
+        frame.lanternMode = mode;
+        frame.skyUp = theme.sky;
+        frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale, theme.sky.y * kSkyDownScale, theme.sky.z * kSkyDownScale);
+        frame.fogColor = theme.clear; // the fog is the colour of the sky behind it: what is far melts into the background
+        frame.fogDensity = theme.fogDensity;
+        frame.tint = theme.tint;
+        frame.weathering = theme.weathering;
+        frame.lantern = m_lantern;
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        if (FAILED(context->Map(m_frameBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        {
+            return false;
+        }
+        std::memcpy(mapped.pData, &frame, sizeof(frame));
+        context->Unmap(m_frameBuffer.Get(), 0);
+        return true;
+    };
+    // one baked mesh in one draw call (render/StaticBatch.h)
+    const auto drawBatch = [&](const GpuMesh& batch) {
+        if (batch.indexCount == 0)
+        {
+            return;
+        }
         context->IASetInputLayout(m_batchLayout.Get());
         context->VSSetShader(m_batchVertexShader.Get(), nullptr, 0);
         ID3D11Buffer* batchBuffer = batch.vertexBuffer.Get();
@@ -933,6 +941,22 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         ++m_drawCalls;
         context->IASetInputLayout(m_inputLayout.Get()); // back to the objects drawn one by one
         context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    };
+    // the lantern set down in A keeps a circle of A standing in B (scene/Lantern.h): B is drawn without the inside of the
+    // circle, then the fixed town of A, in the light of A, only inside it
+    const bool circle = layer == 1 && m_lantern.w > 0.0f;
+
+    // ---- the fixed city of this layer: one draw call
+    if (!setFrame(layer, circle ? 1.0f : 0.0f))
+    {
+        return;
+    }
+    drawBatch(m_batch[static_cast<std::size_t>(layer)]);
+    if (circle)
+    {
+        setFrame(0, 2.0f);
+        drawBatch(m_batch[0]);
+        setFrame(layer, 0.0f); // the objects drawn one by one are not clipped
     }
 
     // ---- one draw call per object: only the objects of this layer; the water (scene::IsWaterMaterial) waits for its own pass
@@ -993,21 +1017,22 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     // ---- the water: after everything opaque, blended; the still water of the static batch first, then the water objects far
     // to near (the sea first: it is under everything else)
     const GpuMesh& stillWater = m_waterBatch[static_cast<std::size_t>(layer)];
-    if (stillWater.indexCount > 0)
+    const bool waterOfA = circle && m_waterBatch[0].indexCount > 0; // the water of A inside the circle
+    if (stillWater.indexCount > 0 || waterOfA)
     {
         context->OMSetBlendState(m_waterBlend.Get(), nullptr, 0xffffffff);
         context->OMSetDepthStencilState(m_waterDepth.Get(), 0);
-        context->IASetInputLayout(m_batchLayout.Get());
-        context->VSSetShader(m_batchVertexShader.Get(), nullptr, 0);
-        ID3D11Buffer* waterBuffer = stillWater.vertexBuffer.Get();
-        const UINT waterStride = sizeof(BatchVertex);
-        const UINT waterOffset = 0;
-        context->IASetVertexBuffers(0, 1, &waterBuffer, &waterStride, &waterOffset);
-        context->IASetIndexBuffer(stillWater.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-        context->DrawIndexed(stillWater.indexCount, 0, 0);
-        ++m_drawCalls;
-        context->IASetInputLayout(m_inputLayout.Get());
-        context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+        if (stillWater.indexCount > 0)
+        {
+            setFrame(layer, circle ? 1.0f : 0.0f);
+            drawBatch(stillWater);
+        }
+        if (waterOfA)
+        {
+            setFrame(0, 2.0f);
+            drawBatch(m_waterBatch[0]);
+        }
+        setFrame(layer, 0.0f);
         context->OMSetBlendState(m_blendState.Get(), nullptr, 0xffffffff);
         context->OMSetDepthStencilState(m_depthState.Get(), 0);
     }

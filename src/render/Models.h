@@ -125,6 +125,12 @@ class Models
         m_themes[1] = layerB;
     }
 
+    /// The circle of the lantern (scene/Lantern.h): inside it, B is drawn as A. radius <= 0: none.
+    void SetLantern(const DirectX::XMFLOAT3& centre, float radius)
+    {
+        m_lantern = DirectX::XMFLOAT4(centre.x, centre.y, centre.z, radius > 0.0f ? radius : 0.0f);
+    }
+
     /// 0 = the evening of A, 1 = its night (the night bell, scene/CityState.h): the theme of A is blended toward the night theme.
     void SetNight(float amount)
     {
@@ -223,6 +229,7 @@ class Models
     int m_drawCalls = 0;
     std::array<Theme, 2> m_themes; // [0] = layer A, [1] = layer B (set by Init, changed by LoadThemes)
     Theme m_nightTheme;            // the night of A (the night bell)
+    DirectX::XMFLOAT4 m_lantern = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f); // the circle of the lantern; w 0: none
     float m_night = 0.0f;          // 0 .. 1: how far the night has fallen in A
     std::array<BatchMesh, 2> m_extra; // the ground and the plants of each layer (SetStaticExtra)
     std::array<BatchMesh, 2> m_waterMesh; // the water that does not move (SetStaticWater)

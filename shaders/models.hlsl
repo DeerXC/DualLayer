@@ -14,7 +14,9 @@
 //          travelling sines turns the normal of the surface), mirror the sky by the Fresnel term, catch the sun as a glint,
 //          and are seen into where one looks down. Running water streaks along its flow and falls white. Foam breaks into
 //          moving flecks. The wet band shows on its sides only. `time` (in Frame) drives it all.
-// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 176 and 160 bytes),
+// Lantern: the circle of the lantern set down in A (src/scene/Lantern.h) is a sphere in which B shows A. B is drawn without
+//          its inside (lanternMode 1), then the town of A only inside it (lanternMode 2), with a warm rim at its edge.
+// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 192 and 160 bytes),
 //          struct BatchVertex in src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
 
 #include "common.hlsli"
@@ -27,7 +29,7 @@ cbuffer Frame : register(b0)
     float3 toLight; // the direction FROM a surface TO the light (unit length)
     float ambient;  // 1 = the sky light as the theme says
     float3 lightColor;
-    float pad1;
+    float lanternMode; // 0: none; 1: B, the inside of the circle of the lantern is not drawn; 2: A, only its inside is
     float3 skyUp; // the sky light on a surface that looks up
     float pad2;
     float3 skyDown; // the ground light on a surface that looks down
@@ -36,6 +38,7 @@ cbuffer Frame : register(b0)
     float fogDensity; // the part of the light lost per metre
     float3 tint;      // the stone of the city in this layer
     float weathering; // 0 .. 1: uneven blocks, moss on what looks up
+    float4 lantern;   // xyz: the centre of the circle of the lantern; w: its radius
 };
 
 cbuffer Object : register(b1)
@@ -201,8 +204,31 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     return float4(lerp(colour, fogColor, fog), alpha);
 }
 
+// The part of the light of the rim of the circle of the lantern: 1 at its edge, 0 a hand's breadth inside it. Discards
+// what is on the wrong side of the circle in lanternMode 1 and 2.
+float LanternClip(float3 p)
+{
+    if (lanternMode < 0.5)
+    {
+        return 0.0;
+    }
+    const float inside = lantern.w - length(p - lantern.xyz); // > 0 inside the circle
+    if (lanternMode < 1.5)
+    {
+        clip(-inside); // B: nothing inside the circle
+        return 0.0;
+    }
+    clip(inside); // A: nothing outside it
+    return 1.0 - saturate(inside / 0.12);
+}
+
 float4 PSMain(VSOut input) : SV_Target
 {
+    const float rim = LanternClip(input.worldPosition);
+    if (rim > 0.0)
+    {
+        return float4(1.0, 0.72, 0.36, 1.0) * (1.2 + 0.3 * sin(time * 3.0)); // the warm edge of the past
+    }
     const float3 n = normalize(input.worldNormal);
     const float3 l = normalize(toLight);
     const float3 v = normalize(eye - input.worldPosition);

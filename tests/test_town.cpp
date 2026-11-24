@@ -1,5 +1,5 @@
 // test_town.cpp - tests of the town of the model as data (no window, no GPU): src/scene/Town.h, src/scene/TriMesh.h and the
-// walking body on them (src/scene/Player.h SetMeshes). Reads data/town.dlt (python tools/layout/city_model.py export).
+// walking body on them (src/scene/Player.h SetTown). Reads data/town.dlt (python tools/layout/city_model.py export).
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_town.cpp -o test_town
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only town
 // What is checked:
@@ -15,6 +15,7 @@
 //   7. the water: under the moat of A is in the water, the same place in B is not
 // Returns 1 when a check fails.
 
+#include "scene/Moments.h"
 #include "scene/Player.h"
 #include "scene/Town.h"
 #include "scene/TriMesh.h"
@@ -191,14 +192,17 @@ struct Walker
 {
     town::TriMesh a;
     town::TriMesh b;
+    town::Moments moments;
     Player body;
     int layer = 0;
 
-    explicit Walker(const town::TownData& t) : a(t.BuildMesh(0)), b(t.BuildMesh(1))
+    explicit Walker(const town::TownData& t) : a(t.BuildMesh(0)), b(t.BuildMesh(1)), moments(&a, &b)
     {
         body.SetScene(nullptr, 0);
-        body.SetMeshes(&a, &b);
+        body.SetTown(&moments);
     }
+    Walker(const Walker&) = delete;
+    Walker& operator=(const Walker&) = delete;
 
     void PlaceAt(const Vec3& feet)
     {

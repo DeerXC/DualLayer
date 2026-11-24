@@ -5,6 +5,26 @@ git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
 
+### 2026-11-24: the lantern
+
+- Made: the lantern (`docs/DESIGN.md` 3.2). `scene/Lantern.h`: E sets it down 0.9 m ahead on a floor of A, in A only and
+  standing; E takes it up within 1.8 m in either moment, refused when that would leave the body inside something or without
+  the floor it stands on. Set down, it keeps a sphere of A (3.5 m) in B. `scene/Moments.h`: the solid of both moments with
+  that circle (a triangle of A counts where its point nearest to the ball is inside, a triangle of B where it is outside);
+  `Player::SetTown` takes it (was `SetMeshes`). `TownData::Submerged` with a circle: the water of A is water inside it in B.
+  `Models::SetLantern`, `cbuffer Frame` `lanternMode` and `lantern` (192 bytes): in B the batch of B is drawn without the
+  inside of the sphere, then the batch and the still water of A in the light of A only inside it, with a warm rim
+  (`LanternClip`). `RunTown`: E, the prompts PUT DOWN and TAKE, the lantern drawn, the switch checked with the circle; the
+  place a fall comes back to is one where the body stands in both moments without the circle.
+- Made: `Traces` in `scene/Lantern.h` (a thing changed in A comes up in B with a faint warm glow over 1.5 s); used by the
+  first things that change, in step 4.
+- Checked: `tests/test_lantern.cpp` (new, 38, on a small town of its own: the circle; the solid with it in both moments,
+  a bridge of A held in B inside it and not outside, a wall of A inside and outside it; the rules of setting down and taking
+  up; the body cannot cross a 6 m gap in B and walks across it with the lantern set down on the bridge in A; the water of A
+  inside the circle in B; traces). Caught when the circle is ignored, when the refusal to take is removed, and when the
+  side of the circle is not looked at. `tests/test_town.cpp` built with `SetTown` (it needs `data/town.dlt`, not in this
+  upload). The other tests unchanged. The shader is compiled by the game at start: check with `tools/check.ps1`.
+
 ### 2026-11-24: the town of the model in the game
 
 - Made: the layout model is the map. `python tools/layout/city_model.py export` checks the model and writes `data/town.dlt`
@@ -123,7 +143,7 @@ git history of this file; it is summarised here.
 | KI-06 | Comments in the code point to sections of `docs/LEVEL_DESIGN.md`, which `docs/DESIGN.md` replaced | read a comment such as "docs/LEVEL_DESIGN.md 6.4.2" | the design document was merged on 2026-11-24 | the section is found only in the git history | the comments are rewritten with the rebuild of the town |
 | KI-07 | Most logic tests build without `/WX` | `tests/run_tests.ps1` | only `core` and `camera` have `/WX` | a new warning in a test is reported as WARN, not as a failure | turn `/WX` on test by test once a run shows no warning |
 | KI-08 | `.github/workflows/build.yml` has not run on a hosted runner | - | - | the CI file is untested | run it once the repository is public |
-| KI-09 | The town has no puzzles, no lamps and no bells yet | start with `[map] town = true` | the rebuild is at step 2 of `docs/DESIGN.md` 12 | the town is walked, nothing more | steps 3 and 4 |
+| KI-09 | The town has no puzzles, no lamps and no bells yet | start with `[map] town = true` | the rebuild is at step 3 of `docs/DESIGN.md` 12 | the town is walked, the lantern works, nothing more | step 4 |
 | KI-10 | In the town a fall comes back to the last place the body stood still on, which may be just before a jump that keeps failing | jump short of a gap and fall | no anchor lamps in the town yet | a player may need R | the lamps of the town with step 4 |
 
 ## Closed issues

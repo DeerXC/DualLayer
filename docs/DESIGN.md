@@ -65,7 +65,9 @@ bridgehead and switch to B: the bridge has fallen, but its middle hangs in the c
 it and on to the far side, where the gate is open in ruin (in A it is locked). One switch; the thought is "the bridge of
 the past, the gate of the present".
 
-Open: the radius (fixed, or grown by finds), one lantern or a second one late in the game.
+As built (`scene/Lantern.h`, `scene/Moments.h`): the circle is a sphere of radius 3.5 m round the lamp, 0.45 m over the floor
+it is set on, 0.9 m ahead of the feet (at the feet at an edge); taken up within 1.8 m. Its edge in B is a warm rim of
+light. Open: the radius grown by finds, a second lantern late in the game.
 
 ### 3.3 The causal rule
 
@@ -307,7 +309,8 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 1. Fix the model (7.5).
 2. Export the model as data the game loads; the game draws and walks the model's town (done 2026-11-24: `data/town.dlt`,
    `scene/Town.h`; ARCHITECTURE.md, "The town").
-3. The lantern circle and the traces in code, with their tests.
+3. The lantern circle and the traces in code, with their tests (done 2026-11-24: `scene/Lantern.h`, `scene/Moments.h`,
+   tests/test_lantern.cpp; the traces wait for the first things that change, in step 4).
 4. The districts rebuilt on the model with their puzzles (the whole town), each room proved as in section 11.
 5. Refine by play; then the story and the sound.
 
@@ -331,7 +334,7 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 |---|---|
 | The story | section 9 |
 | Sound and music | no audio in the project yet |
-| The lantern | radius, a second lantern |
+| The lantern | the radius grown by finds, a second lantern |
 | Look before going | 3.1 |
 | The memory lights | their number and places on the new map |
 | A guide figure | a hint that shows one step after a long time in a room |

@@ -16,6 +16,7 @@
 #pragma once
 
 #include "render/StaticBatch.h"
+#include "scene/Moments.h"
 #include "scene/SceneData.h"
 #include "scene/TriMesh.h"
 
@@ -278,6 +279,18 @@ class TownData
     /// than `depth` metres.
     bool Submerged(const Vec3& feet, int layer, float depth = 0.3f) const
     {
+        return SubmergedIn(feet, layer, depth);
+    }
+
+    /// The same in the town with the circle of the lantern: inside it, in B, the water of A is water (scene/Moments.h).
+    bool Submerged(const Vec3& feet, int layer, const Circle& circle, float depth = 0.3f) const
+    {
+        return SubmergedIn(feet, layer == 1 && circle.Contains(feet) ? 0 : layer, depth);
+    }
+
+  private:
+    bool SubmergedIn(const Vec3& feet, int layer, float depth) const
+    {
         for (const std::uint32_t i : waters)
         {
             const Polygon& p = polygons[i];
@@ -294,7 +307,6 @@ class TownData
         return false;
     }
 
-  private:
     struct Reader
     {
         const unsigned char* data;

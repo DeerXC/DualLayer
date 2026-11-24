@@ -8,7 +8,8 @@
 // Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h). SetScene
 //            gives the body another one (a test, or the solids of the map, whose block moves and whose doors open).
 // Land:      SetLand gives the body the ground of the world (scene/Terrain.h): it is solid in both layers, like a floor of both.
-// Meshes:    SetMeshes gives the body a solid of triangles for each layer (scene/TriMesh.h: the town of the model).
+// Town:      SetTown gives the body the solid of the town of the model in both moments, with the circle of the lantern
+//            (scene/Moments.h).
 // Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06 s, a stop in
 //            about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is stronger while the
 //            body falls than while it rises, so a jump goes up softly and comes down firmly. Letting the jump key go while the body
@@ -35,7 +36,7 @@
 #include "scene/Collision.h"
 #include "scene/SceneData.h"
 #include "scene/Terrain.h"
-#include "scene/TriMesh.h"
+#include "scene/Moments.h"
 
 #include <cmath>
 
@@ -114,11 +115,10 @@ class Player
         m_land = land;
     }
 
-    /// A solid of triangles for each layer (BORROWS; null: none, the default): the town of the model (scene/Town.h).
-    void SetMeshes(const town::TriMesh* layerA, const town::TriMesh* layerB)
+    /// The town of the model in both moments, with the circle of the lantern (BORROWS; null: none, the default).
+    void SetTown(const town::Moments* moments)
     {
-        m_meshes[0] = layerA;
-        m_meshes[1] = layerB;
+        m_town = moments;
     }
 
     /// Where the body starts and where it goes back to after a fall (the point on the ground).
@@ -349,7 +349,7 @@ class Player
         {
             r.pushed = true;
         }
-        if ((layer == 0 || layer == 1) && m_meshes[layer] != nullptr && m_meshes[layer]->PushOut(r.position, m_s.radius) > collision_detail::kTouch)
+        if (m_town != nullptr && m_town->PushOut(r.position, m_s.radius, layer) > collision_detail::kTouch)
         {
             r.pushed = true;
         }
@@ -381,11 +381,10 @@ class Player
                 m_wallZ += dz;
             }
         }
-        const town::TriMesh* mesh = (layer == 0 || layer == 1) ? m_meshes[layer] : nullptr;
-        if (mesh != nullptr) // the town: a wall, or a slope too steep to stand on
+        if (m_town != nullptr) // the town: a wall, or a slope too steep to stand on
         {
             Vec3 p = centre;
-            if (mesh->PushOut(p, m_s.radius) > collision_detail::kTouch)
+            if (m_town->PushOut(p, m_s.radius, layer) > collision_detail::kTouch)
             {
                 const float dx = p.x - centre.x;
                 const float dy = p.y - centre.y;
@@ -626,7 +625,7 @@ class Player
     const scene::SceneObject* m_objects = scene::kScene;
     int m_objectCount = scene::kSceneCount;
     const terrain::Land* m_land = nullptr;
-    const town::TriMesh* m_meshes[2] = {nullptr, nullptr};
+    const town::Moments* m_town = nullptr;
     Vec3 m_feet{0.0f, scene::kFloorY, -3.0f};
     Vec3 m_spawn{0.0f, scene::kFloorY, -3.0f};
     Vec3 m_wish{};

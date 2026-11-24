@@ -54,6 +54,7 @@
 #include "scene/LampTravel.h"
 #include "scene/LockCrate.h"
 #include "scene/Landscape.h"
+#include "scene/Lantern.h"
 #include "scene/OrbReturn.h"
 #include "scene/Player.h"
 #include "scene/Prompts.h"
@@ -460,20 +461,20 @@ void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl:
     }
 }
 
-/// True when a body with its feet at `feet` fits in `layer` of the town: none of its three balls overlaps a surface (a hair
-/// less than its radius, so that standing on a floor fits) and its feet are not under the water of that layer.
-bool FitsInTown(const dl::Player& player, const dl::town::TriMesh& mesh, const dl::town::TownData& town, int layer)
+/// True when the body fits in `layer` of the town (with the circle of the lantern): none of its three balls overlaps a surface
+/// (a hair less than its radius, so that standing on a floor fits) and its feet are not under the water of that layer.
+bool FitsInTown(const dl::Player& player, const dl::town::Moments& moments, const dl::town::TownData& town, int layer)
 {
     const float r = player.GetSettings().radius;
     for (int i = 0; i < 3; ++i)
     {
         dl::Vec3 c = player.Ball(i);
-        if (mesh.PushOut(c, r - 0.03f) > 0.005f)
+        if (moments.PushOut(c, r - 0.03f, layer) > 0.005f)
         {
             return false;
         }
     }
-    return !town.Submerged(player.Feet(), layer);
+    return !town.Submerged(player.Feet(), layer, moments.GetCircle());
 }
 
 /// The town of the model (scene/Town.h), walked in both moments. It has no puzzles yet (docs/DESIGN.md 12, step 4): this
@@ -487,7 +488,10 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
     dl::Player player;
     ApplyPlayerConfig(config, player);
     player.SetScene(nullptr, 0);
-    player.SetMeshes(&meshes[0], &meshes[1]);
+    dl::town::Moments moments(&meshes[0], &meshes[1]); // the solid of both moments, with the circle of the lantern
+    dl::town::Moments plain(&meshes[0], &meshes[1]);   // the same without it: where a fall may come back to
+    dl::town::Lantern lantern;                          // carried, or set down in A (scene/Lantern.h)
+    player.SetTown(&moments);
     player.SetSpawn(town.spawn);
     player.Respawn();
     camera.SetPose(player.Eye(), town.spawnYaw, 0.0f);
@@ -509,7 +513,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
     double seconds = 0.0;
     float landDip = 0.0f;
     float eyeY = player.Eye().y;
-    bool keyDown[8] = {}; // Z, X, C, N, F, Space, Tab, R
+    bool keyDown[9] = {}; // Z, X, C, N, F, Space, Tab, R, E
     bool resetTestKeyWasDown = false;
     bool collide = config.GetBool("collision", "enabled", true);
     bool walk = config.GetBool("player", "walk", true);
@@ -596,6 +600,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             DL_LOG_INFO("Main", "movement: %s", walk ? "walk" : "fly");
         }
         const bool jumpPressed = PressedOnce(VK_SPACE, keyDown[5], focused);
+        const bool usePressed = PressedOnce('E', keyDown[8], focused); // walking: set the lantern down or take it up
         const bool walking = walk && collide;
 
         // ---- the switch, through the guard: refused into a wall or into the water of the other moment
@@ -603,7 +608,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         {
             const int solidNow = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
             const int target = 1 - gpu.models.CollisionLayer();
-            const bool fits = !walking || FitsInTown(player, meshes[static_cast<std::size_t>(target)], town, target);
+            const bool fits = !walking || FitsInTown(player, moments, town, target);
             switch (guard.OnSwitchRequest(solidNow, gpu.models.LayerSwitching(), fits))
             {
             case dl::puzzle::LayerGuard::Action::Switch:
@@ -652,8 +657,36 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             move.jumpHeld = focused && IsDown(VK_SPACE);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
 
+            // the lantern: E sets it down ahead in A, or takes it up within reach (refused when that would leave the body in
+            // something or without its floor)
+            if (usePressed && sinking < 0.0f)
+            {
+                using LR = dl::town::Lantern::Result;
+                const LR result = lantern.Use(player.Feet(), player.Grounded(), camera.Forward(), solidLayer, player.GetSettings().radius, moments);
+                switch (result)
+                {
+                case LR::Put:
+                    DL_LOG_INFO("Stage", "lantern set down at %.1f %.1f %.1f: a circle of the past", lantern.At().x, lantern.At().y, lantern.At().z);
+                    break;
+                case LR::Taken:
+                    DL_LOG_INFO("Stage", "lantern taken up");
+                    break;
+                case LR::OnlyInPast:
+                    DL_LOG_INFO("Stage", "the lantern is set down in the past only");
+                    break;
+                case LR::NoFloor:
+                    DL_LOG_INFO("Stage", "no floor of the past to set the lantern on");
+                    break;
+                case LR::RefusedTake:
+                    DL_LOG_INFO("Stage", "lantern not taken: the body stands on what it keeps");
+                    break;
+                case LR::Nothing:
+                    break;
+                }
+            }
+
             // into the water: it sinks for a moment, then comes back; below the sea or the town: a fall
-            if (sinking < 0.0f && town.Submerged(player.Feet(), solidLayer))
+            if (sinking < 0.0f && town.Submerged(player.Feet(), solidLayer, moments.GetCircle()))
             {
                 sinking = st::kSinkSeconds;
                 DL_LOG_INFO("Main", "into the water");
@@ -679,9 +712,12 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
                     DL_LOG_INFO("Main", "fell: back at the %s", town.NearestPlace(safe.x, safe.z));
                 }
             }
-            // the last place it stood still on, out of the water, in both moments (a switch must not leave it in a wall)
+            // the last place it stood still on, out of the water, standing in both moments without the circle: a return there
+            // never ends in a wall or in the air, whatever is switched and wherever the lantern is
             stood = player.Grounded() && sinking < 0.0f ? stood + dtf : 0.0f;
-            if (stood > 0.5f && FitsInTown(player, meshes[0], town, 0) && FitsInTown(player, meshes[1], town, 1))
+            const float radius = player.GetSettings().radius;
+            if (stood > 0.5f && FitsInTown(player, plain, town, 0) && FitsInTown(player, plain, town, 1) && plain.Supports(player.Feet(), radius, 0) &&
+                plain.Supports(player.Feet(), radius, 1))
             {
                 safe = player.Feet();
             }
@@ -707,7 +743,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         else if (collide) // flying with collision: the camera is a ball pushed out of the town
         {
             dl::Vec3 c = camera.Position();
-            if (meshes[static_cast<std::size_t>(solidLayer)].PushOut(c, std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f)) > 0.0f)
+            if (moments.PushOut(c, std::clamp(config.GetFloat("collision", "radius", kDefaultBodyRadius), 0.05f, 1.0f), solidLayer) > 0.0f)
             {
                 camera.SetPose(c, camera.Yaw(), camera.Pitch());
             }
@@ -716,6 +752,9 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
 
         // ---- what is drawn: the town is in the static batch; here only the sea and the ring of a return
         int drawn = st::AddSea(camera.Position(), drawTable, 0, 64, town.sea, -60.0f);
+        drawn = lantern.AddDraw(drawTable, drawn, 64);
+        const dl::town::Circle circle = moments.GetCircle();
+        gpu.models.SetLantern(DirectX::XMFLOAT3(circle.centre.x, circle.centre.y, circle.centre.z), circle.radius);
         drawn = st::AddRespawnRing(respawn.at, respawn.since, drawTable, drawn, 64);
         gpu.models.SetObjects(drawTable, drawn);
 
@@ -737,7 +776,19 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             {
                 char status[160];
                 std::snprintf(status, sizeof(status), "%s", town.NearestPlace(pos.x, pos.z));
-                const std::array<dl::prompt::Shown, 2> none{};
+                // the only prompt of the town: what E does with the lantern here
+                std::array<dl::prompt::Shown, 2> none{};
+                if (walking && sinking < 0.0f)
+                {
+                    if (!lantern.Carried() && lantern.InReach(player.Feet()))
+                    {
+                        none[0] = dl::prompt::Shown{dl::prompt::Kind::Take, 1.0f};
+                    }
+                    else if (lantern.Carried() && gpu.models.CollisionLayer() == 0 && player.Grounded())
+                    {
+                        none[0] = dl::prompt::Shown{dl::prompt::Kind::PutDown, 0.6f};
+                    }
+                }
                 const float under = sinking >= 0.0f ? 1.0f : 0.0f;
                 BuildHud(hud, gpu.device->Width(), gpu.device->Height(), none, status, nullptr, st::Resonance{}, static_cast<float>(seconds), under);
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");

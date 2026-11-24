@@ -45,7 +45,8 @@ main
  +- scene    Camera, SceneData, Collision, Player, Puzzle, BlockMaze, Courtyard, Stage,
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
              Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery,
-             LampTravel, Ending, Guidance, LockCrate, WaterFx, Town, TriMesh                       > standard library only
+             LampTravel, Ending, Guidance, LockCrate, WaterFx, Town, TriMesh,
+             Moments, Lantern                                                                      > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -65,10 +66,19 @@ lines of the streets, and the polygons of the town with their moment and their k
   `Models::SetStaticWater` in the water pass. The looks of the two moments come from the model's lights (`ApplyTownThemes`
   in `main.cpp`).
 - Solid: `TownData::BuildMesh` gives a `TriMesh` per moment (its solid and terrain polygons), triangles filed in a grid of 4 m
-  cells; `TriMesh::PushOut` moves a ball out of them as the ground does. The walking body takes them with
-  `Player::SetMeshes`.
-- The loop: `RunTown` in `main.cpp` walks, switches (refused into a surface or into the water of the other moment), sinks
-  in water, falls, and comes back to the last place the body stood still on (also R). It draws the sea round the eye and
+  cells; `TriMesh::PushOut` moves a ball out of them as the ground does. `Moments` holds both and the circle of the
+  lantern; the walking body takes it with `Player::SetTown`.
+- The lantern (`scene/Lantern.h`): set down in A, it keeps a sphere of A (radius 3.5 m) in B. Solid: `Moments::PushOut`
+  in B takes a triangle of A when the point of it nearest to the ball lies inside the sphere, a triangle of B when that point
+  lies outside, so a floor of A ends under the centre of the ball at the edge, where its picture ends. Drawn:
+  `Models::SetLantern`; in B the static batch of B is drawn without the inside of the sphere, then the batch of A, in the
+  light of A, only inside it, with a warm rim (`lanternMode` in `cbuffer Frame`, `LanternClip` in `shaders/models.hlsl`); the
+  same for the still water. The water of A is water inside the sphere in B (`TownData::Submerged` with a circle).
+  `Traces` keeps the traces of things changed in A (none in the town yet).
+- The loop: `RunTown` in `main.cpp` walks, switches (refused into a surface or into the water of the other moment, with the
+  circle), sets the lantern down and takes it up (E), sinks in water, falls, and comes back to the last place the body stood
+  still on (also R); that place is one where the body stands in both moments without the circle, so a return never ends in
+  the air or in a wall. It draws the sea round the eye and
   the ring of a return; the town is in the static batch. No puzzle runs yet.
 
 ## Layers and the ripple
