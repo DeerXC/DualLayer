@@ -5,6 +5,65 @@ git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
 
+### 2026-11-25: every district placed (first pass)
+
+- Made in the model: the canal of the customs (harbour, beat 4: a crate pushed in A floats to the far quay and lies on the
+  dry bed in B, a step); the scaffold of the market (west: the lantern on the scaffold of A under the roof of a shed, climbed
+  in B, onto the terrace); the plank between two roofs (east: laid in A, holds in B); the gatehouse of the theatre (north:
+  a crate pushed under its balcony in A, a jump from the balcony with a switch at its top onto the heap of B); the three
+  bells rung in A at their ropes (a lamp lit in B over the rope; the title bar counts them). Walls along the streets at the
+  puzzles and two retaining walls of the west terrace close the ways round. Foliage (crowns, scrub) is drawn, not solid.
+  The town wall stands 4.5 m over the ground beside it. No house or arch over a puzzle. `data/town.dlt` format 3 (a verb
+  per thing: OPEN, PUSH, LAY ACROSS, RING).
+- Made in the game: the prompts PUSH, LAY ACROSS, RING, CALL THE LANTERN; E 8 m or more from the set-down lantern calls it
+  back (refused when the body stands on its circle); a switch takes the coyote time away (no late jump off a floor that
+  went with the moment).
+- Made: `tests/test_route.cpp`, a solver over both moments of the whole town (walk, a jump onto a ledge of 1.65 m,
+  the switch where the body stands, the switch in the air, the lantern as a circle) that plays the things in the order of
+  the main path and lists any way round a puzzle; `test_route x y z [things] [L]` prints the way it found to a point.
+- Checked: `tests/test_things.cpp` 46, `tests/test_town.cpp` 35 (five streets closed in A by the puzzles),
+  `tests/test_lantern.cpp` 38: all pass. `test_route`: the sea gate, the canal and the day bell are reached in order.
+- `tools/check.ps1`: the smoke run expects the start in B (Tab goes to A first), walks back east with S (the start looks
+  west, at the heap), and waits for a killed game to end before it reads the log.
+- Known issue: `test_route` stops at the plank: from the west the solver does not reach the east (the way from the
+  market street to the bastion and the rock is not open yet). The east, the north and the bells beyond the west are placed
+  but not proved, and `test_route` is not in `run_tests.ps1` until it passes.
+
+### 2026-11-25: the harbour, beat 3
+
+- Decided: the harbour teaches the switch, the causal rule and the switch in the air; the lantern is first met in the shaft
+  of the west, where it is the only answer (`docs/DESIGN.md` 8, 13, 14).
+- Made in the model (`build_air_step`): the lower street closed at 36 m in both moments: in A by the barricade of the
+  customs (5 m), with two crates of 1.2 and 2.4 m against it; in B by the front of a fallen house (3.4 m) that steps down
+  on its far side, and the garden walls that fell with it (a way round below the street was found by the flood).
+  `street_frame` reads a street at a distance as the game does.
+- Checked: `tests/test_things.cpp` 46 (13 new): the flood: closed in A and in B, reached in B from the top of the sea
+  stair, the far side open; in B alone a jump from the street does not reach the heap; the real body climbs the crates in A,
+  a jump without a switch ends at the barricade, with a switch at its top it lands on the heap of B (3.6 m up) and walks
+  down to the street. `tests/test_town.cpp`: in A the lower street is closed too.
+
+### 2026-11-25: the harbour, beats 1 and 2
+
+- Made: the things that change (`docs/DESIGN.md` 3.3, 12 step 4). `scene/Things.h`: a thing has a handle and boxes, each in
+  its moments and in one state (shut, open); E at the handle in A opens it in A and in B at once, in B E does nothing, an
+  opening that would close on the body is refused. The boxes of the state now are extra solids (`Moments::SetExtra`, with
+  the same rule for the circle as the town's triangles), drawn as cubes; the boxes of B of an opened thing carry its trace
+  (`Traces`), the handle of a shut thing glows gold in A. The prompt OPEN.
+- Made in the model (`tools/layout/city_model.py` `build_harbour_beats`), `data/town.dlt` format 2 (the moment of the
+  start, the things): beat 1, the switch: the game starts in B on the quay, where a heap of wreck closes the way west in B
+  only. Beat 2, the causal rule: the portcullis of the sea gate (shut in both moments) is raised by its gold winch in A;
+  the cargo of the customs fills the passage behind it in A; in B the cargo is gone and the portcullis stays raised. The
+  heap of rubble of B in the sea gate is gone (the rusted portcullis closes it now).
+- `RunTown`: starts in the file's moment (B: one ripple at the start), E opens a thing before it uses the lantern, the
+  things drawn (the table of objects holds 128), the traces kept.
+- Checked: `tests/test_things.cpp` (new, 33): the rules on a thing of their own; the data; a flood of every place the body
+  walks to (steps of 1.2 m, any drop that lands): in B the start is cut off from the sea stair by the heap, in A not; from
+  the foot of the stair the lower town is reached only in B after the gate was opened in A, never in A, never with it
+  shut; the real body walks to the winch in A, opens it, is stopped by the cargo, switches where it stands and walks up in
+  B. Caught when E is allowed in B. `tests/test_town.cpp`: in A every street is walked but the sea stair (the cargo).
+  The other tests unchanged. Found by reasoning, not yet by a test: the bridge example of the lantern can be crossed by
+  a switch in the air (`docs/DESIGN.md` 14).
+
 ### 2026-11-24: the lantern
 
 - Made: the lantern (`docs/DESIGN.md` 3.2). `scene/Lantern.h`: E sets it down 0.9 m ahead on a floor of A, in A only and

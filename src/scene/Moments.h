@@ -3,6 +3,8 @@
 // PushOut:   a ball is pushed out of a triangle of A when the point of the triangle nearest to it lies inside the circle, and
 //            out of a triangle of B when that point lies outside it. So a floor of A ends at the edge of the circle under the
 //            centre of the ball, as the picture ends there (shaders/models.hlsl LanternClip). In A the circle changes nothing.
+// Extra:     the things that change (scene/Things.h) add small solids to a moment (SetExtra): the boxes of their state now.
+//            They follow the same rule as the town's own triangles.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lantern.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
 #pragma once
@@ -13,6 +15,7 @@
 
 #include <array>
 #include <cmath>
+#include <vector>
 
 namespace dl::town
 {
@@ -52,6 +55,14 @@ class Moments
     {
         return m_circle;
     }
+    /// The solids of the things in `layer` as they are now (scene/Things.h ApplyTo). They must outlive this.
+    void SetExtra(int layer, const std::vector<const TriMesh*>& meshes)
+    {
+        if (layer == 0 || layer == 1)
+        {
+            m_extra[static_cast<std::size_t>(layer)] = meshes;
+        }
+    }
     const TriMesh* Mesh(int layer) const
     {
         return layer == 0 || layer == 1 ? m_mesh[static_cast<std::size_t>(layer)] : nullptr;
@@ -65,9 +76,28 @@ class Moments
             return 0.0f;
         }
         const TriMesh* own = m_mesh[static_cast<std::size_t>(layer)];
+        const std::vector<const TriMesh*>& extra = m_extra[static_cast<std::size_t>(layer)];
         if (layer == 0 || !m_circle.On())
         {
-            return own != nullptr ? own->PushOut(c, r) : 0.0f;
+            if (extra.empty())
+            {
+                return own != nullptr ? own->PushOut(c, r) : 0.0f;
+            }
+            // the town and the things one after the other, twice: a ball in a corner between them is out of both
+            const Vec3 start = c;
+            for (int round = 0; round < 2; ++round)
+            {
+                if (own != nullptr)
+                {
+                    own->PushOut(c, r);
+                }
+                for (const TriMesh* m : extra)
+                {
+                    m->PushOut(c, r);
+                }
+            }
+            const Vec3 moved = terrain::Sub(c, start);
+            return std::sqrt(terrain::Dot(moved, moved));
         }
         // B with the circle: the triangles of A whose nearest point is inside it, those of B whose nearest point is outside
         const Vec3 start = c;
@@ -99,6 +129,14 @@ class Moments
             };
             look(m_mesh[0], true);
             look(m_mesh[1], false);
+            for (const TriMesh* m : m_extra[0])
+            {
+                look(m, true);
+            }
+            for (const TriMesh* m : m_extra[1])
+            {
+                look(m, false);
+            }
             if (!hit)
             {
                 break;
@@ -137,11 +175,22 @@ class Moments
     /// The highest floor of A under (x, z) between y0 and y1, or false (where the lantern is set down).
     bool FloorOfA(float x, float z, float y1, float y0, float& y) const
     {
-        return m_mesh[0] != nullptr && m_mesh[0]->HighestBelow(x, z, y1, y0, y);
+        bool found = m_mesh[0] != nullptr && m_mesh[0]->HighestBelow(x, z, y1, y0, y);
+        for (const TriMesh* m : m_extra[0])
+        {
+            float h = 0.0f;
+            if (m->HighestBelow(x, z, y1, y0, h) && (!found || h > y))
+            {
+                y = h;
+                found = true;
+            }
+        }
+        return found;
     }
 
   private:
     std::array<const TriMesh*, 2> m_mesh{nullptr, nullptr};
+    std::array<std::vector<const TriMesh*>, 2> m_extra;
     Circle m_circle;
 };
 

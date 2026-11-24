@@ -10,8 +10,8 @@
 //      every triangle faces along its normal
 //   5. the start: the body stands on the quay in both moments, and fits there (a switch is allowed); walking north from it for
 //      0.8 s keeps it on the quay (tools/check.ps1 does that in the game and reads the height of the eye)
-//   6. the streets: the real body walks every street from end to end in A without a jump; in B the streets it cannot walk
-//      are listed (fallen arches lie across some of them)
+//   6. the streets: the real body walks every street from end to end in A without a jump, but the five the puzzles close
+//      (docs/DESIGN.md 8); in B the streets it cannot walk are listed (fallen arches lie across some of them)
 //   7. the water: under the moat of A is in the water, the same place in B is not
 // Returns 1 when a check fails.
 
@@ -22,6 +22,8 @@
 
 #include <cmath>
 #include <cstdio>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -80,20 +82,13 @@ void TestFile()
     CHECK(!d.Parse(junk, sizeof(junk), error) && !error.empty());
     unsigned char head[12] = {'D', 'L', 'T', 'O', 'W', 'N', 0, 0, 99, 0, 0, 0};
     CHECK(!d.Parse(head, sizeof(head), error) && error.find("version") != std::string::npos);
-    std::FILE* f = std::fopen(town::kPath, "rb");
-    CHECK(f != nullptr);
-    if (f == nullptr)
+    std::ifstream in(town::kPath, std::ios::binary); // WHY not fopen: MSVC warns C4996 on it; this is the same in both compilers
+    CHECK(in.good());
+    if (!in.good())
     {
         return;
     }
-    std::vector<unsigned char> bytes;
-    unsigned char buffer[65536];
-    std::size_t n = 0;
-    while ((n = std::fread(buffer, 1, sizeof(buffer), f)) > 0)
-    {
-        bytes.insert(bytes.end(), buffer, buffer + n);
-    }
-    std::fclose(f);
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     CHECK(d.Parse(bytes.data(), bytes.size(), error));
     CHECK(!d.Parse(bytes.data(), bytes.size() - 7, error) && d.polygons.empty()); // cut short: nothing half-read is kept
     bytes.push_back(0);
@@ -312,7 +307,16 @@ void TestStreets()
         std::printf("  streets walked in %c: %d of %zu%s%s\n", layer == 0 ? 'A' : 'B', walked, t.streets.size(), blocked.empty() ? "" : "; not: ", blocked.c_str());
         if (layer == 0)
         {
-            CHECK(walked == static_cast<int>(t.streets.size())); // in the past every street is open
+            // in the past every street is open but those the puzzles close (docs/DESIGN.md 8; tests/test_things.cpp and
+            // tests/test_route.cpp walk them): the sea stair (the cargo), the lower street (the barricade), the market
+            // stairs (the canal), the market street (the terrace), the upper street (the plank, the gatehouse)
+            const char* closed[] = {"sea stair", "lower street", "market stairs", "market street", "upper street"};
+            bool all = true;
+            for (const char* c : closed)
+            {
+                all = all && blocked.find(c) != std::string::npos;
+            }
+            CHECK(walked == static_cast<int>(t.streets.size()) - 5 && all);
         }
         else
         {

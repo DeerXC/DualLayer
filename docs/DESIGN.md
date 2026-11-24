@@ -251,11 +251,11 @@ Each mechanic is taught where a mistake costs nothing, then turned round. The pu
 
 | District | Taught or used | Sketch |
 |---|---|---|
-| Harbour and lower town | walking; the switch; the switch in the air; the lantern; the causal rule | a gate of A and a breach of B; a gap crossed by jumping in one moment and landing in the other; the first lantern on a bridge of A over a gap of B; a door opened in A that stands open in B. The crate puzzle of the customs-house cloister, re-made so that the crate is moved in A and lies in B where A left it, proved again by the solver, at most two switches |
-| West: market and well | the orb; the lantern in a shaft | the wooden stair of A kept standing by the lantern in the dry shaft of B; the day bell at the foot |
+| Harbour and lower town | walking; the switch; the causal rule; the switch in the air | **built** (2026-11-25, tests/test_things.cpp): beat 1, the switch: the game starts in B on the quay, a heap of wreck closes the way west in B only; beat 2, the causal rule: the portcullis of the sea gate is shut in both moments; its gold winch raises it in A, where the cargo of the customs fills the passage behind it; in B the cargo is gone and the portcullis is raised where A left it, with its trace; beat 3, the switch in the air: the lower street is closed in A by the barricade of the customs (5 m) and in B by the front of a fallen house (3.4 m over the street); two crates of A climb to 2.4 m; from the top one a jump with a switch at its top lands on the heap of B, whose far side steps down to the street. beat 4 (placed 2026-11-25), the canal of the customs: a crate pushed in A floats to the far quay and lies on the dry bed in B. **Replaced**: the crate puzzle of the customs-house cloister, re-made so that the crate is moved in A and lies in B where A left it, proved again by the solver, at most two switches |
+| West: market and well | the lantern (first met here); the orb | **placed** (2026-11-25): the scaffold of A under a shed roof by the terrace of the market; the lantern on it, climbed in B. Earlier sketch: the wooden stair of A kept standing by the lantern in the dry shaft of B; the day bell at the foot |
 | Centre: the rock | the causal rule at a large scale | the bridges, the lift cage and the gate of 7.4 |
-| East: the locks | water and the crate | a crate floated in A to where it is needed lies there on the dry bed in B; the tower lock re-made the same way; the dawn bell in the water tower |
-| North: theatre and graveyard | the prism; the switch in the air | the prism moves a thing of A into B; the fallen back wall of the theatre passed with a switch in the air; the night bell; the traces of the whole game seen from the cliff |
+| East: the locks | water and the crate | **placed** (2026-11-25): the plank laid between two roofs in A holds in B. Still: a crate floated in A to where it is needed lies there on the dry bed in B; the tower lock re-made the same way; the dawn bell in the water tower |
+| North: theatre and graveyard | the prism; the switch in the air | **placed** (2026-11-25): the gatehouse of the theatre: a crate pushed under its balcony in A, then a switch in the air onto the heap of B. Still: the prism moves a thing of A into B; the fallen back wall of the theatre passed with a switch in the air; the night bell; the traces of the whole game seen from the cliff |
 
 ## 9. Story
 
@@ -311,7 +311,9 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
    `scene/Town.h`; ARCHITECTURE.md, "The town").
 3. The lantern circle and the traces in code, with their tests (done 2026-11-24: `scene/Lantern.h`, `scene/Moments.h`,
    tests/test_lantern.cpp; the traces wait for the first things that change, in step 4).
-4. The districts rebuilt on the model with their puzzles (the whole town), each room proved as in section 11.
+4. The districts rebuilt on the model with their puzzles (the whole town), each room proved as in section 11. Begun
+   2026-11-25: the things that change (`scene/Things.h`, `data/town.dlt` format 3), the harbour (beats 1 to 4), one puzzle
+   placed in each other district, the bells; proved in order by `tests/test_route.cpp` as far as the day bell.
 5. Refine by play; then the story and the sound.
 
 ## 13. Decisions
@@ -327,6 +329,8 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | 2026-11-24 | the seal of a district is folded into its bell: one goal per district |
 | 2026-11-24 | the story twist of section 9 stays optional |
 | 2026-11-24 | one design document (this one); the level design, the art and map plan and the gameplay notes are merged into it |
+| 2026-11-25 | the game starts in B (the present), as every puzzle does; things that change are opened in A at a gold handle, and open in B by the causal rule |
+| 2026-11-25 | the harbour teaches the switch, the causal rule and the switch in the air; the lantern is first met in the shaft of the west |
 
 ## 14. Open
 
@@ -338,3 +342,4 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | Look before going | 3.1 |
 | The memory lights | their number and places on the new map |
 | A guide figure | a hint that shows one step after a long time in a room |
+| Lantern rooms | a lantern room leaves no floor of B within a running jump (3.6 m) of a floor of A the lantern stands on, or a switch in the air solves it (the bridge example of 3.2 is solved that way: to be re-made with the room) |

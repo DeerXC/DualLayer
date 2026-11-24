@@ -141,6 +141,7 @@
     <ClInclude Include="src\scene\Stage.h" />
     <ClInclude Include="src\scene\StageHints.h" />
     <ClInclude Include="src\scene\StageLights.h" />
+    <ClInclude Include="src\scene\Things.h" />
     <ClInclude Include="src\scene\Terrain.h" />
     <ClInclude Include="src\scene\Town.h" />
     <ClInclude Include="src\scene\TriMesh.h" />

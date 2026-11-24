@@ -244,6 +244,12 @@ class Player
             return;
         }
         const float dt = dtSeconds > kMaxFrameSeconds ? kMaxFrameSeconds : dtSeconds;
+        if (layer != m_lastLayer)
+        {
+            // a switch: a floor that went away with the moment gives no late jump (only one that was walked off does)
+            m_coyote = m_lastLayer >= 0 ? 0.0f : m_coyote;
+            m_lastLayer = layer;
+        }
 
         // ---- the wish: a speed on the ground from the keys and from where the camera looks
         float wishX = 0.0f;
@@ -638,6 +644,7 @@ class Player
     float m_vy = 0.0f;
     float m_vz = 0.0f;
     float m_coyote = 0.0f;
+    int m_lastLayer = -1; ///< the moment of the last Update (a switch takes the coyote time away)
     float m_jumpBuffer = 0.0f;
     float m_airSeconds = 0.0f;
     float m_takeoffY = 0.0f;

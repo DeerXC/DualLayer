@@ -29,6 +29,7 @@ inline constexpr float kRadius = 3.5f;      ///< UNITS: metres: the radius of th
 inline constexpr float kLanternUp = 0.45f;  ///< UNITS: metres: the centre of the circle over the floor the lantern stands on
 inline constexpr float kReach = 1.8f;       ///< UNITS: metres between the feet and the lantern, to take it up
 inline constexpr float kPutAhead = 0.9f;    ///< UNITS: metres ahead of the feet where it is set down
+inline constexpr float kRecallFrom = 8.0f; ///< UNITS: metres from the set-down lantern from which E calls it back
 
 /// The lantern: carried, or set down with its circle.
 class Lantern
@@ -127,6 +128,41 @@ class Lantern
         m_placed = true;
         moments.SetCircle(GetCircle());
         return Result::Put;
+    }
+
+    /// True when the lantern is set down and the feet are at least `kRecallFrom` from it (E calls it back).
+    bool Far(const Vec3& feet) const
+    {
+        const float dx = feet.x - m_at.x;
+        const float dy = feet.y - m_at.y;
+        const float dz = feet.z - m_at.z;
+        return m_placed && dx * dx + dy * dy + dz * dz >= kRecallFrom * kRecallFrom;
+    }
+
+    /// E far from the set-down lantern: it comes back to the hand (the circle goes), refused as a take-up is when the body
+    /// would be left inside something or without its floor. A lantern left behind is never lost.
+    Result Recall(const Vec3& feet, bool grounded, int layer, float radius, Moments& moments)
+    {
+        if (!Far(feet))
+        {
+            return Result::Nothing;
+        }
+        Moments without = moments;
+        without.SetCircle(Circle{});
+        const bool stoodWith = grounded && moments.Supports(feet, radius, layer);
+        bool fits = true;
+        for (int i = 0; i < 3; ++i)
+        {
+            Vec3 c{feet.x, feet.y + radius + 0.6f * static_cast<float>(i), feet.z};
+            fits = fits && without.PushOut(c, radius - 0.03f, layer) <= 0.005f;
+        }
+        if (!fits || (stoodWith && !without.Supports(feet, radius, layer)))
+        {
+            return Result::RefusedTake;
+        }
+        m_placed = false;
+        moments.SetCircle(Circle{});
+        return Result::Taken;
     }
 
     /// Back in the hand (a restart).

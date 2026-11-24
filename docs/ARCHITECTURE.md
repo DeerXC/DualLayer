@@ -46,7 +46,7 @@ main
              StageHints, StageLights, Mechanisms, WestWing, CityParts, Prompts, Shapes, Anchors,
              Canal, OrbReturn, EndScreen, Terrain, Landscape, Recovery, CityState, Scenery,
              LampTravel, Ending, Guidance, LockCrate, WaterFx, Town, TriMesh,
-             Moments, Lantern                                                                      > standard library only
+             Moments, Lantern, Things                                                              > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -74,12 +74,18 @@ lines of the streets, and the polygons of the town with their moment and their k
   `Models::SetLantern`; in B the static batch of B is drawn without the inside of the sphere, then the batch of A, in the
   light of A, only inside it, with a warm rim (`lanternMode` in `cbuffer Frame`, `LanternClip` in `shaders/models.hlsl`); the
   same for the still water. The water of A is water inside the sphere in B (`TownData::Submerged` with a circle).
-  `Traces` keeps the traces of things changed in A (none in the town yet).
+  `Traces` keeps the traces of things changed in A.
+- The things that change (`scene/Things.h`): from the model (`TownData::things`: a handle and boxes, each in its moments
+  and in one state, shut or open). E at a handle in A opens the thing in A and B at once (the causal rule); in B it does
+  nothing; an opening that would close on the body is refused. The boxes of the state now are extra solids of their
+  moments (`Moments::SetExtra`, the same rule with the circle as the town's triangles), drawn as cubes in the table of
+  objects each frame; the boxes of B of an opened thing carry its trace; the handle of a shut thing glows gold in A.
 - The loop: `RunTown` in `main.cpp` walks, switches (refused into a surface or into the water of the other moment, with the
-  circle), sets the lantern down and takes it up (E), sinks in water, falls, and comes back to the last place the body stood
+  circle), opens a thing at its handle or else sets the lantern down and takes it up (E), sinks in water, falls, and comes back to the last place the body stood
   still on (also R); that place is one where the body stands in both moments without the circle, so a return never ends in
   the air or in a wall. It draws the sea round the eye and
-  the ring of a return; the town is in the static batch. No puzzle runs yet.
+  the ring of a return, the lantern and the things; the town is in the static batch. The game starts in the moment the
+  file gives (B).
 
 ## Layers and the ripple
 

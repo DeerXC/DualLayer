@@ -64,6 +64,7 @@
 #include "scene/Stage.h"
 #include "scene/StageHints.h"
 #include "scene/StageLights.h"
+#include "scene/Things.h"
 #include "scene/Town.h"
 #include "scene/WaterFx.h"
 
@@ -477,8 +478,8 @@ bool FitsInTown(const dl::Player& player, const dl::town::Moments& moments, cons
     return !town.Submerged(player.Feet(), layer, moments.GetCircle());
 }
 
-/// The town of the model (scene/Town.h), walked in both moments. It has no puzzles yet (docs/DESIGN.md 12, step 4): this
-/// loop walks, switches, falls, sinks and draws. A fall or the water brings the body back to the last place it stood still
+/// The town of the model (scene/Town.h), walked in both moments, with the things that change (scene/Things.h; docs/DESIGN.md
+/// 12, step 4: the harbour so far). This loop walks, switches, opens, falls, sinks and draws. A fall or the water brings the body back to the last place it stood still
 /// on; R does the same. Returns the exit code.
 int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera, int adapter, const dl::town::TownData& town)
 {
@@ -491,12 +492,22 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
     dl::town::Moments moments(&meshes[0], &meshes[1]); // the solid of both moments, with the circle of the lantern
     dl::town::Moments plain(&meshes[0], &meshes[1]);   // the same without it: where a fall may come back to
     dl::town::Lantern lantern;                          // carried, or set down in A (scene/Lantern.h)
+    dl::town::Things things;                            // the things that change: opened in A, the trace in B (scene/Things.h)
+    dl::town::Traces traces;
+    things.Init(town);
+    things.ApplyTo(moments);
+    things.ApplyTo(plain);
     player.SetTown(&moments);
     player.SetSpawn(town.spawn);
     player.Respawn();
     camera.SetPose(player.Eye(), town.spawnYaw, 0.0f);
+    if (town.startLayer == 1)
+    {
+        gpu.models.ToggleLayer(); // the game opens in the present (docs/DESIGN.md 3.4): the first ripple goes from A to B
+    }
     dl::puzzle::LayerGuard guard;
-    static dl::scene::SceneObject drawTable[64] = {};
+    constexpr int kDrawCapacity = 128;
+    static dl::scene::SceneObject drawTable[kDrawCapacity] = {};
     static dl::OverlayBatch hud; // WHY static: 288 KB, too large for the stack
     Respawn respawn;
     dl::Vec3 safe = town.spawn; // the last place the body stood still on: where a fall comes back to
@@ -657,9 +668,44 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             move.jumpHeld = focused && IsDown(VK_SPACE);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
 
+            // E at the handle of a thing: it opens, in A only (the causal rule); its trace comes up in B
+            bool used = false;
+            if (usePressed && sinking < 0.0f && things.InReach(player.Feet()) >= 0)
+            {
+                using TR = dl::town::Things::Result;
+                const dl::Vec3 balls[3] = {player.Ball(0), player.Ball(1), player.Ball(2)};
+                const int which = things.InReach(player.Feet());
+                switch (things.Use(player.Feet(), balls, 3, player.GetSettings().radius, solidLayer, moments, traces))
+                {
+                case TR::Opened:
+                    things.ApplyTo(plain);
+                    used = true;
+                    DL_LOG_INFO("Stage", "%s: done in the past (bells %d of %d)", town.things[static_cast<std::size_t>(which)].name.c_str(),
+                                things.BellsRung(), things.BellCount());
+                    break;
+                case TR::OnlyInPast:
+                    used = true;
+                    DL_LOG_INFO("Stage", "%s: nothing done in the present changes it", town.things[static_cast<std::size_t>(which)].name.c_str());
+                    break;
+                case TR::Refused:
+                    used = true;
+                    DL_LOG_INFO("Stage", "%s not opened: it would close on the body", town.things[static_cast<std::size_t>(which)].name.c_str());
+                    break;
+                case TR::AlreadyOpen:
+                case TR::Nothing:
+                    break;
+                }
+            }
+
             // the lantern: E sets it down ahead in A, or takes it up within reach (refused when that would leave the body in
             // something or without its floor)
-            if (usePressed && sinking < 0.0f)
+            if (usePressed && !used && sinking < 0.0f && lantern.Far(player.Feet()))
+            {
+                used = true;
+                const auto r = lantern.Recall(player.Feet(), player.Grounded(), solidLayer, player.GetSettings().radius, moments);
+                DL_LOG_INFO("Stage", "%s", r == dl::town::Lantern::Result::Taken ? "the lantern called back" : "the lantern not called back: the body stands on its circle");
+            }
+            if (usePressed && !used && sinking < 0.0f)
             {
                 using LR = dl::town::Lantern::Result;
                 const LR result = lantern.Use(player.Feet(), player.Grounded(), camera.Forward(), solidLayer, player.GetSettings().radius, moments);
@@ -749,13 +795,15 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             }
         }
         respawn.since += dtf;
+        traces.Update(dtf);
 
         // ---- what is drawn: the town is in the static batch; here only the sea and the ring of a return
-        int drawn = st::AddSea(camera.Position(), drawTable, 0, 64, town.sea, -60.0f);
-        drawn = lantern.AddDraw(drawTable, drawn, 64);
+        int drawn = st::AddSea(camera.Position(), drawTable, 0, kDrawCapacity, town.sea, -60.0f);
+        drawn = lantern.AddDraw(drawTable, drawn, kDrawCapacity);
+        drawn = things.AddDraw(drawTable, drawn, kDrawCapacity, traces);
         const dl::town::Circle circle = moments.GetCircle();
         gpu.models.SetLantern(DirectX::XMFLOAT3(circle.centre.x, circle.centre.y, circle.centre.z), circle.radius);
-        drawn = st::AddRespawnRing(respawn.at, respawn.since, drawTable, drawn, 64);
+        drawn = st::AddRespawnRing(respawn.at, respawn.since, drawTable, drawn, kDrawCapacity);
         gpu.models.SetObjects(drawTable, drawn);
 
         const dl::Vec3 pos = camera.Position();
@@ -776,11 +824,22 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             {
                 char status[160];
                 std::snprintf(status, sizeof(status), "%s", town.NearestPlace(pos.x, pos.z));
-                // the only prompt of the town: what E does with the lantern here
+                // the only prompt of the town: what E does here (a handle of the past first, then the lantern)
                 std::array<dl::prompt::Shown, 2> none{};
+                const int handle = things.InReach(player.Feet());
                 if (walking && sinking < 0.0f)
                 {
-                    if (!lantern.Carried() && lantern.InReach(player.Feet()))
+                    if (handle >= 0 && !things.Open(static_cast<std::size_t>(handle)) && gpu.models.CollisionLayer() == 0)
+                    {
+                        static constexpr dl::prompt::Kind kOfVerb[4] = {dl::prompt::Kind::Open, dl::prompt::Kind::Push, dl::prompt::Kind::Lay,
+                                                                        dl::prompt::Kind::Ring};
+                        none[0] = dl::prompt::Shown{kOfVerb[static_cast<int>(town.things[static_cast<std::size_t>(handle)].verb) & 3], 1.0f};
+                    }
+                    else if (lantern.Far(player.Feet()))
+                    {
+                        none[0] = dl::prompt::Shown{dl::prompt::Kind::Recall, dl::prompt::kLearnedAlpha};
+                    }
+                    else if (!lantern.Carried() && lantern.InReach(player.Feet()))
                     {
                         none[0] = dl::prompt::Shown{dl::prompt::Kind::Take, 1.0f};
                     }
@@ -803,9 +862,9 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         {
             const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
             wchar_t title[384];
-            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | town: %hs | falls %d%s",
+            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | town: %hs | bells %d of %d | falls %d%s",
                        gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer, 1000.0 * fpsTimer / fpsFrames,
-                       pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode, town.NearestPlace(pos.x, pos.z), falls,
+                       pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode, town.NearestPlace(pos.x, pos.z), things.BellsRung(), things.BellCount(), falls,
                        window.MouseCaptured() ? L"" : L" | click for mouse look");
             window.SetTitle(title);
             fpsTimer = 0.0;

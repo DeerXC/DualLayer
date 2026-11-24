@@ -24,6 +24,11 @@ enum class Kind
     Place,
     SwitchWorld,
     ResetRoom,
+    Open, ///< a thing that changes, at its handle in A (scene/Things.h)
+    Push,
+    Lay,
+    Ring,
+    Recall, ///< the lantern, set down far away: back to the hand
     Count
 };
 
@@ -50,6 +55,16 @@ constexpr Text TextOf(Kind k)
         return {"TAB", "SWITCH WORLD"};
     case Kind::ResetRoom:
         return {"R", "RESET ROOM"};
+    case Kind::Open:
+        return {"E", "OPEN"};
+    case Kind::Push:
+        return {"E", "PUSH"};
+    case Kind::Lay:
+        return {"E", "LAY ACROSS"};
+    case Kind::Ring:
+        return {"E", "RING"};
+    case Kind::Recall:
+        return {"E", "CALL THE LANTERN"};
     case Kind::Count:
         break;
     }

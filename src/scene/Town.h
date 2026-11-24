@@ -32,7 +32,7 @@ namespace dl::town
 {
 
 inline constexpr char kPath[] = "data/town.dlt";
-inline constexpr std::uint32_t kVersion = 1;
+inline constexpr std::uint32_t kVersion = 3;
 
 enum class Kind : std::uint8_t
 {
@@ -75,6 +75,35 @@ struct Street
     std::vector<Vec3> line; ///< its middle line, on its surface
 };
 
+/// One box of a thing that changes (scene/Things.h): solid and drawn in the moments of `worlds` while the thing is in `state`.
+struct ThingBox
+{
+    std::uint8_t state = 0;  ///< 0 shut, 1 open
+    std::uint8_t worlds = 0; ///< bit 0: in A, bit 1: in B
+    std::uint16_t material = 0;
+    Vec3 centre{};
+    Vec3 half{};    ///< UNITS: metres: half its size along its own axes
+    float yaw = 0.0f; ///< radians round Y (the model's rect turn: x' = x cos - z sin, z' = x sin + z cos)
+};
+
+/// What E does to a thing (what its prompt says).
+enum class Verb : std::uint8_t
+{
+    Open = 0,
+    Push = 1,
+    Lay = 2,
+    Ring = 3,
+};
+
+/// A thing that changes: E at its handle in A opens it, in A and (by the causal rule) in B.
+struct ThingDef
+{
+    std::string name;
+    Verb verb = Verb::Open;
+    Vec3 handle{};
+    std::vector<ThingBox> boxes;
+};
+
 struct Polygon
 {
     std::uint8_t worlds = 0; ///< bit 0: in A, bit 1: in B
@@ -90,6 +119,7 @@ class TownData
     float sea = 0.0f;
     Vec3 spawn{};
     float spawnYaw = 0.0f;
+    int startLayer = 0; ///< the moment the game starts in (0 A, 1 B)
     Light lights[2] = {};
     std::vector<Material> materials;
     std::vector<Place> places;
@@ -97,6 +127,7 @@ class TownData
     std::vector<Polygon> polygons;
     std::vector<Vec3> vertices;
     std::vector<std::uint32_t> waters; ///< the polygons of kind water (Submerged looks only at these)
+    std::vector<ThingDef> things;      ///< the things that change (scene/Things.h)
 
     /// Reads the file. False (and `error` says why) when it is missing, of another version, or cut short.
     bool Load(const char* path, std::string& error)
@@ -128,7 +159,9 @@ class TownData
             error = "a town file of another version (export it again)";
             return false;
         }
-        bool ok = r.F32(sea) && r.F32(spawn.x) && r.F32(spawn.y) && r.F32(spawn.z) && r.F32(spawnYaw);
+        std::uint8_t start = 0;
+        bool ok = r.F32(sea) && r.F32(spawn.x) && r.F32(spawn.y) && r.F32(spawn.z) && r.F32(spawnYaw) && r.U8(start) && start <= 1;
+        startLayer = start;
         for (Light& l : lights)
         {
             ok = ok && r.Floats(l.toLight, 3) && r.Floats(l.color, 3) && r.Floats(l.shade, 3) && r.Floats(l.skyTop, 3) && r.Floats(l.horizon, 3) &&
@@ -188,6 +221,24 @@ class TownData
                 waters.push_back(static_cast<std::uint32_t>(polygons.size()));
             }
             polygons.push_back(p);
+        }
+        ok = ok && r.U32(n) && n < 64u;
+        for (std::uint32_t i = 0; ok && i < n; ++i)
+        {
+            ThingDef t;
+            std::uint16_t boxes = 0;
+            std::uint8_t verb = 0;
+            ok = r.Name(t.name) && r.U8(verb) && verb <= 3 && r.F32(t.handle.x) && r.F32(t.handle.y) && r.F32(t.handle.z) && r.U16(boxes) && boxes >= 1;
+            for (std::uint16_t k = 0; ok && k < boxes; ++k)
+            {
+                ThingBox b;
+                ok = r.U8(b.state) && r.U8(b.worlds) && r.U16(b.material) && r.F32(b.centre.x) && r.F32(b.centre.y) && r.F32(b.centre.z) &&
+                     r.F32(b.half.x) && r.F32(b.half.y) && r.F32(b.half.z) && r.F32(b.yaw) && b.state <= 1 && b.worlds >= 1 && b.worlds <= 3 &&
+                     b.material < materials.size() && b.half.x > 0.0f && b.half.y > 0.0f && b.half.z > 0.0f;
+                t.boxes.push_back(b);
+            }
+            t.verb = static_cast<Verb>(verb);
+            things.push_back(t);
         }
         if (!ok)
         {

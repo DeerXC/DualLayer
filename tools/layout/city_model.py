@@ -407,11 +407,15 @@ def gable(cx, cz, w, d, a, y0, rise, mat, world="both"):
     poly([p(-hw, hd, y0), p(hw, hd, y0), p(0, hd, y0 + rise)], mat, world)
 
 
+FOLIAGE = ("tree", "cypress", "moss")  # crowns and scrub: drawn, not solid (the body goes through leaves, not over them)
+
+
 def cone(cx, cz, r, y0, y1, mat, world="both", n=8):
     ring = ngon(cx, cz, r, n)
+    kind = "overlay" if mat in FOLIAGE else "solid"
     for i in range(n):
         (ax, az), (bx, bz) = ring[i], ring[(i + 1) % n]
-        poly([(ax, y0, az), (bx, y0, bz), (cx, y1, cz)], mat, world)
+        poly([(ax, y0, az), (bx, y0, bz), (cx, y1, cz)], mat, world, kind)
 
 
 def dome(cx, cz, r, y0, mat, world="both", n=12, bands=4):
@@ -641,10 +645,12 @@ def build_wall():
             if through[0] not in GATES:
                 GATES[through[0]] = m
             continue
-        base = min(h[i], h[i + 1]) - 3.0
-        top = max(h[i], h[i + 1]) + 4.0
         v = (b - a) / max(np.linalg.norm(b - a), 1e-9)
         nx, nz = -v[1] * 0.9, v[0] * 0.9
+        # 4.5 m over the highest ground within 5 m on either side: no wall is a step from a slope beside it
+        near = [float(ground(q[0] + o * nx / 0.9, q[1] + o * nz / 0.9)) for q in (a, b) for o in (-5.0, -2.5, 2.5, 5.0)]
+        base = min(h[i], h[i + 1]) - 3.0
+        top = max([h[i], h[i + 1]] + near) + 4.5
         prism([(a[0] + nx, a[1] + nz), (b[0] + nx, b[1] + nz), (b[0] - nx, b[1] - nz), (a[0] - nx, a[1] - nz)], base, top, "stone_dark", "both", True, "stone")
         if i % 2 == 0:
             dmg = damage(a[0], a[1])
@@ -675,7 +681,6 @@ def build_wall():
         prism(rect(gx + dx, gz, 4.0, 4.4, 0.0), yg - 1.0, yg + 11.0, "stone")
         cone(gx + dx, gz, 3.0, yg + 11.0, yg + 15.0, "roof", "A", 4)
     prism(rect(gx, gz, 5.0, 4.4, 0.0), yg + 5.5, yg + 11.0, "stone", "A")
-    prism(rect(gx - 1.0, gz, 3.0, 2.4, 0.3), yg, yg + 1.6, "debris", "B")
 
 
 def ship(x, z, ang, length, world, sails=True):
@@ -871,6 +876,9 @@ def build_arches():
             if min(math.hypot(p[0] - bx, p[1] - bz) for bx, bz in BRIDGEHEADS.values()) < 14.0:
                 s += 6.0
                 continue                                                                # the bastion stays open
+            if any(math.hypot(p[0] - kx, p[1] - kz) < kr + 3.0 for kx, kz, kr in KEEP_CLEAR if kr > 2.0):
+                s += 6.0
+                continue                                                                # not over a puzzle
             fallen = hash01(k, 51) < 0.33 and damage(p[0], p[1]) > 0.3
             for side in (-1, 1):
                 px_, pz_ = p[0] + nx * side * (w / 2 + 0.4), p[1] + nz * side * (w / 2 + 0.4)
@@ -932,6 +940,344 @@ def build_streets():
             k2 += 1
 
 
+# ---- things that change (docs/DESIGN.md 3.3, 8) ----------------------------------------------------------------------------
+THINGS = []  # (name, handle (x, y, z), [(state "shut"/"open", world, material, (cx, cy, cz), (hx, hy, hz), yaw)])
+
+
+def street_y(name, x, z):
+    """The height of the surface of a street at the point of its middle line nearest to (x, z)."""
+    c, _, _ = STREET[name]
+    _, i = distance_to(c, x, z)
+    return float(_HEIGHTS[name][int(i)])
+
+
+VERB_CODE = {"open": 0, "push": 1, "lay": 2, "ring": 3}
+
+
+def thing(name, handle, boxes, verb="open"):
+    """A thing that changes: E at its handle in A opens it (the causal rule: what is done in A shows in B). Its boxes are
+    drawn and solid in the moment of their world, while the thing is in their state. Not in POLYS: the game draws them.
+    `verb` is what the prompt says (open, push, lay, ring); a bell is a thing with no boxes of its own but its rope."""
+    THINGS.append((name, tuple(float(v) for v in handle), boxes, verb))
+
+
+def build_harbour_beats():
+    """The first two beats of the harbour (docs/DESIGN.md 8), each teaching one thing:
+    1. the switch: on the quay, east of the sea stair, the storm left a heap of wreck across the quay in B (the start is in
+       B, on the far side of it); in A the quay is clear.
+    2. the causal rule: the portcullis of the sea gate is shut in both moments. In A its winch (gold) raises it, but the
+       cargo of the customs stands stacked in the passage behind it; in B the cargo is long gone, and the portcullis is
+       rusted where it was left: shut, or raised if it was raised in A."""
+    qy = QUAY_Y
+    for k, (x, z, w, d, h, a) in enumerate(((11.0, -72.5, 2.6, 3.0, 3.6, 0.15), (11.4, -69.4, 2.4, 3.2, 3.0, -0.2),
+                                             (10.8, -66.4, 2.4, 3.2, 3.8, 0.1), (11.2, -63.6, 2.6, 2.6, 4.4, -0.1),
+                                             (11.0, -75.6, 2.8, 3.4, 3.0, 0.3))):
+        prism(rect(x, z, w, d, a), qy - 6.0, qy + h, "debris", "B")
+    beam((9.6, qy + 2.6, -74.0), (12.4, qy + 3.4, -64.0), 0.5, 0.5, "wood", "B")           # a mast across the heap
+    gx, gz = WALL_POINTS[0]
+    yq = street_y("sea stair", gx, gz - 1.6)                                             # under the portcullis
+    yc = street_y("sea stair", gx, gz + 1.7)                                             # under the cargo
+    pz = gz - 1.6
+    for i, dx in enumerate((-1.7, 0.0, 1.7)):                                            # the cargo: A only, people's
+        prism(rect(gx + dx, gz + 1.7, 1.7, 1.4, 0.04 * (i - 1)), yc - 1.0, yc + 1.5, "wood", "A")
+        prism(rect(gx + dx * 0.9, gz + 1.7, 1.5, 1.3, -0.05 * (i - 1)), yc + 1.5, yc + 3.2, "cloth2" if i == 1 else "wood", "A")
+    ym = street_y("sea stair", gx + 3.3, gz - 3.2)
+    thing("sea gate", (gx + 3.3, ym + 1.1, gz - 3.2), [
+        ("shut", "A", "iron", (gx, yq + 2.6, pz), (2.55, 3.2, 0.12), 0.0),
+        ("open", "A", "iron", (gx, yq + 7.0, pz), (2.55, 1.6, 0.12), 0.0),
+        ("shut", "B", "iron", (gx, yq + 2.2, pz), (2.55, 2.8, 0.12), 0.0),
+        ("open", "B", "iron", (gx, yq + 5.0, pz), (2.55, 1.2, 0.12), 0.0),
+        ("shut", "both", "wood", (gx + 3.3, ym + 0.5, gz - 3.2), (0.35, 0.5, 0.35), 0.0),  # the winch: a drum on a post
+        ("open", "both", "wood", (gx + 3.3, ym + 0.5, gz - 3.2), (0.35, 0.5, 0.35), 0.0),
+    ])
+
+
+AIR_STEP_S = 36.0   # metres along the lower street: where beat 3 closes it (flat there, between two arches)
+
+
+def street_frame(name, s):
+    """A point of a street `s` metres along it, its height, the unit vector along it and the one across it."""
+    c, w, _ = STREET[name]
+    d = lengths(c)
+    p, v = at(c, s / d[-1])                                                              # as the game reads the line
+    i = int(np.clip(np.searchsorted(d, s) - 1, 0, len(c) - 2))
+    f = (s - d[i]) / max(d[i + 1] - d[i], 1e-9)
+    y = float(_HEIGHTS[name][i] + f * (_HEIGHTS[name][i + 1] - _HEIGHTS[name][i]))
+    return p, y, v, np.array([-v[1], v[0]]), w
+
+
+def build_air_step():
+    """Beat 3 of the harbour (docs/DESIGN.md 8), the switch in the air. The lower street is closed in both moments at one
+    place: in A by the barricade of the customs (5 m of timber, too high to climb); in B by the front of a fallen house
+    (its top 3.4 m over the street: too high to jump to from the street). In A two crates of the customs stand against the
+    barricade (steps of 1.2 m). The answer: on the top crate in A, jump toward the barricade and switch in the air; the
+    barricade and the crates are gone, the heap of B is under the feet. Its far side goes down in steps to the street.
+    Nothing here needs a thing that changes."""
+    p, y, v, n, w = street_frame("lower street", AIR_STEP_S)
+    ang = math.atan2(v[1], v[0])
+    for u in (-6.0, -3.0, 0.0, 3.0, 6.0):
+        KEEP_CLEAR.append((float(p[0] + v[0] * u), float(p[1] + v[1] * u), w / 2 + 6.0))
+    span = w + 8.0                                                                       # into the houses on both sides
+
+    def at(u, x=0.0):
+        return p[0] + v[0] * u + n[0] * x, p[1] + v[1] * u + n[1] * x
+
+    bx, bz = at(0.0)                                                                     # A: the barricade, u -0.4 .. 0.4
+    prism(rect(bx, bz, 0.8, span, ang), y - 1.0, y + 5.0, "wood", "A")
+    for k, x in enumerate((-2.4, -0.8, 0.8, 2.4)):                                      # its posts, a little proud of it
+        px_, pz_ = at(-0.5, x)
+        prism(rect(px_, pz_, 0.25, 0.3, ang), y - 1.0, y + 5.4 + 0.2 * (k % 2), "wood", "A")
+    for u, top in ((-3.0, 1.2), (-1.6, 2.4)):                                            # A: the crates, steps of 1.2 m
+        cx, cz = at(u, 0.6)
+        prism(rect(cx, cz, 1.2, 1.4, ang), y - 0.5, y + top, "wood", "A", True, "cloth2" if top > 2.0 else "wood")
+    for u0, u1, top in ((-0.4, 1.6, 3.4), (1.6, 2.8, 2.3), (2.8, 4.0, 1.2)):           # B: the fallen front and its steps
+        cx, cz = at((u0 + u1) / 2)
+        prism(rect(cx, cz, u1 - u0, span, ang), y - 1.0, y + top, "debris", "B", True, "stone_dark")
+    cx, cz = at(0.6, 16.0)                                                               # B: the garden walls behind fell
+    prism(rect(cx, cz, 2.0, 20.0, ang), y - 4.0, y + 3.4, "debris", "B", True, "stone_dark")  # with it (the way round below)
+    bx, bz = at(0.8, -1.5)                                                               # B: a beam of the house on the heap
+    beam((bx, y + 3.75, bz), (bx + v[0] * 0.3 + n[0] * 3.0, y + 3.65, bz + v[1] * 0.3 + n[1] * 3.0), 0.35, 0.3, "wood", "B")
+
+
+class Piece:
+    """A puzzle laid across a street at `s` metres along it: local coordinates u (along the street, toward its end) and x
+    (across it, to the left), heights over `base` (the street at s). Boxes are prisms; `cross` spans the street and the
+    houses beside it (the width of the street + 2 * `side`)."""
+
+    def __init__(self, street, s, side=5.0):
+        self.p, self.base, self.v, self.n, self.w = street_frame(street, s)
+        self.street = street
+        self.s = s
+        self.ang = math.atan2(self.v[1], self.v[0])
+        self.span = self.w + 2.0 * side
+
+    def clear(self, u0, u1):
+        """No house in the piece from u0 to u1 (and its width)."""
+        u = u0
+        while u <= u1:
+            KEEP_CLEAR.append(self.xz(u) + (self.span / 2 + 1.5,))
+            u += 2.0
+
+    def xz(self, u, x=0.0):
+        return (float(self.p[0] + self.v[0] * u + self.n[0] * x), float(self.p[1] + self.v[1] * u + self.n[1] * x))
+
+    def y(self, u):
+        """The street under the point u along it (its own height, not the base)."""
+        return street_y_at(self.street, self.s + u)
+
+    def box(self, u0, u1, x0, x1, top, mat, world="both", bottom=None, top_mat=None):
+        cx, cz = self.xz((u0 + u1) / 2, (x0 + x1) / 2)
+        y0 = self.base + (bottom if bottom is not None else -4.0)
+        prism(rect(cx, cz, u1 - u0, x1 - x0, self.ang), y0, self.base + top, mat, world, True, top_mat)
+
+    def cross(self, u0, u1, top, mat, world="both", bottom=None, top_mat=None):
+        self.box(u0, u1, -self.span / 2, self.span / 2, top, mat, world, bottom, top_mat)
+
+    def sides(self, u0, u1, top, mat="stone"):
+        """Walls along both sides of the piece: no way round it through the houses."""
+        for x in (-self.span / 2 - 0.4, self.span / 2 + 0.4):
+            self.box(u0, u1, x - 0.4, x + 0.4, top, mat)
+
+    def thing_box(self, state, world, mat, u0, u1, x0, x1, b0, b1):
+        cx, cz = self.xz((u0 + u1) / 2, (x0 + x1) / 2)
+        return (state, world, mat, (cx, self.base + (b0 + b1) / 2, cz), ((u1 - u0) / 2, (b1 - b0) / 2, (x1 - x0) / 2), self.ang)
+
+    def handle(self, u, x, h):
+        cx, cz = self.xz(u, x)
+        return (cx, self.base + h + 1.1, cz)
+
+
+def street_y_at(name, s):
+    c, _, _ = STREET[name]
+    d = lengths(c)
+    s = float(np.clip(s, 0.0, d[-1]))
+    i = int(np.clip(np.searchsorted(d, s) - 1, 0, len(c) - 2))
+    f = (s - d[i]) / max(d[i + 1] - d[i], 1e-9)
+    return float(_HEIGHTS[name][i] + f * (_HEIGHTS[name][i + 1] - _HEIGHTS[name][i]))
+
+
+def corridor(street, s0, s1, h=5.0, gaps=()):
+    """Walls along both sides of a street from s0 to s1 metres (garden walls and house fronts, joined): the street is the
+    only way along it. `gaps`: (s, side, width) openings where another way meets it (side +1 left, -1 right, 0 both)."""
+    c, w, _ = STREET[street]
+    d = lengths(c)
+    s = s0
+    step = 1.0
+    while s < s1 - 1e-6:
+        e = min(s + step, s1)
+        for side in (-1, 1):
+            if any(abs((s + e) / 2 - gs) < gw / 2 and gside in (0, side) for gs, gside, gw in gaps):
+                continue
+            pa, va = at(c, s / d[-1])
+            pb, vb = at(c, e / d[-1])
+            na = np.array([-va[1], va[0]]) * side
+            nb = np.array([-vb[1], vb[0]]) * side
+            o0, o1 = w / 2 + 0.5, w / 2 + 1.1
+            pts = [pa + na * o0, pb + nb * o0, pb + nb * o1, pa + na * o1]
+            ys = [street_y_at(street, s), street_y_at(street, e)] + [float(ground(q[0], q[1])) for q in pts]
+            prism([(q[0], q[1]) for q in pts], min(ys) - 2.0, max(ys) + h, "plaster1" if int(s / 6) % 2 else "stone", "both", True, "stone")
+        s = e
+
+
+def district_wall(points, h=4.5, mat="stone"):
+    """A retaining wall between two terraces of the town (and the garden walls on it), along `points`: 4.5 m over the
+    highest ground within 3 m of it, so it is never a step. It closes a district: the puzzle in it is the only way on."""
+    line = spline(points, 1.0) if len(points) > 2 else np.array(points, float)
+    if len(points) == 2:
+        a, b = np.array(points[0], float), np.array(points[1], float)
+        n = max(int(np.linalg.norm(b - a) / 1.0), 1)
+        line = np.array([a + (b - a) * t for t in np.linspace(0.0, 1.0, n + 1)])
+    for i in range(len(line) - 1):
+        a, b = line[i], line[i + 1]
+        v = (b - a) / max(np.linalg.norm(b - a), 1e-9)
+        nx, nz = -v[1] * 0.6, v[0] * 0.6
+        pts = [(a[0] + nx, a[1] + nz), (b[0] + nx, b[1] + nz), (b[0] - nx, b[1] - nz), (a[0] - nx, a[1] - nz)]
+        near = [float(ground(q[0] + o * nx / 0.6, q[1] + o * nz / 0.6)) for q in (a, b) for o in (-3.0, 0.0, 3.0)]
+        prism(pts, min(near) - 3.0, max(near) + h, mat, "both", True, "stone")
+        KEEP_CLEAR.append((float(a[0]), float(a[1]), 1.5))
+
+
+CANAL_S = 6.0     # metres along the market stairs: the customs canal (harbour, beat 4)
+SCAFFOLD_S = 14.0  # metres along the market street: the terrace of the market and its scaffold (west)
+PLANK_S = 14.0    # metres along the upper street: two houses and the plank (east)
+GATEHOUSE_S = 66.0  # metres along the upper street: the gatehouse of the theatre (north)
+
+
+def build_canal():
+    """Harbour, beat 4: the causal rule with a crate. The customs canal crosses the foot of the market stairs between two
+    quays: the near quay (2.4 m, steps up to it), 6.6 m of canal, the far quay (2.4 m over the bed; steps down beyond).
+    A: the canal holds water (the body sinks); a crate of the customs stands on the near quay: pushed (E), it goes into the
+    canal and floats to the far quay. B: the canal is dry; its bed is reached down a fallen piece of the near quay, but
+    the far quay is too high from it; a crate pushed in A lies on the bed against the far quay: a step."""
+    k = Piece("market stairs", CANAL_S)
+    k.clear(-1.0, 17.0)
+    district_wall([k.xz(6.0, k.span / 2 + 0.8), (-82.0, -29.0)])                        # the terrace of the west, both ways
+    district_wall([k.xz(6.0, -k.span / 2 - 0.8), (-24.0, -20.0)])
+    b = k.base
+    k.sides(-1.0, 17.0, 7.0)
+    k.cross(0.0, 1.2, 1.2, "stone")                                                     # the steps up to the near quay
+    k.cross(1.2, 2.4, 2.4, "stone")
+    k.cross(2.4, 4.4, 2.4, "stone", top_mat="paving")                                   # the near quay
+    bed = k.y(11.0) - b                                                                 # the bed: the street (it rises)
+    k.cross(11.0, 13.0, bed + 2.4, "stone", top_mat="paving")                           # the far quay
+    k.cross(13.0, 14.2, bed + 1.4, "stone")                                             # its steps down
+    for i, x in enumerate((-k.span / 2 + 0.8, -k.span / 2 + 2.0)):                     # B: the fallen near quay, a way down
+        k.box(4.4, 5.6 + 1.2 * i, x - 0.6, x + 0.6, 1.2 * (2 - i) - 0.1, "debris", "B")
+    k.box(4.4, 5.6, -k.span / 2 + 0.2, -k.span / 2 + 2.6, 2.3, "debris", "B")
+    for u0, u1, x0, x1 in ((4.4, 11.0, -k.span / 2, k.span / 2),):                      # A: the water of the canal
+        corners = [k.xz(u0, x0), k.xz(u1, x0), k.xz(u1, x1), k.xz(u0, x1)]
+        poly([(x, b + 2.2, z) for x, z in corners], "water", "A", "water")
+    bed_hi = bed + 1.2
+    thing("canal crate", k.handle(3.2, -1.3, 2.4), [
+        k.thing_box("shut", "A", "wood", 2.6, 3.8, -0.6, 0.6, 2.4, 3.6),
+        k.thing_box("open", "A", "wood", 9.8, 11.0, -0.6, 0.6, bed, bed_hi),
+        k.thing_box("open", "B", "wood", 9.8, 11.0, -0.6, 0.6, bed, bed_hi),
+    ], "push")
+
+
+def build_scaffold():
+    """West: the lantern. The market street meets the terrace of the market hall, 6.4 m over the street, in both moments.
+    A: a scaffold of three timber platforms (1.6 m each) climbs to 4.8 m by the terrace wall, but the roof of a lean-to
+    shed covers its top and the edge of the terrace: no jump from it. B: shed and scaffold long gone. The answer: set the
+    lantern down on the scaffold in A, below the roof (its circle reaches the top platform, not the roof, which is more
+    than 3.5 m over it); in B climb the scaffold of the circle and jump onto the terrace."""
+    k = Piece("market street", SCAFFOLD_S)
+    k.clear(-6.0, 9.0)
+    yb = k.y(-2.0) - k.base                                                             # the street at the scaffold
+    k.sides(-6.0, 9.0, yb + 13.0)
+    k.cross(0.0, 6.0, yb + 6.4, "stone", top_mat="paving")                              # the terrace
+    k.box(-2.6, -1.4, -1.6, -0.2, yb + 1.6, "wood", "A", top_mat="wood")                # the scaffold (A)
+    k.box(-2.6, -1.4, 0.2, 1.6, yb + 3.2, "wood", "A", top_mat="wood")
+    k.box(-1.2, 0.0, 0.2, 1.6, yb + 4.8, "wood", "A", top_mat="wood")
+    k.box(-1.6, 2.2, -k.span / 2, k.span / 2, yb + 7.8, "roof", "A", bottom=yb + 7.4)  # the roof of the shed (A)
+    k.box(-1.6, -1.3, -k.span / 2, -k.span / 2 + 0.3, yb + 7.4, "wood", "A")          # its posts
+    k.box(-1.6, -1.3, k.span / 2 - 0.3, k.span / 2, yb + 7.4, "wood", "A")
+
+
+def build_plank():
+    """East: the causal rule with a plank. The upper street climbs to the roof of a house (3.6 m) and its neighbour is
+    5 m away across a yard; the street goes on beyond the neighbour. A: a plank lies on the first roof (E lays it across);
+    the neighbour's roof has a parapet with a shut door. B: no parapet; the plank laid in A is still there, grey, and holds."""
+    k = Piece("upper street", PLANK_S)
+    k.clear(-1.0, 16.0)
+    k.sides(-1.0, 16.0, 9.0)
+    k.cross(0.0, 1.2, 1.2, "stone")
+    k.cross(1.2, 2.4, 2.4, "stone")
+    k.cross(2.4, 5.4, 3.6, "plaster1", top_mat="roof")                                  # the first house
+    k.cross(10.4, 13.0, k.y(10.4) - k.base + 3.6, "plaster2", top_mat="roof")           # the neighbour
+    top2 = k.y(10.4) - k.base + 3.6
+    k.cross(13.0, 14.2, top2 - 1.2, "stone")
+    k.cross(14.2, 15.4, top2 - 2.4, "stone")
+    k.box(11.4, 11.7, -k.span / 2, k.span / 2, top2 + 3.0, "plaster2", "A", bottom=top2)  # the parapet (A)
+    lo = 3.6
+    thing("plank", k.handle(4.6, 1.6, 3.6), [
+        k.thing_box("shut", "A", "wood", 3.0, 5.0, -1.4, -0.8, 3.6, 3.75),
+        k.thing_box("open", "A", "wood", 5.2, 10.6, -0.4, 0.4, lo - 0.15, lo),
+        k.thing_box("open", "B", "wood", 5.2, 10.6, -0.4, 0.4, lo - 0.15, lo),
+    ], "lay")
+
+
+def build_gatehouse():
+    """North: everything at once. The gatehouse of the theatre closes the upper street in A (6 m, 4 m deep); a wooden
+    balcony hangs on its front at 2.6 m. In B it lies across the street as a heap of 4 m. A crate stands 7 m before it in A.
+    The answer: push the crate under the balcony in A (it stays in B too, but 1.2 m does not reach a heap of 4 m); from
+    the crate onto the balcony; jump, switch at the top: the heap of B is under the feet."""
+    k = Piece("upper street", GATEHOUSE_S)
+    k.clear(-9.0, 9.0)
+    k.sides(-9.0, 9.0, 10.0)
+    k.cross(0.0, 4.0, 6.0, "plaster1", "A", top_mat="roof")                             # the gatehouse (A)
+    k.box(-1.2, 0.0, -1.2, 1.2, 2.6, "wood", "A", bottom=2.3)                           # its balcony (A)
+    k.cross(-0.5, 4.0, 4.0, "debris", "B", top_mat="stone_dark")                        # the heap (B)
+    k.cross(4.0, 5.2, k.y(4.6) - k.base + 2.8, "debris", "B")
+    k.cross(5.2, 6.4, k.y(5.8) - k.base + 1.6, "debris", "B")
+    yc = k.y(-7.0) - k.base
+    thing("gatehouse crate", k.handle(-7.0, -1.3, yc), [
+        k.thing_box("shut", "A", "wood", -7.6, -6.4, -0.6, 0.6, yc, yc + 1.2),
+        k.thing_box("open", "A", "wood", -2.6, -1.4, -0.6, 0.6, k.y(-2.0) - k.base, k.y(-2.0) - k.base + 1.2),
+        k.thing_box("open", "B", "wood", -2.6, -1.4, -0.6, 0.6, k.y(-2.0) - k.base, k.y(-2.0) - k.base + 1.2),
+    ], "push")
+
+
+BELL_ROPES = {  # the bells (docs/DESIGN.md 4): rung in A at the foot of their towers
+    "day bell": (-38.0, 14.0, 2.25 + 0.9),
+    "dawn bell": (84.0, 26.0, 3.0 + 0.9),
+    "night bell": (16.0, GRAVE_Z0 + 10.0, 2.0 + 0.9),
+}
+
+
+def build_bells():
+    """A bell is rung at its rope, in A (the bells of B are fallen or cracked); a rung bell lights its tower in B."""
+    for name, (tx, tz, r) in BELL_ROPES.items():
+        best = None
+        for k in range(16):                                                              # the side of the tower on a street
+            a = 2 * math.pi * k / 16
+            x, z = tx + r * math.cos(a), tz + r * math.sin(a)
+            d = min(distance_to(c, x, z)[0] for c, _, _ in STREET.values())
+            if best is None or d < best[0]:
+                best = (d, x, z, a)
+        _, x, z, a = best
+        y = float(ground(x, z))
+        thing(name, (x, y + 1.1, z), [
+            ("open", "B", "lantern", (x, y + 2.9, z), (0.22, 0.25, 0.22), 0.0),          # a lamp lit over the rope (B)
+        ], "ring")
+
+
+def thing_polys(state="shut"):
+    """The boxes of the things in one state as polygons (for the pictures of the model; the game draws its own)."""
+    out = []
+    for _, _, boxes, _ in THINGS:
+        for st, world, mat, (cx, cy, cz), (hx, hy, hz), yaw in boxes:
+            if st != state:
+                continue
+            outline = rect(cx, cz, 2 * hx, 2 * hz, yaw)
+            y0, y1 = cy - hy, cy + hy
+            out.append(([(x, y1, z) for x, z in outline], mat, world, "solid"))
+            for i in range(4):
+                (ax, az), (bx, bz) = outline[i], outline[(i + 1) % 4]
+                out.append(([(ax, y0, az), (bx, y0, bz), (bx, y1, bz), (ax, y1, az)], mat, world, "solid"))
+    return out
+
+
 # ---- houses -----------------------------------------------------------------------------------------------------------------
 HOUSES = []
 
@@ -948,7 +1294,14 @@ def overlaps(p, q):
     return True
 
 
+KEEP_CLEAR = []  # (x, z, r): the places of the puzzles; no house stands in them (build_houses comes after them)
+
+
 def site_free(out):
+    if any(math.hypot(px_ - kx, pz_ - kz) < kr for px_, pz_ in out for kx, kz, kr in KEEP_CLEAR):
+        return False
+    if any(math.hypot(sum(q[0] for q in out) / 4 - kx, sum(q[1] for q in out) / 4 - kz) < kr for kx, kz, kr in KEEP_CLEAR):
+        return False
     xs = np.array([p[0] for p in out] + [sum(p[0] for p in out) / 4])
     zs = np.array([p[1] for p in out] + [sum(p[1] for p in out) / 4])
     for x, z in zip(xs, zs):
@@ -1346,16 +1699,18 @@ def plan_overlay(ax, eye, right, up, f, focal, W, H, ortho):
 
 # ---- the town as data for the game (src/scene/Town.h reads it) -------------------------------------------------------------
 TOWN_MAGIC = b"DLTOWN\0\0"
-TOWN_VERSION = 1
+TOWN_VERSION = 3
 KIND_CODE = {"solid": 0, "terrain": 1, "overlay": 2, "water": 3}
 WORLD_CODE = {"A": 1, "B": 2, "both": 3}
-SPAWN = (14.0, QUAY_Y, -72.0, 0.0)  # x, y (the feet), z, yaw (0 looks north, +z): on the quay, east of the sea stair
+SPAWN = (14.0, QUAY_Y, -72.0, -1.2)  # x, y (the feet), z, yaw (0 looks north, +z): on the quay, east of the sea stair, looking west
+START_MOMENT = "B"                    # the game starts in the present (docs/DESIGN.md 3.4): the heap of the quay is the first view
+STATE_CODE = {"shut": 0, "open": 1}
 
 
 def export(path):
     """Writes the town: little-endian, every number a float32 unless said otherwise.
         magic (8 bytes) "DLTOWN" 0 0, version (u32)
-        sea level, spawn x, y, z, yaw
+        sea level, spawn x, y, z, yaw; the moment of the start (u8: 0 A, 1 B)
         2 lights (A, B): to the light (3), its colour (3), the shade (3), the sky top (3), the horizon (3), fog density
         materials (u32 count): name (u8 length, bytes), colour in A (3), in B (3), shines in A (u8), in B (u8); sRGB albedo
         places (u32 count): name (u8 length, bytes), x, y, z: the stations of the main path
@@ -1363,13 +1718,16 @@ def export(path):
             points of its middle line (x, y, z each): what the tests walk
         polygons (u32 count): world (u8: 1 A, 2 B, 3 both), kind (u8: 0 solid, 1 terrain, 2 overlay, 3 water), material
             (u16), vertex count (u8), the vertices (x, y, z each)
+        things (u32 count): name (u8 length, bytes), verb (u8: 0 open, 1 push, 2 lay, 3 ring), handle x, y, z, box count
+            (u16), the boxes: state (u8: 0 shut, 1 open),
+            world (u8), material (u16), centre (3), half size (3), yaw
     The sea is not written: the game draws its own. Returns the number of polygons written."""
     import struct
     names = list(MAT.keys())
     index = {n: i for i, n in enumerate(names)}
     out = bytearray()
     out += TOWN_MAGIC + struct.pack("<I", TOWN_VERSION)
-    out += struct.pack("<5f", SEA, *SPAWN)
+    out += struct.pack("<5fB", SEA, *SPAWN, {"A": 0, "B": 1}[START_MOMENT])
     for w in ("A", "B"):
         to_light, light, amb, sky_top, horizon, fog = LIGHT[w]
         out += struct.pack("<16f", *to_light, *light, *amb, *sky_top, *horizon, fog)
@@ -1401,10 +1759,16 @@ def export(path):
         body += np.asarray(pts, dtype="<f4").tobytes()
         count += 1
     out += struct.pack("<I", count) + body
+    out += struct.pack("<I", len(THINGS))
+    for name, handle, boxes, verb in THINGS:
+        raw = name.encode("ascii")
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<B3fH", VERB_CODE[verb], *handle, len(boxes))
+        for st, world, mat, centre, half, yaw in boxes:
+            out += struct.pack("<BBH7f", STATE_CODE[st], WORLD_CODE[world], index[mat], *centre, *half, yaw)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
         f.write(out)
-    print("%s: %d polygons, %d materials, %.1f MB" % (os.path.relpath(path), count, len(names), len(out) / 1e6))
+    print("%s: %d polygons, %d things, %d materials, %.1f MB" % (os.path.relpath(path), count, len(THINGS), len(names), len(out) / 1e6))
     return count
 
 
@@ -1418,9 +1782,21 @@ def main():
     build_west()
     build_east()
     build_north()
-    build_arches()
     build_bastion_gate()
+    build_harbour_beats()
+    build_air_step()
+    corridor("lower street", 30.0, 53.7)
+    corridor("market stairs", 0.0, 22.0)
+    corridor("market street", 4.0, 24.0)
+    corridor("upper street", 4.0, 24.0)
+    corridor("upper street", 56.0, 76.0)
+    build_canal()
+    build_scaffold()
+    build_plank()
+    build_gatehouse()
+    build_arches()
     build_houses()
+    build_bells()
     build_country()
     print("%d polygons, %d houses" % (len(POLYS), len(HOUSES)))
     if only in ("", "check", "export"):
@@ -1433,6 +1809,7 @@ def main():
                 return 1
             export(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "town.dlt"))
             return 0
+    POLYS.extend(thing_polys("shut"))                    # the pictures show the things as the game starts
     os.makedirs(OUT, exist_ok=True)
     views = {
         "aerial_a": ("A", "city2_aerial_a.png", (-70.0, 120.0, -235.0), (8.0, 4.0, -8.0), 44.0, (1600, 1000),

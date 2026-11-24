@@ -25,7 +25,7 @@
 | Mouse, arrow keys | turn |
 | Space | jump; held = the full jump, a tap = a small hop |
 | Tab | switch the moment (A the past, warm; B the present, cold); a switch into something solid or into water is refused and the ripple turns back |
-| E | (walking, in the town) set the lantern down a step ahead, in A only (the prompt says PUT DOWN), or take it up within reach (TAKE). In the greybox map: take the orb in reach, or put the held one down one step ahead (on a socket, a plate or a hole when near one; the prompt says TAKE, PUT DOWN or PLACE). At a lit lamp after the first bell: the list of lamps (A / D choose, E travels, W / S / Space close) |
+| E | (walking, in the town) at a gold handle in A, open its thing (the prompt says OPEN; in B a handle does nothing); else set the lantern down a step ahead, in A only (the prompt says PUT DOWN), or take it up within reach (TAKE). In the greybox map: take the orb in reach, or put the held one down one step ahead (on a socket, a plate or a hole when near one; the prompt says TAKE, PUT DOWN or PLACE). At a lit lamp after the first bell: the list of lamps (A / D choose, E travels, W / S / Space close) |
 | R | back to the lit lamp of the room, else its entry; puts back the objects of the room (the crate, the orbs, the canal). After an ending: the last moment again |
 | F | walking / flying |
 | Q / E | down / up (flying) |
@@ -140,14 +140,20 @@ seen".
 | E-21 | The city | stay 30 s, then 60 s in one room | the pale outlines of the other world grow bright, then pulse |
 | E-22 | The city | from the balcony and the top of the lock walk, look round in A and in B | streets winding round the centre with houses turned to them and lamps; the halls clad as houses; in B shells by the sea, roofless houses with rafters in the lower town, grass in the streets, reeds in the harbour, felled pines; long swells on the sea; nothing floats, no void |
 | E-23 | The city | reach the goal: stay in A through the three strokes; R and switch to B; with the three bells hold Tab | THE PAST (the water stays), THE PRESENT (the water drains and the walls stay wet for a while), BOTH; R plays the last moment again |
-| E-24 | The town | start (the town is the default) | on the quay in warm dusk: the sea gate ahead, the town rising on its hill, the bell tower on the rock; the title bar says the quay |
-| E-25 | The town | Tab, look round; Tab back | B: the same town in cold moonlight, roofs gone by the sea, the bell tower broken; a few lanterns still lit along the main path |
+| E-24 | The town | start (the town is the default) | on the quay: one ripple from warm dusk into the cold present; a heap of wreck across the quay to the west, the sea gate beyond it; the title bar says the quay |
+| E-25 | The town | Tab, look round; Tab back | A: the same town in warm dusk, the quay clear; B: cold moonlight, roofs gone by the sea, the bell tower broken; a few lanterns still lit along the main path |
 | E-26 | The town | walk up the sea stair, the lower street, the market stairs and the market street to the west bastion; look at the bridge | streets walked without a jump; arches over the streets; the market with its well; the bridge over the gorge to the rock, whole in A, fallen in the middle in B |
 | E-27 | The town | in A walk off the bastion into the moat; jump off the quay into the sea | the moat: the view tinted under water for half a second, then back on the bastion; the sea: back on the quay; the title bar counts the falls |
 | E-28 | The town | walk to the locks, the theatre and up the cliff stair to the graveyard | five locks with water in A and stairs beside each head; the theatre facing the rock; the graveyard over the town |
 | E-29 | The lantern | on the west bastion in A, walk onto the bridge, E (PUT DOWN) in its middle, walk back to the bastion, Tab | in B the bridge has fallen, but its middle stands in a sphere of warm evening light with a glowing rim; the lantern glows on it |
 | E-30 | The lantern | in B jump from the bastion onto the middle of the bridge; E there; then walk back to the bastion and E within reach of the lantern | on the bridge E is refused (the log: the body stands on what it keeps); from the bastion the lantern is taken up and the middle of the bridge is gone in B |
 | E-31 | The lantern | in B try E with the lantern in hand; in A set it down by a wall and walk through the circle in B | E does nothing in B (the log: the past only); inside the circle the walls of A stop the body in B as well |
+| E-32 | The sea gate | in A walk past the heap to the sea gate; E at the gold winch (OPEN); walk in; Tab; walk up | the portcullis rises; the cargo stops the body in the passage; in B no cargo, the rusted portcullis raised with a faint warm glow; up the stair into the lower town |
+| E-33 | The sea gate | restart; in B at the winch press E; in A walk into the shut portcullis | in B nothing opens (the log: nothing done in the present changes it), no prompt; in A the portcullis stops the body |
+| E-35 | The canal | at the foot of the market stairs in A, E at the crate (PUSH); Tab; in B climb down the fallen quay, onto the crate, onto the far quay | in A the crate floats to the far quay; in B it lies on the dry bed against it |
+| E-36 | The lantern | on the market street in A, E on the middle platform of the scaffold; Tab; climb; jump onto the terrace; walk 8 m away, E | in B the scaffold stands in the circle; the terrace is reached; E calls the lantern back (CALL THE LANTERN) |
+| E-37 | The bells | at the clock tower in A, E (RING) | the title bar: bells 1 of 3; in B a lamp burns over the rope |
+| E-34 | The air step | from the top of the sea stair walk west on the lower street; in A climb the two crates by the barricade; jump toward it; jump again and press Tab at the top | the barricade (A) and the heap of a fallen house (B) close the street; without Tab the jump ends at the barricade; with Tab the body lands on the heap in B and walks down its steps toward the market |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
