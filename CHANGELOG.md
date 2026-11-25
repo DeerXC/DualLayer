@@ -5,6 +5,30 @@ git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
 
+### 2026-11-25: the centre, and the whole main path proved
+
+- Made in the model: the centre (`docs/DESIGN.md` 7.4): the west bridge falls whole in B and its spans lie round the gorge
+  as a stair down to its floor; a gate on the rock keeps it shut in A (seen, never crossed); the lift on the south face is
+  the thing `lift` (verb LOWER): its winch on the roof of the lift house over the moat lowers the cage in A; in B the
+  lowered cage leaves its frame standing, a ladder of girders (steps of 1.5 m) up to an upper station on the plaza, and
+  the cage never lowered lies wrecked at the foot. The old tunnel portal and cistern way are gone from the path. A
+  parapet round the rim of the gorge (open at the bridges); walls between the districts (the lane below the locks, the
+  plank, the gatehouse, the gardens north of the market street); the walls along the streets of the puzzles 9.5 m high
+  (5 m let the body walk along their tops past the plank). The lock quays laid as flat tiles of 0.5 m (the coarse ground
+  left lips the body could not pass inside the bend of the locks); a walkway over the head of the top basin to the water
+  tower. Smaller: the scaffold steps 1.4 / 2.9 / 4.4 m and the terrace 6 m; the balcony of the gatehouse 2.4 m (1.5 m over
+  the crate); the plank between roofs of 4.8 m (the yard rises to the sides); the east bridge reaches the flat of its
+  bastion. `build_all()` builds the town in one place. `data/town.dlt` format 3 (verb 4: lower).
+- Made in the game: the prompt LOWER.
+- Checked: `tests/test_route.cpp` passes (11): the solver plays the sea gate, the canal, the day bell, the lantern, the
+  lift, the dawn bell, the plank, the gatehouse and the night bell in this order; each is reached, nothing further on is
+  reached before its turn, and the bastion is not reached before the lantern. It found on the way: a way round the canal
+  past the end of the west terrace wall, two ways round the lantern (the gardens north of the market street; a slope
+  the solver now treats as a stair), the walk along the street walls past the plank, a yard climbed to the neighbour roof,
+  a step of 1.66 m to the balcony. Its ball stands 0.06 m over the floor (clear of a stair of 32 degrees);
+  `test_route every x y z ...` prints every cell of a way. In `run_tests.ps1` (it takes a few minutes).
+  `tests/test_things.cpp` 46, `tests/test_town.cpp` 35, `tests/test_lantern.cpp` 38, `tests/test_overlay.cpp` 281: pass.
+
 ### 2026-11-25: every district placed (first pass)
 
 - Made in the model: the canal of the customs (harbour, beat 4: a crate pushed in A floats to the far quay and lies on the
@@ -25,9 +49,7 @@ git history of this file; it is summarised here.
   `tests/test_lantern.cpp` 38: all pass. `test_route`: the sea gate, the canal and the day bell are reached in order.
 - `tools/check.ps1`: the smoke run expects the start in B (Tab goes to A first), walks back east with S (the start looks
   west, at the heap), and waits for a killed game to end before it reads the log.
-- Known issue: `test_route` stops at the plank: from the west the solver does not reach the east (the way from the
-  market street to the bastion and the rock is not open yet). The east, the north and the bells beyond the west are placed
-  but not proved, and `test_route` is not in `run_tests.ps1` until it passes.
+- Known issue (closed the same day, below): `test_route` stopped at the plank.
 
 ### 2026-11-25: the harbour, beat 3
 

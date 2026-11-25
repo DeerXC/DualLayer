@@ -2,7 +2,7 @@
 // Data:      each thing comes from the model (data/town.dlt, scene/Town.h ThingDef): a handle and boxes, each box in one or
 //            both moments and in one state (shut or open).
 // Verbs:     what the prompt says: OPEN (a gate), PUSH (a crate), LAY ACROSS (a plank), RING (a bell: its only box is a
-//            lamp lit in B over its rope).
+//            lamp lit in B over its rope), LOWER (the lift of the rock).
 // Rule:      the causal rule. E at the handle, in A, standing, opens the thing; it opens in A and in B at once (what is done
 //            in A leaves its trace in B). Nothing in B opens anything: at the handle in B, E does nothing. An opening that
 //            would put a box of A where the body is, is refused.

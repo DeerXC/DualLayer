@@ -3,12 +3,15 @@
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_route.cpp -o test_route
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only route
 // The solver: a flood over cells of 0.5 m of both moments. From a cell the body walks to a neighbour (a step up of at most
-// 1.2 m, any drop that lands; it fits there and halfway); it switches where it stands when it fits in the other moment (and
-// falls there when there is no floor); it switches in the air: a jump of at most 1.5 m up with the moment changed at its
-// top, onto a floor of the other moment within 1 m (the head must fit at the top in the moment it jumped in). The lantern
-// is a circle given to a stage. The water of a moment is not walked. A handle is reached in A within its reach.
-// The stages: the things in the order of the main path; for each, its handle is NOT reached before the one before it is
-// done (so the order is forced), and it IS reached after. Then the end: the graveyard. Returns 1 when a check fails.
+// 1.65 m onto a ledge up to 1 m away, any drop that lands, no slope over 53 degrees; it fits there and halfway); it
+// switches where it stands when it fits in the other moment (and falls there when there is no floor); it switches in the
+// air: a jump of at most 1.65 m up with the moment changed at its top, onto a floor of the other moment within 1 m that
+// the moment it jumped in does not have. The lantern is a circle (set down on the scaffold of the west). The water of a
+// moment is not walked. A handle is reached in A within its reach.
+// Ways: test_route [every] x y z [thing numbers done] [L]  prints the way found to (x, y, z) (every cell with "every");
+//       test_route probe x y z [things] [L]  prints the floor and the fit there in both moments.
+// The steps: the things in the order of the main path and the lantern (kSteps); for each, its handle is reached, and no
+// handle further on is reached before it is done (no way round a puzzle). Returns 1 when a check fails.
 
 #include "scene/Lantern.h"
 #include "scene/Moments.h"
@@ -66,7 +69,7 @@ const town::TownData& Town()
 
 constexpr float kCell = 0.5f;
 bool g_verbose = false;
-bool g_early[7] = {};
+int g_every = 0; ///< every how many cells Way prints one (1 with the argument "every"; else 8)
 constexpr float kStep = 1.65f; // a jump onto a ledge (the full jump is 2.0 m; the margin is for the arc)
 constexpr float kAirUp = 1.65f;
 
@@ -202,7 +205,7 @@ class Solver
         for (std::size_t q = 0; q < way.size(); ++q)
         {
             const Node& n = m_all[static_cast<std::size_t>(way[q])];
-            if (n.how != 'w' || q % 8 == 0 || q + 1 == way.size())
+            if (n.how != 'w' || q % (g_every > 0 ? g_every : 8) == 0 || q + 1 == way.size())
             {
                 std::printf("      %c %c %.1f %.1f %.1f\n", n.how, n.layer == 0 ? 'A' : 'B', static_cast<double>(X(n.i)), static_cast<double>(n.y),
                             static_cast<double>(Z(n.j)));
@@ -364,7 +367,7 @@ class Solver
     {
         for (int i = 0; i < 3; ++i)
         {
-            Vec3 c{x, y + m_radius + 0.02f + 0.6f * static_cast<float>(i), z};
+            Vec3 c{x, y + m_radius + 0.06f + 0.6f * static_cast<float>(i), z}; // 0.06: clear of a stair of 32 degrees
             if (m_moments.PushOut(c, m_radius - 0.03f, layer) > 0.005f)
             {
                 return false;
@@ -473,6 +476,8 @@ class Solver
 
 /// Where the lantern is set down in the west (tools/layout/city_model.py build_scaffold): its middle platform.
 Vec3 g_scaffold{};
+/// The west bastion, beyond the terrace of the scaffold (city_model.py BRIDGEHEADS, ROCK_Y).
+const Vec3 g_bastion{-27.0f, 14.0f, 0.0f};
 
 void Report(const Solver& s, const char* stage)
 {
@@ -488,58 +493,67 @@ void Report(const Solver& s, const char* stage)
     std::fflush(stdout);
 }
 
+/// The steps of the main path (docs/DESIGN.md 7.4, 8): a thing to use in A, or "lantern" (set down on the scaffold of the
+/// west). Each is reached only after the one before it.
+const char* const kSteps[] = {"sea gate", "canal crate", "day bell", "lantern", "lift", "dawn bell", "plank", "gatehouse crate", "night bell"};
+constexpr int kStepCount = static_cast<int>(sizeof(kSteps) / sizeof(kSteps[0]));
+
+bool IsLantern(int k)
+{
+    return std::string(kSteps[k]) == "lantern";
+}
+
 void TestRoute()
 {
     const town::TownData& t = Town();
     Solver s(t);
-    const char* order[] = {"sea gate", "canal crate", "day bell", "plank", "dawn bell", "gatehouse crate", "night bell"};
-    int ids[7];
-    for (int k = 0; k < 7; ++k)
+    int ids[kStepCount];
+    for (int k = 0; k < kStepCount; ++k)
     {
-        ids[k] = s.Find(order[k]);
-        CHECK(ids[k] >= 0);
-        if (ids[k] < 0)
+        ids[k] = IsLantern(k) ? -1 : s.Find(kSteps[k]);
+        if (!IsLantern(k) && ids[k] < 0)
         {
-            std::printf("  no thing %s\n", order[k]);
+            std::printf("  no thing %s\n", kSteps[k]);
+            CHECK(false);
             return;
         }
     }
-    for (int k = 0; k < 7; ++k)
+    const auto reached = [&](int k) { return IsLantern(k) ? s.Reached(g_scaffold, 1.0f, 0) : s.HandleReached(ids[k]); };
+    for (int k = 0; k < kStepCount; ++k)
     {
-        // the lantern: set down on the scaffold of the west once the canal is crossed (the day bell is beyond it)
-        if (k >= 2)
-        {
-            s.SetLantern(g_scaffold);
-        }
         s.Flood(t.spawn, t.startLayer);
-        Report(s, order[k]);
-        const bool reached = s.HandleReached(ids[k]);
-        CHECK(reached);
-        if (!reached)
+        Report(s, kSteps[k]);
+        const bool here = reached(k);
+        CHECK(here);
+        if (!here)
         {
-            std::printf("  not reached: %s\n", order[k]);
+            std::printf("  not reached: %s\n", kSteps[k]);
             return;
         }
-        // what is reached before its turn: a way round a puzzle (listed; the count is checked at the end)
-        for (int later = k + 1; later < 7; ++later)
+        // nothing further on is reached before this step is done: no way round a puzzle (a bell closes nothing: it is a goal)
+        const bool bell = std::string(kSteps[k]).find("bell") != std::string::npos;
+        for (int later = k + 1; later < kStepCount && !bell; ++later)
         {
-            if (s.HandleReached(ids[later]) && !g_early[later])
+            if (!IsLantern(later) && s.HandleReached(ids[later]))
             {
-                g_early[later] = true;
-                std::printf("  way round: %s reached before %s is done\n", order[later], order[k]);
+                std::printf("  way round: %s reached before %s is done\n", kSteps[later], kSteps[k]);
+                CHECK(false);
             }
         }
-        s.Do(ids[k]);
+        if (IsLantern(k))
+        {
+            // before the lantern the bastion beyond the terrace is not reached; the lantern stays on the scaffold
+            CHECK(!s.Reached(g_bastion, 2.0f));
+            s.SetLantern(g_scaffold);
+        }
+        else
+        {
+            s.Do(ids[k]);
+        }
     }
     s.Flood(t.spawn, t.startLayer);
     Report(s, "all done");
-    // without the lantern the day bell is not reached
-    Solver s2(t);
-    s2.Do(ids[0]);
-    s2.Do(ids[1]);
-    s2.Flood(t.spawn, t.startLayer);
-    CHECK(!s2.HandleReached(ids[2]));
-    Report(s2, "no lantern");
+    CHECK(s.Reached(g_bastion, 2.0f));
 }
 
 } // namespace
@@ -566,8 +580,8 @@ int main(int argc, char** argv)
                 const Vec3 p{a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f};
                 const float vx = (b.x - a.x) / l, vz = (b.z - a.z) / l;
                 const float nx = -vz, nz = vx;
-                // u -2.0, x 0.9: the middle platform (3.2 m)
-                g_scaffold = {p.x + nx * 0.9f, p.y + 3.2f, p.z + nz * 0.9f};
+                // u -2.0, x 0.9: the middle platform (2.9 m)
+                g_scaffold = {p.x + nx * 0.9f, p.y + 2.9f, p.z + nz * 0.9f};
                 break;
             }
             done += l;
@@ -578,14 +592,27 @@ int main(int argc, char** argv)
         Solver s(Town());
         for (int k = 5; k < argc; ++k)
         {
-            s.Do(std::atoi(argv[k]));
+            if (argv[k][0] == 'L')
+            {
+                s.SetLantern(g_scaffold);
+            }
+            else
+            {
+                s.Do(std::atoi(argv[k]));
+            }
         }
         s.Probe(static_cast<float>(std::atof(argv[2])), static_cast<float>(std::atof(argv[3])), static_cast<float>(std::atof(argv[4])));
         return 0;
     }
+    if (argc >= 5 && std::string(argv[1]) == "every")
+    {
+        g_every = 1; // test_route every x y z ...: the way cell by cell
+        --argc;
+        ++argv;
+    }
     if (argc >= 4)
     {
-        // a way: test_route x y z [things done, by number]
+        // a way: test_route [every] x y z [things done, by number] [L: the lantern on the scaffold]
         Solver s(Town());
         for (int k = 4; k < argc; ++k)
         {

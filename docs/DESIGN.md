@@ -218,12 +218,13 @@ The game will load the model's terrain, streets and buildings as data, so the ga
 ### 7.4 The main path
 
 1. The quay, the sea gate, the lower town (teaching, section 8).
-2. Up the market stairs to the market. From the west bastion the bridge to the rock is seen: in A its gate is shut from
-   the rock side, in B it has fallen.
-3. Down the great well into the cistern, out onto the floor of the gorge, under the broken bridge first seen from above.
-4. The lift of the rock: in A its cage is lowered from the lift house at the foot; in B the cage lies there, a frame climbed
-   up the face of the rock (the causal rule).
-5. On the plaza, the bridge gate opened in A: the way west is now short. Over the east bridge to the locks.
+2. Up the market stairs to the market, over the terrace with the lantern, to the west bastion. The bridge to the rock is
+   seen: in A it ends at a shut gate on the rock, in B it has fallen.
+3. In B down the wreck of the bridge, its spans lying round the gorge like a stair, onto the dry floor of the gorge.
+4. The lift of the rock: on the roof of the lift house at the foot (reached in B, switched to A over the moat) its winch
+   lowers the cage in A; in B the cage lies at the foot and its frame stands, a ladder of girders up the face (the causal
+   rule). Never lowered, the cage fell and tore the frame down with it.
+5. On the plaza; over the east bridge to the locks.
 6. Up the locks to the water tower, along the upper town to the theatre, up the cliff stair to the graveyard.
 7. From the cliff, the way to the top of the bell tower (to be designed) and the last moment.
 
@@ -253,7 +254,7 @@ Each mechanic is taught where a mistake costs nothing, then turned round. The pu
 |---|---|---|
 | Harbour and lower town | walking; the switch; the causal rule; the switch in the air | **built** (2026-11-25, tests/test_things.cpp): beat 1, the switch: the game starts in B on the quay, a heap of wreck closes the way west in B only; beat 2, the causal rule: the portcullis of the sea gate is shut in both moments; its gold winch raises it in A, where the cargo of the customs fills the passage behind it; in B the cargo is gone and the portcullis is raised where A left it, with its trace; beat 3, the switch in the air: the lower street is closed in A by the barricade of the customs (5 m) and in B by the front of a fallen house (3.4 m over the street); two crates of A climb to 2.4 m; from the top one a jump with a switch at its top lands on the heap of B, whose far side steps down to the street. beat 4 (placed 2026-11-25), the canal of the customs: a crate pushed in A floats to the far quay and lies on the dry bed in B. **Replaced**: the crate puzzle of the customs-house cloister, re-made so that the crate is moved in A and lies in B where A left it, proved again by the solver, at most two switches |
 | West: market and well | the lantern (first met here); the orb | **placed** (2026-11-25): the scaffold of A under a shed roof by the terrace of the market; the lantern on it, climbed in B. Earlier sketch: the wooden stair of A kept standing by the lantern in the dry shaft of B; the day bell at the foot |
-| Centre: the rock | the causal rule at a large scale | the bridges, the lift cage and the gate of 7.4 |
+| Centre: the rock | the causal rule at a large scale | **built** (2026-11-25): the wreck of the west bridge down into the gorge (B), the lift lowered in A and climbed in B (7.4); the gate of the west bridge stays shut (seen, not crossed) |
 | East: the locks | water and the crate | **placed** (2026-11-25): the plank laid between two roofs in A holds in B. Still: a crate floated in A to where it is needed lies there on the dry bed in B; the tower lock re-made the same way; the dawn bell in the water tower |
 | North: theatre and graveyard | the prism; the switch in the air | **placed** (2026-11-25): the gatehouse of the theatre: a crate pushed under its balcony in A, then a switch in the air onto the heap of B. Still: the prism moves a thing of A into B; the fallen back wall of the theatre passed with a switch in the air; the night bell; the traces of the whole game seen from the cliff |
 
@@ -313,7 +314,8 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
    tests/test_lantern.cpp; the traces wait for the first things that change, in step 4).
 4. The districts rebuilt on the model with their puzzles (the whole town), each room proved as in section 11. Begun
    2026-11-25: the things that change (`scene/Things.h`, `data/town.dlt` format 3), the harbour (beats 1 to 4), one puzzle
-   placed in each other district, the bells; proved in order by `tests/test_route.cpp` as far as the day bell.
+   placed in each other district, the centre (the lift), the bells. The whole main path is proved in order by
+   `tests/test_route.cpp`: every step reached, none before its turn.
 5. Refine by play; then the story and the sound.
 
 ## 13. Decisions
@@ -331,6 +333,7 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | 2026-11-24 | one design document (this one); the level design, the art and map plan and the gameplay notes are merged into it |
 | 2026-11-25 | the game starts in B (the present), as every puzzle does; things that change are opened in A at a gold handle, and open in B by the causal rule |
 | 2026-11-25 | the harbour teaches the switch, the causal rule and the switch in the air; the lantern is first met in the shaft of the west |
+| 2026-11-25 | the centre without the cistern: the gorge is entered down the wreck of the west bridge in B and left by the lift; the west bridge is never crossed; walls between the districts close every way round a puzzle |
 
 ## 14. Open
 
@@ -342,4 +345,5 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | Look before going | 3.1 |
 | The memory lights | their number and places on the new map |
 | A guide figure | a hint that shows one step after a long time in a room |
+| The bell tower | the last moment, from the graveyard (7.4, step 7) |
 | Lantern rooms | a lantern room leaves no floor of B within a running jump (3.6 m) of a floor of A the lantern stands on, or a switch in the air solves it (the bridge example of 3.2 is solved that way: to be re-made with the room) |

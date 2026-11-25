@@ -28,6 +28,7 @@ enum class Kind
     Push,
     Lay,
     Ring,
+    Lower,
     Recall, ///< the lantern, set down far away: back to the hand
     Count
 };
@@ -63,6 +64,8 @@ constexpr Text TextOf(Kind k)
         return {"E", "LAY ACROSS"};
     case Kind::Ring:
         return {"E", "RING"};
+    case Kind::Lower:
+        return {"E", "LOWER"};
     case Kind::Recall:
         return {"E", "CALL THE LANTERN"};
     case Kind::Count:

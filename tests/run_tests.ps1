@@ -32,7 +32,8 @@ $tests = @(
     @{ Name = "water";     Sources = @("tests\test_water.cpp", "src\render\MeshData.cpp");                                   Flags = @("/O2") },
     @{ Name = "town";      Sources = @("tests\test_town.cpp");                                                               Flags = @("/O2") },
     @{ Name = "lantern";   Sources = @("tests\test_lantern.cpp");                                                            Flags = @("/O2") },
-    @{ Name = "things";    Sources = @("tests\test_things.cpp");                                                             Flags = @("/O2") }
+    @{ Name = "things";    Sources = @("tests\test_things.cpp");                                                             Flags = @("/O2") },
+    @{ Name = "route";     Sources = @("tests\test_route.cpp");                                                              Flags = @("/O2") }
 )
 
 # Tools that are kept in the repository but are not part of the game: they are only BUILT, so that they cannot rot unseen.

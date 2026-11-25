@@ -153,6 +153,7 @@ seen".
 | E-35 | The canal | at the foot of the market stairs in A, E at the crate (PUSH); Tab; in B climb down the fallen quay, onto the crate, onto the far quay | in A the crate floats to the far quay; in B it lies on the dry bed against it |
 | E-36 | The lantern | on the market street in A, E on the middle platform of the scaffold; Tab; climb; jump onto the terrace; walk 8 m away, E | in B the scaffold stands in the circle; the terrace is reached; E calls the lantern back (CALL THE LANTERN) |
 | E-37 | The bells | at the clock tower in A, E (RING) | the title bar: bells 1 of 3; in B a lamp burns over the rope |
+| E-38 | The lift | from the west bastion in B walk down the wreck of the bridge to the floor of the gorge; at the lift house climb the heap onto its roof; Tab; E (LOWER); Tab; climb the frame | in A the cage goes down; in B the frame stands up the face of the rock and leads to the plaza (before E, in B, a wreck lies at the foot and nothing climbs) |
 | E-34 | The air step | from the top of the sea stair walk west on the lower street; in A climb the two crates by the barricade; jump toward it; jump again and press Tab at the top | the barricade (A) and the heap of a fallen house (B) close the street; without Tab the jump ends at the barricade; with Tab the body lands on the heap in B and walks down its steps toward the market |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on

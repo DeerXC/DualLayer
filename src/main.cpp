@@ -831,9 +831,10 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
                 {
                     if (handle >= 0 && !things.Open(static_cast<std::size_t>(handle)) && gpu.models.CollisionLayer() == 0)
                     {
-                        static constexpr dl::prompt::Kind kOfVerb[4] = {dl::prompt::Kind::Open, dl::prompt::Kind::Push, dl::prompt::Kind::Lay,
-                                                                        dl::prompt::Kind::Ring};
-                        none[0] = dl::prompt::Shown{kOfVerb[static_cast<int>(town.things[static_cast<std::size_t>(handle)].verb) & 3], 1.0f};
+                        static constexpr dl::prompt::Kind kOfVerb[5] = {dl::prompt::Kind::Open, dl::prompt::Kind::Push, dl::prompt::Kind::Lay,
+                                                                        dl::prompt::Kind::Ring, dl::prompt::Kind::Lower};
+                        const int verb = static_cast<int>(town.things[static_cast<std::size_t>(handle)].verb);
+                        none[0] = dl::prompt::Shown{kOfVerb[verb >= 0 && verb < 5 ? verb : 0], 1.0f};
                     }
                     else if (lantern.Far(player.Feet()))
                     {

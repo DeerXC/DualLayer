@@ -93,6 +93,7 @@ enum class Verb : std::uint8_t
     Push = 1,
     Lay = 2,
     Ring = 3,
+    Lower = 4,
 };
 
 /// A thing that changes: E at its handle in A opens it, in A and (by the causal rule) in B.
@@ -228,7 +229,7 @@ class TownData
             ThingDef t;
             std::uint16_t boxes = 0;
             std::uint8_t verb = 0;
-            ok = r.Name(t.name) && r.U8(verb) && verb <= 3 && r.F32(t.handle.x) && r.F32(t.handle.y) && r.F32(t.handle.z) && r.U16(boxes) && boxes >= 1;
+            ok = r.Name(t.name) && r.U8(verb) && verb <= 4 && r.F32(t.handle.x) && r.F32(t.handle.y) && r.F32(t.handle.z) && r.U16(boxes) && boxes >= 1;
             for (std::uint16_t k = 0; ok && k < boxes; ++k)
             {
                 ThingBox b;

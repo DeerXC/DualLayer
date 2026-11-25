@@ -75,7 +75,8 @@ lines of the streets, and the polygons of the town with their moment and their k
   light of A, only inside it, with a warm rim (`lanternMode` in `cbuffer Frame`, `LanternClip` in `shaders/models.hlsl`); the
   same for the still water. The water of A is water inside the sphere in B (`TownData::Submerged` with a circle).
   `Traces` keeps the traces of things changed in A.
-- The things that change (`scene/Things.h`): from the model (`TownData::things`: a handle and boxes, each in its moments
+- The things that change (`scene/Things.h`): from the model (`TownData::things`: a verb (what the prompt says: OPEN,
+  PUSH, LAY ACROSS, RING, LOWER), a handle and boxes, each in its moments
   and in one state, shut or open). E at a handle in A opens the thing in A and B at once (the causal rule); in B it does
   nothing; an opening that would close on the body is refused. The boxes of the state now are extra solids of their
   moments (`Moments::SetExtra`, the same rule with the circle as the town's triangles), drawn as cubes in the table of

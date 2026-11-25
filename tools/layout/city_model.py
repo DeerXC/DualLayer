@@ -187,8 +187,10 @@ QUAY_Y = -6.2
 LOCK_HEAD_RUN = 8.0      # the stair beside each lock head climbs 4.5 m over this
 SLOPE = {"street": 0.445, "lane": 0.445, "stair": 0.625}  # tan 24 and 32 degrees (docs/DESIGN.md 11)
 JUMP_UP = 1.2            # the step up on the main path
-LANTERN_DEMO = (-19.0, ROCK_Y + 0.05, 0.0, 3.0)  # x, y, z, radius: the lantern on the west bridge (street_b)
-TUNNEL_PORTAL = (-22.6, 0.0)                     # where the tunnel from the well opens into the gorge
+LANTERN_DEMO = (-19.0, ROCK_Y + 0.05, 0.0, 3.0)  # x, y, z, radius: a circle drawn on the west bridge (the picture street_b)
+LIFT_X = -5.5             # the lift of the rock (docs/DESIGN.md 7.4): its shaft, south face, x
+LIFT_HOUSE_Z = -19.4      # the lift house at the foot (2 m deep): 2 m clear between it and the shaft
+LIFT_Z0, LIFT_Z1 = -16.4, -15.2  # the column of the shaft and of the ladder of B against the face (clear of the slope of the rock)
 
 STREETS = [
     # name, points, width, kind ("street", "stair", "lane"). In this order: a street that starts or ends on an earlier one
@@ -517,6 +519,93 @@ def build_terrain():
             poly([(x, SEA, z), (x + 30, SEA, z), (x + 30, SEA, z + 30), (x, SEA, z + 30)], "sea", "both", "sea")
 
 
+# ---- the centre (docs/DESIGN.md 7.4) -----------------------------------------------------------------------------------
+
+def build_west_gatehouse():
+    """The gate of the west bridge on the rock: a wall across the end of the bridge, 4.5 m over the plaza, 10 m wide (no hop
+    round it from the rails); its opening shut in A by a portcullis, choked in B by its own fallen arch. The bridge is seen,
+    never crossed: in A it leads to a shut gate, in B it is gone."""
+    gx = -(ROCK_R - 0.3)
+    for z0, z1 in ((-5.0, -1.7), (1.7, 5.0)):
+        prism(rect(gx, (z0 + z1) / 2, 1.0, z1 - z0, 0.0), ROCK_Y - 1.0, ROCK_Y + 4.5, "stone", "both", True, "stone_dark")
+    prism(rect(gx, 0.0, 1.0, 3.4, 0.0), ROCK_Y + 3.2, ROCK_Y + 4.5, "stone", "both", True, "stone_dark")    # the lintel
+    prism(rect(gx - 0.35, 0.0, 0.15, 3.4, 0.0), ROCK_Y - 0.2, ROCK_Y + 3.2, "iron", "A")                     # A: the portcullis
+    prism(rect(gx, 0.0, 1.0, 3.4, 0.0), ROCK_Y - 0.2, ROCK_Y + 3.2, "debris", "B", True, "stone_dark")      # B: the fallen arch
+    for k in range(3):                                                                          # B: the heap spills on the plaza
+        prism(rect(gx + 1.2 + 0.9 * k, 0.3 * (k - 1), 1.0, 2.6 - 0.5 * k, 0.1 * k), ROCK_Y - 0.2, ROCK_Y + 1.6 - 0.5 * k, "debris", "B")
+
+
+def build_bridge_wreck():
+    """B: the spans of the west bridge fell into the gorge and lie round its floor like a stair, from under the stub on the
+    bastion down to the floor, going north: the way down in the present (in the past the gorge holds the moat)."""
+    for i in range(13):
+        a = math.radians(174.0 - 7.0 * i)
+        top = ROCK_Y - 1.5 * (i + 1)
+        cx, cz = 20.0 * math.cos(a), 20.0 * math.sin(a)
+        prism(rect(cx, cz, 3.0, 2.2, a), GORGE_Y - 0.5, top, "stone", "B", True, "debris")
+        KEEP_CLEAR.append((cx, cz, 1.0))
+
+
+def build_gorge_parapet():
+    """A parapet on the rim of the gorge, 2.4 m over the ground there, open only at the two bridges: the gorge is entered by
+    the wreck of the west bridge in B and left by the lift, not jumped into from anywhere."""
+    r = GORGE_R + 1.7
+    n = 120
+    for i in range(n):
+        a0, a1 = 2 * math.pi * i / n, 2 * math.pi * (i + 1) / n
+        am = (a0 + a1) / 2
+        if abs(r * math.sin(am)) < 1.7 and abs(math.cos(am)) > 0.9:
+            continue                                                                    # the bridges
+        p0 = np.array([r * math.cos(a0), r * math.sin(a0)])
+        p1 = np.array([r * math.cos(a1), r * math.sin(a1)])
+        v = (p1 - p0) / np.linalg.norm(p1 - p0)
+        nx, nz = -v[1] * 0.3, v[0] * 0.3
+        pts = [(p0[0] + nx, p0[1] + nz), (p1[0] + nx, p1[1] + nz), (p1[0] - nx, p1[1] - nz), (p0[0] - nx, p0[1] - nz)]
+        out = [float(ground(q[0] * 1.08, q[1] * 1.08)) for q in (p0, p1)] + [float(ground(q[0], q[1])) for q in (p0, p1)]
+        prism(pts, min(out) - 2.0, max(out) + 2.4, "stone", "both", True, "stone_dark")
+        KEEP_CLEAR.append((float(p0[0]), float(p0[1]), 1.2))
+
+
+def build_lift_frame():
+    """The lift of the rock, the parts that do not change: the posts of its shaft on the south face, the upper station (a
+    landing at the edge of the plaza, both moments), the lift house at the foot (its roof just over the moat of A) and, in
+    B, a heap beside the lift house to climb onto its roof. The cage and the ladder are the thing "lift" (build_lift)."""
+    for sx in (-1.6, 1.6):
+        prism(rect(LIFT_X + sx, (LIFT_Z0 + LIFT_Z1) / 2, 0.4, LIFT_Z1 - LIFT_Z0, 0.0), GORGE_Y, ROCK_Y + 3.0, "stone_dark")
+    gable(LIFT_X, (LIFT_Z0 + LIFT_Z1) / 2, 3.6, 2.0, 0.0, ROCK_Y + 3.0, 1.0, "roof")
+    prism(rect(0.0, (LIFT_Z1 - 12.4) / 2 + 0.0, 3.2, -12.4 - LIFT_Z1, 0.0), ROCK_Y - 1.0, ROCK_Y, "stone", "both", True, "paving")
+    prism(rect(LIFT_X, LIFT_HOUSE_Z, 3.2, 2.0, 0.0), GORGE_Y, GORGE_Y + 2.6, "stone_dark", "both", True, "roof")  # the lift house
+    prism(rect(LIFT_X - 2.4, LIFT_HOUSE_Z, 1.4, 1.8, 0.0), GORGE_Y, GORGE_Y + 1.3, "debris", "B")             # B: a heap by it
+
+
+def build_lift():
+    """The causal rule at the scale of the rock. A: the cage of the lift waits at the top; its winch is on the roof of the lift
+    house at the foot, just over the moat (reached by a switch on the roof, from B). LOWER brings the cage down.
+    B, the cage never lowered: it fell when its rope rotted and tore the frame off the face: a wreck at the foot.
+    B, the cage lowered in A: it sat at the foot for a century and the frame stands: a ladder of girders up the face, two
+    rows against the rock, steps of 1.5 m, to the upper station."""
+    zc = (LIFT_Z0 + LIFT_Z1) / 2
+    hz = (LIFT_Z1 - LIFT_Z0) / 2
+    boxes = [
+        ("shut", "A", "iron", (LIFT_X, ROCK_Y + 1.1, zc), (1.2, 1.2, hz), 0.0),                # the cage at the top
+        ("open", "A", "iron", (LIFT_X, GORGE_Y + 1.2, zc), (1.2, 1.2, hz), 0.0),               # the cage at the foot
+        ("open", "B", "iron", (LIFT_X, GORGE_Y + 1.0, zc), (1.2, 1.0, hz), 0.0),               # B: there still, rusted
+        ("shut", "B", "debris", (LIFT_X, GORGE_Y + 0.5, zc - 0.4), (1.5, 0.5, hz + 0.4), 0.2),  # B: the wreck
+        ("shut", "B", "iron", (LIFT_X + 1.6, GORGE_Y + 0.3, zc - 1.2), (2.0, 0.3, 0.3), 0.5),
+    ]
+    front = (LIFT_Z0 - 1.2, LIFT_Z0 - 0.1)                                              # the first row stands out from the face
+    for i in range(13):                                                                 # B, lowered: the ladder
+        top = GORGE_Y + 1.5 + 1.5 * i
+        if i < 7:
+            x0 = -2.4 + 1.2 * i
+            z0, z1 = front
+        else:
+            x0 = 4.8 - 1.2 * (i - 7)
+            z0, z1 = LIFT_Z0, LIFT_Z1 - 0.1
+        boxes.append(("open", "B", "iron", (x0 + 0.6, top - 0.15, (z0 + z1) / 2), (0.6, 0.15, (z1 - z0) / 2), 0.0))
+    thing("lift", (LIFT_X, GORGE_Y + 2.6 + 1.1, LIFT_HOUSE_Z), boxes, "lower")
+
+
 # ---- the landmarks ----------------------------------------------------------------------------------------------------------
 
 def build_rock():
@@ -526,6 +615,8 @@ def build_rock():
         a0, a1 = 2 * math.pi * k / 24, 2 * math.pi * (k + 1) / 24
         if abs(math.cos(a0)) > 0.97:
             continue                                                                    # the two bridges
+        if k in (17, 18):
+            continue                                                                    # the upper station of the lift
         p0 = (ROCK_R * math.cos(a0), ROCK_R * math.sin(a0))
         p1 = (ROCK_R * math.cos(a1), ROCK_R * math.sin(a1))
         world = "A" if (k % 5 == 2) else "both"
@@ -571,54 +662,27 @@ def build_rock():
         ang = 2 * math.pi * hash01(k, 3)
         r = ROCK_R + 2.0 + 6.0 * hash01(k, 5)
         x, z = r * math.cos(ang), r * math.sin(ang)
+        if z < -12.0 and abs(x) < 10.0:
+            continue                                                                    # the foot of the lift stays clear
         prism(rect(x, z, 1.2 + hash01(k, 7) * 2.0, 1.0 + hash01(k, 9) * 1.6, ang), GORGE_Y, GORGE_Y + 0.4 + hash01(k, 11) * 1.4, "debris", "B")
         if k % 3 == 0:
             cone(x + 1.5, z, 0.8, GORGE_Y, GORGE_Y + 1.2, "moss", "B", 5)
     # the bridges: west and east, arched; in B the west one has fallen in the middle
     for name, sgn in (("west", -1.0), ("east", 1.0)):
-        x0, x1 = sgn * (ROCK_R - 0.2), BRIDGEHEADS[name][0] - sgn * 3.0    # from the rock to the bastion
+        x0, x1 = sgn * (ROCK_R - 0.2), BRIDGEHEADS[name][0] - sgn * 1.5    # from the rock onto the flat of the bastion
         n = 8
-        runs = [(0, 3, "both"), (3, 6, "A"), (6, 8, "both")] if name == "west" else [(0, 8, "both")]
+        runs = [(0, 7, "A"), (7, 8, "both")] if name == "west" else [(0, 8, "both")]
         for k0, k1, world in runs:                                     # whole runs: a rail is one piece, not steps
             xa = x0 + (x1 - x0) * k0 / n
             xb = x0 + (x1 - x0) * k1 / n
             beam((xa, ROCK_Y + 0.05, 0.0), (xb, ROCK_Y + 0.05, 0.0), 3.2, 1.0, "stone", world)
             for sz in (-1.5, 1.5):
                 beam((xa, ROCK_Y + 1.0, sz), (xb, ROCK_Y + 1.0, sz), 0.3, 0.95, "stone", world)
-        if name == "west":                                             # the gate on the rock end: shut in A, open in ruin in B
-            gx = x0 - 0.6
-            for sz in (-1.7, 1.7):
-                prism(rect(gx, sz, 0.7, 0.7, 0.0), ROCK_Y, ROCK_Y + 3.6, "stone")
-            prism(rect(gx, 0.0, 0.15, 3.0, 0.0), ROCK_Y, ROCK_Y + 3.0, "iron", "A")
-            prism(rect(gx - 1.2, 0.9, 1.5, 0.15, 0.5), ROCK_Y, ROCK_Y + 2.6, "iron", "B")
         mid = (x0 + x1) / 2
         prism(rect(mid, 0.0, 1.6, 3.2, 0.0), GORGE_Y, ROCK_Y - 2.5, "stone_dark", "A" if name == "west" else "both")
-        if name == "west":
-            prism(rect(mid + 0.8, 0.6, 4.0, 3.4, 0.3), GORGE_Y, GORGE_Y + 1.6, "debris", "B")
-    # the lift on the south face of the rock (docs/DESIGN.md 7.4): the shaft and its house at the top; in A the cage is up
-    # at the plaza, its chains down to the lift house at the foot; in B the cage lies at the foot, its frame leaning up the
-    # face of the rock: a way up made by what was done in A
-    lz = -ROCK_R - 1.2
-    prism(rect(-1.9, lz, 0.6, 2.6, 0.0), GORGE_Y, ROCK_Y + 3.0, "stone_dark")
-    prism(rect(1.9, lz, 0.6, 2.6, 0.0), GORGE_Y, ROCK_Y + 3.0, "stone_dark")
-    gable(0.0, lz, 4.4, 3.0, 0.0, ROCK_Y + 3.0, 1.2, "roof")
-    prism(rect(0.0, lz - 3.0, 3.2, 2.4, 0.0), GORGE_Y, GORGE_Y + 2.6, "stone_dark", "both", True, "roof")   # the lift house
-    prism(rect(0.0, lz, 2.4, 2.0, 0.0), ROCK_Y - 0.1, ROCK_Y + 2.3, "iron", "A")                          # A: the cage, up
-    for sx in (-0.8, 0.8):
-        beam((sx, ROCK_Y + 2.3, lz), (sx, GORGE_Y + 2.6, lz - 3.0), 0.06, 0.06, "iron", "A")
-    for sx in (-1.0, 1.0):                                                                                  # B: the frame
-        beam((sx, GORGE_Y + 0.1, lz - 2.2), (sx, ROCK_Y - 4.0, lz + 0.4), 0.18, 0.18, "iron", "B")
-    for t in np.linspace(0.08, 0.92, 9):
-        y = GORGE_Y + 0.1 + (ROCK_Y - 4.1 - GORGE_Y) * t
-        zz = lz - 2.2 + 2.6 * t
-        beam((-1.0, y, zz), (1.0, y, zz), 0.12, 0.12, "iron", "B")
-    # the tunnel from the well opens into the gorge under the west bridge: flooded in A (under the moat), walked in B
-    px, pz = TUNNEL_PORTAL
-    for sz in (-1.6, 1.6):
-        prism(rect(px, pz + sz, 1.0, 0.8, 0.0), GORGE_Y, GORGE_Y + 3.0, "stone_dark")
-    prism(rect(px, pz, 1.0, 4.0, 0.0), GORGE_Y + 3.0, GORGE_Y + 3.7, "stone_dark")
-    poly([(px + 0.52, GORGE_Y, pz - 1.2), (px + 0.52, GORGE_Y, pz + 1.2), (px + 0.52, GORGE_Y + 3.0, pz + 1.2), (px + 0.52, GORGE_Y + 3.0, pz - 1.2)],
-         "iron", "both", "overlay")
+    build_west_gatehouse()
+    build_bridge_wreck()
+    build_lift_frame()
     for x, z in ((-8.0, -9.5), (8.0, -9.5), (-9.0, 8.0), (9.0, 8.0)):                            # plane trees on the plaza
         prism(ngon(x, z, 0.3, 5), ROCK_Y, ROCK_Y + 2.5, "wood")
         cone(x, z, 2.6, ROCK_Y + 2.0, ROCK_Y + 6.5, "tree", "A", 9)
@@ -796,7 +860,21 @@ def build_east():
                   (a[0] - v[0] * 0.7 + v[1] * 1.2, LOCK_LEVELS[i + 1] - 0.7, a[1] - v[1] * 0.7 - v[0] * 1.2),
                   (a[0] - v[0] * 0.7 + v[1] * 1.2, lv - 0.6, a[1] - v[1] * 0.7 - v[0] * 1.2),
                   (a[0] - v[0] * 0.7 - v[1] * 1.2, lv - 0.6, a[1] - v[1] * 0.7 + v[0] * 1.2)], "water", "A", "water")   # the fall (A)
-    total = d[-1]                                                                       # the stairs beside the lock heads
+    total = d[-1]
+    # the quays, laid as flat tiles of 0.5 m over the coarse ground (an offset strip folds inside a bend): each at the level
+    # of the quay at the nearest point of the lock line, so a lock stair is a run of low steps
+    xs = np.arange(LOCK_LINE[:, 0].min() - 9.0, LOCK_LINE[:, 0].max() + 9.0, 0.5)
+    zs = np.arange(LOCK_LINE[:, 1].min() - 9.0, LOCK_LINE[:, 1].max() + 9.0, 0.5)
+    gx, gz = np.meshgrid(xs + 0.25, zs + 0.25)
+    dist, idx = distance_to(LOCK_LINE, gx, gz)
+    sv = d[np.minimum(idx, len(d) - 1)]
+    lev = quay_level(sv) + 0.3
+    for j in range(len(zs)):
+        for i in range(len(xs)):
+            if 4.3 <= dist[j, i] <= 8.2:
+                x0_, z0_, y = xs[i], zs[j], float(lev[j, i])
+                poly([(x0_, y, z0_), (x0_ + 0.5, y, z0_), (x0_ + 0.5, y, z0_ + 0.5), (x0_, y, z0_ + 0.5)], "paving")
+    # the stairs beside the lock heads
     for k in range(1, len(LOCK_LEVELS)):
         head = total * k / len(LOCK_LEVELS)
         for side in (-1, 1):
@@ -806,6 +884,10 @@ def build_east():
                 y = float(quay_level(head + u)) + 0.04
                 q0, q1 = p + n * 4.4, p + n * 8.2
                 poly([(q0[0], y, q0[1]), (q1[0], y, q1[1]), (q1[0], y - 0.28, q1[1]), (q0[0], y - 0.28, q0[1])], "stone_dark", "both", "overlay")
+    lv = LOCK_LEVELS[-1]                                                                # the walkway over the head of the
+    prism(rect(80.0, 19.6, 13.0, 1.6, 0.25), lv - 0.4, lv + 0.02, "wood", "both", True, "wood")  # top basin: the quays meet
+    for sx in (-6.0, 6.0):
+        prism(rect(80.0 + sx * math.cos(0.25), 19.6 + sx * math.sin(0.25), 0.3, 0.3, 0.25), lv - 4.0, lv - 0.4, "wood")
     tx, tz = 84.0, 26.0                                                                 # the water tower and the dawn bell
     y = float(ground(tx, tz))
     prism(ngon(tx, tz, 3.0, 10), y, y + 18.0, "stone")
@@ -951,13 +1033,13 @@ def street_y(name, x, z):
     return float(_HEIGHTS[name][int(i)])
 
 
-VERB_CODE = {"open": 0, "push": 1, "lay": 2, "ring": 3}
+VERB_CODE = {"open": 0, "push": 1, "lay": 2, "ring": 3, "lower": 4}
 
 
 def thing(name, handle, boxes, verb="open"):
     """A thing that changes: E at its handle in A opens it (the causal rule: what is done in A shows in B). Its boxes are
     drawn and solid in the moment of their world, while the thing is in their state. Not in POLYS: the game draws them.
-    `verb` is what the prompt says (open, push, lay, ring); a bell is a thing with no boxes of its own but its rope."""
+    `verb` is what the prompt says (open, push, lay, ring, lower); a bell is a thing with no boxes of its own but its rope."""
     THINGS.append((name, tuple(float(v) for v in handle), boxes, verb))
 
 
@@ -1096,9 +1178,10 @@ def street_y_at(name, s):
     return float(_HEIGHTS[name][i] + f * (_HEIGHTS[name][i + 1] - _HEIGHTS[name][i]))
 
 
-def corridor(street, s0, s1, h=5.0, gaps=()):
+def corridor(street, s0, s1, h=9.5, gaps=()):
     """Walls along both sides of a street from s0 to s1 metres (garden walls and house fronts, joined): the street is the
-    only way along it. `gaps`: (s, side, width) openings where another way meets it (side +1 left, -1 right, 0 both)."""
+    only way along it; `h` over the street, higher than any step of a puzzle on it plus a jump (no walk along their tops).
+    `gaps`: (s, side, width) openings where another way meets it (side +1 left, -1 right, 0 both)."""
     c, w, _ = STREET[street]
     d = lengths(c)
     s = s0
@@ -1152,7 +1235,7 @@ def build_canal():
     k = Piece("market stairs", CANAL_S)
     k.clear(-1.0, 17.0)
     district_wall([k.xz(6.0, k.span / 2 + 0.8), (-82.0, -29.0)])                        # the terrace of the west, both ways
-    district_wall([k.xz(6.0, -k.span / 2 - 0.8), (-24.0, -20.0)])
+    district_wall([k.xz(6.0, -k.span / 2 - 0.8), (-24.0, -20.0), (-19.6, -16.4)])       # on to the parapet of the gorge
     b = k.base
     k.sides(-1.0, 17.0, 7.0)
     k.cross(0.0, 1.2, 1.2, "stone")                                                     # the steps up to the near quay
@@ -1176,8 +1259,8 @@ def build_canal():
 
 
 def build_scaffold():
-    """West: the lantern. The market street meets the terrace of the market hall, 6.4 m over the street, in both moments.
-    A: a scaffold of three timber platforms (1.6 m each) climbs to 4.8 m by the terrace wall, but the roof of a lean-to
+    """West: the lantern. The market street meets the terrace of the market hall, 6.0 m over the street, in both moments.
+    A: a scaffold of three timber platforms (1.4, 2.9, 4.4 m) climbs by the terrace wall, but the roof of a lean-to
     shed covers its top and the edge of the terrace: no jump from it. B: shed and scaffold long gone. The answer: set the
     lantern down on the scaffold in A, below the roof (its circle reaches the top platform, not the roof, which is more
     than 3.5 m over it); in B climb the scaffold of the circle and jump onto the terrace."""
@@ -1185,48 +1268,49 @@ def build_scaffold():
     k.clear(-6.0, 9.0)
     yb = k.y(-2.0) - k.base                                                             # the street at the scaffold
     k.sides(-6.0, 9.0, yb + 13.0)
-    k.cross(0.0, 6.0, yb + 6.4, "stone", top_mat="paving")                              # the terrace
-    k.box(-2.6, -1.4, -1.6, -0.2, yb + 1.6, "wood", "A", top_mat="wood")                # the scaffold (A)
-    k.box(-2.6, -1.4, 0.2, 1.6, yb + 3.2, "wood", "A", top_mat="wood")
-    k.box(-1.2, 0.0, 0.2, 1.6, yb + 4.8, "wood", "A", top_mat="wood")
+    k.cross(0.0, 6.0, yb + 6.0, "stone", top_mat="paving")                              # the terrace
+    k.box(-2.6, -1.4, -1.6, -0.2, yb + 1.4, "wood", "A", top_mat="wood")                # the scaffold (A): steps of 1.5 m
+    k.box(-2.6, -1.4, 0.2, 1.6, yb + 2.9, "wood", "A", top_mat="wood")
+    k.box(-1.2, 0.0, 0.2, 1.6, yb + 4.4, "wood", "A", top_mat="wood")
     k.box(-1.6, 2.2, -k.span / 2, k.span / 2, yb + 7.8, "roof", "A", bottom=yb + 7.4)  # the roof of the shed (A)
     k.box(-1.6, -1.3, -k.span / 2, -k.span / 2 + 0.3, yb + 7.4, "wood", "A")          # its posts
     k.box(-1.6, -1.3, k.span / 2 - 0.3, k.span / 2, yb + 7.4, "wood", "A")
 
 
 def build_plank():
-    """East: the causal rule with a plank. The upper street climbs to the roof of a house (3.6 m) and its neighbour is
-    5 m away across a yard; the street goes on beyond the neighbour. A: a plank lies on the first roof (E lays it across);
-    the neighbour's roof has a parapet with a shut door. B: no parapet; the plank laid in A is still there, grey, and holds."""
+    """East: the causal rule with a plank. The upper street climbs by four steps to the roof of a house (4.8 m) and its
+    neighbour is 5 m away across a yard (whose ground rises to the sides: the roofs stand 2.5 m or more over it); the
+    street goes on beyond the neighbour. A: a plank lies on the first roof (E lays it across); the neighbour's roof has a
+    parapet with a shut door. B: no parapet; the plank laid in A is still there, grey, and holds."""
     k = Piece("upper street", PLANK_S)
-    k.clear(-1.0, 16.0)
-    k.sides(-1.0, 16.0, 9.0)
-    k.cross(0.0, 1.2, 1.2, "stone")
-    k.cross(1.2, 2.4, 2.4, "stone")
-    k.cross(2.4, 5.4, 3.6, "plaster1", top_mat="roof")                                  # the first house
-    k.cross(10.4, 13.0, k.y(10.4) - k.base + 3.6, "plaster2", top_mat="roof")           # the neighbour
-    top2 = k.y(10.4) - k.base + 3.6
-    k.cross(13.0, 14.2, top2 - 1.2, "stone")
-    k.cross(14.2, 15.4, top2 - 2.4, "stone")
+    k.clear(-1.0, 17.0)
+    k.sides(-1.0, 17.0, 10.0)
+    for i in range(3):
+        k.cross(1.2 * i, 1.2 * (i + 1), 1.2 * (i + 1), "stone")
+    hi = 4.8
+    k.cross(3.6, 5.4, hi, "plaster1", top_mat="roof")                                   # the first house
+    top2 = k.y(10.4) - k.base + hi
+    k.cross(10.4, 13.0, top2, "plaster2", top_mat="roof")                               # the neighbour
+    for i in range(1, 4):
+        k.cross(13.0 + 1.2 * (i - 1), 13.0 + 1.2 * i, top2 - 1.2 * i, "stone")
     k.box(11.4, 11.7, -k.span / 2, k.span / 2, top2 + 3.0, "plaster2", "A", bottom=top2)  # the parapet (A)
-    lo = 3.6
-    thing("plank", k.handle(4.6, 1.6, 3.6), [
-        k.thing_box("shut", "A", "wood", 3.0, 5.0, -1.4, -0.8, 3.6, 3.75),
-        k.thing_box("open", "A", "wood", 5.2, 10.6, -0.4, 0.4, lo - 0.15, lo),
-        k.thing_box("open", "B", "wood", 5.2, 10.6, -0.4, 0.4, lo - 0.15, lo),
+    thing("plank", k.handle(4.6, 1.6, hi), [
+        k.thing_box("shut", "A", "wood", 3.8, 5.2, -1.4, -0.8, hi, hi + 0.15),
+        k.thing_box("open", "A", "wood", 5.2, 10.6, -0.4, 0.4, hi - 0.15, hi),
+        k.thing_box("open", "B", "wood", 5.2, 10.6, -0.4, 0.4, hi - 0.15, hi),
     ], "lay")
 
 
 def build_gatehouse():
     """North: everything at once. The gatehouse of the theatre closes the upper street in A (6 m, 4 m deep); a wooden
-    balcony hangs on its front at 2.6 m. In B it lies across the street as a heap of 4 m. A crate stands 7 m before it in A.
+    balcony hangs on its front at 2.4 m. In B it lies across the street as a heap of 4 m. A crate stands 7 m before it in A.
     The answer: push the crate under the balcony in A (it stays in B too, but 1.2 m does not reach a heap of 4 m); from
     the crate onto the balcony; jump, switch at the top: the heap of B is under the feet."""
     k = Piece("upper street", GATEHOUSE_S)
     k.clear(-9.0, 9.0)
     k.sides(-9.0, 9.0, 10.0)
     k.cross(0.0, 4.0, 6.0, "plaster1", "A", top_mat="roof")                             # the gatehouse (A)
-    k.box(-1.2, 0.0, -1.2, 1.2, 2.6, "wood", "A", bottom=2.3)                           # its balcony (A)
+    k.box(-1.2, 0.0, -1.2, 1.2, 2.4, "wood", "A", bottom=2.1)                           # its balcony (A): 1.5 m over the crate
     k.cross(-0.5, 4.0, 4.0, "debris", "B", top_mat="stone_dark")                        # the heap (B)
     k.cross(4.0, 5.2, k.y(4.6) - k.base + 2.8, "debris", "B")
     k.cross(5.2, 6.4, k.y(5.8) - k.base + 1.6, "debris", "B")
@@ -1236,6 +1320,26 @@ def build_gatehouse():
         k.thing_box("open", "A", "wood", -2.6, -1.4, -0.6, 0.6, k.y(-2.0) - k.base, k.y(-2.0) - k.base + 1.2),
         k.thing_box("open", "B", "wood", -2.6, -1.4, -0.6, 0.6, k.y(-2.0) - k.base, k.y(-2.0) - k.base + 1.2),
     ], "push")
+
+
+def build_district_walls():
+    """The walls between the districts (garden walls, terraces and the backs of houses joined, 4.5 m over the ground beside
+    them): each district is left only through its puzzle (docs/DESIGN.md 7.3). The south-east: the lane of the lower town
+    ends below the locks. The east: the upper town is reached over the plank, not round it. The north: the theatre and the
+    cliff stair are reached through the gatehouse, not round it. The west: the bastion is reached from the terrace of the
+    market (the lantern), not across the gardens north of the market street."""
+    def rim(deg):
+        a = math.radians(deg)
+        return (GORGE_R + 1.4) * math.cos(a), (GORGE_R + 1.4) * math.sin(a)
+    district_wall([rim(-50.0), (35.0, -27.0), (55.0, -32.0), (79.0, -31.0)])           # the lane / the locks
+    k = Piece("market street", 24.0)                                                    # the market: the bastion is reached
+    district_wall([k.xz(0.0, k.w / 2 + 0.8), rim(157.0)])                               # along the street from the terrace
+    k = Piece("upper street", PLANK_S + 6.0)
+    district_wall([k.xz(0.0, -k.span / 2 - 0.8), (73.5, 51.5)])                          # the plank: north to the town wall
+    district_wall([k.xz(0.0, k.span / 2 + 0.8), (42.0, 18.0), rim(40.0)])                # and south to the gorge
+    k = Piece("upper street", GATEHOUSE_S)
+    district_wall([k.xz(0.0, -k.span / 2 - 0.8), (20.8, 66.0)])                          # the gatehouse: north
+    district_wall([k.xz(0.0, k.span / 2 + 0.8), (20.0, 36.0), rim(72.0)])                # and south, east of the theatre
 
 
 BELL_ROPES = {  # the bells (docs/DESIGN.md 4): rung in A at the foot of their towers
@@ -1484,8 +1588,8 @@ def build_country():
 MAIN_PATH = [  # (label, x, z, how the next leg goes: "walk", "under" (in the cistern), "to design")
     ("1 start: the quay", 6, -72, "walk"), ("sea gate", 0, -62, "walk"), ("lower town", -28, -47, "walk"),
     ("market stairs", -58, -24, "walk"), ("the market", -46, -7, "walk"), ("2 west bastion: the bridge seen, its gate shut", -29, 0, "walk"),
-    ("3 the well: down", -50, 6, "under"), ("4 the gorge floor (B), under the bridge", -21, 0, "walk"),
-    ("5 the lift: its cage, a frame up the rock (B)", 0, -18, "walk"), ("6 the plaza: the bridge gate opened (A)", 0, -8, "walk"),
+    ("3 the wreck of the west bridge (B): down", -19, 4, "walk"), ("4 the gorge floor (B)", -14, 14, "walk"),
+    ("5 the lift: lowered in A, its frame climbed in B", -5.5, -19, "walk"), ("6 the plaza", 0, -8, "walk"),
     ("east bridge", 18, 0, "walk"), ("east stair", 38, -8, "walk"), ("the locks", 52, -10, "walk"),
     ("water tower: dawn bell", 80, 24, "walk"), ("upper street", 34, 52, "walk"), ("the theatre", 2, 56, "walk"),
     ("cliff stair", 8, 68, "walk"), ("7 graveyard: night bell", 0, 86, "to design"), ("the bell tower: the end", 0, 8.5, ""),
@@ -1523,7 +1627,7 @@ def check():
         LOCK_LEVELS[1] - LOCK_LEVELS[0], LOCK_HEAD_RUN, math.degrees(math.atan(sl)), total))
     if sl > SLOPE["stair"]:
         PROBLEMS.append(("lock stairs", "too steep"))
-    rows.append("  the gorge: %.0f m from the plaza down to its floor; the bridges %.1f m long" % (ROCK_Y - GORGE_Y, abs(BRIDGEHEADS["west"][0]) - 3.0 - ROCK_R + 0.2))
+    rows.append("  the gorge: %.0f m from the plaza down to its floor; the bridges %.1f m long" % (ROCK_Y - GORGE_Y, abs(BRIDGEHEADS["west"][0]) - 1.5 - ROCK_R + 0.2))
     rows.append("  gates in the town wall for: %s" % (", ".join(GATES) if GATES else "none"))
     print("check:")
     print("\n".join(rows))
@@ -1718,7 +1822,7 @@ def export(path):
             points of its middle line (x, y, z each): what the tests walk
         polygons (u32 count): world (u8: 1 A, 2 B, 3 both), kind (u8: 0 solid, 1 terrain, 2 overlay, 3 water), material
             (u16), vertex count (u8), the vertices (x, y, z each)
-        things (u32 count): name (u8 length, bytes), verb (u8: 0 open, 1 push, 2 lay, 3 ring), handle x, y, z, box count
+        things (u32 count): name (u8 length, bytes), verb (u8: 0 open, 1 push, 2 lay, 3 ring, 4 lower), handle x, y, z, box count
             (u16), the boxes: state (u8: 0 shut, 1 open),
             world (u8), material (u16), centre (3), half size (3), yaw
     The sea is not written: the game draws its own. Returns the number of polygons written."""
@@ -1772,8 +1876,8 @@ def export(path):
     return count
 
 
-def main():
-    only = sys.argv[1] if len(sys.argv) > 1 else ""
+def build_all():
+    """Every part of the town, in the order they depend on each other (the puzzles keep the houses off their places)."""
     build_terrain()
     build_streets()
     build_rock()
@@ -1794,10 +1898,18 @@ def main():
     build_scaffold()
     build_plank()
     build_gatehouse()
+    build_lift()
+    build_gorge_parapet()
+    build_district_walls()
     build_arches()
     build_houses()
     build_bells()
     build_country()
+
+
+def main():
+    only = sys.argv[1] if len(sys.argv) > 1 else ""
+    build_all()
     print("%d polygons, %d houses" % (len(POLYS), len(HOUSES)))
     if only in ("", "check", "export"):
         check()
