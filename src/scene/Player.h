@@ -38,6 +38,7 @@
 #include "scene/Terrain.h"
 #include "scene/Moments.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace dl
@@ -50,6 +51,7 @@ class Player
     {
         float radius = 0.35f;          ///< UNITS: metres, the radius of the three balls
         float eyeHeight = 1.55f;       ///< UNITS: metres, from the feet to the eye (the camera)
+        float sprintMultiplier = 1.6f; ///< ground speed multiplier when sprint is held
         float walkSpeed = 5.5f;        ///< UNITS: metres per second
         float groundAccel = 95.0f;     ///< UNITS: m/s^2 toward the wished speed on the ground (5.5 m/s in about 0.06 s)
         float groundDecel = 120.0f;    ///< UNITS: m/s^2 when the keys are let go or point back (a stop in about 0.05 s)
@@ -65,6 +67,7 @@ class Player
         float moveForward = 0.0f; ///< -1 .. +1
         float moveRight = 0.0f;   ///< -1 .. +1
         bool jumpPressed = false; ///< true for the frame in which the key went down
+        bool sprint = false;     ///< optional, enabled by the town runtime only
         bool jumpHeld = true;     ///< false while the jump key is up; a caller that does not track the key gets the full jump
     };
 
@@ -78,6 +81,7 @@ class Player
         const Settings defaults{};
         m_s.radius = Clamp(Finite(settings.radius, defaults.radius), 0.05f, 1.0f);
         m_s.eyeHeight = Clamp(Finite(settings.eyeHeight, defaults.eyeHeight), m_s.radius + 0.1f, 3.0f);
+        m_s.sprintMultiplier = Clamp(Finite(settings.sprintMultiplier, defaults.sprintMultiplier), 1.0f, 2.0f);
         m_s.walkSpeed = Clamp(Finite(settings.walkSpeed, defaults.walkSpeed), 0.0f, 20.0f);
         m_s.groundAccel = Clamp(Finite(settings.groundAccel, defaults.groundAccel), 1.0f, 1000.0f);
         m_s.groundDecel = Clamp(Finite(settings.groundDecel, defaults.groundDecel), 1.0f, 1000.0f);
@@ -203,6 +207,24 @@ class Player
         return m_wish;
     }
 
+    bool Jumping() const
+    {
+        return m_jumping && !m_grounded;
+    }
+
+    float TakeoffHeight() const
+    {
+        return m_takeoffY;
+    }
+
+    // The caller has already checked the entire path and confirmed support at the destination.
+    void CompleteMantle(const Vec3& feet)
+    {
+        m_feet = feet;
+        ResetMotion();
+        m_grounded = true;
+    }
+
     /// True after the Update in which the body fell too far and was put back at the spawn point.
     bool JustRespawned() const
     {
@@ -277,8 +299,9 @@ class Player
             {
                 m_wish = {dirX / dirLength, 0.0f, dirZ / dirLength};
             }
-            wishX = dirX * m_s.walkSpeed;
-            wishZ = dirZ * m_s.walkSpeed;
+            const float speed = m_s.walkSpeed * (input.sprint && m_grounded ? m_s.sprintMultiplier : 1.0f);
+            wishX = dirX * speed;
+            wishZ = dirZ * speed;
         }
         if (input.jumpPressed)
         {
@@ -289,6 +312,11 @@ class Player
         // ---- cut the frame into steps that move the body by less than a part of the radius
         const float jumpSpeed = std::sqrt(2.0f * m_s.gravity * m_s.jumpHeight);
         float fastest = m_s.walkSpeed > jumpSpeed ? m_s.walkSpeed : jumpSpeed;
+        if (input.sprint || WalkSpeedNow() > m_s.walkSpeed)
+        {
+            const float lateral = (std::max)(WalkSpeedNow(), m_s.walkSpeed * m_s.sprintMultiplier);
+            fastest = (std::max)(fastest, lateral);
+        }
         const float falling = std::fabs(m_vy) + m_s.gravity * m_s.fallGravityScale * dt;
         fastest = falling > fastest ? falling : fastest;
         int steps = static_cast<int>(std::ceil(fastest * dt / (m_s.radius * 0.7f)));

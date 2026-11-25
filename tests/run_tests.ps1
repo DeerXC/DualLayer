@@ -20,6 +20,7 @@ $tests = @(
     @{ Name = "collision"; Sources = @("tests\test_collision.cpp");                                                           Flags = @() },
     @{ Name = "ripple";    Sources = @("tests\test_ripple.cpp");                                                              Flags = @() },
     @{ Name = "player";    Sources = @("tests\test_player.cpp");                                                              Flags = @("/O2") },
+    @{ Name = "town_player"; Sources = @("tests\test_town_player.cpp");                                                        Flags = @("/O2") },
     @{ Name = "puzzle";    Sources = @("tests\test_puzzle.cpp");                                                              Flags = @("/O2") },
     @{ Name = "maze";      Sources = @("tests\test_maze.cpp");                                                                Flags = @("/O2") },
     @{ Name = "stage";     Sources = @("tests\test_stage.cpp");                                                               Flags = @("/O2") },

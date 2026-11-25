@@ -1249,7 +1249,7 @@ int RunApp(HINSTANCE instance, int argc, char** argv)
         const bool replay = resetKeyDown && !resetKeyWasDown && ending.Done() && sinceClear >= static_cast<double>(dl::endscreen::kDelay);
         if (replay)
         {
-            // the last moment again (scene/Ending.h): the waters full, the body on the balcony, which starts it at once
+            // the last moment again (scene/Ending.h): the wa5ters full, the body on the balcony, which starts it at once
             ending.Reset();
             clearSeconds = -1.0;
             sinceClear = -1.0;

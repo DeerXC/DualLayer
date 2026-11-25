@@ -129,6 +129,7 @@
     <ClInclude Include="src\scene\Camera.h" />
     <ClInclude Include="src\scene\Collision.h" />
     <ClInclude Include="src\scene\Player.h" />
+    <ClInclude Include="src\scene\TownPlayer.h" />
     <ClInclude Include="src\scene\Courtyard.h" />
     <ClInclude Include="src\scene\Puzzle.h" />
     <ClInclude Include="src\scene\Recovery.h" />

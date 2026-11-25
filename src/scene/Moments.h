@@ -172,20 +172,45 @@ class Moments
         return dy > 0.6f * std::sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    /// The highest floor of A under (x, z) between y0 and y1, or false (where the lantern is set down).
-    bool FloorOfA(float x, float z, float y1, float y0, float& y) const
+    /// The highest floor visible and solid in this moment, including changing things.
+    bool FloorAt(float x, float z, float y1, float y0, int layer, float& y) const
     {
-        bool found = m_mesh[0] != nullptr && m_mesh[0]->HighestBelow(x, z, y1, y0, y);
-        for (const TriMesh* m : m_extra[0])
-        {
+        bool found = false;
+        const auto scan = [&](const TriMesh* mesh, int source) {
+            float top = y1;
             float h = 0.0f;
-            if (m->HighestBelow(x, z, y1, y0, h) && (!found || h > y))
+            while (mesh != nullptr && top >= y0 && mesh->HighestBelow(x, z, top, y0, h))
             {
-                y = h;
-                found = true;
+                if (layer == 0 || !m_circle.On() || (source == 0) == m_circle.Contains({x, h, z}))
+                {
+                    if (!found || h > y)
+                    {
+                        y = h;
+                        found = true;
+                    }
+                    break;
+                }
+                top = h - 0.001f;
             }
+        };
+        const auto scanLayer = [&](int source) {
+            scan(m_mesh[static_cast<std::size_t>(source)], source);
+            for (const TriMesh* mesh : m_extra[static_cast<std::size_t>(source)])
+            {
+                scan(mesh, source);
+            }
+        };
+        scanLayer(layer);
+        if (layer == 1 && m_circle.On())
+        {
+            scanLayer(0);
         }
         return found;
+    }
+
+    bool FloorOfA(float x, float z, float y1, float y0, float& y) const
+    {
+        return FloorAt(x, z, y1, y0, 0, y);
     }
 
   private:

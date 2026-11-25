@@ -200,10 +200,10 @@ function Get-Title($proc)
     return $proc.MainWindowTitle
 }
 
-# the camera position from the title bar ("camera x y z"), or $null
-function Get-CameraPos($proc)
+# the walking body eye from the town title bar (legacy title reports camera), or $null
+function Get-BodyPos($proc)
 {
-    $m = [regex]::Match((Get-Title $proc), 'camera (-?\d+\.\d) (-?\d+\.\d) (-?\d+\.\d)')
+    $m = [regex]::Match((Get-Title $proc), '(?:body|camera) (-?\d+\.\d) (-?\d+\.\d) (-?\d+\.\d)')
     if (-not $m.Success) { return $null }
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
     return @([double]::Parse($m.Groups[1].Value, $inv), [double]::Parse($m.Groups[2].Value, $inv), [double]::Parse($m.Groups[3].Value, $inv))
@@ -256,7 +256,7 @@ else
             if ($title -like "*NVIDIA*") { Add-Result "game starts (Q-1)" "OK" "NVIDIA adapter, layer B" }
             else { Add-Result "game starts (Q-1)" "WARN" ("not the NVIDIA adapter? title: {0}" -f $title) }
             Start-Sleep -Milliseconds 700
-            $p0 = Get-CameraPos $proc
+            $p0 = Get-BodyPos $proc
             $onTerrace = $p0 -and [Math]::Abs($p0[1] - $standY) -lt 0.25 -and ((Get-Title $proc) -like "*quay*")
             Add-Result "starts on the quay" (Verdict $onTerrace) ("eye height {0}, the quay in the title bar" -f $(if ($p0) { "{0:N2}" -f $p0[1] } else { "?" }))
 
@@ -274,14 +274,14 @@ else
                 Add-Result "walking is the default (Q-15)" (Verdict ((Get-Title $proc) -like "*walk*")) "the title bar says walk"
                 Hold-Key 0x53 800    # S held for 0.8 s: about 3.5 m back, east along the quay (the start looks west, at the heap of B)
                 Start-Sleep -Milliseconds 700
-                $p1 = Get-CameraPos $proc
+                $p1 = Get-BodyPos $proc
                 if ($p0 -and $p1)
                 {
                     $ahead = [Math]::Sqrt(($p1[0] - $p0[0]) * ($p1[0] - $p0[0]) + ($p1[2] - $p0[2]) * ($p1[2] - $p0[2]))
                     $ok = ($ahead -gt 1.8) -and ([Math]::Abs($p1[1] - $standY) -lt 0.25)
                     Add-Result "S walks on the quay (Q-16)" (Verdict $ok) ("{0:N1} m walked, eye height {1:N2} m (about {2} standing)" -f $ahead, $p1[1], $standY)
                 }
-                else { Add-Result "S walks on the quay (Q-16)" "FAIL" "no camera position in the title bar" }
+                else { Add-Result "S walks on the quay (Q-16)" "FAIL" "no body position in the title bar" }
                 Hold-Key 0x20 600    # Space held for 0.6 s: the full jump (a tap is a small hop); the height is read from the log
                 $jumpTried = $true
                 Start-Sleep -Milliseconds 1500

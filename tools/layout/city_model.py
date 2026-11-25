@@ -785,10 +785,12 @@ def build_harbour():
         prism([(a[0] + nx, a[1] + nz), (b[0] + nx, b[1] + nz), (b[0] - nx, b[1] - nz), (a[0] - nx, a[1] - nz)], SEA - 4.0,
               QUAY_Y + 0.3, "stone_dark", "A" if 0.5 < t < 0.64 else "both", True, "paving")
     lx, lz = mole[-1]                                                                   # the harbour light
-    prism(ngon(lx, lz, 1.4, 8), QUAY_Y, QUAY_Y + 7.0, "stone", "A")
+    deck_y = QUAY_Y + 0.3
+    prism(ngon(lx, lz, 2.45, 12), SEA - 4.0, deck_y, "stone_dark", "both", True, "paving")
+    prism(ngon(lx, lz, 1.4, 8), deck_y, QUAY_Y + 7.0, "stone", "A")
     prism(ngon(lx, lz, 1.6, 8), QUAY_Y + 7.0, QUAY_Y + 8.2, "lantern", "A")
     cone(lx, lz, 1.8, QUAY_Y + 8.2, QUAY_Y + 10.0, "copper", "A", 8)
-    prism(ngon(lx, lz, 1.4, 8), QUAY_Y, QUAY_Y + 3.0, "stone", "B")
+    prism(ngon(lx, lz, 1.4, 8), deck_y, QUAY_Y + 3.0, "stone", "B")
     cx, cz = 22.0, z1 + 9.0                                                             # the customs house, its copper dome
     y = float(ground(cx, cz))
     prism(rect(cx, cz, 10.0, 7.0, 0.0), y - 1.0, y + 7.0, "plaster3", "A")
@@ -799,16 +801,54 @@ def build_harbour():
     ship(70.0, -170.0, -0.3, 18.0, "A")
     ship(-40.0, -230.0, 0.2, 20.0, "A")
     ship(-20.0, z1 - 10.0, 0.6, 12.0, "B", sails=False)                                 # B: a wreck in the basin
-    for k in range(5):
-        sx_, sz_ = -14.0 + 7.0 * k, z1 - 14.0 - 2.0 * (k % 2)
-        prism(ngon(sx_, sz_, 3.0, 9), SEA - 1.0, SEA + 0.35, "sand", "B")
-        cone(sx_ + 1.0, sz_, 0.6, SEA + 0.3, SEA + 1.8, "moss", "B", 4)
+    build_quay_works(z1 - 3.0)
+    # The damaged mole sheds stone at its break, rather than leaving stepping
+    # stones across the basin. Keep the highest debris below the quay deck.
+    for i, (along, offset, radius) in enumerate(((0.53, -1.2, 0.85), (0.56, 0.9, 1.1),
+                                                  (0.59, -0.5, 0.95), (0.62, 1.5, 0.8))):
+        pos, tangent = at(mole, along)
+        x, z = pos + offset * np.array([-tangent[1], tangent[0]])
+        ring = ngon(x, z, radius, 6, hash01(i, 211))
+        prism(ring, min(SEA - 4.0, float(ground(x, z)) - 0.3),
+              SEA + 0.08 + 0.18 * hash01(i, 213), "debris", "B")
     hx, hz = -86.0, -88.0                                                               # the lighthouse on the headland
     y = float(ground(hx, hz))
     prism(ngon(hx, hz, 2.2, 10), y, y + 18.0, "plaster3")
     prism(ngon(hx, hz, 2.6, 10), y + 18.0, y + 20.0, "lantern", "A")
     prism(ngon(hx, hz, 2.6, 10), y + 18.0, y + 20.0, "iron", "B")
     cone(hx, hz, 2.8, y + 20.0, y + 23.0, "roof", "both", 10)
+
+
+def build_quay_works(edge):
+    """Fit working berths to the existing quay; keep the sea stair and tutorial lane clear."""
+    deck = QUAY_Y
+    # Mooring stones and timber fenders sit on or against the masonry edge.
+    for i, x in enumerate((-21.0, -15.0, -9.0, -3.0, 19.0, 24.0, 31.0)):
+        prism(ngon(x, edge + 0.32, 0.19, 6), deck - 0.10, deck + 0.38, "stone_dark")
+        h = deck - 0.12 if i % 3 == 0 else SEA + 0.4
+        prism(rect(x, edge - 0.04, 0.24, 0.24, 0.0), SEA - 0.45, deck - 0.04, "wood", "A")
+        prism(rect(x, edge - 0.04, 0.24, 0.24, 0.0), SEA - 0.45, h, "wood", "B")
+
+    # A slip for hauling boats onto the quay, clear of the sea-gate approach.
+    sx = -21.0
+    start, end = edge + 0.12, edge - 6.0
+    beam((sx, deck, start), (sx, SEA - 0.54, end), 2.8, 0.36, "stone_dark")
+    for j in range(3):
+        t = (j + 1) / 4.0
+        z = start + (end - start) * t
+        y = deck + (SEA - 0.54 - deck) * t - 0.10
+        for side in (-1, 1):
+            x = sx + side * 1.18
+            prism(rect(x, z, 0.30, 0.38, 0.0), min(SEA - 4.0, float(ground(x, z)) - 0.2), y, "stone_dark")
+
+    # The loading jib stands on a plinth in both layers; only the past retains its arm.
+    x, z = 26.0, edge + 0.36
+    prism(rect(x, z, 0.54, 0.54, 0.0), deck - 0.15, deck + 0.16, "stone")
+    prism(rect(x, z, 0.26, 0.26, 0.0), deck + 0.15, deck + 3.65, "wood", "A")
+    beam((x, deck + 3.65, z + 0.18), (x, deck + 3.65, edge - 1.9), 0.24, 0.22, "wood", "A")
+    beam((x, deck + 1.99, z), (x, deck + 3.48, edge - 1.45), 0.18, 0.22, "wood", "A")
+    prism(rect(x, edge - 1.85, 0.04, 0.04, 0.0), deck + 1.35, deck + 3.50, "iron", "A")
+    prism(rect(x, z, 0.26, 0.26, 0.0), deck + 0.15, deck + 0.48, "wood", "B")
 
 
 def build_west():
@@ -1457,6 +1497,16 @@ def house(cx, cz, w, dd, ang, k, height, front=None):
     ruin = roll < 0.05 + 0.7 * dmg
     unroofed = not ruin and roll < 0.2 + 0.55 * dmg
     roofmat = "roof" if k % 3 else "roof2"
+    # Street-facing eaves give the dense blocks a readable roofline without changing collision.
+    if front is not None and not ruin:
+        fv = np.array(front, float); fv /= max(np.linalg.norm(fv), 1e-9)
+        rv = np.array([fv[1], -fv[0]])
+        face_extent = w if abs(np.dot(rv, np.array([math.cos(ang), math.sin(ang)]))) > 0.7 else dd
+        depth_extent = dd if face_extent == w else w
+        ec = np.array([cx, cz]) + fv * (depth_extent / 2 + 0.26)
+        a = ec - rv * (face_extent / 2 + 0.28); b = ec + rv * (face_extent / 2 + 0.28)
+        beam((float(a[0]), top - 0.12, float(a[1])), (float(b[0]), top - 0.12, float(b[1])), 0.24, 0.11, roofmat,
+             "A" if unroofed else "both")
     if ruin:
         prism(out, base - 1.0, top, mat, "A")
         prism(out, base - 1.0, base + height * (0.35 + 0.3 * hash01(k, 9)), mat, "B", True, "debris")
@@ -1891,6 +1941,60 @@ def export(path):
     return count
 
 
+def build_arrival_trim():
+    """Non-colliding edge details for the quay and first street approach."""
+    _, _, _, quay_end = HARBOUR
+    quay_edge = quay_end - 3.0
+    first = len(POLYS)
+    for x in (-15.0, -10.0, -5.0, 18.0, 23.0, 28.0):
+        tube((x, QUAY_Y - 0.12, quay_edge + 0.27),
+             (x, QUAY_Y + 0.42, quay_edge + 0.27), 0.11, 7, "wood")
+        tube((x, QUAY_Y + 0.30, quay_edge + 0.27),
+             (x, QUAY_Y + 0.35, quay_edge + 0.27), 0.125, 7, "iron")
+        tube((x, SEA - 0.2, quay_edge - 0.13),
+             (x, QUAY_Y + 0.02, quay_edge - 0.13), 0.14, 6, "wood")
+    for name, begin, end in (("sea stair", 1.2, 6.4), ("lower street", 1.2, 10.0)):
+        for start in np.arange(begin, end, 0.78):
+            edge = []
+            inner = []
+            for at_s in (start, start + 0.72):
+                point, y, _, normal, width = street_frame(name, at_s)
+                for strip, offset in ((edge, 0.10), (inner, 0.29)):
+                    x, z = point + normal * (width / 2 - offset)
+                    strip.append((float(x), y + 0.065, float(z)))
+            poly([inner[0], inner[1], edge[1], edge[0]], "stone_dark", kind="overlay")
+    for i in range(first, len(POLYS)):
+        points, mat, world, _ = POLYS[i]
+        POLYS[i] = (points, mat, world, "overlay")
+
+
+def build_city_trim():
+    """Visual-only street dressing; keeps the walkable lane and puzzle clearances unchanged."""
+    first = len(POLYS)
+    specs = (("lower street", 11.0, 28.0, -1), ("market stairs", 1.0, 20.0, 1),
+             ("market street", 2.0, 22.0, 1), ("upper street", 30.0, 55.0, -1),
+             ("cliff stair", 1.0, 21.0, 1))
+    for name, lo, hi, side in specs:
+        total = float(lengths(STREET[name][0])[-1])
+        for start in np.arange(lo, min(hi, total - 0.8), 0.92):
+            outer, inner = [], []
+            for ss in (start, start + 0.8):
+                point, y, _, normal, width = street_frame(name, ss)
+                for strip, inset in ((outer, 0.09), (inner, 0.27)):
+                    x, z = point + normal * side * (width / 2 - inset)
+                    strip.append((float(x), y + 0.055, float(z)))
+            poly([inner[0], inner[1], outer[1], outer[0]], "stone_dark" if int(start) % 4 else "stone", kind="overlay")
+        for ss in np.arange(lo + 2.8, min(hi, total - 1.0), 8.0):
+            point, y, _, normal, width = street_frame(name, ss)
+            x, z = point + normal * side * (width / 2 + 0.28)
+            tube((float(x), y, float(z)), (float(x), y + 2.75, float(z)), 0.052, 6, "iron")
+            # A keeps the working lamp; B retains the same post without a floating/unmotivated light box.
+            prism(rect(float(x), float(z), 0.36, 0.36, 0.0), y + 2.50, y + 2.80, "lantern", "A")
+    for j in range(first, len(POLYS)):
+        pts, mat, world, _ = POLYS[j]
+        POLYS[j] = (pts, mat, world, "overlay")
+
+
 def build_all():
     """Every part of the town, in the order they depend on each other (the puzzles keep the houses off their places)."""
     build_terrain()
@@ -1920,6 +2024,8 @@ def build_all():
     build_houses()
     build_bells()
     build_country()
+    build_arrival_trim()
+    build_city_trim()
 
 
 def main():
