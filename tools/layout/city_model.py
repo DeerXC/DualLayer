@@ -1339,6 +1339,7 @@ def district_wall(points, h=4.5, mat="stone"):
 CANAL_S = 6.0     # metres along the market stairs: the customs canal (harbour, beat 4)
 SCAFFOLD_S = 14.0  # metres along the market street: the terrace of the market and its scaffold (west)
 PLANK_S = 14.0    # metres along the upper street: two houses and the plank (east)
+SCAFFOLD_SPOT = None  # the middle platform of the scaffold: where the lantern is first set down (set by build_scaffold)
 GATEHOUSE_S = 66.0  # metres along the upper street: the gatehouse of the theatre (north)
 
 
@@ -1380,9 +1381,12 @@ def build_scaffold():
     shed covers its top and the edge of the terrace: no jump from it. B: shed and scaffold long gone. The answer: set the
     lantern down on the scaffold in A, below the roof (its circle reaches the top platform, not the roof, which is more
     than 3.5 m over it); in B climb the scaffold of the circle and jump onto the terrace."""
+    global SCAFFOLD_SPOT
     k = Piece("market street", SCAFFOLD_S)
     k.clear(-6.0, 9.0)
     yb = k.y(-2.0) - k.base                                                             # the street at the scaffold
+    sx_, sz_ = k.xz(-2.0, 0.9)                                                          # the middle platform (2.9 m): the spot
+    SCAFFOLD_SPOT = (sx_, k.y(-2.0) + 2.9, sz_)
     k.sides(-6.0, 9.0, yb + 13.0)
     k.cross(0.0, 6.0, yb + 6.0, "stone", top_mat="paving")                              # the terrace
     k.box(-2.6, -1.4, -1.6, -0.2, yb + 1.4, "wood", "A", top_mat="wood")                # the scaffold (A): steps of 1.5 m
@@ -1482,6 +1486,48 @@ def build_bells():
         ], "ring")
 
 
+# ---- the signal mast: the far goal, seen from the first frame (docs/DESIGN.md 10.1) ----------------------------------------------
+# The sea wall, 8 m in front of the start, hides the bell tower from the quay in both moments (tests/test_firstminute.cpp casts
+# the rays). So the three emblems hang on a signal mast that stands over the tower and clears the wall: three lamps on a yard,
+# dark until the bell of their district is rung. Round lamps, so that they read from every side; each has its own shape.
+MAST_XZ = (0.0, 5.7)       # in the south face of the shaft of the bell tower (its face is at z 5.36): above the stone it stands free
+MAST_BASE_Y = 26.0         # it comes out of the dome of the church
+LAMP_Z = 3.4               # the lamps hang in front of the mast, on a yard (not on its axis: the mast would hide the middle one)
+MAST_TOP_Y = 66.6
+YARD_Y = 64.4
+LAMP_Y = 61.2
+LAMP_DX = 4.8
+LAMP_SIZE = 3.0
+EMBLEMS = []               # (glyph, bell, x, y, z, size, shape: 0 sphere, 1 cylinder, 2 cube)
+OVERLOOKS = [              # (name, x, y, z, radius): standing here reveals the map this far round (docs/DESIGN.md 10.4)
+    ("west bastion", -27.0, ROCK_Y, 0.0, 58.0),
+    ("the plaza of the rock", 0.0, ROCK_Y, -8.0, 40.0),
+    ("east bastion", 27.0, ROCK_Y, 0.0, 58.0),
+    ("top row of the theatre", 0.0, THEATRE_Y + 0.9 * 9, 52.0, 52.0),
+    ("the graveyard", 0.0, GRAVE_Y, 88.0, 80.0),
+]
+def build_signal_mast():
+    mx, mz = MAST_XZ
+    prism(rect(mx, mz, 0.5, 0.5, 0.0), MAST_BASE_Y, MAST_TOP_Y, "iron", "both", True, "iron")
+    beam((mx - 6.6, YARD_Y, LAMP_Z), (mx + 6.6, YARD_Y, LAMP_Z), 0.36, 0.36, "iron")         # the yard, in front of the mast
+    beam((mx, YARD_Y, mz), (mx, YARD_Y, LAMP_Z), 0.36, 0.36, "iron")                          # its arm back to the mast
+    for dx in (-LAMP_DX, 0.0, LAMP_DX):                                                        # what the lamps hang by
+        prism(rect(mx + dx, LAMP_Z, 0.14, 0.14, 0.0), LAMP_Y + LAMP_SIZE * 0.5, YARD_Y - 0.18, "iron")
+    EMBLEMS.extend([("well", "day bell", mx - LAMP_DX, LAMP_Y, LAMP_Z, LAMP_SIZE, 0),         # west: the well, a sphere
+                    ("cliff", "night bell", mx, LAMP_Y, LAMP_Z, LAMP_SIZE, 1),                 # north: the cliff, a column
+                    ("lock", "dawn bell", mx + LAMP_DX, LAMP_Y, LAMP_Z, LAMP_SIZE, 2)])        # east: the lock, a box
+STEPS = []  # (name, kind "thing"/"lantern", (x, y, z)): the main path in the order it is played
+STEP_ORDER = ("sea gate", "canal crate", "day bell", "lantern", "lift", "dawn bell", "plank", "gatehouse crate", "night bell")
+STEP_KIND = {"thing": 0, "lantern": 1}
+def build_steps():
+    """The main path as data (docs/DESIGN.md 7.4, 8): each thing at its handle, and the lantern on the scaffold of the west, in
+    the order they are played. The game guides from it and the route test plays it."""
+    handles = {name: handle for name, handle, _, _ in THINGS}
+    for name in STEP_ORDER:
+        if name == "lantern":
+            STEPS.append((name, "lantern", SCAFFOLD_SPOT))
+        else:
+            STEPS.append((name, "thing", handles[name]))
 def thing_polys(state="shut"):
     """The boxes of the things in one state as polygons (for the pictures of the model; the game draws its own)."""
     out = []
@@ -1950,10 +1996,75 @@ def plan_overlay(ax, eye, right, up, f, focal, W, H, ortho):
 
 # ---- the town as data for the game (src/scene/Town.h reads it) -------------------------------------------------------------
 TOWN_MAGIC = b"DLTOWN\0\0"
-TOWN_VERSION = 3
+# ---- the plan of both moments, for the map (docs/DESIGN.md 10.4): a raster of 1 m cells, one class per cell and moment ---------------
+PLAN_CELL = 1.0
+PLAN_BOX = (-98.0, -100.0, 102.0, 102.0)  # x0, z0, x1, z1: the town, its harbour and its cliff
+PLAN_WATER, PLAN_CLIFF, PLAN_BUILDING, PLAN_STREET = 1, 2, 3, 4
+PLAN_PRIORITY = {0: 0, PLAN_WATER: 1, PLAN_CLIFF: 2, PLAN_BUILDING: 3, PLAN_STREET: 4}  # a street is drawn over an arch
+PLAN_SKIP = {"window", "lantern", "memory", "glow", "door", "shutter", "tree", "cypress", "moss", "cloth", "cloth2", "iron"}
+def build_plan():
+    """What stands in each cell of the plan, in A and in B: 0 nothing, 1 water, 2 cliff, 3 building, 4 street (a floor to walk)."""
+    from matplotlib.path import Path
+    x0, z0, x1, z1 = PLAN_BOX
+    nx = int(round((x1 - x0) / PLAN_CELL))
+    nz = int(round((z1 - z0) / PLAN_CELL))
+    sheets = {"A": np.zeros((nz, nx), np.uint8), "B": np.zeros((nz, nx), np.uint8)}
+    cx = x0 + (np.arange(nx) + 0.5) * PLAN_CELL
+    cz = z0 + (np.arange(nz) + 0.5) * PLAN_CELL
+    gx, gz = np.meshgrid(cx, cz)
+    sea = carved(gx, gz) < SEA + 0.05                                     # the sea and the basin (the same in both moments)
+    for w in sheets.values():
+        w[sea] = PLAN_WATER
+    step = 0.35                                                           # the samples of a polygon: finer than a cell
+    for pts, mat, world, kind in POLYS:
+        if kind == "sea" or (mat in PLAN_SKIP and kind != "water"):
+            continue
+        pts = np.asarray(pts, float)
+        n = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+        ln = float(np.linalg.norm(n))
+        if ln < 1e-9:
+            continue
+        ny = abs(float(n[1])) / ln
+        if kind == "water":
+            cls = PLAN_WATER if ny > 0.5 else 0
+        elif kind == "terrain":
+            cls = PLAN_CLIFF if ny < 0.75 else 0                          # a slope of more than about 41 degrees
+        elif kind == "overlay":
+            cls = PLAN_STREET if mat == "paving" else 0
+        else:
+            if ny < 0.25:
+                continue                                                  # a wall seen edge-on: its top carries the footprint
+            cls = PLAN_STREET if (mat == "paving" and ny > 0.8) else PLAN_BUILDING
+        if cls == 0:
+            continue
+        xs, zs = pts[:, 0], pts[:, 2]
+        if xs.max() < x0 or xs.min() > x1 or zs.max() < z0 or zs.min() > z1:
+            continue
+        sx = np.arange(max(xs.min(), x0) + step / 2, min(xs.max(), x1), step)
+        sz = np.arange(max(zs.min(), z0) + step / 2, min(zs.max(), z1), step)
+        if len(sx) == 0 or len(sz) == 0:
+            sx = np.array([(xs.min() + xs.max()) / 2])
+            sz = np.array([(zs.min() + zs.max()) / 2])
+        mx, mz = np.meshgrid(sx, sz)
+        pts2 = np.stack([mx.ravel(), mz.ravel()], axis=1)
+        inside = Path(np.stack([xs, zs], axis=1)).contains_points(pts2, radius=1e-6)
+        if not inside.any():
+            continue
+        hit = pts2[inside]
+        ci = np.clip(((hit[:, 0] - x0) / PLAN_CELL).astype(int), 0, nx - 1)
+        cj = np.clip(((hit[:, 1] - z0) / PLAN_CELL).astype(int), 0, nz - 1)
+        for key in (("A", "B") if world == "both" else (world,)):
+            sheet = sheets[key]
+            cur = sheet[cj, ci]
+            better = np.array([PLAN_PRIORITY[int(c)] for c in cur]) < PLAN_PRIORITY[cls]
+            sheet[cj[better], ci[better]] = cls
+    return sheets
+TOWN_VERSION = 5
 KIND_CODE = {"solid": 0, "terrain": 1, "overlay": 2, "water": 3}
 WORLD_CODE = {"A": 1, "B": 2, "both": 3}
-SPAWN = (14.0, QUAY_Y, -72.0, -1.2)  # x, y (the feet), z, yaw (0 looks north, +z): on the quay, east of the sea stair, looking west
+SPAWN = (14.0, QUAY_Y, -72.0, -0.55, 0.29)  # x, y (the feet), z, yaw (0 looks north, +z), pitch (+ up): on the quay, east of the
+#   sea stair. The first frame holds the heap of the quay (left), the winch of the sea gate (left of the middle) and the three lamps of the
+#   signal mast, high in the sky over the wall (right of the middle); tests/test_firstminute.cpp keeps it so for every lens.
 START_MOMENT = "B"                    # the game starts in the present (docs/DESIGN.md 3.4): the heap of the quay is the first view
 STATE_CODE = {"shut": 0, "open": 1}
 
@@ -1961,7 +2072,7 @@ STATE_CODE = {"shut": 0, "open": 1}
 def export(path):
     """Writes the town: little-endian, every number a float32 unless said otherwise.
         magic (8 bytes) "DLTOWN" 0 0, version (u32)
-        sea level, spawn x, y, z, yaw; the moment of the start (u8: 0 A, 1 B)
+        sea level, spawn x, y, z, yaw, pitch; the moment of the start (u8: 0 A, 1 B)
         2 lights (A, B): to the light (3), its colour (3), the shade (3), the sky top (3), the horizon (3), fog density
         materials (u32 count): name (u8 length, bytes), colour in A (3), in B (3), shines in A (u8), in B (u8); sRGB albedo
         places (u32 count): name (u8 length, bytes), x, y, z: the stations of the main path
@@ -1972,13 +2083,21 @@ def export(path):
         things (u32 count): name (u8 length, bytes), verb (u8: 0 open, 1 push, 2 lay, 3 ring, 4 lower), handle x, y, z, box count
             (u16), the boxes: state (u8: 0 shut, 1 open),
             world (u8), material (u16), centre (3), half size (3), yaw
+        steps (u32 count): the main path in the order it is played (docs/DESIGN.md 7.4, 8): name (u8 length, bytes), kind (u8:
+            0 a thing: E at its handle, 1 the lantern: set down at the spot), x, y, z (the handle, or the spot). The game
+            guides from them (scene/Guidance.h) and tests/test_route.cpp plays them in this order.
+        emblems (u32 count): glyph (u8 length, bytes), bell (u8 length, bytes: the thing whose ringing lights it), x, y, z, size,
+            shape (u8: 0 sphere, 1 cylinder, 2 cube): the lamps of the signal mast (scene/Emblems.h)
+        overlooks (u32 count): name (u8 length, bytes), x, y, z, radius: where standing reveals the map (scene/MapMemory.h)
+        plan: cell size, x0, z0 (float32), nx, nz (u16), then nx * nz bytes for A and nx * nz for B, row by row from z0 (south) up,
+            each x from x0: 0 nothing, 1 water, 2 cliff, 3 building, 4 street (scene/Town.h Plan)
     The sea is not written: the game draws its own. Returns the number of polygons written."""
     import struct
     names = list(MAT.keys())
     index = {n: i for i, n in enumerate(names)}
     out = bytearray()
     out += TOWN_MAGIC + struct.pack("<I", TOWN_VERSION)
-    out += struct.pack("<5fB", SEA, *SPAWN, {"A": 0, "B": 1}[START_MOMENT])
+    out += struct.pack("<6fB", SEA, *SPAWN, {"A": 0, "B": 1}[START_MOMENT])
     for w in ("A", "B"):
         to_light, light, amb, sky_top, horizon, fog = LIGHT[w]
         out += struct.pack("<16f", *to_light, *light, *amb, *sky_top, *horizon, fog)
@@ -2016,6 +2135,25 @@ def export(path):
         out += struct.pack("<B", len(raw)) + raw + struct.pack("<B3fH", VERB_CODE[verb], *handle, len(boxes))
         for st, world, mat, centre, half, yaw in boxes:
             out += struct.pack("<BBH7f", STATE_CODE[st], WORLD_CODE[world], index[mat], *centre, *half, yaw)
+    out += struct.pack("<I", len(STEPS))
+    for name, kind, spot in STEPS:
+        raw = name.encode("ascii")
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<B3f", STEP_KIND[kind], *[float(v) for v in spot])
+    out += struct.pack("<I", len(EMBLEMS))
+    for glyph, bell, x, y, z, size, shape in EMBLEMS:
+        g, b = glyph.encode("ascii"), bell.encode("ascii")
+        out += struct.pack("<B", len(g)) + g + struct.pack("<B", len(b)) + b + struct.pack("<4fB", x, y, z, size, shape)
+    out += struct.pack("<I", len(OVERLOOKS))
+    for name, x, y, z, r in OVERLOOKS:
+        raw = name.encode("ascii")
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<4f", x, y, z, r)
+    sheets = build_plan()
+    nz, nx = sheets["A"].shape
+    out += struct.pack("<3fHH", PLAN_CELL, PLAN_BOX[0], PLAN_BOX[1], nx, nz)
+    out += sheets["A"].tobytes() + sheets["B"].tobytes()
+    for k in ("A", "B"):
+        counts = np.bincount(sheets[k].ravel(), minlength=5)
+        print("  plan %s: %d x %d cells; water %d, cliff %d, building %d, street %d" % (k, nx, nz, *counts[1:]))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
         f.write(out)
@@ -2106,6 +2244,8 @@ def build_all():
     build_arches()
     build_houses()
     build_bells()
+    build_signal_mast()
+    build_steps()
     build_country()
     build_arrival_trim()
     build_city_trim()

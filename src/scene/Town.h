@@ -2,9 +2,10 @@
 // File:      data/town.dlt, written by `python tools/layout/city_model.py export` (its docstring of export() is the
 // format):
 //            the lights of both moments, the materials (an sRGB colour in A and in B, and whether it shines), the
-//            stations of the main path, the streets (their middle lines) and the polygons of the town (their moment,
-//            their kind and their material). The game and the model are one town: a change of the layout is made in the
-//            model and exported again.
+//            stations of the main path, the streets (their middle lines), the polygons of the town (their moment, their
+//            kind and their material), the things that change, the steps of the main path, the three emblems of the
+//            signal mast, the overlooks and the plan of both moments for the map. The game and the model are one town:
+//            a change of the layout is made in the model and exported again.
 // Kinds:     solid (walls, roofs, bridges, trees...), terrain (the ground), overlay (paving and treads laid on the
 // ground:
 //            drawn, not solid: the ground under them already has their height), water (in A: drawn as water, a body
@@ -35,7 +36,7 @@ namespace dl::town
 {
 
 inline constexpr char kPath[] = "data/town.dlt";
-inline constexpr std::uint32_t kVersion = 3;
+inline constexpr std::uint32_t kVersion = 5;
 
 enum class Kind : std::uint8_t
 {
@@ -109,6 +110,97 @@ struct ThingDef
     std::vector<ThingBox> boxes;
 };
 
+/// One step of the main path (docs/DESIGN.md 7.4, 8), in the order it is played: a thing used at its handle in A, or
+/// the lantern set down at a spot. The game guides from the steps (scene/Guidance.h); tests/test_route.cpp plays them.
+enum class StepKind : std::uint8_t
+{
+    Thing = 0,
+    Lantern = 1,
+};
+
+struct Step
+{
+    std::string name; ///< the name of the thing (kind Thing), or "lantern"
+    StepKind kind = StepKind::Thing;
+    Vec3 at{}; ///< the handle of the thing, or the spot of the lantern (the platform the lantern is set on)
+};
+
+/// One lamp of the signal mast (scene/Emblems.h): lit when the bell of its district is rung.
+struct Emblem
+{
+    std::string glyph;      ///< "well" (west), "cliff" (north), "lock" (east)
+    std::string bell;       ///< the name of the thing whose ringing lights it
+    Vec3 at{};              ///< the middle of the lamp
+    float size = 3.0f;      ///< UNITS: metres
+    std::uint8_t shape = 0; ///< 0 sphere, 1 cylinder, 2 cube
+};
+
+/// A place from which the town is seen far: standing there reveals the map round it (scene/MapMemory.h).
+struct Overlook
+{
+    std::string name;
+    Vec3 at{};
+    float radius = 0.0f; ///< UNITS: metres
+};
+
+/// What stands in a cell of the plan.
+enum PlanClass : std::uint8_t
+{
+    kPlanEmpty = 0,
+    kPlanWater = 1,
+    kPlanCliff = 2,
+    kPlanBuilding = 3,
+    kPlanStreet = 4,
+    kPlanClassCount = 5,
+};
+
+/// The plan of both moments for the map: cells of `cell` metres, row by row from the south (z0) up, each row from x0
+/// east.
+struct Plan
+{
+    float cell = 2.0f;
+    float x0 = 0.0f;
+    float z0 = 0.0f;
+    int nx = 0;
+    int nz = 0;
+    std::vector<std::uint8_t> sheet[2]; ///< [0] the past, [1] the present: nx * nz classes each
+
+    bool Valid() const
+    {
+        const std::size_t n = static_cast<std::size_t>(nx) * static_cast<std::size_t>(nz);
+        return nx > 0 && nz > 0 && cell > 0.0f && sheet[0].size() == n && sheet[1].size() == n;
+    }
+    int CellX(float x) const
+    {
+        return static_cast<int>(std::floor((x - x0) / cell));
+    }
+    int CellZ(float z) const
+    {
+        return static_cast<int>(std::floor((z - z0) / cell));
+    }
+    bool In(int i, int j) const
+    {
+        return i >= 0 && j >= 0 && i < nx && j < nz;
+    }
+    float CentreX(int i) const
+    {
+        return x0 + (static_cast<float>(i) + 0.5f) * cell;
+    }
+    float CentreZ(int j) const
+    {
+        return z0 + (static_cast<float>(j) + 0.5f) * cell;
+    }
+    /// The class of cell (i, j) in `world` (0 A, 1 B); kPlanEmpty outside the plan.
+    std::uint8_t At(int world, int i, int j) const
+    {
+        if (!In(i, j) || (world != 0 && world != 1) || !Valid())
+        {
+            return kPlanEmpty;
+        }
+        return sheet[world][static_cast<std::size_t>(j) * static_cast<std::size_t>(nx) + static_cast<std::size_t>(i)];
+    }
+};
+
 struct Polygon
 {
     std::uint8_t worlds = 0; ///< bit 0: in A, bit 1: in B
@@ -124,7 +216,8 @@ class TownData
     float sea = 0.0f;
     Vec3 spawn{};
     float spawnYaw = 0.0f;
-    int startLayer = 0; ///< the moment the game starts in (0 A, 1 B)
+    float spawnPitch = 0.0f; ///< radians, + looks up: the first frame (tests/test_firstminute.cpp)
+    int startLayer = 0;      ///< the moment the game starts in (0 A, 1 B)
     Light lights[2] = {};
     std::vector<Material> materials;
     std::vector<Place> places;
@@ -133,6 +226,10 @@ class TownData
     std::vector<Vec3> vertices;
     std::vector<std::uint32_t> waters; ///< the polygons of kind water (Submerged looks only at these)
     std::vector<ThingDef> things;      ///< the things that change (scene/Things.h)
+    std::vector<Step> steps;           ///< the main path in the order it is played
+    std::vector<Emblem> emblems;       ///< the lamps of the signal mast
+    std::vector<Overlook> overlooks;   ///< where the map is revealed far round
+    Plan plan;                         ///< the plan of both moments, for the map
 
     /// Reads the file. False (and `error` says why) when it is missing, of another version, or cut short.
     bool Load(const char* path, std::string& error)
@@ -165,8 +262,8 @@ class TownData
             return false;
         }
         std::uint8_t start = 0;
-        bool ok = r.F32(sea) && r.F32(spawn.x) && r.F32(spawn.y) && r.F32(spawn.z) && r.F32(spawnYaw) && r.U8(start) &&
-                  start <= 1;
+        bool ok = r.F32(sea) && r.F32(spawn.x) && r.F32(spawn.y) && r.F32(spawn.z) && r.F32(spawnYaw) &&
+                  r.F32(spawnPitch) && r.U8(start) && start <= 1;
         startLayer = start;
         for (Light& l : lights)
         {
@@ -249,6 +346,50 @@ class TownData
             t.verb = static_cast<Verb>(verb);
             things.push_back(t);
         }
+        ok = ok && r.U32(n) && n < 64u;
+        for (std::uint32_t i = 0; ok && i < n; ++i)
+        {
+            Step st;
+            std::uint8_t kind = 0;
+            ok = r.Name(st.name) && r.U8(kind) && kind <= 1 && r.F32(st.at.x) && r.F32(st.at.y) && r.F32(st.at.z);
+            st.kind = static_cast<StepKind>(kind);
+            steps.push_back(st);
+        }
+        ok = ok && r.U32(n) && n < 16u;
+        for (std::uint32_t i = 0; ok && i < n; ++i)
+        {
+            Emblem e;
+            ok = r.Name(e.glyph) && r.Name(e.bell) && r.F32(e.at.x) && r.F32(e.at.y) && r.F32(e.at.z) &&
+                 r.F32(e.size) && r.U8(e.shape) && e.shape <= 2 && e.size > 0.0f;
+            emblems.push_back(e);
+        }
+        ok = ok && r.U32(n) && n < 64u;
+        for (std::uint32_t i = 0; ok && i < n; ++i)
+        {
+            Overlook o;
+            ok =
+                r.Name(o.name) && r.F32(o.at.x) && r.F32(o.at.y) && r.F32(o.at.z) && r.F32(o.radius) && o.radius > 0.0f;
+            overlooks.push_back(o);
+        }
+        std::uint16_t pnx = 0;
+        std::uint16_t pnz = 0;
+        ok = ok && r.F32(plan.cell) && r.F32(plan.x0) && r.F32(plan.z0) && r.U16(pnx) && r.U16(pnz) &&
+             plan.cell > 0.0f && pnx > 0 && pnz > 0 && pnx <= 1024 && pnz <= 1024;
+        if (ok)
+        {
+            plan.nx = pnx;
+            plan.nz = pnz;
+            const std::size_t cells = static_cast<std::size_t>(pnx) * static_cast<std::size_t>(pnz);
+            for (int w = 0; w < 2 && ok; ++w)
+            {
+                plan.sheet[w].resize(cells);
+                ok = r.Bytes(plan.sheet[w].data(), cells);
+                for (std::size_t k = 0; ok && k < cells; ++k)
+                {
+                    ok = plan.sheet[w][k] < kPlanClassCount;
+                }
+            }
+        }
         if (!ok)
         {
             error = "the town file is cut short or damaged";
@@ -268,6 +409,23 @@ class TownData
     static bool In(const Polygon& p, int layer)
     {
         return (p.worlds & (1u << layer)) != 0u;
+    }
+
+    /// The middle of the signal mast (the mean of its lamps); false when the town has none.
+    bool MastAt(Vec3& at) const
+    {
+        if (emblems.empty())
+        {
+            return false;
+        }
+        at = {};
+        for (const Emblem& e : emblems)
+        {
+            at.x += e.at.x / static_cast<float>(emblems.size());
+            at.y += e.at.y / static_cast<float>(emblems.size());
+            at.z += e.at.z / static_cast<float>(emblems.size());
+        }
+        return true;
     }
 
     /// The name of the station of the main path nearest to (x, z) on the ground plane, or "" when there is none.
@@ -536,7 +694,7 @@ class TownData
             params[3] = 0.85f; // (water: how opaque)
         }
         Vec3 n = FanNormal(p);
-        const float length = std::sqrt(terrain::Dot(n, n));
+        const float length = std::sqrt(tri::Dot(n, n));
         if (!(length > 1.0e-9f))
         {
             return;

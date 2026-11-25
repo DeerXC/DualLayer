@@ -8,24 +8,30 @@ An earlier prototype with hand-placed rooms and puzzles was removed on 2026-11-2
 
 ```
 WinMain > RunApp
-  once:   log file, config, window (DPI aware), the town (TownData::Load), Gpu::Init (Device, Triangle, Models, Overlay; the
-          polygons of the town baked into the static batch of each moment), RunTown: the walking body at the spawn point
-  frame:  1. Window::PumpMessages
-          2. lost device (or F9)   > Gpu::Recover: every GPU object made again on a new Device; the town and the body stay
-          3. F5                    > reload the config, the themes of the moments, the settings of the body
+  once:   log file, config, window (DPI aware), the town (TownData::Load), Gpu::Init (Device, Models, Overlay; the polygons of
+          the town baked into the static batch of each moment), TownSession: the solid of both moments, the body at the spawn point
+  frame:  TownSession::Run
+          1. Window::PumpMessages
+          2. lost device (or F9)   > RecoverDevice, Gpu::Recover: every GPU object made again on a new Device; the town and the body stay
+          3. F5                    > ReloadConfig: the config, the themes of the moments, the settings of the body and of the guidance
           4. resize                > Device::Resize
-          5. mouse and keys        > turn the camera; Tab goes through the LayerGuard (a switch into something, or into the
-                                     water of the other moment, is refused)
-          6. Models::Update        > the spin clock and the ripple clock
-          7. walking               > Player::Update against the solid of the moment (Moments, with the circle of the lantern),
-                                     the ledge climb (TryTownMantle), E (HandleUse: a thing of the past, else the lantern), water
-                                     and falls (back to the last place the body stood still on), the camera (orbit, pulled in by walls)
-             flying                > Moments::PushOut on the camera ball
-          8. the drawn table       > the sea round the eye, the lantern, the things and their traces, the ring of a return, the
-                                     avatar > Models::SetObjects
-          9. render                > Device::BeginFrame, Models::Draw (one moment, or the ripple), Overlay::Draw (BuildHud: the
-                                     prompt, the status line), Device::EndFrame (Present)
-  end:    Gpu::Shutdown (Models, Triangle, Device: the debug layer reports leaks), log closed
+          5. LookWithMouse, ReadKeys   > the mouse turns the camera (not while the map is open); Z X N F toggles; the edges of Space, E, R and H
+             MapKeys                > M opens and closes the map; inside it Tab turns the sheet, E marks; the game stands still
+          6. SwitchMoment          > Tab goes through the LayerGuard (a switch into something, or into the water of the other
+                                     moment, is refused)
+          7. UpdateCamera, Models::Update   > the camera keys; the ripple clock
+          8. MoveBody (walking)    > WalkAndUse: Player::Update against the solid of the moment (Moments, with the circle of the
+                                     lantern), the ledge climb (TryTownMantle), E (HandleUse: a thing of the past, else the lantern)
+                                     ReturnFromFall: water, falls, R: back to the last place the body stood still on
+                                     PlaceEye: the landing dip, the eased eye, the orbit camera pulled in by walls
+             PushFlyingCamera (flying)  > Moments::PushOut on the camera ball
+          9. UpdateGuidance        > the goal and the progress of the flame (scene/Guidance.h); what the body has seen (MapMemory)
+         10. BuildDrawTable        > the sea round the eye, the lamps of the signal mast, the lantern and its flame, the things and
+                                     their traces, the ring of a return, the markers, the beam or the frame of H, the avatar > Models::SetObjects
+         11. Render                > Device::BeginFrame, Models::Draw (one moment, or the ripple), Overlay::Draw (BuildHud: the
+                                     prompt, the status line; BuildMap over it when the map is open), Device::EndFrame (Present)
+         12. UpdateTitle           > adapter, speed, body, moment, place, bells, steps, falls
+  end:    Gpu::Shutdown (Models, Overlay, Device: the debug layer reports leaks), log closed
 ```
 
 What is drawn and what is solid come from the same data in the same frame, so they cannot disagree.
@@ -34,24 +40,30 @@ What is drawn and what is solid come from the same data in the same frame, so th
 
 ```
 main
- +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug, Triangle,
-             Overlay, OverlayBatch, Font5x7, StaticBatch, Hud                                      > core, scene (data only)
- +- scene    Camera, SceneData, Collision, Terrain, Player, TownPlayer, Town, TriMesh, Moments,
-             Lantern, Things, LayerGuard, Prompts, TownEffects                                     > standard library only
+ +- app      AppConfig, Gpu, Input, TownSession                                                    > render, scene, core
+ +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug,
+             Overlay, OverlayBatch, Font5x7, StaticBatch, Hud, MapView                              > core, scene (data only)
+ +- scene    Camera, SceneData, TriMath, TriMesh, Moments, Player, TownPlayer, Town, Lantern,
+             Things, Guidance, Flame, Emblems, MapMemory, LayerGuard, Prompts, TownEffects         > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
-A dependency only points down. `render` is the only place that talks to Direct3D. Everything in `scene` and the pure parts
-of `core` and `render` (`MeshData`, `LayerRipple`, `OverlayBatch`, `Font5x7`, `StaticBatch`, `Hud`) have no Windows or
-Direct3D dependency and are tested without a window.
+A dependency only points down. `app` is the game loop and the only place that reads the keyboard; `render` is the only place
+that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `render` (`MeshData`, `LayerRipple`,
+`OverlayBatch`, `Font5x7`, `StaticBatch`, `Hud`, `MapView`) have no Windows or Direct3D dependency and are tested without a window.
 
 | Module | Job |
 |---|---|
-| `scene/Town.h` | reads `data/town.dlt`; bakes the drawn polygons; builds the solid of each moment |
-| `scene/TriMesh.h` | triangles filed in a grid of 4 m cells; the push-out of a ball |
-| `scene/Moments.h` | the solid of both moments with the circle of the lantern |
+| `app/TownSession.h` | the frame loop of the town, in small steps (see One frame) |
+| `app/Gpu.h`, `app/AppConfig.h`, `app/Input.h` | the GPU objects made and lost together; the config of the program; the keyboard |
+| `scene/Town.h` | reads `data/town.dlt`; bakes the drawn polygons; builds the solid of each moment; the steps of the main path |
+| `scene/TriMath.h`, `scene/TriMesh.h` | the closest point of a triangle; triangles filed in a grid of 4 m cells and the push-out of a ball |
+| `scene/Moments.h` | the solid of both moments with the circle of the lantern; the push-out and the wall push |
 | `scene/Lantern.h` | the lantern: set down in A, a circle of A in B; the traces of things changed in A |
 | `scene/Things.h` | the things that change: opened in A, a trace in B (the causal rule) |
+| `scene/Guidance.h`, `scene/Flame.h` | the goal (the first step of the main path not done), the progress of the player, the flame of the lantern that leans toward the goal, the two steps of H |
+| `scene/Emblems.h` | the three lamps of the signal mast, dark until the bell of their district is rung |
+| `scene/MapMemory.h`, `render/MapView.h` | what the player has seen and the markers they left; the map drawn on two sheets of tracing paper |
 | `scene/Player.h`, `scene/TownPlayer.h` | the walking body; the town's climb, camera clearance and avatar |
 | `scene/LayerGuard.h` | refuses a switch that would put the body inside something |
 | `scene/Prompts.h` | the one key prompt, chosen from the state of the game |
@@ -86,12 +98,12 @@ lines of the streets, and the polygons of the town with their moment and their k
   nothing; an opening that would close on the body is refused. The boxes of the state now are extra solids of their
   moments (`Moments::SetExtra`, the same rule with the circle as the town's triangles), drawn as cubes in the table of
   objects each frame; the boxes of B of an opened thing carry its trace; the handle of a shut thing glows gold in A.
-- The loop: `RunTown` in `main.cpp` (with `HandleUse` for E, `ChoosePrompt` and `SetTitleBar`) walks, switches (refused into a surface or into the water of the other moment, with the
-  circle), opens a thing at its handle or else sets the lantern down and takes it up (E), sinks in water, falls, and comes back to the last place the body stood
-  still on (also R); that place is one where the body stands in both moments without the circle, so a return never ends in
-  the air or in a wall. It draws the sea round the eye and
-  the ring of a return (`scene/TownEffects.h`), the lantern and the things; the town is in the static batch. The game starts in the moment the
-  file gives (B).
+- The loop: `TownSession` (`app/TownSession.h`, with `HandleUse` for E and `ChoosePrompt`) walks, switches (refused into a
+  surface or into the water of the other moment, with the circle), opens a thing at its handle or else sets the lantern down and
+  takes it up (E), sinks in water, falls, and comes back to the last place the body stood still on (also R); that place is one
+  where the body stands in both moments without the circle, so a return never ends in a wall or in the air. It draws the sea
+  round the eye and the ring of a return (`scene/TownEffects.h`), the lantern, the things and the guidance; the town is in the
+  static batch. The game starts in the moment the file gives (B).
 
 ## Layers and the ripple
 
@@ -130,19 +142,46 @@ circle of the lantern.
 
 ## Collision and the walking body
 
-`ResolveSphere` (`scene/Collision.h`) pushes a ball out of every solid of a layer, exactly for boxes (also turned ones:
-tilted round X, such as ramps, or turned round Y by a fixed yaw, such as the houses), spheres, cylinders and tori, in the
-local space of each object, in a few rounds. It only moves the ball; speed is the job of the body.
+`TriMesh::PushOut` moves a ball out of the triangles near it: the closest point on each triangle (`scene/TriMath.h`), a few rounds.
+`Moments::PushOut` does the same over the solid of a moment, the things that are open now and the circle of the lantern. They
+only move the ball; speed is the job of the body.
 
 `Player` is three balls of the collision radius (feet, halfway, eye); the camera is the eye. A frame is cut into steps
 shorter than the radius. In each step: the ground speed moves toward the keys with an acceleration; gravity (stronger while
 falling); the jump (its rise is cut when Space is let go); the move; the push-out. The push removes the part of the speed
-that goes into what was hit, so a floor ends a fall and a too steep slope turns it into a slide. The walk is taken away
-only by solids that are not ground (`AddWallPush`, per solid): a ramp keeps the walk, a wall stops it. A probe below the
-feet decides whether the body stands (up to about 53 degrees). A body that stood and did not jump is kept on the ground when
-the ground drops by up to 0.35 m in one step (`SnapToGround`), so it walks down ramps and low steps without small hops.
-Coyote time and a jump buffer make the timing forgiving. `RunTown` eases small changes of the eye height and dips the eye
-on a hard landing.
+that goes into what was hit, so a floor ends a fall and a too steep slope turns it into a slide. The walk is taken away only
+by contacts that are not ground: `Moments::WallPush` asks each triangle on its own (a floor touched in the same step is never
+mixed into a wall: the sum of the two can point up), so a ramp keeps the walk and a wall stops it. A probe below the feet
+decides whether the body stands (up to about 53 degrees). A body that stood and did not jump is kept on the ground when the
+ground drops by up to 0.35 m in one step (`SnapToGround`), so it walks down ramps and low steps without small hops. Coyote
+time and a jump buffer make the timing forgiving. `TownSession::PlaceEye` eases small changes of the eye height and dips the
+eye on a hard landing.
+
+## Guidance
+
+`scene/Guidance.h` follows the main path (`TownData::steps`, written by the model in the order the path is played). The goal is
+the first step that is not done: a thing open, or the lantern set down at its spot; when every step is done, the signal mast. The
+help is the lantern as compass (`scene/Flame.h`): its flame, in the hand and set down, leans toward the goal (18 degrees; 40 and
+with sparks after 30 s without progress, where progress is a step done, a new 6 m cell of ground or a new closest approach by 4 m;
+upright within 2 m of the goal). H asks for more in two steps: the lantern is raised and a beam sweeps for 6 s; a second press, only
+after 90 s without progress, shows a frame round the thing to use and a line to it. `TownSession` also offers the prompts TAB (after
+8 s of walking, to a player who has not switched) and M (after 40 s, to one who has not opened the map) (`Prompts.h`).
+
+## The signal mast and the first frame
+
+The sea wall hides the bell tower from the quay in both moments (`tests/test_firstminute.cpp` casts the rays), so the far goal is a
+signal mast over it with three lamps (`TownData::emblems`, drawn by `scene/Emblems.h`): dark until the thing named in the file (the
+bell of their district) is open, then warm and glowing in both moments. The first frame is set by the town file (`spawnYaw`,
+`spawnPitch`): the heap of the quay, the winch of the sea gate and the lamps are in the picture for every lens and screen.
+
+## The map
+
+The model writes the plan of both moments (`TownData::plan`, cells of 1 m, a class each: water, cliff, building, street) and the
+overlooks. `MapMemory` marks the cells the body has been near (15 m) or has looked over from an overlook, and holds the markers
+(five at most). `MapView` draws two sheets of tracing paper into the overlay batch (neutral ink for what is in both moments, warm for A
+only, cool for B only, the sheet on top over the other), the player, the lantern, the tower with its lamps and the markers; it needs
+no pass of its own. While it is open `TownSession` stands still, the pointer is free (`Window::CursorClient`, `SetCaptureAllowed`) and
+Esc closes it (`SetEscapeQuits`, `ConsumeEscape`).
 
 ## The overlay
 

@@ -1,50 +1,40 @@
-// Player.h - a walking body for the camera: it walks, falls, lands, jumps, stands on solid objects and can fall off the
-// floor. Plain maths, no Windows, no Direct3D: tested without a window (tests/test_player.cpp). Body:      three balls
-// of the collision radius, one above the other: at the feet, at the eye (the camera) and one halfway, so that
-//            the body cannot slip between thin parts (the tube of the torus is 0.6 m thick, the balls overlap). The
-//            camera is the eye; the feet are the point on the ground.
-// Layers:    only the objects of the given layer are solid (scene/Collision.h). The layer is a parameter of every
-// Update, so a body
-//            standing on an object that is not in the new layer falls at once.
-// Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h).
-// SetScene
-//            gives the body another one (a test).
-// Land:      SetLand gives the body the ground of the world (scene/Terrain.h): it is solid in both layers, like a floor
-// of both. Town:      SetTown gives the body the solid of the town of the model in both moments, with the circle of the
-// lantern
-//            (scene/Moments.h).
+// Player.h - a walking body for the camera: it walks, sprints, falls, lands, jumps and stands on the solid of the town.
+// Plain maths, no Windows, no Direct3D: tested without a window (tests/test_player.cpp).
+// Body:      three balls of the collision radius, one above the other: at the feet, at the eye (the camera) and one
+// halfway,
+//            so that the body cannot slip between thin parts. The camera is the eye; the feet are the point on the
+//            ground.
+// Solid:     SetTown gives the body the solid of the town of the model in both moments, with the circle of the lantern
+//            (scene/Moments.h). The moment is a parameter of every Update, so a body standing on something that is not
+//            in the new moment falls at once. Without a town nothing is solid.
 // Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06
-// s, a stop in
-//            about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is stronger
-//            while the body falls than while it rises, so a jump goes up softly and comes down firmly. Letting the jump
-//            key go while the body still rises cuts the rise (a short tap is a small hop, a held key the full jump
-//            height). Coyote time: a jump still works for 0.08 s after the body left an edge; jump buffer: a jump
+// s, a
+//            stop in about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is
+//            stronger while the body falls than while it rises, so a jump goes up softly and comes down firmly. Letting
+//            the jump key go while the body still rises cuts the rise (a short tap is a small hop, a held key the full
+//            jump height). Coyote time: a jump still works for 0.08 s after the body left an edge; jump buffer: a jump
 //            pressed 0.1 s before the landing happens at the landing.
 // Method:    per small step: the speed on the ground moves toward the wish of the keys; gravity; jump; move; push the
-// three balls out
-//            of the solids (ResolveSphere). The direction of the push is the normal of what was hit: the part of the
-//            speed that goes into it is removed and the rest stays, so a floor ends a fall and a slope that is too
-//            steep turns the fall into a slide. The walk is taken away only by the solids that are not ground
-//            (AddWallPush): a ramp keeps the walk, a wall takes the part into it, also when the floor pushes in the
-//            same step. Then a probe a few centimetres below the feet tells whether the body stands on something (the
-//            surface must face up: a slope limit of about 53 degrees).
+// three
+//            balls out of the solid. The direction of the push is the normal of what was hit: the part of the speed
+//            that goes into it is removed and the rest stays, so a floor ends a fall and a slope that is too steep
+//            turns the fall into a slide. The walk is taken away only by pushes that are not ground (AddWallPush): a
+//            ramp keeps the walk, a wall takes the part into it, also when the floor pushes in the same step. Then a
+//            probe a few centimetres below the feet tells whether the body stands on something (the surface must face
+//            up: a slope limit of about 53 degrees).
 // Snap:      a body that stood in the last step and did not jump is kept on the ground when the ground drops away by at
-// most
-//            kSnapDown in one step (walking down a ramp or off a low step), so that it does not fly off in small hops:
-//            that was the shaking of the camera on the way down.
+//            most kSnapDown in one step (walking down a ramp or off a low step), so that it does not fly off in small
+//            hops: that was the shaking of the camera on the way down.
 // Time:      Update takes the real frame time, limited to 0.1 s, and cuts it into steps that move the body by less than
-// the radius,
-//            so that nothing is jumped over (the floor is only 0.2 m thick).
-// Falling:   a body that falls kFallDepth below the floor goes back to the spawn point (JustRespawned tells it).
+// the
+//            radius, so that nothing is jumped over.
+// Falling:   a body that falls below kFallBelow goes back to the spawn point (JustRespawned tells it).
 // Space:     left-handed, +Y up. With the forward direction f on the ground, right = (f.z, 0, -f.x).
 // UNITS:     metres, seconds, metres per second.
 // Note:      no std::min / std::max here: windows.h may define them as macros (docs/CONVENTIONS.md).
 #pragma once
 
 #include "scene/Camera.h" // Vec3
-#include "scene/Collision.h"
-#include "scene/SceneData.h"
-#include "scene/Terrain.h"
 #include "scene/Moments.h"
 
 #include <algorithm>
@@ -108,28 +98,6 @@ class Player
     const Settings& GetSettings() const
     {
         return m_s;
-    }
-
-    /// The table of solid objects (BORROWS: it must stay alive while the body uses it). A null table or a count of 0
-    /// goes back to the scene table of the program.
-    void SetScene(const scene::SceneObject* objects, int count)
-    {
-        if (objects != nullptr && count > 0)
-        {
-            m_objects = objects;
-            m_objectCount = count;
-        }
-        else
-        {
-            m_objects = scene::kScene;
-            m_objectCount = scene::kSceneCount;
-        }
-    }
-
-    /// The ground of the world, solid in both layers (BORROWS; null: none, the default).
-    void SetLand(const terrain::Land* land)
-    {
-        m_land = land;
     }
 
     /// The town of the model in both moments, with the circle of the lantern (BORROWS; null: none, the default).
@@ -270,12 +238,11 @@ class Player
     }
 
     /// lookForward: where the camera looks (only its direction on the ground counts; straight up or down gives no
-    /// walking). layer: 0 = A, 1 = B, the layer whose objects are solid. spinSeconds: the time that the renderer uses
-    /// for the turning shapes.
-    void Update(const Input& input, const Vec3& lookForward, int layer, float spinSeconds, float dtSeconds)
+    /// walking). layer: 0 = A, 1 = B, the moment whose solid the body meets.
+    void Update(const Input& input, const Vec3& lookForward, int layer, float dtSeconds)
     {
         m_respawned = false;
-        if (!(dtSeconds > 0.0f) || !std::isfinite(dtSeconds) || !std::isfinite(spinSeconds))
+        if (!(dtSeconds > 0.0f) || !std::isfinite(dtSeconds))
         {
             return;
         }
@@ -338,7 +305,7 @@ class Player
         const float h = dt / static_cast<float>(steps);
         for (int i = 0; i < steps && !m_respawned; ++i)
         {
-            Step(h, wishX, wishZ, jumpSpeed, layer, spinSeconds);
+            Step(h, wishX, wishZ, jumpSpeed, layer);
         }
     }
 
@@ -347,8 +314,10 @@ class Player
     static constexpr float kMaxFallSpeed = 40.0f; // UNITS: metres per second
     static constexpr float kCoyoteSeconds = 0.08f;
     static constexpr float kJumpBufferSeconds = 0.10f;
-    static constexpr float kProbe = 0.03f;         // UNITS: metres, how far below the feet the ground is looked for
-    static constexpr float kFallDepth = 20.0f;     // UNITS: metres below the floor of the scene
+    static constexpr float kProbe = 0.03f; // UNITS: metres, how far below the feet the ground is looked for
+    static constexpr float kFallBelow =
+        -21.0f;                              // UNITS: metres: lower than any ground a body can reach (the sea is at -8)
+    static constexpr float kTouch = 1.0e-5f; // UNITS: metres: a push of less than this counts as no contact
     static constexpr float kMinAirSeconds = 0.05f; // a jump cannot end in the first 0.05 s
     static constexpr float kImpactMin = 2.0f;      // UNITS: metres per second; a softer landing is not reported
     static constexpr int kMaxSteps = 32;
@@ -390,82 +359,39 @@ class Player
         return {feet.x, feet.y + low + (high - low) * t, feet.z};
     }
 
-    CollisionResult ResolveBall(const Vec3& centre, int layer, float spinSeconds) const
+    struct BallResult
     {
-        CollisionResult r = ResolveSphere(centre, m_s.radius, layer, spinSeconds, m_objects, m_objectCount);
-        if (m_land != nullptr && (layer == 0 || layer == 1) &&
-            m_land->PushOut(r.position, m_s.radius) > collision_detail::kTouch)
-        {
-            r.pushed = true;
-        }
-        if (m_town != nullptr && m_town->PushOut(r.position, m_s.radius, layer) > collision_detail::kTouch)
+        Vec3 position;
+        bool pushed = false;
+    };
+
+    /// The ball at `centre`, pushed out of the solid of `layer`.
+    BallResult ResolveBall(const Vec3& centre, int layer) const
+    {
+        BallResult r;
+        r.position = centre;
+        if (m_town != nullptr && m_town->PushOut(r.position, m_s.radius, layer) > kTouch)
         {
             r.pushed = true;
         }
         return r;
     }
 
-    /// Adds to the wall push the part of the push on the ball at `centre` that comes from solids which are not ground:
-    /// each solid of `layer` is asked on its own, so that a floor and a wall touched together are told apart.
-    void AddWallPush(const Vec3& centre, int layer, float spinSeconds)
+    /// Adds to the wall push the part of the push on the ball at `centre` that comes from walls and from slopes too
+    /// steep to stand on. Each contact is asked on its own (Moments::WallPush), so that a floor and a wall touched
+    /// together are told apart.
+    void AddWallPush(const Vec3& centre, int layer)
     {
-        const unsigned bit = 1u << layer;
-        for (int j = 0; j < m_objectCount; ++j)
+        if (m_town != nullptr)
         {
-            if ((m_objects[j].layerMask & bit) == 0u)
-            {
-                continue;
-            }
-            Vec3 p = centre;
-            if (collision_detail::PushOutOf(m_objects[j], p, m_s.radius, spinSeconds) <= collision_detail::kTouch)
-            {
-                continue;
-            }
-            const float dx = p.x - centre.x;
-            const float dy = p.y - centre.y;
-            const float dz = p.z - centre.z;
-            if (dy < kGroundFacing * std::sqrt(dx * dx + dy * dy + dz * dz))
-            {
-                m_wallX += dx;
-                m_wallZ += dz;
-            }
-        }
-        if (m_town != nullptr) // the town: a wall, or a slope too steep to stand on
-        {
-            Vec3 p = centre;
-            if (m_town->PushOut(p, m_s.radius, layer) > collision_detail::kTouch)
-            {
-                const float dx = p.x - centre.x;
-                const float dy = p.y - centre.y;
-                const float dz = p.z - centre.z;
-                if (dy < kGroundFacing * std::sqrt(dx * dx + dy * dy + dz * dz))
-                {
-                    m_wallX += dx;
-                    m_wallZ += dz;
-                }
-            }
-        }
-        if (m_land != nullptr) // the ground: a slope too steep to stand on is a wall
-        {
-            Vec3 p = centre;
-            if (m_land->PushOut(p, m_s.radius) > collision_detail::kTouch)
-            {
-                const float dx = p.x - centre.x;
-                const float dy = p.y - centre.y;
-                const float dz = p.z - centre.z;
-                if (dy < kGroundFacing * std::sqrt(dx * dx + dy * dy + dz * dz))
-                {
-                    m_wallX += dx;
-                    m_wallZ += dz;
-                }
-            }
+            m_town->WallPush(centre, m_s.radius, layer, kGroundFacing, m_wallX, m_wallZ);
         }
     }
 
     /// Pushes the three balls out of the solids of `layer`; each push moves the whole body. A few rounds, because a
     /// push of one ball can put another one into something. `wall`: add the wall part of every push to m_wallX /
     /// m_wallZ.
-    void ResolveBody(int layer, float spinSeconds, bool wall)
+    void ResolveBody(int layer, bool wall)
     {
         for (int round = 0; round < 8; ++round)
         {
@@ -473,12 +399,12 @@ class Player
             for (int i = 0; i < kBalls; ++i)
             {
                 const Vec3 centre = BallCentre(m_feet, i);
-                const CollisionResult r = ResolveBall(centre, layer, spinSeconds);
+                const BallResult r = ResolveBall(centre, layer);
                 if (r.pushed)
                 {
                     if (wall)
                     {
-                        AddWallPush(centre, layer, spinSeconds);
+                        AddWallPush(centre, layer);
                     }
                     m_feet.x += r.position.x - centre.x;
                     m_feet.y += r.position.y - centre.y;
@@ -494,12 +420,12 @@ class Player
     }
 
     /// True when something solid is just below the feet and faces up.
-    bool StandsOnSomething(int layer, float spinSeconds) const
+    bool StandsOnSomething(int layer) const
     {
         Vec3 lowered = m_feet;
         lowered.y -= kProbe;
         const Vec3 centre = BallCentre(lowered, 0);
-        const CollisionResult r = ResolveBall(centre, layer, spinSeconds);
+        const BallResult r = ResolveBall(centre, layer);
         if (!r.pushed)
         {
             return false;
@@ -514,16 +440,16 @@ class Player
     /// Keeps a body that stood in the last step on the ground when the ground dropped away by at most kSnapDown: the
     /// feet are lowered straight down in small steps until the probe finds ground that faces up, then settled on it.
     /// When there is no such ground within kSnapDown, nothing changes (an edge: the body falls).
-    bool SnapToGround(int layer, float spinSeconds)
+    bool SnapToGround(int layer)
     {
         const Vec3 before = m_feet;
         for (float down = kSnapStep; down <= kSnapDown + 1.0e-4f; down += kSnapStep)
         {
             m_feet.y = before.y - down;
-            if (StandsOnSomething(layer, spinSeconds))
+            if (StandsOnSomething(layer))
             {
-                ResolveBody(layer, spinSeconds, false); // settle on it: the probe found it a few centimetres below
-                if (StandsOnSomething(layer, spinSeconds) && m_feet.y < before.y)
+                ResolveBody(layer, false); // settle on it: the probe found it a few centimetres below
+                if (StandsOnSomething(layer) && m_feet.y < before.y)
                 {
                     return true;
                 }
@@ -558,7 +484,7 @@ class Player
         m_moveZ += dz * (most / gap);
     }
 
-    void Step(float h, float wishX, float wishZ, float jumpSpeed, int layer, float spinSeconds)
+    void Step(float h, float wishX, float wishZ, float jumpSpeed, int layer)
     {
         const bool stood = m_grounded;
         bool jumpedNow = false;
@@ -605,7 +531,7 @@ class Player
         const Vec3 moved = m_feet;
         m_wallX = 0.0f;
         m_wallZ = 0.0f;
-        ResolveBody(layer, spinSeconds, true);
+        ResolveBody(layer, true);
 
         // the push points away from what was hit: take the part of the speed that goes into it away (a floor ends a
         // fall, a ceiling ends a rise, a slope turns the fall into a slide)
@@ -639,8 +565,8 @@ class Player
                 m_moveZ -= walkInto * hz;
             }
         }
-        m_grounded = m_vy <= 0.01f && StandsOnSomething(layer, spinSeconds);
-        if (!m_grounded && stood && !jumpedNow && m_vy <= 0.01f && SnapToGround(layer, spinSeconds))
+        m_grounded = m_vy <= 0.01f && StandsOnSomething(layer);
+        if (!m_grounded && stood && !jumpedNow && m_vy <= 0.01f && SnapToGround(layer))
         {
             m_grounded = true;
             m_vy = 0.0f; // it walked down: no fall speed is gathered, so there is no landing and no dip
@@ -667,19 +593,16 @@ class Player
                 m_jumping = false;
             }
         }
-        if (m_feet.y < scene::kFloorY - kFallDepth)
+        if (m_feet.y < kFallBelow)
         {
             Respawn();
             m_respawned = true;
         }
     }
 
-    const scene::SceneObject* m_objects = scene::kScene;
-    int m_objectCount = scene::kSceneCount;
-    const terrain::Land* m_land = nullptr;
     const town::Moments* m_town = nullptr;
-    Vec3 m_feet{0.0f, scene::kFloorY, -3.0f};
-    Vec3 m_spawn{0.0f, scene::kFloorY, -3.0f};
+    Vec3 m_feet{0.0f, 0.0f, 0.0f};
+    Vec3 m_spawn{0.0f, 0.0f, 0.0f};
     Vec3 m_wish{};
     Settings m_s;
     float m_moveX = 0.0f; // UNITS: metres per second, the speed on the ground that comes from the keys

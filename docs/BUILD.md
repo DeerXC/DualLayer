@@ -1,6 +1,6 @@
 # Build
 
-Controls and checks apply to the current build. The new sprint, climb, hint key and boat finale that are specified in [Design](DESIGN.md) but not built yet are not listed here.
+Controls and checks apply to the current build. The lens, the beacons, the three ways and the boat finale that are specified in [Design](DESIGN.md) but not built yet are not listed here.
 
 ## Requirements
 
@@ -30,10 +30,12 @@ Controls and checks apply to the current build. The new sprint, climb, hint key 
 | Tab | switch the moment (A the past, warm; B the present, cold); a switch into something solid or into water is refused and the ripple turns back |
 | E | (walking, in the town) at a gold handle in A, open its thing (the prompt says OPEN; in B a handle does nothing); else set the lantern down a step ahead, in A only (the prompt says PUT DOWN), or take it up within reach (TAKE). In the greybox map: take the orb in reach, or put the held one down one step ahead (on a socket, a plate or a hole when near one; the prompt says TAKE, PUT DOWN or PLACE). At a lit lamp after the first bell: the list of lamps (A / D choose, E travels, W / S / Space close) |
 | R | back to the last place the body stood still on |
+| H | ask the lantern for more help: the lantern is raised and a warm beam sweeps over the place for 6 s; pressed again during the sweep after 90 s without progress, a frame shows round the thing to use. The flame over the lantern always leans toward the next thing to do (it leans further, with sparks, after 30 s without progress) |
+| M | open the map: two sheets of tracing paper, the past (warm) over the present (cool); the game stands still behind it, the pointer is free. In the map: Tab turns the other sheet to the top, E puts a marker where the pointer is (or takes the one there away; five at most), M or Esc closes it |
 | F | walking / flying |
 | Q / E | down / up (flying) |
 | N | collision on / off (off also means flying) |
-| Z / X / C | wireframe / level of detail / turning shapes on or off |
+| Z / X | wireframe / level of detail |
 | F5 | reload `config/default.ini` |
 | F9 | rebuild every GPU object (only with `[debug] device_reset_key = 1`): the test of the device recovery |
 
@@ -70,7 +72,8 @@ no sense are pulled into a working range.
 | | `fog_density` (A 0.006, B 0.022), `tint_r/g/b` (A 1.25 1.0 0.74, B 0.62 0.70 0.78), `weathering` (A 0.15, B 0.85) | the fog per metre; the stone of the city; how uneven its blocks are and how much moss grows on what looks up |
 | `[models]` | `segments` (32) | how round the round shapes are |
 | `[debug]` | `device_reset_key` (false) | F9 tests the device recovery |
-| `[test_triangle]` | `show` (false), `spin_deg_per_sec` (0) | the first test triangle |
+| `[guidance]` | `enabled` (true), `lean_degrees` (18), `lean_idle_degrees` (40), `idle_seconds` (30), `sweep_seconds` (6), `ghost_after_seconds` (90), `ghost_seconds` (12) | the flame of the lantern and H: how far the flame leans toward the goal, how far and after how long without progress it grows restless, how long the beam stays, when the second press shows the thing to use and for how long |
+| `[map]` | `reveal_radius` (15) | metres round the body that the map shows |
 
 The town is data made by the layout model. After a change of `tools/layout/city_model.py`, write it again (Python 3, numpy,
 matplotlib; about a minute):
@@ -147,6 +150,11 @@ seen".
 | E-13 | The bells | at the clock tower in A, E (RING) | the title bar: bells 1 of 3; in B a lamp burns over the rope |
 | E-14 | The lift | from the west bastion in B walk down the wreck of the bridge to the floor of the gorge; at the lift house climb the heap onto its roof; Tab; E (LOWER); Tab; climb the frame | in A the cage goes down; in B the frame stands up the face of the rock and leads to the plaza (before E, in B, a wreck lies at the foot and nothing climbs) |
 | E-15 | The air step | from the top of the sea stair walk west on the lower street; in A climb the two crates by the barricade; jump toward it; jump again and press Tab at the top | the barricade (A) and the heap of a fallen house (B) close the street; without Tab the jump ends at the barricade; with Tab the body lands on the heap in B and walks down its steps toward the market |
+| E-16 | The first minute | start, touch nothing for 3 s | in the cold present on the quay: the heap of wreck on the left, the towers of the sea gate left of the middle, and high in the sky right of the middle three dark lamps on a yard (a sphere, a column, a box) over the roofs; the traveller with the lantern in the hand, its flame leaning toward the sea gate |
+| E-17 | The flame | walk about on the quay; stand still for 35 s; then walk somewhere new | from every place the flame leans toward the winch of the sea gate; after 30 s without moving it leans further and throws sparks; walking to new ground calms it; at the winch it stands upright |
+| E-18 | H | press H; wait 7 s; stand still for 95 s, then press H twice | the arm raises the lantern and a warm beam swings over the place and settles toward the winch, and ends by itself; after the long wait the second press shows a faint frame round the winch with a line of motes to the lantern (12 s); a press while it shows puts it away |
+| E-19 | The bells | ring the day bell in the market (E at its rope in A); look at the mast from the quay | the title bar says lamps 1 of 3; the lamp of the well (the sphere, on the left) glows warm, the other two stay dark; it glows in B as well |
+| E-20 | The map | press M at the start; walk to the sea stair; press M, Tab, E with the pointer on the paper, M | the paper is blank but for a disc round the arrow and the tower north of it with three dark squares; Tab turns the other sheet to the top (the frame changes colour; the world does not switch); E plants a flag and, once closed, a thin column of light stands in the world (in A and in B); E on the flag takes it away; M closes and the mouse looks again; opening it at the west bastion reveals the town far round |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

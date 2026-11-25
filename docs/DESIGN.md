@@ -13,6 +13,9 @@ The body carries a lantern. **Tab** moves the whole world between the two moment
 keeps a circle of the past standing in the present. What is done in the past leaves its trace in the present. The way
 through the town is found by reading the present and changing the past.
 
+The game asks one thing, and the player sees it from the first frame: three dark lamps high over the bell tower, on a signal mast.
+After the harbour the town opens into three districts. Ring the bell of each, in any order, and the tower opens.
+
 ## 2. Principles
 
 Every change is judged against these. A change that breaks one is not made.
@@ -22,11 +25,16 @@ Every change is judged against these. A change that breaks one is not made.
 3. **Few actions per room.** A room asks for one or two placements of the lantern and one or two switches, at places the
    scene points to; the rest of the room is walked in one moment.
 4. **Seen before reached.** Each place is seen first, then reached from an unexpected direction. No text guides the way.
-5. **No forced backtracking.** No puzzle sends the player to another district. A local connection may return to known ground only when it offers an immediate route or useful new perspective before the finale; no shortcut sends the player back to the start after the clear.
-6. **Nothing that looks like a bug.** The body is never pushed out of a wall; a switch or a pick-up into something solid is
+5. **A goal in sight.** From the first frame the player can see what the game asks (the three dark lamps of the signal mast over the bell tower),
+   and each district opens on something seen and not yet reached. A player who never presses a help key still knows what to do
+   next (section 10).
+6. **Free order.** After the teaching ground the three districts are done in any order. No district needs another, none
+   teaches what another uses, and all three reach the same ceiling of difficulty (section 7.4).
+7. **No forced backtracking.** No puzzle sends the player to another district. A local connection may return to known ground only when it offers an immediate route or useful new perspective before the finale; no shortcut sends the player back to the start after the clear. The one walk back that the design accepts, from a way to the lower town, is in section 7.4.
+8. **Nothing that looks like a bug.** The body is never pushed out of a wall; a switch or a pick-up into something solid is
    refused instead.
-7. **Two states of one town.** Light and colour distinguish the moments at a glance; damage, materials and signs of use keep the difference readable without colour (section 6).
-8. **Explained in person.** The core is hand-written C++ and small enough to be explained line by line in an interview.
+9. **Two states of one town.** Light and colour distinguish the moments at a glance; damage, materials and signs of use keep the difference readable without colour (section 6).
+10. **Explained in person.** The core is hand-written C++ and small enough to be explained line by line in an interview.
 
 ## 3. Mechanics
 
@@ -37,7 +45,7 @@ Every change is judged against these. A change that breaks one is not made.
 | Tab moves the whole world between A and B; both moments are complete, walked and seen whole | built |
 | A switch into anything solid, or into water, is refused: the ripple opens and turns back | built |
 | A jump may start in one moment and land in the other (the switch in the air) | built |
-| Holding Tab shows the other moment round the lantern without moving there (look before going) | planned, optional |
+| Holding Tab on the ground shows the other moment in a circle in the middle of the view, without moving there (look before going; section 3.8) | planned, core |
 
 ### 3.2 The lantern
 
@@ -120,9 +128,27 @@ The town prototype uses a third-person follow camera. The lantern follows the ri
 - **Climbing:** a forward jump with Space held can climb a nearby ledge up to 2.2 m above take-off if the top has support, the landing is dry and the body fits along the sampled path. Walking into a wall does not trigger a climb. A dedicated pull-up animation is not included in this pass.
 - **Acceptance:** verify the quay, sea gate and first aerial switch with this controller. Check that sprinting or climbing cannot bypass the intended gates. The baseline route solver does not model the new moves.
 
+### 3.8 The lens
+
+Holding Tab looks into the other moment without going there. It turns trial and error into reasoning: the player may see what
+the other moment holds, but still has to say what to do in A.
+
+- **Hold:** on the ground, Tab held for 0.2 s opens a circle in the middle of the view (about a fifth of the screen height in
+  radius) in which the other moment is drawn. Its rim is warm when it shows A and cool when it shows B. Releasing closes it.
+  The body, the camera and the solid stay in the moment they were in.
+- **Tap:** on the ground, Tab released within 0.2 s switches, at the release. In the air Tab switches at once, on the press, as
+  now, and the lens is not available: the switch in the air is an act, not a look. If the switch on the ground feels late in
+  play, the lens moves to the right mouse button and Tab switches on the press again.
+- **What it shows:** the other moment as it is now, with every trace and the circle of the lantern; never what has not happened.
+  It shows a place, not an answer.
+- **When it closes by itself:** when the body leaves the ground, sinks, falls or is returned.
+- **Made from:** the two pictures the ripple already draws (`Models::DrawRipple`), with a held circle instead of an opening
+  one; no new pass. While it is open both moments are drawn: check the cost on the laptop.
+
 ## 4. Progress and return
 
-- **Main route:** the existing district bells are prototype milestones. Keep the main route readable and the final bell reachable without lighting any optional street lamps. District machinery may change a view of town without creating a required errand in another district. The district gate requirements should be checked when the map is compressed.
+- **The three bells and the tower:** each district has one bell, rung where it hangs. Ringing it lights that district's lamp on the signal mast over the bell tower, which can be seen from every district, and changes the town in a way that is seen and never needed elsewhere (the water of A rises, a machine turns, night falls in A: one each, to be set). The tower opens when the three emblems are lit. The three lamps are the only progress mark: large and wordless (section 10.5). The final bell is reachable without lighting any optional street lamp.
+- **The links to the rock:** each district ends in a link to the plaza of the rock, opened by that district's last puzzle (section 7.4). A link is a connection, never a requirement: every district is complete from the lower town alone. The player takes the link of the district finished last, so the finale does not start with a long walk back.
 - **Anchor lamps:** checkpoints, not collectibles and not optional street lamps. Place them after meaningful progress. A fall or R returns to a safe floor in both moments without depending on the placed lantern. In the uploaded town baseline, this is the last safe standing point; anchor-based recovery and lamp travel belonged to the earlier greybox prototype (git tag `m2-greybox`) and must be rebuilt if wanted.
 - **Optional street lamps:** light a lamp in A and it remains lit in B. A lamp can clarify a nearby route or reveal a landmark. Reward exploration with changes visible in the town and with the boat outcome in section 5, not a collection counter. Memory fragments, fragment-based radius upgrades and unlockable story scenes are not part of the new route.
 
@@ -130,7 +156,7 @@ The town prototype uses a third-person follow camera. The lantern follows the ri
 
 ### 5.1 Final approach (layout to prototype)
 
-From the northern overlook, frame the bell tower, a recognisable entrance and the first walkable segment together. Keep the approach local. Prototype a broken approach in B that reveals the route, a safe position to switch to A, and a short climb through the intact tower. Use the established rules for any lantern-held floor or ledge; a new timing mechanic, long backtrack or precise aerial switch is not required. The bell platform must be reachable through an intended path, not by standing on a wall. Leave enough room to read the bell, the interaction and the harbour below with the third-person camera. The layout and whether the final climb requires a lantern placement remain play-test decisions.
+The three links meet on the plaza of the rock; the player arrives by the link of the district finished last, and the tower opens when its three emblems are lit. From the plaza, frame the bell tower, a recognisable entrance and the first walkable segment together. Keep the approach local. Prototype a broken approach in B that reveals the route, a safe position to switch to A, and a short climb through the intact tower. Use the established rules for any lantern-held floor or ledge; a new timing mechanic, long backtrack or precise aerial switch is not required. The bell platform must be reachable through an intended path, not by standing on a wall. Leave enough room to read the bell, the interaction and the harbour below with the third-person camera. The layout and whether the final climb requires a lantern placement remain play-test decisions.
 
 ### 5.2 The warning and its consequence
 
@@ -227,22 +253,25 @@ sea gate close two of them, to be passed by a jump or by A.
 
 The current town loads the model's terrain, streets and buildings as data. Update the model and re-export the town together for the next layout.
 
+The model will also write what the guidance and the map need (planned, format 5 of the town file): the goals of the main path, each with its district and what it needs; the beacons (section 10.2); and a plan of both moments (section 10.4). Today the file carries only `steps`, one line of nine goals.
+
 ### 7.2 One hill town
 
 | Place | Height (m) | Idea |
 |---|---|---|
 | The harbour | -6 (the quay) | the start; quays, a lighthouse, the sea gate |
-| The lower town | -3 .. 0 | narrow streets under arches; the storm hit it hardest |
+| The lower town | -3 .. 0 | narrow streets under arches; the storm hit it hardest; the hub, where the three stairs part |
 | The cistern and the gorge | -10 .. -6 | under the centre: the well, a tunnel, the floor of the gorge; water in A, walked in B |
-| West: the market and the well | 0 .. 6, the bastion 14 | goes down: the great well to the cistern; the day bell |
-| Centre: the Rock of the Bell | 14 | a round plaza on a rock in a gorge 20 m deep, reached by two bridges; the church and the bell tower |
-| East: the locks | 3 .. 21 | climbs: the east stair down from the rock, five locks to the water tower; the dawn bell |
-| North: the upper street and the theatre | 21 .. 30 | high: the street ends at the top row of the theatre, which faces the rock |
-| The cliff: the graveyard | 42 | the view over everything; the night bell |
+| West: the market and the well | 0 .. 6, the bastion 14 | goes down: the great well to the cistern; the scaffold of the lantern; the day bell; ends at the bastion with the rock in view |
+| Centre: the Rock of the Bell | 14 | a round plaza on a rock in a gorge 20 m deep; the church and the bell tower; reached by the link of each district (the lift from the gorge in the west, the east bridge, the cliff way in the north); the finale |
+| East: the locks | 3 .. 21 | climbs: five locks to the water tower; the dawn bell; entered by a stair from the lower town (to model: now it is entered from the rock by the east stair) |
+| North: the upper street and the theatre | 21 .. 30 | high: the street ends at the top row of the theatre, which faces the rock; entered by its own stair from the lower town (to model: now it starts at the top lock) |
+| The cliff: the graveyard | 42 | the view over everything; the night bell; the cliff way to the rock (to design) |
 
 ### 7.3 Rules
 
-- **A spiral, not spokes.** The main path winds round the rock and passes through each district.
+- **A hub, three ways and a rock.** The lower town is the hub: three stairs part there, one to each district, each marked by its glyph (section 10.5). Each way climbs, drops or crosses in its own manner and ends at its bell with the tower in view. The ways are joined by the rock, not by each other: a way's last puzzle opens its link to the plaza.
+- **Equal ceilings.** The three ways have the same number of beats (three, then a bell) and reach the same difficulty at their last beat, because any one of them may be a player's first or last.
 - **Seen first, reached from an unexpected direction.** The turns of the route come from the main path itself, not from
   shortcuts.
 - **Three heights in every view**: streets on several levels with bridges between, roofs and arches over the street, the
@@ -258,16 +287,22 @@ The current town loads the model's terrain, streets and buildings as data. Updat
 
 ### 7.4 The main path
 
-1. The quay, the sea gate, the lower town (teaching, section 8).
-2. Up the market stairs to the market, over the terrace with the lantern, to the west bastion. The bridge to the rock is
-   seen: in A it ends at a shut gate on the rock, in B it has fallen.
-3. In B down the wreck of the bridge, its spans lying round the gorge like a stair, onto the dry floor of the gorge.
-4. The lift of the rock: on the roof of the lift house at the foot (reached in B, switched to A over the moat) its winch
-   lowers the cage in A; in B the cage lies at the foot and its frame stands, a ladder of girders up the face (the causal
-   rule). Never lowered, the cage fell and tore the frame down with it.
-5. On the plaza; over the east bridge to the locks.
-6. Up the locks to the water tower, along the upper town to the theatre, up the cliff stair to the graveyard.
-7. From the cliff, the way to the top of the bell tower (to be designed) and the last moment.
+After the harbour the town opens: three ways, then the rock.
+
+| Stage | Where | What the player does | Ends with | State |
+|---|---|---|---|---|
+| 1. Teaching ground | the quay, the sea gate, the lower town | the switch, the causal rule, the switch in the air (section 8); the lantern's safe demonstration | the three gates of the lower town open; the tower with its three dark emblems stays in view | built, except the lantern's demonstration |
+| 2. West way | up the market stairs, the market, the scaffold, the bastion | the lantern relay; the day bell | the bastion, with the rock framed across the gorge; its link to the rock: the wreck of the west bridge (B), the gorge, the lift | market, scaffold, day bell, wreck and lift built; the return to the lower town is not modelled |
+| 3. East way | a stair from the lower town to the first lock, up the locks to the water tower | water and the crate; the plank between two roofs; the dawn bell | the water tower; its link: the east stair and bridge to the rock | the locks and the plank exist; the stair from the lower town is not modelled (the locks are entered from the rock today) |
+| 4. North way | a stair from the lower town to the upper street, the theatre, the cliff stair | the aerial switch and the prism; the night bell | the graveyard on the cliff; its link: the cliff way to the rock (to design) | gatehouse crate and night bell exist; the stair from the lower town is not modelled (the street starts at the top lock today) |
+| 5. The rock | the link of the district finished last, the plaza | the tower opens when the three emblems are lit; the climb inside; the warning bell | the ending views (section 5) | lift and plaza built; the inside of the tower to design |
+
+Rules of the order:
+
+- The three ways open together, when the teaching ground is done, and are taken in any order. Each is complete from the lower town alone: no puzzle of a way needs anything of another, and nothing done in one changes what another asks.
+- The return from a way's bell to the lower town is the one walk back this design accepts. It is not a puzzle, it sends the player to no other district, and it should take about 20 s at most and show a new view or open a shortcut when the bell is rung (a rope, a chute, a lift).
+- A link is a connection, not a key. A link opened early may let a player enter another way from the plaza, never past a puzzle of it; a viewpoint alone may be reached early.
+- The day bell hangs in the market today, before the scaffold. Whether each bell moves to the end of its way is a play-test question (section 14).
 
 ### 7.5 The model checked
 
@@ -285,7 +320,8 @@ Fixed on 2026-11-24 and kept true by `city_model.py check`:
 | The market | the market stairs pass west of the well, clear of its parapet |
 | The centre | the tunnel from the well opens into the gorge under the west bridge (under the water of A); the lift: in A the cage at the plaza, in B its frame leaning up the face of the rock; the west bridge: its middle in A only, its gate on the rock end shut in A and open in ruin in B |
 | The lantern | the street_b view shows its circle on the west bridge: the middle of the bridge of A standing in B |
-| Still open | the exact walkable geometry from the northern overlook into the bell tower (section 5) |
+| The order | the model is one line today: the west way leads to the rock, the rock to the locks, the locks to the street; the check does not yet test the three ways (section 11) |
+| Still open | the stairs from the lower town to the east locks and to the upper street, the links to the plaza (7.4), and the exact walkable geometry from the plaza into the bell tower (section 5) |
 
 ### 7.6 Compact and connected town
 
@@ -302,10 +338,10 @@ Keep the complete town and its winding climb, but aim for about 60% of the curre
 
 | Area | Readable forward route | Optional connection |
 |---|---|---|
-| Harbour and sea gate | Keep the teaching sequence. Frame the bell tower and the first climb together after the gate. | A freight-yard back door leads to a loading deck and returns by a side stair. It never bypasses the sea gate lesson. |
+| Teaching ground: harbour and sea gate | Keep the teaching sequence. After the gate, frame the bell tower with its three dark emblems and the three stairs of the lower town together. | A freight-yard back door leads to a loading deck and returns by a side stair. It never bypasses the sea gate lesson. |
 | West market, gorge and rock | Teach the lantern before the west bridgehead. In A the intact bridge ends at a closed gate; in B the fallen spans become the descent. Use the lift winch in A, then climb the surviving frame in B. | A grate at the west rim previews a maintenance gallery below the market. The lower latch is first reachable from the landing after the wreck descent. The gallery returns to the west rim and then rejoins the same landing; using it is optional. |
-| East roofs and theatre | Keep the plank lesson; only then split the route into street and roof paths. Both meet at the theatre backstage. | The street shows intact arcades; the roof previews the backstage and northern gatehouse. A side stair closes the local loop without a required return or pickup. |
-| Northern overlook and tower | Frame the tower entrance, first walkable segment and harbour. B exposes the approach; switch on safe ground into A and climb inside. | The warning bell and boats remain the payoff. Optional lamps can affect the visible boat outcome but cannot gate the tower, bell or any ending view. |
+| East and north ways: roofs and theatre | Keep the plank lesson; only then split the route into street and roof paths. Both meet at the theatre backstage. | The street shows intact arcades; the roof previews the backstage and northern gatehouse. A side stair closes the local loop without a required return or pickup. |
+| The rock and the tower | Frame the tower entrance, first walkable segment and harbour from the plaza, which the player reaches by the link of the last district finished. B exposes the approach; switch on safe ground into A and climb inside. | The warning bell and boats remain the payoff. Optional lamps can affect the visible boat outcome but cannot gate the tower, bell or any ending view. |
 
 #### West loop review and implementation boundary
 
@@ -316,17 +352,42 @@ The gallery in the review is a proposed centerline, not geometry. First test an 
 Place `west_loop_preview.py` beside `tools/layout/city_model.py` and run `python tools/layout/west_loop_preview.py` from the repository root with NumPy, Matplotlib and Pillow. It runs the existing street checks and writes `build/west_loop_preview.png`. Gold is the route intent; dashed teal is the gallery proposal. The sheet is rendered from the layout model, not the Windows game. Its schematic is not a collision, sight-line or clearance test.
 
 
-## 8. Puzzles by district (draft)
+## 8. Puzzles
 
-These are baseline puzzles on the uploaded model, not final layouts for the compact town. Keep the original teaching intent where useful. Give the player a safe lantern demonstration before the west market scaffold; the scaffold is the first required use, not first exposure.
+Every way is built from the same pieces. This section says how a room is made, which templates a room may use, and what each way is built from. It is the baseline on the uploaded model, not the final layout of the compact town.
 
-| District | Taught or used | Sketch |
-|---|---|---|
-| Harbour and lower town | walking; the switch; the causal rule; the switch in the air | **built** (2026-11-25, tests/test_things.cpp): beat 1, the switch: the game starts in B on the quay, a heap of wreck closes the way west in B only; beat 2, the causal rule: the portcullis of the sea gate is shut in both moments; its gold winch raises it in A, where the cargo of the customs fills the passage behind it; in B the cargo is gone and the portcullis is raised where A left it, with its trace; beat 3, the switch in the air: the lower street is closed in A by the barricade of the customs (5 m) and in B by the front of a fallen house (3.4 m over the street); two crates of A climb to 2.4 m; from the top one a jump with a switch at its top lands on the heap of B, whose far side steps down to the street. beat 4 (placed 2026-11-25), the canal of the customs: a crate pushed in A floats to the far quay and lies on the dry bed in B. **Replaced**: the crate puzzle of the customs-house cloister, re-made so that the crate is moved in A and lies in B where A left it, proved again by the solver, at most two switches |
-| West: market and well | the lantern (first met here); the orb | **placed** (2026-11-25): the scaffold of A under a shed roof by the terrace of the market; the lantern on it, climbed in B. Earlier sketch: the wooden stair of A kept standing by the lantern in the dry shaft of B; the day bell at the foot |
-| Centre: the rock | the causal rule at a large scale | **built** (2026-11-25): the wreck of the west bridge down into the gorge (B), the lift lowered in A and climbed in B (7.4); the gate of the west bridge stays shut (seen, not crossed) |
-| East: the locks | water and the crate | **placed** (2026-11-25): the plank laid between two roofs in A holds in B. Still: a crate floated in A to where it is needed lies there on the dry bed in B; the tower lock re-made the same way; the dawn bell in the water tower |
-| North: theatre and graveyard | the prism; the switch in the air | **placed** (2026-11-25): the gatehouse of the theatre: a crate pushed under its balcony in A, then a switch in the air onto the heap of B. Still: the prism moves a thing of A into B; the fallen back wall of the theatre passed with a switch in the air; the night bell; the traces of the whole game seen from the cliff |
+### 8.1 How a room is made
+
+1. **Three beats.** Each way has three puzzle rooms in this order: **teach** (the rule is shown where nothing can go wrong, and the answer is in view), **twist** (the same rule in a less obvious form), **test** (the rule combined with one idea taught before, in a larger space). The bell closes the way. The teaching ground teaches the rules; no way teaches a rule that another way needs.
+2. **One idea per room.** A room has one new thought and no more actions than principle 3 allows.
+3. **Seen from the entrance.** The end of a room (the gate, the far bank, the high lamp) is in view before the first act; the way to it is not.
+4. **The answer is in the room.** The ruin shows what is missing (a plank in the wrong place, a gate open beyond a gap). No clue is carried from another room or another way.
+5. **Hidden ways pay the player who looked.** An optional room is entered by something seen and not yet understood, and ends in a connection, a view or a street lamp (section 4).
+
+Borrowed from, without copying: the one-idea rooms of the Zelda shrines and the Elden Ring catacombs, where the end is seen first, the answer lives in the room and a hidden wall rewards a player who looked.
+
+### 8.2 Templates
+
+| Template | The thought | Rests on | Used in |
+|---|---|---|---|
+| Trace | "I did it there, so it is like this here" | what is done in A shows in B (3.3) | every way; the base of all others |
+| Lantern relay | a circle is carried across by hand, never by the switch: cross on the held floor, call the lantern back (E) once on B ground, set it again | the lantern is set in A only; a pick-up that leaves the body on nothing is refused (3.2) | the west way |
+| Held floor | a floor of A kept standing by the lantern is the one step in B | 3.2 | the west and north ways |
+| Water level | water holds in A and is a dry bed in B; a crate floated in A lies on the bed in B | 3.6 | the east way |
+| Prism | a thing of A made to last in B, never the other way | 3.6 | the north way |
+| Aerial switch | the jump starts in one moment and ends in the other | 3.1 | the teaching ground, one twist of a way, optional rooms; never the only test of a room; the margin of section 11 |
+| Hidden way | a wall of A that is a gap in B, shown from the street by a draught or a light | 3.6 | optional rooms |
+| Latch of B | a latch that works in B only and is local to a gate of B; it changes nothing in A, so 3.3 holds | 3.3 | the optional west gallery |
+
+### 8.3 The ways
+
+| Way | Idea | Teach, twist, test, bell | State |
+|---|---|---|---|
+| Teaching ground: harbour and lower town | walking; the switch; the causal rule; the lantern | **The switch:** the game starts in B on the quay, a heap of wreck closes the way west in B only. **The causal rule:** the portcullis of the sea gate is shut in both moments; its gold winch raises it in A, where the cargo of the customs fills the passage behind it; in B the cargo is gone and the portcullis is raised where A left it, with its trace. **The switch in the air:** the lower street is closed in A by the barricade of the customs (5 m) and in B by the front of a fallen house (3.4 m over the street); two crates of A climb to 2.4 m; from the top one a jump with a switch at its top lands on the heap of B, whose far side steps down to the street. **The canal of the customs:** a crate pushed in A floats to the far quay and lies on the dry bed in B (it replaces the crate puzzle of the customs-house cloister; proved by the solver, at most two switches). **The lantern:** a short safe stretch where the lantern is shown in hand, set down in A, seen as a warm patch in B and taken up again, before the three gates open (section 10.6) | built (2026-11-25, `tests/test_things.cpp`); the lantern's demonstration planned |
+| West: market and well | the lantern relay | **Teach:** the scaffold of A under a shed roof by the terrace of the market; the lantern on it, climbed in B. **Twist:** the great well: the wooden stair of A kept standing by the lantern in the dry shaft of B. **Test:** two gaps in a row with one lantern, ending at the bastion. **Bell:** the day bell | scaffold placed (2026-11-25); the well a sketch; the relay and the position of the bell to design |
+| East: the locks | water and the crate | **Teach:** a crate floated in A to where it is needed lies there on the dry bed in B. **Twist:** the plank laid between two roofs in A holds in B. **Test:** the tower lock made the same way. **Bell:** the dawn bell in the water tower | plank placed (2026-11-25); the rest to build |
+| North: theatre and graveyard | the aerial switch and the prism | **Teach:** the gatehouse of the theatre: a crate pushed under its balcony in A, then a switch in the air onto the heap of B. **Twist:** the prism moves a thing of A into B. **Test:** the fallen back wall of the theatre passed with the lantern and a switch together, not with the switch alone. **Bell:** the night bell on the graveyard; the traces of the whole game are seen from the cliff | gatehouse placed (2026-11-25); the rest to build or design |
+| The rock: link of the west way | the causal rule at a large scale | the wreck of the west bridge down into the gorge (B); the lift lowered in A and climbed in B (7.4); the gate of the west bridge stays shut (seen, not crossed) | built (2026-11-25); the tower itself to design |
 
 ## 9. Environmental storytelling
 
@@ -337,12 +398,68 @@ The flood premise is in section 5. Main-route play does not depend on knowing th
 - **Overlooks:** keep a high point in each district that frames a visible next destination and, when the terrain permits, the bell tower. The view should tell the player where a route might run, not just show scenery.
 - **Not carried forward:** the player-caused flood twist, graves as the finale payoff, unlockable memory scenes and a story-based true-ending requirement. Further backstory is not needed for the first playable finale.
 
-## 10. Immersion and guidance
+## 10. Guidance and immersion
 
-- Make the environment explain the next move before adding markers: frame the destination from the entrance, give the next interaction a recognisable silhouette, and make the difference between A and B readable at the obstacle. Teach one new idea at a time and let the player try it somewhere safe before requiring it on the main path.
-- Keep the three agreed guidance aids as a fallback. A subtle pillar identifies the current local goal. Moving lights indicate direction, with warm light for A, cool light for B, and a distinct pulse at a suggested switch point; an arc can suggest an aerial switch. Show guidance during the first lesson, then offer it on H or after roughly 30 seconds without meaningful progress. Use brief key prompts where needed, not written walkthroughs. Do not reveal optional routes by default or show the complete answer before the player has tried.
-- Give the lantern an early, safe demonstration before the west market scaffold, where it is first required. Show the lantern in hand, placing it in A, the warm patch that retains A inside B, and how to retrieve it. The existing town build already supports placement in A and a patch of A in B; the problem reported in play is that the feature is not apparent. Validate any hint route with the real character and camera, not only the reachability solver.
-- Use sound as a second cue: harbour activity and gulls in A; wind, dripping and the far sea in B. Distinguish switch, refusal and lantern placement by sound once audio is added. Warm guidance colours in B must not be confused with the lantern patch or a causal trace.
+The player must always know what the game asks and where to look next without pressing a key. The help keys are for the player who wants more, not for the one who is lost. Nothing is written.
+
+Make the environment explain the next move before adding any marker: frame the destination from the entrance, give the next interaction a recognisable silhouette, and make the difference between A and B readable at the obstacle. Teach one new idea at a time and let the player try it somewhere safe before requiring it on the main path. Use brief key prompts where needed, not written walkthroughs. Do not reveal optional routes by default or show the complete answer before the player has tried.
+
+### 10.1 Four layers of goal
+
+| Layer | The player asks | The game answers with | State |
+|---|---|---|---|
+| Far | Where does this end? | the three lamps of the signal mast over the bell tower, in sight from the first frame, dark until the bell of their district is rung (a rung bell lights one, in sight of the whole town) | built (2026-11-26) |
+| Way | What is in this district? | the three gates of the lower town, each with its glyph; on entering a way, a beacon (10.2) | planned |
+| Room | How do I get past this? | the room itself: the end in view, the ruin showing what is missing, A and B readable at the obstacle (3.4, 8.1) | built in part |
+| Help | I am stuck | the flame of the lantern and H (10.3), the map (10.4), the lens (3.8) | the flame, H and the map are built; the lens is planned |
+
+### 10.2 Beacons
+
+A beacon is a place the player can see and cannot yet reach, at the start of a way and of a room: a warm window high in the bastion tower, a fall of water at the top lock, a stage lit by one lamp. It is the question; the way to it is the puzzle. It is part of the town, seen from the street, and not a marker. The map shows a beacon the player has seen as a ring that fills when it is reached. First candidates: the bastion tower (west), the top lock (east), the theatre stage (north).
+
+**Why a mast.** The bell tower itself cannot be the far goal from the quay: the sea wall, 8 m in front of the start, hides it in both moments (`tests/test_firstminute.cpp` casts the rays from the camera of the first frame; the tower's south face is blocked in A and in B, and only the top 5 m of the spire of A clears the wall, while the game starts in B). So the three lamps hang on a signal mast that stands over the tower and clears the wall: three round lamps on a yard at 61 m, the mast coming out of the dome of the church and, in B, rising free over the broken shaft. The player sees the lamps from the quay, the sea stair and the sea gate; from the streets of the lower town the houses hide them, and the flame and the map take over.
+
+### 10.3 The lantern as compass
+
+The compass is the lantern, so help is an object of the world and not a layer on the screen. Built (2026-11-26): `scene/Guidance.h`, `scene/Flame.h`.
+
+- **The flame leans (always on).** The flame over the lantern, in the hand and set down, leans 18 degrees toward the goal: the first step of the main path that is not done, and the signal mast when all are done. (The first design said about 10 degrees; that was too small to see at the distance of the camera, so it is a setting, `[guidance] lean_degrees`.) It stands upright within 2 m of the goal.
+- **It grows with need.** After 30 s without progress (a step done, a new 6 m cell of ground, or a new closest approach by 4 m) the lean grows to 40 degrees and the flame throws sparks.
+- **H, first press:** the lantern is raised (the arm goes up) and a warm beam sweeps over the place for 6 s: it swings wide and settles on the bearing of the goal. It shows the place, not the act.
+- **H, second press** during the sweep, and only after 90 s without progress, so the player has tried first: a frame round the thing to use (the winch, the crate, the plank), joined to the lantern by a line of motes, for 12 s. Before the 90 s a second press only puts the sweep away. A press while the frame shows puts it away.
+- **Not built:** the third press (the pulse at a suggested switch point, an arc for an aerial switch); the flame standing upright in the lower town, where the three gates are the choice (the main route is one line, not three ways yet: section 7.4).
+- **Rules.** The player escalates by pressing and by time without progress, never by distance to an answer. The flame never points at an optional room (there are none yet). With the lantern set down its flame leans where it stands. Warm guidance in B must not be confused with the lantern patch or a causal trace: gold means use, the lantern's colour is the flame.
+
+### 10.4 The map: two sheets of tracing paper
+
+Built (2026-11-26): `scene/MapMemory.h`, `render/MapView.h`, the plan in the town file.
+
+- **M opens it** over the frozen game: time stands still, the clock of the guidance too. Two sheets of tracing paper, the plan of A and the plan of B, laid one over the other. What stands in both moments is drawn once, in a neutral ink; what stands in one only is warm (A) or cool (B); where both have something and it differs, both are drawn and the sheet on top shows over the other. The player reads the rule from the map: a moat drawn warm only is water of the past. Tab turns the other sheet to the top (it does not switch the world); the frame and two chips in a corner say which sheet is on top.
+- **The plan** is made by the model: cells of 1 m, one class per cell and moment: water, cliff (a slope of more than 41 degrees), building, street (a floor to walk). A street is drawn over an arch.
+- **Only what has been seen is drawn:** the cells within 15 m of the body, and, from an overlook of the model (the two bastions, the plaza of the rock, the top row of the theatre, the graveyard), the town as far as 40 to 80 m. The rest is blank paper. The tower with its three lamps is always drawn: it is the goal.
+- **What it holds:** the player (an arrow that points where the camera looks), the lantern when it is set down, the tower with its lit and dark lamps, the markers.
+- **Markers:** E with the pointer on the paper places one; E on a marker takes it away. At most five; a sixth takes the oldest place. Each stands in the world as a thin column of light, in both moments. No text, no types.
+- **The window** shows what is seen, with a margin, and always the player and the tower; at least 90 m across; north is up. The pointer is free while it is open; M or Esc closes it. The prompt M MAP is offered, dimmed, after 40 s of walking, to a player who has not opened it.
+- **What it never holds:** a corner minimap, a task list, the position of an unseen thing, or what to do. The only words are the keys at its foot.
+- **Not built:** the beacons seen as rings, the lit street lamps and the glyphs of the ways on their gates (none of them exist yet).
+
+### 10.5 The glyph board
+
+This is the quest system without words. Each way has a glyph, simple enough to read at 64 px in both colours. Built (2026-11-26) as three lamps on the signal mast: a sphere for the well (west, the day bell), a column for the cliff (north, the night bell) and a box for the lock (east, the dawn bell); each is dark until its bell is rung, then warm and glowing, in both moments, and the lit mast is seen from the whole town. The three lamps are the whole quest log: no list, no counter, no marker that names a task. Optional street lamps are not on it. The same three lamps are on the map. Not built: the glyphs carved on the gates of the ways, on the bells and on the map (there are no gates yet: section 7.4).
+
+### 10.6 The lantern's demonstration and the first minute
+
+Give the lantern an early, safe demonstration in the lower town, before the three gates open and before the west scaffold, where it is first required. Show the lantern in hand, placing it in A, the warm patch that retains A inside B, and how to retrieve it. The existing town build already supports placement in A and a patch of A in B; the problem reported in play is that the feature is not apparent. Validate any hint route with the real character and camera, not only the reachability solver. (Not built: KI-14.)
+
+**The first minute, as built (2026-11-26).** The game starts in B on the quay, and the first frame is set by the town file (spawn yaw -0.55, pitch +0.29): the heap of wreck to the left, the winch of the sea gate left of the middle, and the three dark lamps of the mast high in the sky right of the middle. `tests/test_firstminute.cpp` keeps it so for the lenses of 60, 70 and 90 degrees and the screens 16:9, 16:10 and 4:3 (the lamps are at 0.88 of the half height in the narrowest case), and proves with rays that nothing of the town is in the way of any lamp in either moment. The flame of the lantern in the hand leans toward the winch, which is in the picture. After 8 s of walking, to a player who has not switched, the prompt says TAB SWITCH WORLD; after 40 s, M MAP. The first minute is tested uncoached (section 12): the player sees the lamps, goes to the sea gate without being told, and can say what the game asks.
+
+### 10.7 What replaced the fallback
+
+The fallback of 2026-11-26 (a pillar of light over the next step, shown in the first 20 s, on H and after 30 s without progress, with lights running toward it) is gone: a player who never pressed H had no goal, and the pillar was the answer, not a question. What was kept: the measure of progress (a step done, a new 6 m cell, a new closest approach by 4 m), now the clock of the flame; the prompt TAB SWITCH WORLD; and, in the second press of H, a faint frame round the thing to use. The first step of the main path is still the goal of the flame; `steps` becomes `goals` with a way and what each needs when the three ways are modelled (section 7.4, 12).
+
+### 10.8 Sound
+
+Use sound as a second cue: harbour activity and gulls in A; wind, dripping and the far sea in B. Distinguish switch, refusal and lantern placement by sound once audio is added. A bell rung lights its emblem and sounds across the town.
 
 ## 11. Limits and proof
 
@@ -366,13 +483,19 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | The town | `tests/test_town.cpp`: the file, the solid, every street walked end to end, the water of each moment |
 | Recovery | every place of return is a place to stand, out of the water, in both moments (`FitsInTown`, `Moments::Supports`) |
 | The third-person body | `tests/test_town_player.cpp`: the climb checks support, clearance and water; the camera retracts round walls |
+| The three ways | `tests/test_route.cpp` (planned): from the lower town with the teaching ground done, each way is solved on its own; its goals are unreachable before their prerequisites; its reachable set is the same with the other two ways done or not; a link opened early reaches no unsolved puzzle of another way; the rock opens only at three bells; in every order of the three ways the tower is reached |
+| Guidance | `tests/test_guidance.cpp`: the goal; the flame (it leans toward the goal, restless after 30 s, calm after progress, upright at the goal, the same on the lantern set down and on the avatar); the presses of H and their times (the sweep, the frame only after 90 s, away when a step is done); what is drawn; planned: the flame upright in the lower town, nothing pointing at an optional room |
+| The lens | `tests/test_lens.cpp` (planned): the solid does not change while it is open; tap and hold on the ground; the switch at once in the air; it closes when the body leaves the ground |
+| The map | `tests/test_map.cpp`: the plan of the model (both moments, the moat in A only, the streets under their middle lines); what is seen (the radius, the overlooks, never more); the markers (five at most); the paper (inside every screen, the player and the tower on it, the window); the ink (neutral, warm, cool, the sheet on top, blank paper, the lamps, the arrow, the flags); the whole town on the map fits the batch |
+| The first minute | `tests/test_firstminute.cpp`: rays from the camera of the first frame to every lamp in both moments; the sea wall does hide the tower itself; the lamps, the winch and the heap inside the picture for every lens and screen; three lamps, dark at the start, each lit by its own bell; the compass points into the picture; the heap closes the quay in B only |
 
 ## 12. Order of work and acceptance
 
-1. Prototype third-person movement, sprint, ledge climbing and a visible lantern in one compact section. Tune against a tight alley, a raised ledge and a switch in the air before changing the whole town.
-2. Rework the harbour through the first lantern lesson as a reference district. Validate the art on the quay-to-sea-gate route before extending it (section 6.8). Give first-time players a clear destination, one worthwhile detour and a visible reward for changing the past. Ask them to play without verbal coaching; note where they lose the route, cannot read an interaction or expect an unreachable platform to be playable.
-3. Prototype the west loop next, then repeat the proven approach in the east and north. In an uncoached west test, check whether players look down from the bridgehead, recognise it again from the upper station and find the lift without taking the optional gallery. Test locked and released gallery states with sprint, mantle and aerial switches. The landing, lift and plaza must stay in order; a viewpoint alone may be reached early. Re-test safe recovery and optional-lamp independence. The old route solver is a baseline, not proof for the new controller.
-4. Build the bell tower finale and boat payoff after the movement and exploration loop is stable. Verify the route to the final bell and all ending states, including a run with no optional lamps.
+1. Third-person movement, sprint, ledge climbing and a visible lantern: a first pass is built. Tune against a tight alley, a raised ledge and a switch in the air before changing the whole town.
+2. **The teaching ground as the reference district, with the new guidance.** Built (2026-11-26): the signal mast with its three dark lamps in view from the quay, the flame that leans, H, the map, the first frame. Not built: the lantern's safe demonstration; the three gates with their glyphs; a beacon at the start of the first way; the lens. Validate the art on the quay-to-sea-gate route before extending it (section 6.8). Give first-time players a clear destination, one worthwhile detour and a visible reward for changing the past. Ask them to play without verbal coaching and measure: within 60 s can they say what the game asks; do they take a stair unprompted; how often do they press H; how many times do 30 s pass without progress; where do they lose the route, cannot read an interaction or expect an unreachable platform to be playable.
+3. **Make the order free.** Model the stair from the lower town to the east locks and to the upper street, and the links to the plaza; replace `steps` by `goals` with their ways; extend the solver to the tests of section 11; keep the old line as a baseline until they pass.
+4. **The west way first** (it holds the lantern relay and the most built content), then the east and the north, each with three beats and a bell, each tested uncoached. In an uncoached west test, check whether players look down from the bridgehead, recognise it again from the upper station and find the lift without taking the optional gallery. Test locked and released gallery states with sprint, mantle and aerial switches. A viewpoint alone may be reached early. Re-test safe recovery and optional-lamp independence. The old route solver is a baseline, not proof for the new controller.
+5. Build the bell tower finale and boat payoff after the movement and exploration loop is stable. Verify the route to the final bell from the link of each district, in each of the six orders, and all ending states, including a run with no optional lamps.
 
 The uploaded town already loads `data/town.dlt`, supports the lantern patch and causal objects, and has a solver for the old route. Keep those results as a baseline only. Before updating the layout broadly, review the first district with a new player: can the player find the route without coaching, explain why a trace appears in B and use the lantern unprompted at the first required obstacle? Test safe camera behaviour on every switch, a refused climb with inadequate clearance, a refused switch into solids or water, and recovery without lantern-dependent support. Test zero, some and all optional lamps; the same main route and ending views must remain available.
 
@@ -380,12 +503,15 @@ The uploaded town already loads `data/town.dlt`, supports the lantern patch and 
 
 - **2026-11-24:** one complete town, A before B, past-to-present cause and effect, one held patch from a placed lantern, no mandatory district-spanning errands and no post-clear shortcut back to the start.
 - **2026-11-25:** current town starts in B; the harbour teaches the switch and the one-way causal rule. The lantern receives a safe early demonstration in the next version. The town has a first third-person player pass. A denser town, fallback guidance and optional street lamps remain planned. Use the central warning bell and boats for the finale. See [Changelog](../CHANGELOG.md) for prototype history.
-
 - **2026-11-25, exploration pass:** linear harbour onboarding, a readable main spine and two optional local loops. Review the west bridge reversal first; leave the east loop and northern climb as follow-up prototypes.
+- **2026-11-26, guidance and order:** the main route is no longer one line. The harbour and the lower town are the teaching ground; after it the town opens into three ways (west, east, north), done in any order, each of three beats and a bell, and joined by the rock, not by each other. The tower opens when its three emblems are lit; its progress mark is the glyph board and nothing else. Guidance is layered: a goal in sight, a beacon at each way, the lantern's flame as a compass (always on, growing with need), H for more, a map of two sheets of tracing paper with up to five markers, and a lens on holding Tab. Not adopted: a corner minimap, a task list, a compass bar, narration. The pillar of 2026-11-26 is a fallback only.
+- **2026-11-26, the first minute and the map:** the bell tower cannot be the far goal (the sea wall hides it from the quay in both moments, measured), so the three emblems hang on a signal mast over it, in sight from the first frame. The guidance of the fallback (the pillar) is replaced by the flame of the lantern, H in two steps and the map on two sheets of tracing paper. The lens, the beacons, the lantern's demonstration and the three ways are still to build.
 
 ## 14. Open
 
 - Tune the camera, sprint speed, ledge height and jump envelope on the reference route.
-- Prove the west gallery alignment and lower latch in collision, then finalise playable roofs, interiors and the north-to-tower approach; verify the final bell with actual input, not just route reachability.
+- Model the three ways: the stairs from the lower town to the east locks and to the upper street, the link of each district to the plaza (the cliff way in the north is not designed), and the return from each bell to the lower town (its limit is in 7.4).
+- Decide whether each bell moves to the end of its way (the day bell hangs in the market, before the scaffold, today) and what each bell changes in the town.
+- Prove the west gallery alignment and lower latch in collision, then finalise playable roofs, interiors and the approach from the plaza into the tower; verify the final bell with actual input, not just route reachability.
 - Set optional lamp locations, boat mapping and escape counts; prototype the Past, Present and Both views before choosing their controls.
-- Tune guidance thresholds and cue contrast. Holding Tab to preview a layer remains an optional idea, not required for the finale. Audio and further environmental detail can follow after the route works.
+- Tune the guidance and the map on play: the lean of the flame (18 and 40 degrees), the 30 s and 90 s times, the size and glow of the three lamps against the sky of B and of A, the first frame (yaw and pitch of the town file), the colours of the map, the reveal radius (15 m). If the tap on the ground feels late, move the lens to the right mouse button (3.8). Draw the three glyphs for the gates. Audio and further environmental detail can follow after the route works.

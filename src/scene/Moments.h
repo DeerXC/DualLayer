@@ -12,7 +12,7 @@
 #pragma once
 
 #include "scene/Camera.h"  // Vec3
-#include "scene/Terrain.h" // ClosestOnTriangle
+#include "scene/TriMath.h" // ClosestOnTriangle
 #include "scene/TriMesh.h"
 
 #include <array>
@@ -98,8 +98,8 @@ class Moments
                     m->PushOut(c, r);
                 }
             }
-            const Vec3 moved = terrain::Sub(c, start);
-            return std::sqrt(terrain::Dot(moved, moved));
+            const Vec3 moved = tri::Sub(c, start);
+            return std::sqrt(tri::Dot(moved, moved));
         }
         // B with the circle: the triangles of A whose nearest point is inside it, those of B whose nearest point is
         // outside
@@ -118,13 +118,13 @@ class Moments
                 mesh->ForEachNear(c.x, c.z, r,
                                   [&](const Vec3& a, const Vec3& b, const Vec3& t)
                                   {
-                                      const Vec3 q = terrain::ClosestOnTriangle(c, a, b, t);
+                                      const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);
                                       if (m_circle.Contains(q) != inside)
                                       {
                                           return;
                                       }
-                                      const Vec3 d = terrain::Sub(c, q);
-                                      const float d2 = terrain::Dot(d, d);
+                                      const Vec3 d = tri::Sub(c, q);
+                                      const float d2 = tri::Dot(d, d);
                                       if (d2 < bestD2)
                                       {
                                           bestD2 = d2;
@@ -150,7 +150,7 @@ class Moments
             const float dist = std::sqrt(bestD2);
             if (dist > 1.0e-6f)
             {
-                const Vec3 d = terrain::Sub(c, best);
+                const Vec3 d = tri::Sub(c, best);
                 c = {best.x + d.x * (r / dist), best.y + d.y * (r / dist), best.z + d.z * (r / dist)};
             }
             else
@@ -158,8 +158,77 @@ class Moments
                 c = {best.x, best.y + r, best.z}; // exactly on a surface: out upward
             }
         }
-        const Vec3 moved = terrain::Sub(c, start);
-        return std::sqrt(terrain::Dot(moved, moved));
+        const Vec3 moved = tri::Sub(c, start);
+        return std::sqrt(tri::Dot(moved, moved));
+    }
+
+    /// The part of the push on a ball that comes from contacts that are not ground: for every triangle of this moment
+    /// that the ball overlaps, whose push points up by less than `groundFacing` of its length (a wall, or a slope too
+    /// steep to stand on), the push of that contact on the ground plane is added to (wx, wz). Each contact is asked on
+    /// its own: the push of a floor that is touched in the same step must not be mixed in, or a wall that is pressed on
+    /// while the body rests on a floor would be taken for ground (the sum of a push up and a push back points up when
+    /// the floor is the deeper one).
+    void WallPush(const Vec3& c, float r, int layer, float groundFacing, float& wx, float& wz) const
+    {
+        if (layer != 0 && layer != 1)
+        {
+            return;
+        }
+        const bool circle = layer == 1 && m_circle.On(); // in the present with the circle of the lantern
+        enum Filter
+        {
+            kAny,
+            kInside,
+            kOutside
+        };
+        const auto look = [&](const TriMesh* mesh, Filter filter)
+        {
+            if (mesh == nullptr)
+            {
+                return;
+            }
+            mesh->ForEachNear(c.x, c.z, r,
+                              [&](const Vec3& a, const Vec3& b, const Vec3& t)
+                              {
+                                  const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);
+                                  if (filter != kAny && m_circle.Contains(q) != (filter == kInside))
+                                  {
+                                      return;
+                                  }
+                                  const Vec3 d = tri::Sub(c, q);
+                                  const float d2 = tri::Dot(d, d);
+                                  if (!(d2 < r * r) || !(d2 > 1.0e-12f))
+                                  {
+                                      return;
+                                  }
+                                  const float dist = std::sqrt(d2);
+                                  if (d.y < groundFacing * dist)
+                                  {
+                                      wx += d.x / dist * (r - dist);
+                                      wz += d.z / dist * (r - dist);
+                                  }
+                              });
+        };
+        if (!circle)
+        {
+            look(m_mesh[static_cast<std::size_t>(layer)], kAny);
+            for (const TriMesh* m : m_extra[static_cast<std::size_t>(layer)])
+            {
+                look(m, kAny);
+            }
+            return;
+        }
+        // the triangles of A inside the circle, those of B outside it (the same rule as PushOut)
+        look(m_mesh[0], kInside);
+        look(m_mesh[1], kOutside);
+        for (const TriMesh* m : m_extra[0])
+        {
+            look(m, kInside);
+        }
+        for (const TriMesh* m : m_extra[1])
+        {
+            look(m, kOutside);
+        }
     }
 
     /// True when a ball of radius `r` resting with its lowest point at `feet` has something under it that faces up (the

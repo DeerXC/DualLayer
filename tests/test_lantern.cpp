@@ -123,6 +123,21 @@ void TestSolid()
     wall = {0.0f, 1.0f, 13.8f};
     w.moments.PushOut(wall, kR, 1);
     CHECK(Near(wall.z, 13.8f, 1e-4f));
+    // the wall push: a wall of A is a wall in B inside the circle only; a floor is never a wall
+    float wx = 0.0f;
+    float wz = 0.0f;
+    w.moments.SetCircle({{0.0f, 1.0f, 13.0f}, 3.0f});
+    w.moments.WallPush({0.0f, 1.0f, 13.8f}, kR, 1, 0.6f, wx, wz);
+    CHECK(Near(wx, 0.0f, 1e-4f) && Near(wz, -(kR - 0.2f), 1e-3f)); // pushed back from the wall at z 14
+    wx = wz = 0.0f;
+    w.moments.WallPush({0.0f, 1.0f, 13.8f}, kR, 0, 0.6f, wx, wz);
+    CHECK(Near(wz, -(kR - 0.2f), 1e-3f)); // in A it is a wall with or without the circle
+    wx = wz = 0.0f;
+    w.moments.WallPush({0.0f, 0.3f, 8.0f}, kR, 0, 0.6f, wx, wz);
+    CHECK(wx == 0.0f && wz == 0.0f); // a floor pushes up: no wall
+    w.moments.SetCircle({{0.0f, 1.0f, 3.0f}, 3.0f});
+    w.moments.WallPush({0.0f, 1.0f, 13.8f}, kR, 1, 0.6f, wx, wz);
+    CHECK(wx == 0.0f && wz == 0.0f); // outside the circle the wall of A is not there in B
 }
 
 void TestRules()
@@ -158,7 +173,6 @@ void TestRules()
 Vec3 WalkNorth(World& w, int layer, float seconds)
 {
     Player body;
-    body.SetScene(nullptr, 0);
     body.SetTown(&w.moments);
     body.SetSpawn({0.0f, 0.0f, -4.0f});
     body.Respawn();
@@ -166,7 +180,7 @@ Vec3 WalkNorth(World& w, int layer, float seconds)
     in.moveForward = 1.0f;
     for (int i = 0; i < static_cast<int>(seconds / kDt); ++i)
     {
-        body.Update(in, {0.0f, 0.0f, 1.0f}, layer, 0.0f, kDt);
+        body.Update(in, {0.0f, 0.0f, 1.0f}, layer, kDt);
         if (body.Feet().y < -5.0f)
         {
             break;

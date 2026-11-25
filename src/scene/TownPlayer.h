@@ -1,5 +1,6 @@
 #pragma once
 
+#include "scene/Flame.h"
 #include "scene/Player.h"
 #include "scene/Town.h"
 #include <algorithm>
@@ -110,12 +111,17 @@ inline bool TryTownMantle(Player& player, const Moments& moments, const TownData
 }
 
 // A draw-only traveller. All parts, including the hand-held lantern, use the same local pose in A and B.
+// `flame`: the flame over the lantern in the hand (scene/Flame.h), when it is carried; `raise`: 0 .. 1, how high the
+// lantern is held (the arm goes up, forward: the first step of H); `seconds`: the clock of the sparks of the flame.
 inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const Player& player, float yaw, float phase,
-                         float gait, bool carried)
+                         float gait, bool carried, const Flame* flame = nullptr, float raise = 0.0f,
+                         float seconds = 0.0f)
 {
     constexpr int bodyParts = 15;
     constexpr int lampParts = 4;
-    if (out == nullptr || count < 0 || count > capacity || capacity - count < bodyParts + (carried ? lampParts : 0))
+    const int flameParts = carried && flame != nullptr ? kFlameObjects : 0;
+    if (out == nullptr || count < 0 || count > capacity ||
+        capacity - count < bodyParts + (carried ? lampParts : 0) + flameParts)
     {
         return count;
     }
@@ -170,7 +176,9 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
     {
         const float side = static_cast<float>(i);
         const float leg = side * (swing + 0.25f * airborne);
-        const float angle = (i == 1 && carried) ? -0.46f - swing * 0.18f : -leg * 0.85f;
+        const float held = -0.46f - swing * 0.18f;
+        const float raised = std::clamp(raise, 0.0f, 1.0f);
+        const float angle = (i == 1 && carried) ? held + (-2.2f - held) * raised : -leg * 0.85f;
         const float ankleY = 0.77f - 0.67f * std::cos(leg);
         const float ankleZ = -0.67f * std::sin(leg);
         part(ShapeKind::Cube, {side * 0.13f, (0.77f + ankleY) * 0.5f, ankleZ * 0.5f}, {0.16f, 0.68f, 0.17f},
@@ -195,6 +203,12 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
         part(ShapeKind::Cylinder, {x, lampY - 0.12f, z}, {0.16f, 0.04f, 0.16f}, brass);
         part(ShapeKind::Cylinder, {x, lampY - 0.207f, z}, {0.13f, 0.14f, 0.13f}, {1.0f, 0.68f, 0.30f}, 0.0f, 0.85f);
         part(ShapeKind::Cylinder, {x, lampY - 0.29f, z}, {0.16f, 0.035f, 0.16f}, brass);
+        if (flame != nullptr)
+        {
+            const float ly = lampY + 0.04f;
+            const Vec3 base{feet.x + cy * x + sy * z, feet.y + ly + lift, feet.z - sy * x + cy * z};
+            count = AddFlame(out, count, capacity, base, *flame, seconds);
+        }
     }
     return count;
 }

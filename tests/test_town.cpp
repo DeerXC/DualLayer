@@ -123,6 +123,45 @@ void TestData()
     CHECK(t.lights[0].fog > 0.0f &&
           t.lights[1].fog > t.lights[0].fog); // the cold present is foggier than the warm past
     CHECK(std::string(t.NearestPlace(t.spawn.x, t.spawn.z)).find("quay") != std::string::npos);
+    // the steps of the main path: in the order they are played, each thing step at the handle of its thing, one lantern
+    CHECK(t.steps.size() == 9 && t.steps.front().name == "sea gate" && t.steps.back().name == "night bell");
+    int lanterns = 0;
+    bool matching = true;
+    for (const town::Step& step : t.steps)
+    {
+        if (step.kind == town::StepKind::Lantern)
+        {
+            ++lanterns;
+            continue;
+        }
+        bool found = false;
+        for (const town::ThingDef& thing : t.things)
+        {
+            if (thing.name == step.name)
+            {
+                found = true;
+                matching = matching && Near(thing.handle.x, step.at.x, 1e-4f) &&
+                           Near(thing.handle.y, step.at.y, 1e-4f) && Near(thing.handle.z, step.at.z, 1e-4f);
+            }
+        }
+        matching = matching && found;
+    }
+    CHECK(lanterns == 1 && matching);
+    // the first frame, the lamps of the signal mast (their bells are things of the town), the overlooks and the plan of
+    // the map
+    CHECK(t.spawnPitch > 0.0f && t.spawnPitch < 0.4f && t.emblems.size() == 3 && t.overlooks.size() >= 4 &&
+          t.plan.Valid());
+    bool bellsExist = true;
+    for (const town::Emblem& e : t.emblems)
+    {
+        bool found = false;
+        for (const town::ThingDef& thing : t.things)
+        {
+            found = found || (thing.name == e.bell && thing.verb == town::Verb::Ring);
+        }
+        bellsExist = bellsExist && found && e.size > 0.0f && e.shape <= 2;
+    }
+    CHECK(bellsExist);
 }
 
 void TestTriMesh()
@@ -169,7 +208,7 @@ void TestDrawn()
             const dl::BatchVertex& a = drawn.vertices[drawn.indices[i]];
             const dl::BatchVertex& b = drawn.vertices[drawn.indices[i + 1]];
             const dl::BatchVertex& c = drawn.vertices[drawn.indices[i + 2]];
-            const Vec3 n = dl::terrain::Cross(
+            const Vec3 n = dl::tri::Cross(
                 Vec3{b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]},
                 Vec3{c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]});
             const float along = n.x * a.normal[0] + n.y * a.normal[1] + n.z * a.normal[2];
@@ -204,7 +243,6 @@ struct Walker
 
     explicit Walker(const town::TownData& t) : a(t.BuildMesh(0)), b(t.BuildMesh(1)), moments(&a, &b)
     {
-        body.SetScene(nullptr, 0);
         body.SetTown(&moments);
     }
     Walker(const Walker&) = delete;
@@ -216,7 +254,7 @@ struct Walker
         body.Respawn();
         for (int i = 0; i < 30; ++i)
         {
-            body.Update({}, {0.0f, 0.0f, 1.0f}, layer, 0.0f, kDt);
+            body.Update({}, {0.0f, 0.0f, 1.0f}, layer, kDt);
         }
     }
 
@@ -245,7 +283,7 @@ struct Walker
             }
             Player::Input in;
             in.moveForward = 1.0f;
-            body.Update(in, {dx / d, 0.0f, dz / d}, layer, 0.0f, kDt);
+            body.Update(in, {dx / d, 0.0f, dz / d}, layer, kDt);
         }
         return false;
     }
@@ -273,11 +311,11 @@ void TestStart()
         in.moveForward = 1.0f;
         for (int i = 0; i < 48; ++i)
         {
-            w.body.Update(in, {0.0f, 0.0f, 1.0f}, layer, 0.0f, kDt);
+            w.body.Update(in, {0.0f, 0.0f, 1.0f}, layer, kDt);
         }
         for (int i = 0; i < 40; ++i)
         {
-            w.body.Update({}, {0.0f, 0.0f, 1.0f}, layer, 0.0f, kDt);
+            w.body.Update({}, {0.0f, 0.0f, 1.0f}, layer, kDt);
         }
         CHECK(w.body.Feet().z - t.spawn.z > 1.8f && Near(w.body.Feet().y, t.spawn.y, 0.2f));
     }
@@ -338,6 +376,26 @@ void TestStreets()
     }
 }
 
+void TestNoInvisibleFloor()
+{
+    // the demo scene of the first prototype once stood in the town as an invisible floor of 24 x 24 m at y -1 over the
+    // gorge beside the rock (CHANGELOG 2026-11-26): a body dropped there came to rest 5 m above the floor of the gorge,
+    // at -6
+    const town::TownData& t = Town();
+    for (int layer = 0; layer < 2; ++layer)
+    {
+        Walker w(t);
+        w.layer = layer;
+        w.body.SetSpawn({12.0f, 7.0f, 9.0f});
+        w.body.Respawn();
+        for (int i = 0; i < 60 * 5; ++i)
+        {
+            w.body.Update({}, {0.0f, 0.0f, 1.0f}, w.layer, kDt);
+        }
+        CHECK(w.body.Grounded() && Near(w.body.Feet().y, -6.0f, 0.3f));
+    }
+}
+
 void TestWater()
 {
     const town::TownData& t = Town();
@@ -368,6 +426,7 @@ int main()
     TestDrawn();
     TestStart();
     TestStreets();
+    TestNoInvisibleFloor();
     TestWater();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

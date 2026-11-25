@@ -2,7 +2,7 @@
 // Grid:      the triangles are filed in a grid of square cells over the ground plane (x, z), kCell metres each; a
 // triangle
 //            is filed in every cell its box over the ground touches. A query looks only at the cells round a ball.
-// Collision: PushOut moves a ball out of the triangles near it, as the ground does (scene/Terrain.h Land::PushOut): the
+// Collision: PushOut moves a ball out of the triangles near it, as the ground does (scene/TriMath.h): the
 //            closest point on each triangle, a few rounds. A triangle has no inside: a ball is pushed out to the side
 //            its centre is on, so a surface is solid from both sides. The walking body (scene/Player.h SetMeshes) uses
 //            it like any other solid.
@@ -11,7 +11,7 @@
 #pragma once
 
 #include "scene/Camera.h"  // Vec3
-#include "scene/Terrain.h" // ClosestOnTriangle, Sub, Dot, Cross
+#include "scene/TriMath.h" // ClosestOnTriangle, Sub, Dot, Cross
 
 #include <cmath>
 #include <cstdint>
@@ -28,8 +28,8 @@ class TriMesh
     /// Adds one triangle (before Build). A triangle with no area is left out.
     void Add(const Vec3& a, const Vec3& b, const Vec3& c)
     {
-        const Vec3 n = terrain::Cross(terrain::Sub(b, a), terrain::Sub(c, a));
-        if (!(terrain::Dot(n, n) > 1.0e-12f))
+        const Vec3 n = tri::Cross(tri::Sub(b, a), tri::Sub(c, a));
+        if (!(tri::Dot(n, n) > 1.0e-12f))
         {
             return;
         }
@@ -149,14 +149,14 @@ class TriMesh
             ForEachNear(c.x, c.z, r,
                         [&](const Vec3& a, const Vec3& b, const Vec3& t)
                         {
-                            const Vec3 q = terrain::ClosestOnTriangle(c, a, b, t);
-                            const Vec3 d = terrain::Sub(c, q);
-                            const float d2 = terrain::Dot(d, d);
+                            const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);
+                            const Vec3 d = tri::Sub(c, q);
+                            const float d2 = tri::Dot(d, d);
                             if (d2 < bestD2)
                             {
                                 bestD2 = d2;
                                 best = q;
-                                bestNormal = terrain::Cross(terrain::Sub(b, a), terrain::Sub(t, a));
+                                bestNormal = tri::Cross(tri::Sub(b, a), tri::Sub(t, a));
                                 hit = true;
                             }
                         });
@@ -164,7 +164,7 @@ class TriMesh
             {
                 break;
             }
-            const Vec3 d = terrain::Sub(c, best);
+            const Vec3 d = tri::Sub(c, best);
             const float dist = std::sqrt(bestD2);
             if (dist > 1.0e-6f)
             {
@@ -173,7 +173,7 @@ class TriMesh
             else
             {
                 // exactly on the surface: out along its normal, to the side that faces up (or any side of a wall)
-                float l = std::sqrt(terrain::Dot(bestNormal, bestNormal));
+                float l = std::sqrt(tri::Dot(bestNormal, bestNormal));
                 Vec3 n = l > 0.0f ? Vec3{bestNormal.x / l, bestNormal.y / l, bestNormal.z / l} : Vec3{0.0f, 1.0f, 0.0f};
                 if (n.y < 0.0f)
                 {
@@ -182,8 +182,8 @@ class TriMesh
                 c = {best.x + n.x * r, best.y + n.y * r, best.z + n.z * r};
             }
         }
-        const Vec3 moved = terrain::Sub(c, start);
-        return std::sqrt(terrain::Dot(moved, moved));
+        const Vec3 moved = tri::Sub(c, start);
+        return std::sqrt(tri::Dot(moved, moved));
     }
 
     /// The highest surface under (x, z) between y0 and y1 (a ray down), or false.

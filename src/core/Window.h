@@ -5,7 +5,9 @@
 // it (the cursor is
 //            hidden and kept inside the window), Esc or leaving the window (Alt + Tab) releases it. The movement is
 //            added up in counts of the mouse, not in pixels, so it does not stop at the edge of the screen and ignores
-//            the pointer speed setting of Windows. Esc while the mouse is free closes the window.
+//            the pointer speed setting of Windows. Esc while the mouse is free closes the window, unless the program
+//            asks to be told of it instead (SetEscapeQuits: the map closes on Esc). While the map is open a click does
+//            not capture the mouse (SetCaptureAllowed), and CursorClient says where the pointer is.
 // Threading: main thread only (messages are pumped by PumpMessages()).
 #pragma once
 
@@ -62,6 +64,24 @@ class Window
     /// Hides the cursor and keeps it inside the window (true), or gives it back (false).
     void SetMouseCaptured(bool captured);
 
+    /// The pointer in client pixels (0, 0 = top left); false while it is outside the client area.
+    bool CursorClient(int& x, int& y) const;
+
+    /// True (the default): Esc with the mouse free closes the window. False: it is only remembered (ConsumeEscape).
+    void SetEscapeQuits(bool quits)
+    {
+        m_escapeQuits = quits;
+    }
+
+    /// True once after Esc was pressed with the mouse free and SetEscapeQuits(false).
+    bool ConsumeEscape();
+
+    /// True (the default): a click into the window captures the mouse. False: the pointer stays free (the map is open).
+    void SetCaptureAllowed(bool allowed)
+    {
+        m_captureAllowed = allowed;
+    }
+
   private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -77,6 +97,9 @@ class Window
     bool m_reloadKey = false;
     bool m_quit = false;
     bool m_captured = false;
+    bool m_escapeQuits = true;
+    bool m_escape = false;
+    bool m_captureAllowed = true;
 };
 
 } // namespace dl

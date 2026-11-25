@@ -84,9 +84,7 @@ static_assert(sizeof(FrameConstants) == 256, "cbuffer Frame is 16 registers of 1
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
 
-// ---- the scene (what is in it, where, in which layer): scene/SceneData.h. The collision reads the same table.
-using scene::kScene;
-using scene::kSceneCount;
+// ---- the objects (what is drawn one by one): scene/SceneData.h.
 using scene::kTorusMajor;
 using scene::kTorusMinor;
 using scene::SceneObject;
@@ -128,33 +126,14 @@ std::array<Models::Theme, 2> DefaultThemes()
     return {{a, b}};
 }
 
-/// The night of A (SetNight): a low moon, a dark blue sky, the stone of the town cool.
-Models::Theme NightTheme()
-{
-    Models::Theme n;
-    n.toLight = XMFLOAT3(0.35f, 0.55f, 0.45f);
-    n.lightColor = XMFLOAT3(0.34f, 0.40f, 0.62f);
-    n.sky = XMFLOAT3(0.05f, 0.06f, 0.10f);
-    n.clear = XMFLOAT3(0.015f, 0.02f, 0.045f);
-    n.fogDensity = 0.010f;
-    n.tint = XMFLOAT3(0.80f, 0.84f, 1.00f);
-    n.weathering = 0.15f;
-    return n;
-}
-
-XMFLOAT3 Mix(const XMFLOAT3& a, const XMFLOAT3& b, float t)
-{
-    return XMFLOAT3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
-}
-
 // the colours of the scene are written as the eye knows them (sRGB); the light works in linear space
 float SrgbToLinear(float c)
 {
     return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
 }
 
-/// Every state that Models::Draw changes is put back when this goes out of scope. WHY: Triangle does not set the
-/// rasterizer state, so a wireframe state left behind would make the test triangle a wireframe too. The ripple also
+/// Every state that Models::Draw changes is put back when this goes out of scope. WHY: some passes do not set the
+/// rasterizer state, so a wireframe state left behind would stay on for whatever is drawn next. The ripple also
 /// changes the render target and the viewport, and binds two textures that must not stay bound (a texture that is bound
 /// for reading cannot be drawn into: the debug layer would warn on the next ripple).
 class StateGuard
@@ -278,7 +257,6 @@ bool Models::Init(ID3D11Device* device, int segments)
     m_device = device;
     m_segments = std::clamp(segments, 6, 128);
     m_themes = DefaultThemes(); // LoadThemes may change them from the config afterwards
-    m_nightTheme = NightTheme();
     m_ripple.SetSeconds(kDefaultRippleSeconds);
     m_rippleWidth = kDefaultRippleWidth;
     m_rippleDistortion = kDefaultRippleDistortion;
@@ -380,7 +358,7 @@ bool Models::Init(ID3D11Device* device, int segments)
         Shutdown();
         return false;
     }
-    DL_LOG_INFO("Models", "ready: %d objects, %d segments, %d triangles", kSceneCount, m_segments, TriangleTotal());
+    DL_LOG_INFO("Models", "ready: %d segments, %d triangles", m_segments, TriangleTotal());
     return true;
 }
 
@@ -679,27 +657,13 @@ bool Models::CreateGpuMesh(Shape shape, const MeshData& data)
 
 Models::Theme Models::ThemeOf(int layer) const
 {
-    const Theme& base = m_themes[static_cast<std::size_t>(layer == 0 ? 0 : 1)];
-    if (layer != 0 || m_night <= 0.0f)
-    {
-        return base;
-    }
-    const float t = m_night;
-    Theme out;
-    out.toLight = Mix(base.toLight, m_nightTheme.toLight, t);
-    out.lightColor = Mix(base.lightColor, m_nightTheme.lightColor, t);
-    out.sky = Mix(base.sky, m_nightTheme.sky, t);
-    out.clear = Mix(base.clear, m_nightTheme.clear, t);
-    out.fogDensity = base.fogDensity + (m_nightTheme.fogDensity - base.fogDensity) * t;
-    out.tint = Mix(base.tint, m_nightTheme.tint, t);
-    out.weathering = base.weathering + (m_nightTheme.weathering - base.weathering) * t;
-    return out;
+    return m_themes[static_cast<std::size_t>(layer == 0 ? 0 : 1)];
 }
 
-void Models::SetStaticExtra(const BatchMesh& layerA, const BatchMesh& layerB)
+void Models::SetStaticTown(const BatchMesh& layerA, const BatchMesh& layerB)
 {
-    m_extra[0] = layerA;
-    m_extra[1] = layerB;
+    m_townMesh[0] = layerA;
+    m_townMesh[1] = layerB;
     if (m_device)
     {
         CreateBatchBuffers();
@@ -710,19 +674,6 @@ void Models::SetStaticWater(const BatchMesh& layerA, const BatchMesh& layerB)
 {
     m_waterMesh[0] = layerA;
     m_waterMesh[1] = layerB;
-    if (m_device)
-    {
-        CreateBatchBuffers();
-    }
-}
-
-void Models::SetStatic(const SceneObject* objects, int count)
-{
-    m_staticObjects.clear();
-    if (objects != nullptr && count > 0)
-    {
-        m_staticObjects.assign(objects, objects + count);
-    }
     if (m_device)
     {
         CreateBatchBuffers();
@@ -773,8 +724,7 @@ bool Models::CreateBatchBuffers()
     for (int layer = 0; layer < 2; ++layer)
     {
         const std::size_t l = static_cast<std::size_t>(layer);
-        BatchMesh baked = BakeLayer(m_staticObjects.data(), static_cast<int>(m_staticObjects.size()), layer);
-        AppendMesh(baked, m_extra[l]); // the ground and the plants
+        const BatchMesh& baked = m_townMesh[l]; // the polygons of the town
         if (!UploadBatch(baked, m_batch[l], kNames[layer][0], kNames[layer][1]) ||
             !UploadBatch(m_waterMesh[l], m_waterBatch[l], kNames[layer][2], kNames[layer][3]))
         {
@@ -782,8 +732,8 @@ bool Models::CreateBatchBuffers()
         }
         if (!baked.indices.empty())
         {
-            DL_LOG_INFO("Models", "static batch %s: %d boxes, %zu triangles in one draw call", layer == 0 ? "A" : "B",
-                        baked.objects, baked.indices.size() / 3);
+            DL_LOG_INFO("Models", "static batch %s: %d polygons, %zu triangles in one draw call",
+                        layer == 0 ? "A" : "B", baked.objects, baked.indices.size() / 3);
         }
     }
     return true;
@@ -852,11 +802,6 @@ void Models::ToggleWireframe()
     m_wireframe = !m_wireframe;
 }
 
-void Models::ToggleSpin()
-{
-    m_spinning = !m_spinning;
-}
-
 void Models::ToggleLayer()
 {
     m_ripple.Toggle();
@@ -892,11 +837,7 @@ void Models::CycleDetail()
 void Models::Update(float deltaSeconds)
 {
     const float dt = std::clamp(deltaSeconds, 0.0f, 0.1f);
-    if (m_spinning)
-    {
-        m_spin += dt;
-    }
-    m_ripple.Update(dt);                      // runs even while the shapes are stopped: the layer must still change
+    m_ripple.Update(dt);
     m_time = std::fmod(m_time + dt, 3600.0f); // the water moves on (wrapped once an hour: a float keeps its precision)
 }
 
@@ -1026,8 +967,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         // World = Scale * Rotation * Translation: first the size, then the tilt and the turn, then the place (row
         // vectors: read left to right)
         const XMMATRIX world = XMMatrixScaling(object.scale[0], object.scale[1], object.scale[2]) *
-                               XMMatrixRotationX(object.tilt) *
-                               XMMatrixRotationY(object.spinSpeed * m_spin + object.yaw) *
+                               XMMatrixRotationX(object.tilt) * XMMatrixRotationY(object.yaw) *
                                XMMatrixTranslation(object.position[0], object.position[1], object.position[2]);
         ObjectConstants data{};
         XMStoreFloat4x4(&data.world, world);
@@ -1258,9 +1198,9 @@ int Models::VisibleModelCount() const
 std::wstring Models::StatusLine() const
 {
     wchar_t text[160];
-    swprintf_s(text, L"%d models | %d draws | %d segments | %d triangles | %s%s | layer %s", VisibleModelCount(),
+    swprintf_s(text, L"%d models | %d draws | %d segments | %d triangles | %s | layer %s", VisibleModelCount(),
                m_drawCalls, m_segments, TriangleTotal(), m_wireframe ? L"wireframe" : L"solid",
-               m_spinning ? L"" : L" | stopped", m_ripple.Target() == 0 ? L"A" : L"B");
+               m_ripple.Target() == 0 ? L"A" : L"B");
     return text;
 }
 

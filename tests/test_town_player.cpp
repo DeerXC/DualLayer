@@ -53,7 +53,7 @@ static bool Climb(float height, float maxRise, bool ceiling, bool forward, bool 
     p.Respawn();
     for (int i = 0; i < 5; ++i)
     {
-        p.Update({}, {0, 0, 1}, 0, 0, 1.0f / 120.0f);
+        p.Update({}, {0, 0, 1}, 0, 1.0f / 120.0f);
     }
     for (int i = 0; i < 100; ++i)
     {
@@ -61,7 +61,7 @@ static bool Climb(float height, float maxRise, bool ceiling, bool forward, bool 
         in.moveForward = forward ? 1.0f : 0.0f;
         in.jumpPressed = i == 0;
         in.jumpHeld = true;
-        p.Update(in, {0, 0, 1}, 0, 0, 1.0f / 120.0f);
+        p.Update(in, {0, 0, 1}, 0, 1.0f / 120.0f);
         if (TryTownMantle(p, m, t, 0, maxRise))
         {
             return p.Grounded() && p.Feet().y > height && p.Feet().z > 0.0f;
@@ -88,7 +88,7 @@ int main()
     CHECK(!Climb(2.10f, 2.20f, true, true));
     CHECK(!Climb(2.10f, 2.20f, false, false));
     CHECK(!Climb(2.10f, 2.20f, false, true, true));
-    scene::SceneObject objects[20]{};
+    scene::SceneObject objects[32]{};
     const Player player;
     CHECK(AddTownAvatar(objects, 0, 20, player, 0.0f, 0.0f, 0.0f, false) == 15);
     // The hood is object 3 and is unpitched, so its upper extent is half its Y scale.

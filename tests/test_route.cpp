@@ -10,8 +10,8 @@
 // of a moment is not walked. A handle is reached in A within its reach. Ways: test_route [every] x y z [thing numbers
 // done] [L]  prints the way found to (x, y, z) (every cell with "every");
 //       test_route probe x y z [things] [L]  prints the floor and the fit there in both moments.
-// The steps: the things in the order of the main path and the lantern (kSteps); for each, its handle is reached, and no
-// handle further on is reached before it is done (no way round a puzzle). Returns 1 when a check fails.
+// The steps: the things in the order of the main path and the lantern (Town().steps); for each, its handle is reached,
+// and no handle further on is reached before it is done (no way round a puzzle). Returns 1 when a check fails.
 
 #include "scene/Lantern.h"
 #include "scene/Moments.h"
@@ -482,8 +482,18 @@ class Solver
     }
 };
 
-/// Where the lantern is set down in the west (tools/layout/city_model.py build_scaffold): its middle platform.
-Vec3 g_scaffold{};
+/// Where the lantern is set down in the west: the spot of the step "lantern" in the town file (the model's scaffold).
+Vec3 LanternSpot()
+{
+    for (const town::Step& st : Town().steps)
+    {
+        if (st.kind == town::StepKind::Lantern)
+        {
+            return st.at;
+        }
+    }
+    return {};
+}
 /// The west bastion, beyond the terrace of the scaffold (city_model.py BRIDGEHEADS, ROCK_Y).
 const Vec3 g_bastion{-27.0f, 14.0f, 0.0f};
 
@@ -501,52 +511,61 @@ void Report(const Solver& s, const char* stage)
     std::fflush(stdout);
 }
 
-/// The steps of the main path (docs/DESIGN.md 7.4, 8): a thing to use in A, or "lantern" (set down on the scaffold of
-/// the west). Each is reached only after the one before it.
-const char* const kSteps[] = {"sea gate",  "canal crate", "day bell",        "lantern",   "lift",
-                              "dawn bell", "plank",       "gatehouse crate", "night bell"};
-constexpr int kStepCount = static_cast<int>(sizeof(kSteps) / sizeof(kSteps[0]));
+/// The steps of the main path come from the town file (docs/DESIGN.md 7.4, 8): a thing to use in A, or the lantern set
+/// down on the scaffold of the west. Each is reached only after the one before it.
+const std::vector<town::Step>& Steps()
+{
+    return Town().steps;
+}
 
 bool IsLantern(int k)
 {
-    return std::string(kSteps[k]) == "lantern";
+    return Steps()[static_cast<std::size_t>(k)].kind == town::StepKind::Lantern;
+}
+
+const char* StepName(int k)
+{
+    return Steps()[static_cast<std::size_t>(k)].name.c_str();
 }
 
 void TestRoute()
 {
     const town::TownData& t = Town();
     Solver s(t);
-    int ids[kStepCount];
-    for (int k = 0; k < kStepCount; ++k)
+    const int stepCount = static_cast<int>(Steps().size());
+    CHECK(stepCount == 9 && IsLantern(3) && !IsLantern(0));
+    std::vector<int> ids(static_cast<std::size_t>(stepCount), -1);
+    for (int k = 0; k < stepCount; ++k)
     {
-        ids[k] = IsLantern(k) ? -1 : s.Find(kSteps[k]);
-        if (!IsLantern(k) && ids[k] < 0)
+        ids[static_cast<std::size_t>(k)] = IsLantern(k) ? -1 : s.Find(StepName(k));
+        if (!IsLantern(k) && ids[static_cast<std::size_t>(k)] < 0)
         {
-            std::printf("  no thing %s\n", kSteps[k]);
+            std::printf("  no thing %s\n", StepName(k));
             CHECK(false);
             return;
         }
     }
-    const auto reached = [&](int k) { return IsLantern(k) ? s.Reached(g_scaffold, 1.0f, 0) : s.HandleReached(ids[k]); };
-    for (int k = 0; k < kStepCount; ++k)
+    const auto reached = [&](int k)
+    { return IsLantern(k) ? s.Reached(LanternSpot(), 1.0f, 0) : s.HandleReached(ids[static_cast<std::size_t>(k)]); };
+    for (int k = 0; k < stepCount; ++k)
     {
         s.Flood(t.spawn, t.startLayer);
-        Report(s, kSteps[k]);
+        Report(s, StepName(k));
         const bool here = reached(k);
         CHECK(here);
         if (!here)
         {
-            std::printf("  not reached: %s\n", kSteps[k]);
+            std::printf("  not reached: %s\n", StepName(k));
             return;
         }
         // nothing further on is reached before this step is done: no way round a puzzle (a bell closes nothing: it is a
         // goal)
-        const bool bell = std::string(kSteps[k]).find("bell") != std::string::npos;
-        for (int later = k + 1; later < kStepCount && !bell; ++later)
+        const bool bell = std::string(StepName(k)).find("bell") != std::string::npos;
+        for (int later = k + 1; later < stepCount && !bell; ++later)
         {
-            if (!IsLantern(later) && s.HandleReached(ids[later]))
+            if (!IsLantern(later) && s.HandleReached(ids[static_cast<std::size_t>(later)]))
             {
-                std::printf("  way round: %s reached before %s is done\n", kSteps[later], kSteps[k]);
+                std::printf("  way round: %s reached before %s is done\n", StepName(later), StepName(k));
                 CHECK(false);
             }
         }
@@ -554,11 +573,11 @@ void TestRoute()
         {
             // before the lantern the bastion beyond the terrace is not reached; the lantern stays on the scaffold
             CHECK(!s.Reached(g_bastion, 2.0f));
-            s.SetLantern(g_scaffold);
+            s.SetLantern(LanternSpot());
         }
         else
         {
-            s.Do(ids[k]);
+            s.Do(ids[static_cast<std::size_t>(k)]);
         }
     }
     s.Flood(t.spawn, t.startLayer);
@@ -570,33 +589,6 @@ void TestRoute()
 
 int main(int argc, char** argv)
 {
-    // the scaffold's middle platform: given by the model's numbers (city_model.py SCAFFOLD_S, build_scaffold)
-    const town::TownData& t = Town();
-    for (const town::Street& st : t.streets)
-    {
-        if (st.name != "market street")
-        {
-            continue;
-        }
-        float done = 0.0f;
-        for (std::size_t i = 0; i + 1 < st.line.size(); ++i)
-        {
-            const Vec3& a = st.line[i];
-            const Vec3& b = st.line[i + 1];
-            const float l = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
-            if (done + l >= 12.0f && l > 0.0f)
-            {
-                const float f = (12.0f - done) / l; // u -2 of the scaffold (SCAFFOLD_S 14)
-                const Vec3 p{a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f};
-                const float vx = (b.x - a.x) / l, vz = (b.z - a.z) / l;
-                const float nx = -vz, nz = vx;
-                // u -2.0, x 0.9: the middle platform (2.9 m)
-                g_scaffold = {p.x + nx * 0.9f, p.y + 2.9f, p.z + nz * 0.9f};
-                break;
-            }
-            done += l;
-        }
-    }
     if (argc >= 5 && std::string(argv[1]) == "probe")
     {
         Solver s(Town());
@@ -604,7 +596,7 @@ int main(int argc, char** argv)
         {
             if (argv[k][0] == 'L')
             {
-                s.SetLantern(g_scaffold);
+                s.SetLantern(LanternSpot());
             }
             else
             {
@@ -629,7 +621,7 @@ int main(int argc, char** argv)
         {
             if (argv[k][0] == 'L')
             {
-                s.SetLantern(g_scaffold);
+                s.SetLantern(LanternSpot());
             }
             else
             {

@@ -272,16 +272,17 @@ else
             {
                 # ---- walking (Q-15 .. Q-18)
                 Add-Result "walking is the default (Q-15)" (Verdict ((Get-Title $proc) -like "*walk*")) "the title bar says walk"
-                Hold-Key 0x53 800    # S held for 0.8 s: about 3.5 m back, east along the quay (the start looks west, at the heap of B)
+                Add-Result "three dark lamps (first minute)" (Verdict ((Get-Title $proc) -like "*lamps 0 of 3*")) "the title bar says lamps 0 of 3"
+                Hold-Key 0x44 800    # D held for 0.8 s: about 3.5 m to the right, east-north-east along the quay (the start looks north-west, at the heap of B and the sea gate; S would walk off the edge of the quay)
                 Start-Sleep -Milliseconds 700
                 $p1 = Get-BodyPos $proc
                 if ($p0 -and $p1)
                 {
                     $ahead = [Math]::Sqrt(($p1[0] - $p0[0]) * ($p1[0] - $p0[0]) + ($p1[2] - $p0[2]) * ($p1[2] - $p0[2]))
                     $ok = ($ahead -gt 1.8) -and ([Math]::Abs($p1[1] - $standY) -lt 0.25)
-                    Add-Result "S walks on the quay (Q-16)" (Verdict $ok) ("{0:N1} m walked, eye height {1:N2} m (about {2} standing)" -f $ahead, $p1[1], $standY)
+                    Add-Result "D walks on the quay (Q-16)" (Verdict $ok) ("{0:N1} m walked, eye height {1:N2} m (about {2} standing)" -f $ahead, $p1[1], $standY)
                 }
-                else { Add-Result "S walks on the quay (Q-16)" "FAIL" "no body position in the title bar" }
+                else { Add-Result "D walks on the quay (Q-16)" "FAIL" "no body position in the title bar" }
                 Hold-Key 0x20 600    # Space held for 0.6 s: the full jump (a tap is a small hop); the height is read from the log
                 $jumpTried = $true
                 Start-Sleep -Milliseconds 1500
@@ -290,6 +291,14 @@ else
                 Press-Key 0x46       # F: walking again
                 Add-Result "F -> walk (Q-18)" (Verdict (Wait-Title $proc "walk" 2)) "the title bar says walk"
                 Start-Sleep -Milliseconds 1000
+                # ---- the map
+                Press-Key 0x4D       # M: the map opens over the frozen game
+                Add-Result "M -> map opens" (Verdict (Wait-Title $proc "| map" 2)) "the title bar says map"
+                Press-Key 0x09       # Tab inside the map turns the other sheet to the top: it must not switch the world
+                Start-Sleep -Milliseconds 400
+                Press-Key 0x4D
+                Start-Sleep -Milliseconds 800
+                Add-Result "M -> map closes" (Verdict (-not ((Get-Title $proc) -like "*| map*") -and ((Get-Title $proc) -like "*layer B*"))) "the map is gone and Tab inside it did not switch the world (still layer B)"
 
                 # ---- layers
                 Press-Key 0x09

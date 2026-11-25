@@ -332,7 +332,6 @@ struct Body
 
     explicit Body(const town::TownData& t) : world(t)
     {
-        body.SetScene(nullptr, 0);
         body.SetTown(&world.moments);
     }
     void PlaceAt(const Vec3& feet)
@@ -341,7 +340,7 @@ struct Body
         body.Respawn();
         for (int i = 0; i < 30; ++i)
         {
-            body.Update({}, {0.0f, 0.0f, 1.0f}, layer, 0.0f, kDt);
+            body.Update({}, {0.0f, 0.0f, 1.0f}, layer, kDt);
         }
     }
     bool WalkTo(float x, float z)
@@ -368,7 +367,7 @@ struct Body
             }
             Player::Input in;
             in.moveForward = 1.0f;
-            body.Update(in, {dx / d, 0.0f, dz / d}, layer, 0.0f, kDt);
+            body.Update(in, {dx / d, 0.0f, dz / d}, layer, kDt);
         }
         return false;
     }
@@ -499,11 +498,11 @@ bool JumpAlong(Body& b, const Vec3& dir, int switchAt, int frames = 90)
         in.moveForward = 1.0f;
         in.jumpPressed = i == 0;
         in.jumpHeld = true;
-        b.body.Update(in, dir, b.layer, 0.0f, kDt);
+        b.body.Update(in, dir, b.layer, kDt);
     }
     for (int i = 0; i < 30; ++i)
     {
-        b.body.Update({}, dir, b.layer, 0.0f, kDt);
+        b.body.Update({}, dir, b.layer, kDt);
     }
     return switched;
 }

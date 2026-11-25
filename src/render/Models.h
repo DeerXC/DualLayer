@@ -16,15 +16,13 @@
 //            the new layer inside and the old one outside.
 // Targets:   the two off-screen pictures are made the first time a ripple needs them and again when the window size
 //            changes; they live until Shutdown.
-// Scene:     the table of objects is scene/SceneData.h (shared with the collision, scene/Collision.h).
-// Static:    SetStatic gives the boxes that never move (the fixed city); they are baked into one vertex buffer per
-// layer
-//            (render/StaticBatch.h) and drawn with one call per layer. SetObjects gives the rest, drawn one by one. The
-//            baked list is kept on the CPU, so a new device after a lost one bakes it again by itself.
-// Keys:      main.cpp reads the keyboard (focus rules live there) and calls ToggleWireframe / CycleDetail / ToggleSpin
-// /
-//            ToggleLayer.
-// Threading: main thread only.
+// Objects:   a table of scene::SceneObject (scene/SceneData.h), given every frame by SetObjects and drawn one by one.
+// Static:    the fixed town is baked by its owner (scene/Town.h) into one vertex buffer per layer
+// (render/StaticBatch.h),
+//            given once by SetStaticTown / SetStaticWater and drawn with one call per layer. The baked lists are kept
+//            on the CPU, so a new device after a lost one makes the buffers again by itself.
+// Keys:      main.cpp reads the keyboard (focus rules live there) and calls ToggleWireframe / CycleDetail /
+// ToggleLayer. Threading: main thread only.
 #pragma once
 
 #include "core/Config.h"
@@ -47,7 +45,7 @@ namespace dl
 class Models
 {
   public:
-    /// The kinds of shape of the scene (scene/SceneData.h: the table that the collision reads too).
+    /// The kinds of shape of the objects (scene/SceneData.h).
     using Shape = scene::ShapeKind;
 
     /// The look of one layer. All colours are LINEAR (docs/CONVENTIONS.md).
@@ -84,8 +82,6 @@ class Models
     void ToggleWireframe();
     /// The next level of detail: 8, 16, 32, 64 segments, then round again to 8.
     void CycleDetail();
-    /// Stops / starts the turning of the shapes.
-    void ToggleSpin();
     /// Goes to the other layer (A <-> B) with a ripple. Pressed again while the ripple runs, the ripple turns round.
     void ToggleLayer();
 
@@ -106,29 +102,24 @@ class Models
     /// block moves, its door opens and closes, a blocker flashes).
     void SetObjects(const scene::SceneObject* objects, int count)
     {
-        if (objects != nullptr && count >= 0) // (0: everything is in the static batch)
+        if (objects != nullptr && count >= 0)
         {
             m_objects = objects;
             m_objectCount = count;
         }
         else
         {
-            m_objects = scene::kScene;
-            m_objectCount = scene::kSceneCount;
+            m_objects = nullptr;
+            m_objectCount = 0;
         }
     }
 
-    /// The fixed boxes (copied): every cube of them that does not turn is baked and drawn in one call per layer; the
-    /// rest of them should be given to SetObjects. Call it once after Init (it survives a lost device).
-    void SetStatic(const scene::SceneObject* objects, int count);
-
     /// Fixed geometry that is not made of boxes (the polygons of the town: scene/Town.h), baked by its owner, one mesh
-    /// per layer (copied): joined to the static batch of that layer. Call it before SetStatic, once (it survives a lost
-    /// device).
-    void SetStaticExtra(const BatchMesh& layerA, const BatchMesh& layerB);
+    /// per layer (copied): joined to the static batch of that layer. Call it once (it survives a lost device).
+    void SetStaticTown(const BatchMesh& layerA, const BatchMesh& layerB);
 
     /// Water that does not move, baked by its owner, one mesh per layer (copied; scene/Town.h BakeWater): drawn in the
-    /// water pass, blended over what is behind it. Call it before SetStatic, once (it survives a lost device).
+    /// water pass, blended over what is behind it. Call it once (it survives a lost device).
     void SetStaticWater(const BatchMesh& layerA, const BatchMesh& layerB);
 
     /// The looks of both layers at once (the town of the model brings its own: scene/Town.h). LoadThemes sets them from
@@ -145,12 +136,6 @@ class Models
         m_lantern = DirectX::XMFLOAT4(centre.x, centre.y, centre.z, radius > 0.0f ? radius : 0.0f);
     }
 
-    /// 0 = the evening of A, 1 = its night (SetNight): the theme of A is blended toward the night theme.
-    void SetNight(float amount)
-    {
-        m_night = amount < 0.0f ? 0.0f : (amount > 1.0f ? 1.0f : amount);
-    }
-
     /// How many draw calls the last Draw made (for the title bar and the log).
     int DrawCalls() const
     {
@@ -161,13 +146,6 @@ class Models
     bool LayerSwitching() const
     {
         return m_ripple.Active();
-    }
-
-    /// The time that the turning shapes use (seconds; it stops while the shapes are stopped). The collision needs the
-    /// same time, or what is solid and what is drawn drift apart.
-    float SpinSeconds() const
-    {
-        return m_spin;
     }
 
     /// The layer whose objects are solid: the one the screen is going to show (0 = A, 1 = B). During a ripple that is
@@ -236,17 +214,13 @@ class Models
     std::vector<const scene::SceneObject*> m_water;               // the water of a frame, far to near (reused)
     std::array<GpuMesh, kShapeCount> m_meshes;
     // ---- the static batch: one mesh per layer
-    std::vector<scene::SceneObject>
-        m_staticObjects; // the CPU copy (kept through Shutdown: a new device bakes it again)
     std::array<GpuMesh, 2> m_batch;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_batchVertexShader;
     Microsoft::WRL::ComPtr<ID3D11InputLayout> m_batchLayout;
     int m_drawCalls = 0;
     std::array<Theme, 2> m_themes; // [0] = layer A, [1] = layer B (set by Init, changed by LoadThemes)
-    Theme m_nightTheme;            // the night of A (the night bell)
     DirectX::XMFLOAT4 m_lantern = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f); // the circle of the lantern; w 0: none
-    float m_night = 0.0f;                 // 0 .. 1: how far the night has fallen in A
-    std::array<BatchMesh, 2> m_extra;     // the ground and the plants of each layer (SetStaticExtra)
+    std::array<BatchMesh, 2> m_townMesh;  // the polygons of the town of each layer (SetStaticTown)
     std::array<BatchMesh, 2> m_waterMesh; // the water that does not move (SetStaticWater)
     std::array<GpuMesh, 2> m_waterBatch;
     /// The theme a layer is drawn with now: B as it is, A blended toward its night.
@@ -270,11 +244,9 @@ class Models
     {
         return {m_objects, m_objects + m_objectCount};
     }
-    const scene::SceneObject* m_objects = scene::kScene; // BORROWED: see SetObjects
-    int m_objectCount = scene::kSceneCount;
+    const scene::SceneObject* m_objects = nullptr; // BORROWED: see SetObjects
+    int m_objectCount = 0;
     bool m_wireframe = false;
-    bool m_spinning = true;
-    float m_spin = 0.0f; // seconds of turning (it does not run while the shapes are stopped)
     float m_time = 0.0f; // seconds since the start (always runs): the waves of the water
 
     // ---- the ripple

@@ -167,6 +167,43 @@ void TestBatch()
     CHECK(full.Count() == 0 && !full.Full());
 }
 
+void TestShapes()
+{
+    static OverlayBatch b;
+    const OverlayColor c{0.2f, 0.4f, 0.6f, 0.8f};
+    b.AddTriangle(0.0f, 0.0f, 10.0f, 0.0f, 0.0f, 10.0f, c);
+    CHECK(b.Count() == 3 && Near(Area(b), 50.0f) && b.Data()[1].x == 10.0f && b.Data()[2].g == 0.4f);
+    b.Clear();
+    b.AddLine(0.0f, 0.0f, 10.0f, 0.0f, 2.0f, c); // a line of 10 x 2
+    CHECK(b.Count() == 6 && Near(Area(b), 20.0f, 1e-3f));
+    b.Clear();
+    b.AddLine(0.0f, 0.0f, 6.0f, 8.0f, 2.0f, c); // any direction: the same area (length 10)
+    CHECK(Near(Area(b), 20.0f, 1e-3f));
+    float minY = 1e9f;
+    for (int i = 0; i < b.Count(); ++i)
+    {
+        minY = std::fmin(minY, b.Data()[i].y);
+    }
+    CHECK(minY < 0.0f); // the thickness is on both sides of the line
+    b.Clear();
+    b.AddLine(1.0f, 1.0f, 1.0f, 1.0f, 2.0f, c); // no length, no thickness: nothing
+    b.AddLine(0.0f, 0.0f, 5.0f, 0.0f, 0.0f, c);
+    b.AddLine(0.0f, 0.0f, 5.0f, 0.0f, -1.0f, c);
+    CHECK(b.Count() == 0);
+    // a full batch drops whole shapes, triangles and lines too
+    for (int i = 0; i < OverlayBatch::kMaxVertices / 6; ++i)
+    {
+        b.AddRect(0.0f, 0.0f, 1.0f, 1.0f, c);
+    }
+    CHECK(b.Count() == OverlayBatch::kMaxVertices - OverlayBatch::kMaxVertices % 6 && !b.Full());
+    b.AddLine(0.0f, 0.0f, 5.0f, 0.0f, 1.0f, c);
+    b.AddTriangle(0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, c);
+    b.AddRect(0.0f, 0.0f, 1.0f, 1.0f, c);
+    CHECK(b.Count() <= OverlayBatch::kMaxVertices && b.Full());
+    b.Clear();
+    CHECK(b.Count() == 0 && !b.Full());
+}
+
 void TestPrompts()
 {
     prompt::Input in;
@@ -202,6 +239,30 @@ void TestPrompts()
     CHECK(prompt::Choose(in).kind == prompt::Kind::Open);
     in.active = false; // sinking or flying: E means nothing
     CHECK(prompt::Choose(in).kind == prompt::Kind::Count);
+    // TAB is offered last, to a player who has not switched yet: anything for E comes first, nothing when not active
+    in = prompt::Input{};
+    in.active = true;
+    in.offerSwitch = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Switch && Near(prompt::Choose(in).alpha, 1.0f));
+    in.lanternInReach = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Take);
+    in.lanternInReach = false;
+    in.shutThingVerb = 0;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Open);
+    in.active = false;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Count);
+    // the map is offered last of all: anything else comes first, nothing when not active
+    in = prompt::Input{};
+    in.active = true;
+    in.offerMap = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Map && Near(prompt::Choose(in).alpha, prompt::kMapAlpha));
+    in.offerSwitch = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Switch);
+    in.offerSwitch = false;
+    in.lanternInReach = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Take);
+    in.active = false;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Count);
     for (int k = 0; k < prompt::kKindCount; ++k) // every text can be drawn
     {
         const prompt::Text text = prompt::TextOf(static_cast<prompt::Kind>(k));
@@ -223,6 +284,7 @@ int main()
 {
     TestFont();
     TestBatch();
+    TestShapes();
     TestPrompts();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

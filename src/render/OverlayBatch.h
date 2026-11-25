@@ -15,6 +15,7 @@
 #include "render/Font5x7.h"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 
 namespace dl
@@ -43,7 +44,8 @@ struct OverlayColor
 class OverlayBatch
 {
   public:
-    static constexpr int kMaxVertices = 12000; ///< 2000 rectangles
+    static constexpr int kMaxVertices =
+        90000; ///< 15000 rectangles: the HUD needs a few hundred, the map some tens of thousands of vertices
 
     void Clear()
     {
@@ -72,6 +74,44 @@ class OverlayBatch
         Put(x, y, c);
         Put(x1, y1, c);
         Put(x, y1, c);
+    }
+
+    /// A filled triangle (any order of the corners: the overlay is drawn without culling).
+    void AddTriangle(float x0, float y0, float x1, float y1, float x2, float y2, const OverlayColor& c)
+    {
+        if (m_count + 3 > kMaxVertices)
+        {
+            m_full = true;
+            return;
+        }
+        Put(x0, y0, c);
+        Put(x1, y1, c);
+        Put(x2, y2, c);
+    }
+
+    /// A line of `thickness` pixels from (x0, y0) to (x1, y1), flat ended. Nothing for a line without length.
+    void AddLine(float x0, float y0, float x1, float y1, float thickness, const OverlayColor& c)
+    {
+        const float dx = x1 - x0;
+        const float dy = y1 - y0;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        if (!(length > 1.0e-4f) || !(thickness > 0.0f))
+        {
+            return;
+        }
+        if (m_count + 6 > kMaxVertices)
+        {
+            m_full = true;
+            return;
+        }
+        const float nx = -dy / length * 0.5f * thickness;
+        const float ny = dx / length * 0.5f * thickness;
+        Put(x0 + nx, y0 + ny, c);
+        Put(x1 + nx, y1 + ny, c);
+        Put(x1 - nx, y1 - ny, c);
+        Put(x0 + nx, y0 + ny, c);
+        Put(x1 - nx, y1 - ny, c);
+        Put(x0 - nx, y0 - ny, c);
     }
 
     /// A frame of `thickness` inside the rectangle.

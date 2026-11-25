@@ -1,4 +1,4 @@
-// test_player.cpp - tests of the walking body (no window, no GPU): src/scene/Player.h on the real scene table.
+// test_player.cpp - tests of the walking body (no window, no GPU): src/scene/Player.h on small rooms made here.
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_player.cpp -o test_player
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only player
 // Header-only: there is no .cpp to add to the project. What is checked:
@@ -29,11 +29,13 @@
 // Returns 1 when a check fails.
 
 #include "scene/Player.h"
+#include "scene/TriMesh.h"
 
 #include <cmath>
 #include <cstdio>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 
 namespace
 {
@@ -57,9 +59,13 @@ int g_passed = 0;
 
 using dl::Player;
 using dl::Vec3;
-using namespace dl::scene;
+namespace town = dl::town;
 
-constexpr float kFloor = kFloorY;    // the top of the floor
+constexpr float kFloor = -1.0f; // the top of the floor of the default room
+constexpr float kRowZ = 3.0f;   // the middle of the objects of the room
+constexpr unsigned kA = 1u;     // the masks of a solid: in the past, in the present, in both
+constexpr unsigned kB = 2u;
+constexpr unsigned kBoth = 3u;
 constexpr float kDt = 1.0f / 60.0f;  // UNITS: seconds, one frame
 const Vec3 kAhead{0.0f, 0.0f, 1.0f}; // looking along +Z, as the camera does at the start
 
@@ -76,15 +82,87 @@ float RunUpLoss()
     return s.walkSpeed * s.walkSpeed / (2.0f * s.groundAccel);
 }
 
-/// A player and the clock of the turning shapes, so that a test can run the world forward.
+/// The solid of a test room in both moments: boxes and ramps as triangles. A box is given by its centre and size.
+struct Room
+{
+    town::TriMesh a;
+    town::TriMesh b;
+    town::Moments moments;
+
+    Room() : moments(&a, &b)
+    {
+    }
+    Room(const Room&) = delete;
+    Room& operator=(const Room&) = delete;
+
+    void Quad(const Vec3& p0, const Vec3& p1, const Vec3& p2, const Vec3& p3, unsigned mask)
+    {
+        for (int layer = 0; layer < 2; ++layer)
+        {
+            if ((mask & (1u << layer)) != 0u)
+            {
+                town::TriMesh& mesh = layer == 0 ? a : b;
+                mesh.Add(p0, p1, p2);
+                mesh.Add(p0, p2, p3);
+            }
+        }
+    }
+
+    void Box(float cx, float cy, float cz, float sx, float sy, float sz, unsigned mask = kBoth)
+    {
+        const float x0 = cx - 0.5f * sx, x1 = cx + 0.5f * sx;
+        const float y0 = cy - 0.5f * sy, y1 = cy + 0.5f * sy;
+        const float z0 = cz - 0.5f * sz, z1 = cz + 0.5f * sz;
+        Quad({x0, y1, z0}, {x1, y1, z0}, {x1, y1, z1}, {x0, y1, z1}, mask); // top
+        Quad({x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}, mask); // bottom
+        Quad({x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0}, mask); // south
+        Quad({x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}, mask); // north
+        Quad({x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}, mask); // west
+        Quad({x1, y0, z0}, {x1, y0, z1}, {x1, y1, z1}, {x1, y1, z0}, mask); // east
+    }
+
+    /// A ramp along +Z whose top runs from (z0, y0) to (z1, y1), between x0 and x1, a slab of 0.2 m under its top.
+    void Ramp(float x0, float x1, float z0, float y0, float z1, float y1, unsigned mask = kBoth)
+    {
+        const float dz = z1 - z0;
+        const float dy = y1 - y0;
+        const float length = std::sqrt(dz * dz + dy * dy);
+        const float nz = -dy / length * 0.2f; // 0.2 m under the top, at a right angle to it
+        const float ny = dz / length * 0.2f;
+        Quad({x0, y0, z0}, {x1, y0, z0}, {x1, y1, z1}, {x0, y1, z1}, mask);
+        Quad({x0, y0 - ny, z0 - nz}, {x1, y0 - ny, z0 - nz}, {x1, y1 - ny, z1 - nz}, {x0, y1 - ny, z1 - nz}, mask);
+        Quad({x0, y0, z0}, {x0, y1, z1}, {x0, y1 - ny, z1 - nz}, {x0, y0 - ny, z0 - nz}, mask);
+        Quad({x1, y0, z0}, {x1, y1, z1}, {x1, y1 - ny, z1 - nz}, {x1, y0 - ny, z0 - nz}, mask);
+        Quad({x0, y0, z0}, {x1, y0, z0}, {x1, y0 - ny, z0 - nz}, {x0, y0 - ny, z0 - nz}, mask);
+        Quad({x0, y1, z1}, {x1, y1, z1}, {x1, y1 - ny, z1 - nz}, {x0, y1 - ny, z1 - nz}, mask);
+    }
+
+    void Build()
+    {
+        a.Build();
+        b.Build();
+    }
+};
+
+/// A player in a room (BORROWED: the room outlives the world). Without a room: the default one, a floor of 24 x 24 m
+/// (x -12 .. 12, z -9 .. 15) with its top at kFloor, in both moments.
 struct World
 {
+    std::unique_ptr<Room> own;
     Player player;
-    float spin = 0.0f;
     int layer = 0;
 
-    World()
+    explicit World(const Room* room = nullptr)
     {
+        if (room == nullptr)
+        {
+            own = std::make_unique<Room>();
+            own->Box(0.0f, kFloor - 0.1f, kRowZ, 24.0f, 0.2f, 24.0f);
+            own->Build();
+            room = own.get();
+        }
+        player.SetTown(&room->moments);
+        player.SetSpawn({0.0f, kFloor, -3.0f});
         player.Respawn();
     }
 
@@ -93,8 +171,7 @@ struct World
         const int frames = static_cast<int>(std::lround(seconds / dt));
         for (int i = 0; i < frames; ++i)
         {
-            spin += dt;
-            player.Update(input, look, layer, spin, dt);
+            player.Update(input, look, layer, dt);
             input.jumpPressed = false; // a key goes down once
         }
     }
@@ -120,34 +197,6 @@ Player::Input Released(float forward = 0.0f)
     Player::Input input = Keys(forward);
     input.jumpHeld = false;
     return input;
-}
-
-/// A box of both layers, still, from its centre and size.
-SceneObject Box(float x, float y, float z, float sx, float sy, float sz)
-{
-    SceneObject o{};
-    o.shape = ShapeKind::Cube;
-    o.position[0] = x;
-    o.position[1] = y;
-    o.position[2] = z;
-    o.scale[0] = sx;
-    o.scale[1] = sy;
-    o.scale[2] = sz;
-    o.layerMask = kLayerBoth;
-    return o;
-}
-
-/// A ramp of both layers along +Z whose top runs from (z0, y0) to (z1, y1) (a box turned round X).
-SceneObject Ramp(float x0, float x1, float z0, float y0, float z1, float y1)
-{
-    const float dz = z1 - z0;
-    const float dy = y1 - y0;
-    const float a = std::atan2(dy, dz);
-    SceneObject o = Box(0.5f * (x0 + x1), 0.0f, 0.0f, x1 - x0, 0.2f, std::sqrt(dz * dz + dy * dy));
-    o.tilt = -a;
-    o.position[1] = 0.5f * (y0 + y1) - 0.1f * std::cos(a);
-    o.position[2] = 0.5f * (z0 + z1) + 0.1f * std::sin(a);
-    return o;
 }
 
 void TestStanding()
@@ -370,46 +419,33 @@ void TestEdge()
 
 void TestLayers()
 {
-    const SceneObject* cube = nullptr;
-    const SceneObject* cylinder = nullptr;
-    const SceneObject* sphere = nullptr;
-    for (const SceneObject& o : kScene)
-    {
-        if (o.shape == ShapeKind::Cube && o.layerMask == kLayerA)
-        {
-            cube = &o;
-        }
-        if (o.shape == ShapeKind::Cylinder && o.layerMask == kLayerA)
-        {
-            cylinder = &o;
-        }
-        if (o.shape == ShapeKind::Sphere)
-        {
-            sphere = &o;
-        }
-    }
-    CHECK(cube != nullptr && cylinder != nullptr && sphere != nullptr);
-    if (cube == nullptr || cylinder == nullptr || sphere == nullptr)
-    {
-        return;
-    }
-    const float cubeTop = cube->position[1] + 0.5f * cube->scale[1];
-    const float cylinderTop = cylinder->position[1] + 0.5f * cylinder->scale[1];
+    // the room: the floor, a red cube in the past (1.6 m), a grey block in the past (1.3 x 1.8 x 1.3 m), a steep ramp
+    // (60 degrees) in the present
+    Room room;
+    room.Box(0.0f, kFloor - 0.1f, kRowZ, 24.0f, 0.2f, 24.0f);
+    room.Box(-3.3f, kFloor + 0.8f, kRowZ, 1.6f, 1.6f, 1.6f, kA);
+    room.Box(1.1f, kFloor + 0.9f, kRowZ, 1.3f, 1.8f, 1.3f, kA);
+    const float run = 1.0f / std::sqrt(3.0f);
+    room.Ramp(-1.0f, 1.0f, 5.0f, kFloor, 5.0f + 3.0f * run, kFloor + 3.0f, kB);
+    room.Build();
+    const float cubeTop = kFloor + 1.6f;
+    const float blockTop = kFloor + 1.8f;
     const Vec3 east{1.0f, 0.0f, 0.0f};
     {
-        World a; // walking east into the red cube: stopped in A ...
+        World a(&room); // walking east into the red cube: stopped in the past ...
         a.PlaceFeet({-6.0f, kFloor, kRowZ});
         a.Run(1.0f, Keys(1.0f), east);
-        CHECK(a.player.Feet().x < cube->position[0] - 0.5f);
-        World b; // ... free in B (until the blue sphere, which is solid in B)
+        CHECK(a.player.Feet().x < -3.3f - 0.5f);
+        World b(&room); // ... free in the present
         b.layer = 1;
         b.PlaceFeet({-6.0f, kFloor, kRowZ});
         b.Run(1.0f, Keys(1.0f), east);
-        CHECK(b.player.Feet().x > cube->position[0] + 0.3f);
+        CHECK(b.player.Feet().x > -3.3f + 0.3f);
     }
     {
-        World w; // standing on top of the red cube (A), then the layer changes to B: the cube is gone, the body falls
-        w.PlaceFeet({cube->position[0], cubeTop + 0.2f, cube->position[2]});
+        World w(&room); // standing on top of the red cube (A), then the moment changes to B: the cube is gone, the body
+                        // falls
+        w.PlaceFeet({-3.3f, cubeTop + 0.2f, kRowZ});
         w.Run(1.0f);
         CHECK(w.player.Grounded() && Near(w.player.Feet().y, cubeTop, 0.01f));
         w.layer = 1;
@@ -419,15 +455,10 @@ void TestLayers()
         CHECK(w.player.Grounded() && Near(w.player.Feet().y, kFloor, 0.01f));
     }
     {
-        // a steep side is not a place to stand: on the blue sphere (B) at 60 degrees from the top the body is not
-        // grounded and slides off
-        World w;
+        // a steep side is not a place to stand: on a ramp of 60 degrees (B) the body is not grounded and slides off
+        World w(&room);
         w.layer = 1;
-        const float reach = 0.5f * sphere->scale[0] + w.player.GetSettings().radius;
-        const float angle = 1.0472f;
-        w.PlaceFeet({sphere->position[0] + reach * std::sin(angle),
-                     sphere->position[1] + reach * std::cos(angle) - w.player.GetSettings().radius + 0.05f,
-                     sphere->position[2]});
+        w.PlaceFeet({0.0f, kFloor + 1.0f, 5.0f + 1.0f * run + 0.05f}); // a little above the middle of the slope
         int groundedFrames = 0;
         float fastest = 0.0f;
         for (int i = 0; i < 12; ++i)
@@ -440,25 +471,25 @@ void TestLayers()
         CHECK(fastest > 0.5f);
         w.Run(2.0f);
         CHECK(w.player.Grounded() && Near(w.player.Feet().y, kFloor, 0.01f));
-        const float restX = w.player.Feet().x;
+        const float restZ = w.player.Feet().z;
         w.Run(0.5f);
-        CHECK(w.player.SlideSpeed() < 1e-4f && Near(w.player.Feet().x, restX, 0.01f));
+        CHECK(w.player.SlideSpeed() < 1e-4f && Near(w.player.Feet().z, restZ, 0.01f));
     }
     {
-        World w; // the cylinder top is a place to stand as well
-        w.PlaceFeet({cylinder->position[0], cylinderTop + 0.3f, cylinder->position[2]});
+        World w(&room); // the block is a place to stand as well
+        w.PlaceFeet({1.1f, blockTop + 0.3f, kRowZ});
         w.Run(1.0f);
-        CHECK(w.player.Grounded() && Near(w.player.Feet().y, cylinderTop, 0.01f));
+        CHECK(w.player.Grounded() && Near(w.player.Feet().y, blockTop, 0.01f));
     }
     {
-        World w; // the cylinder can be jumped onto from the floor (the jump height is above its height)
-        w.PlaceFeet({cylinder->position[0] - 1.1f, kFloor, cylinder->position[2]});
+        World w(&room); // the block can be jumped onto from the floor (the jump height is above its height)
+        w.PlaceFeet({1.1f - 1.1f, kFloor, kRowZ});
         w.Run(0.3f);
         w.Run(kDt, Keys(1.0f, 0.0f, true), east);
         w.Run(0.3f, Keys(1.0f),
               east); // forward for a short time only: a longer walk crosses the top and leaves on the other side
         w.Run(0.6f);
-        CHECK(w.player.Grounded() && w.player.Feet().y > cylinderTop - 0.1f);
+        CHECK(w.player.Grounded() && w.player.Feet().y > blockTop - 0.1f);
     }
 }
 
@@ -569,10 +600,11 @@ void TestFeel()
         // a wall takes away the walk into it: walking straight into a still wall leaves no speed into the wall, also
         // with the floor under the body (the feet ball touches both in the same step); at 45 degrees the body slides
         // along the wall
-        static const SceneObject kRoom[] = {Box(0.0f, kFloorY - 0.1f, 0.0f, 20.0f, 0.2f, 20.0f),
-                                            Box(2.0f, kFloorY + 1.0f, 0.0f, 0.5f, 2.0f, 6.0f)};
-        World w;
-        w.player.SetScene(kRoom, 2);
+        Room room;
+        room.Box(0.0f, kFloor - 0.1f, 0.0f, 20.0f, 0.2f, 20.0f);
+        room.Box(2.0f, kFloor + 1.0f, 0.0f, 0.5f, 2.0f, 6.0f);
+        room.Build();
+        World w(&room);
         w.PlaceFeet({0.0f, kFloor, 0.0f});
         for (int i = 0; i < 60; ++i)
         {
@@ -586,8 +618,7 @@ void TestFeel()
             worst = w.player.WalkSpeedNow() > worst ? w.player.WalkSpeedNow() : worst;
         }
         CHECK(worst < 0.3f);
-        World slide;
-        slide.player.SetScene(kRoom, 2);
+        World slide(&room);
         slide.PlaceFeet({1.0f, kFloor, 0.0f});
         slide.Run(0.5f, Keys(1.0f), {0.7071f, 0.0f, 0.7071f});
         CHECK(slide.player.Feet().z > 0.8f && slide.player.Feet().x < 2.0f - 0.25f - 0.3f);
@@ -617,11 +648,12 @@ void TestRampsAndSteps()
     for (float degrees : {15.0f, 22.0f, 27.0f, 32.0f})
     {
         const float rise = std::tan(degrees * 3.14159265f / 180.0f) * 8.0f;
-        const SceneObject room[] = {Box(0.0f, kFloorY - 0.1f, -5.0f, 10.0f, 0.2f, 10.0f),
-                                    Ramp(-1.0f, 1.0f, 0.0f, kFloorY, 8.0f, kFloorY + rise),
-                                    Box(0.0f, kFloorY + rise - 0.1f, 14.0f, 10.0f, 0.2f, 12.0f)};
-        World up;
-        up.player.SetScene(room, 3);
+        Room room;
+        room.Box(0.0f, kFloor - 0.1f, -5.0f, 10.0f, 0.2f, 10.0f);
+        room.Ramp(-1.0f, 1.0f, 0.0f, kFloor, 8.0f, kFloor + rise);
+        room.Box(0.0f, kFloor + rise - 0.1f, 14.0f, 10.0f, 0.2f, 12.0f);
+        room.Build();
+        World up(&room);
         up.PlaceFeet({0.0f, kFloor, -2.0f});
         float t = 0.0f;
         while (up.player.Feet().z < 9.0f && t < 6.0f)
@@ -630,8 +662,7 @@ void TestRampsAndSteps()
             t += kDt;
         }
         CHECK(up.player.Feet().z >= 9.0f && Near(up.player.Feet().y, kFloor + rise, 0.05f));
-        World down;
-        down.player.SetScene(room, 3);
+        World down(&room);
         down.PlaceFeet({0.0f, kFloor + rise, 10.0f});
         down.Run(0.3f);
         int airFrames = 0;
@@ -657,10 +688,11 @@ void TestRampsAndSteps()
         // a step down of 0.3 m keeps the body on the ground; one of 0.5 m does not (it falls, and lands)
         for (float drop : {0.3f, 0.5f})
         {
-            const SceneObject room[] = {Box(0.0f, kFloorY - 0.1f, -2.0f, 6.0f, 0.2f, 4.0f),
-                                        Box(0.0f, kFloorY - drop - 0.1f, 3.0f, 6.0f, 0.2f, 6.0f)};
-            World w;
-            w.player.SetScene(room, 2);
+            Room room;
+            room.Box(0.0f, kFloor - 0.1f, -2.0f, 6.0f, 0.2f, 4.0f);
+            room.Box(0.0f, kFloor - drop - 0.1f, 3.0f, 6.0f, 0.2f, 6.0f);
+            room.Build();
+            World w(&room);
             w.PlaceFeet({0.0f, kFloor, -1.0f});
             w.Run(0.3f);
             int airFrames = 0;
@@ -676,16 +708,13 @@ void TestRampsAndSteps()
 }
 
 /// True when none of the three balls of the body overlaps a solid of `layer` by more than a little.
-bool BodyIsClear(const Player& p, int layer, float spin)
+bool BodyIsClear(const Room& room, const Player& p, int layer)
 {
     for (int i = 0; i < 3; ++i)
     {
         const Vec3 c = p.Ball(i);
-        const dl::CollisionResult r = dl::ResolveSphere(c, p.GetSettings().radius, layer, spin);
-        const float dx = r.position.x - c.x;
-        const float dy = r.position.y - c.y;
-        const float dz = r.position.z - c.z;
-        if (std::sqrt(dx * dx + dy * dy + dz * dz) > 4e-3f)
+        Vec3 pushed = c;
+        if (room.moments.PushOut(pushed, p.GetSettings().radius, layer) > 4e-3f)
         {
             return false;
         }
@@ -701,7 +730,14 @@ void TestRandomRun()
         state = state * 1664525u + 1013904223u;
         return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f; // 0 .. 1
     };
-    World w;
+    Room room; // the floor, a red cube and a block in the past, a steep ramp and a pillar in the present
+    room.Box(0.0f, kFloor - 0.1f, kRowZ, 24.0f, 0.2f, 24.0f);
+    room.Box(-3.3f, kFloor + 0.8f, kRowZ, 1.6f, 1.6f, 1.6f, kA);
+    room.Box(1.1f, kFloor + 0.9f, kRowZ, 1.3f, 1.8f, 1.3f, kA);
+    room.Box(4.0f, kFloor + 1.5f, 6.0f, 0.8f, 3.0f, 0.8f, kB);
+    room.Ramp(-1.0f, 1.0f, 8.0f, kFloor, 9.7f, kFloor + 3.0f, kB);
+    room.Build();
+    World w(&room);
     int bad = 0;
     int respawns = 0;
     int unclear = 0;
@@ -724,8 +760,7 @@ void TestRandomRun()
         }
         input.jumpPressed = next() < 0.01f;
         const float dt = 1.0f / 200.0f + next() * (1.0f / 20.0f - 1.0f / 200.0f);
-        w.spin += dt;
-        w.player.Update(input, look, w.layer, w.spin, dt);
+        w.player.Update(input, look, w.layer, dt);
         const Vec3 f = w.player.Feet();
         if (!(std::isfinite(f.x) && std::isfinite(f.y) && std::isfinite(f.z) &&
               std::isfinite(w.player.VerticalSpeed()) && std::isfinite(w.player.WalkSpeedNow())))
@@ -736,7 +771,7 @@ void TestRandomRun()
         {
             ++respawns;
         }
-        else if (!BodyIsClear(w.player, w.layer, w.spin))
+        else if (!BodyIsClear(room, w.player, w.layer))
         {
             ++unclear;
         }
@@ -762,15 +797,14 @@ void TestBadInput()
     World w;
     w.Run(0.5f);
     const Vec3 before = w.player.Feet();
-    w.player.Update(Keys(1.0f), kAhead, 0, w.spin, notANumber); // no time, no change
-    w.player.Update(Keys(1.0f), kAhead, 0, w.spin, -1.0f);
-    w.player.Update(Keys(1.0f), kAhead, 0, w.spin, 0.0f);
-    w.player.Update(Keys(1.0f), kAhead, 0, notANumber, kDt);
+    w.player.Update(Keys(1.0f), kAhead, 0, notANumber); // no time, no change
+    w.player.Update(Keys(1.0f), kAhead, 0, -1.0f);
+    w.player.Update(Keys(1.0f), kAhead, 0, 0.0f);
     CHECK(Near(w.player.Feet().x, before.x, 1e-6f) && Near(w.player.Feet().z, before.z, 1e-6f) &&
           Near(w.player.Feet().y, before.y, 1e-6f));
-    w.player.Update(Keys(notANumber, infinity), kAhead, 0, w.spin,
+    w.player.Update(Keys(notANumber, infinity), kAhead, 0,
                     kDt); // bad keys and a bad direction: no walking, no bad numbers
-    w.player.Update(Keys(1.0f), {notANumber, 0.0f, 1.0f}, 0, w.spin, kDt);
+    w.player.Update(Keys(1.0f), {notANumber, 0.0f, 1.0f}, 0, kDt);
     CHECK(std::isfinite(w.player.Feet().x) && std::isfinite(w.player.Feet().y) && std::isfinite(w.player.Feet().z));
     CHECK(Near(w.player.Feet().x, before.x, 1e-3f) && Near(w.player.Feet().z, before.z, 1e-3f));
     World bad; // a layer that does not exist: nothing is solid, the body falls and comes back at the spawn point
@@ -779,7 +813,7 @@ void TestBadInput()
     CHECK(std::isfinite(bad.player.Feet().y));
     World stall; // a huge frame (a stall) is cut to 0.1 s: the body stays on the floor and does not tunnel
     stall.Run(0.5f);
-    stall.player.Update(Keys(1.0f), kAhead, 0, stall.spin, 5.0f);
+    stall.player.Update(Keys(1.0f), kAhead, 0, 5.0f);
     CHECK(Near(stall.player.Feet().y, kFloor, 0.01f) && stall.player.Feet().z < -3.0f + 0.6f);
     World p; // a place that is not a number is ignored
     const Vec3 spot = p.player.Feet();

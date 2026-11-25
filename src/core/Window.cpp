@@ -118,6 +118,27 @@ void Window::ConsumeMouseDelta(long& dx, long& dy)
     m_mouseDy = 0;
 }
 
+bool Window::CursorClient(int& x, int& y) const
+{
+    POINT p{};
+    RECT client{};
+    if (m_hwnd == nullptr || GetCursorPos(&p) == FALSE || ScreenToClient(m_hwnd, &p) == FALSE ||
+        GetClientRect(m_hwnd, &client) == FALSE)
+    {
+        return false;
+    }
+    x = static_cast<int>(p.x);
+    y = static_cast<int>(p.y);
+    return p.x >= 0 && p.y >= 0 && p.x < client.right && p.y < client.bottom;
+}
+
+bool Window::ConsumeEscape()
+{
+    const bool r = m_escape;
+    m_escape = false;
+    return r;
+}
+
 void Window::ClipToClient()
 {
     RECT client{};
@@ -212,7 +233,10 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
                               lParam); // WHY: WM_INPUT must reach DefWindowProc so Windows can free its data
     }
     case WM_LBUTTONDOWN:
-        SetMouseCaptured(true);
+        if (m_captureAllowed)
+        {
+            SetMouseCaptured(true);
+        }
         return 0;
     case WM_ACTIVATE:
         if (LOWORD(wParam) == WA_INACTIVE)
@@ -226,6 +250,10 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
             if (m_captured)
             {
                 SetMouseCaptured(false); // the first Esc gives the mouse back; the second one quits
+            }
+            else if (!m_escapeQuits)
+            {
+                m_escape = true; // the map is open: it closes on Esc
             }
             else
             {

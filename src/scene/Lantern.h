@@ -20,6 +20,7 @@
 #pragma once
 
 #include "scene/Camera.h" // Vec3
+#include "scene/Flame.h"
 #include "scene/Moments.h"
 #include "scene/SceneData.h"
 
@@ -179,8 +180,10 @@ class Lantern
         moments.SetCircle(Circle{});
     }
 
-    /// The lantern as drawn while it is set down (both moments): a post and a glowing lamp. Returns the new count.
-    int AddDraw(scene::SceneObject* out, int count, int capacity) const
+    /// The lantern as drawn while it is set down (both moments): a post and a glowing lamp, and the flame over it when
+    /// there is one (scene/Flame.h). Returns the new count.
+    int AddDraw(scene::SceneObject* out, int count, int capacity, const Flame* flame = nullptr,
+                float seconds = 0.0f) const
     {
         if (!m_placed || out == nullptr || capacity - count < 2)
         {
@@ -207,6 +210,10 @@ class Lantern
         lamp.colorSrgb[2] = 0.42f;
         lamp.glow = 1.4f;
         out[count++] = lamp;
+        if (flame != nullptr)
+        {
+            count = AddFlame(out, count, capacity, {m_at.x, m_at.y + kLanternUp + 0.14f, m_at.z}, *flame, seconds);
+        }
         return count;
     }
 

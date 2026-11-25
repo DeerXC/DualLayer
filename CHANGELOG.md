@@ -4,7 +4,87 @@ The detailed record of each step before 2026-11-24 (every test count, every deli
 git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
+
+### 2026-11-26: the first minute and the map
+
+- Found, by casting rays (`tests/test_firstminute.cpp`): **the sea wall hides the bell tower from the quay in both moments.** From
+  the eye at the start, every ray to the south face of the tower is blocked by the wall 8 m ahead (its top is at +1.5 m); only the top
+  5 m of the spire of A clears it, and the game starts in B. So the design of 2026-11-26 ("the tower with its three dark emblems in sight
+  from the first frame") could not be built as written. Solved with a signal mast over the tower (`city_model.py build_signal_mast`):
+  three round lamps on a yard at 61 m, clear of the wall, which the test proves for every lamp from the camera and the eye in A and in B.
+  A first version of the mast put the middle lamp on the axis of the mast, which hid it from the quay; the same test caught it.
+- Added: the three lamps (`scene/Emblems.h`: dark until the bell of their district is rung; a sphere for the well, a column for the cliff,
+  a box for the lock; a pale collar each, so that a dark lamp reads against the sky of B). The title bar says "lamps N of 3".
+- Added: the first frame is set by the town file (spawn yaw -0.55, pitch +0.29): the heap of the quay, the winch of the sea gate and the
+  lamps are in the picture for the lenses of 60, 70 and 90 degrees and the screens 16:9, 16:10 and 4:3 (the lamps reach 0.88 of the half
+  height at the narrowest). A first pitch of 0.22 put the tops of the lamps out of the picture at 60 degrees: found by the same test.
+- Replaced (KI-15, in part): the fallback pillar of light is gone. The help is the lantern as compass (`scene/Guidance.h`,
+  `scene/Flame.h`): its flame, in the hand and set down, leans 18 degrees toward the next step of the main path (the signal mast when all
+  are done), and 40 degrees with sparks after 30 s without progress; upright at the goal. H in two steps: the lantern is raised and a warm
+  beam sweeps for 6 s; a second press after 90 s without progress shows a frame round the thing to use and a line to it for 12 s. The
+  flame is also on the avatar's lantern (`AddTownAvatar` takes a flame and how high the arm is raised) and on the lantern set down. The
+  design had said 10 degrees; at the distance of the camera that cannot be seen, so it is `[guidance] lean_degrees`.
+- Added: the map (`scene/MapMemory.h`, `render/MapView.h`, `src/app/TownSession`): M opens two sheets of tracing paper over the frozen
+  game; what stands in both moments is neutral, what stands in one is warm (A) or cool (B), the sheet on top shows over the other
+  (Tab turns it); only what the body has been within 15 m of, or has looked over from an overlook, is drawn; the tower and its lamps
+  always; the player's arrow, the lantern, the markers (E with the pointer; five at most, each a column of light in the world). Drawn
+  into the overlay batch, so no new shader or pass. The model writes the plan (cells of 1 m, four classes, both moments) and the
+  overlooks. The prompt M MAP comes after 40 s of walking.
+- Changed: `data/town.dlt` is format 5 (spawn pitch, emblems, overlooks, the plan). `OverlayBatch` has `AddTriangle` and `AddLine` and
+  holds 90000 vertices (the whole town on the map is about 12500). `Window` has `CursorClient`, `SetCaptureAllowed`, `SetEscapeQuits` and
+  `ConsumeEscape` (the pointer is free and Esc closes the map instead of the game). `tools/check.ps1` walks with D, not S (the new first
+  frame looks north-west, and S would walk off the edge of the quay), and checks that M opens and closes the map and that Tab inside it
+  does not switch the world.
+- Checked: all 17 fast logic tests build without a warning (g++ -O2 -Wall -Wextra -Wshadow -Wconversion) and pass, among them the new
+  `test_firstminute` (40 checks), `test_map` (124) and the rewritten `test_guidance` (59); `test_route` plays the nine steps in order
+  (12 checks); every source of the game compiles for Windows with clang (-Wall -Wextra -Wshadow -Wconversion, no warning) against a
+  stand-in for DirectXMath. The map was drawn from the real town to a picture and looked at. MSVC, the Visual Studio build and a run of
+  the game are not done: run `tools\check.ps1`, then play E-16 to E-20 of `docs/BUILD.md`.
+- Caught on the way: a variable called `near` (a `windows.h` macro) in the new guidance code compiled for the tests and not for Windows;
+  the compile of every source for Windows found it before the commit, as for `far` the day before.
+
+### 2026-11-26: the design of guidance and order
+
+- Changed (documents): `docs/DESIGN.md` is rewritten where play showed it was wrong: a player who did not press H did not know
+  what to do. The game now asks one thing from the first frame (the tower with three dark emblems) and the main route is no
+  longer one line: the harbour and the lower town are the teaching ground, after which three ways (west, east, north) are done
+  in any order, each of three beats and a bell, joined by the rock and not by each other (7.3, 7.4, 8). Guidance is layered
+  (10): a goal in sight, a beacon at each way, the lantern's flame as a compass, H for more, a map of two sheets of tracing paper
+  with markers, the glyph board as the whole quest log, and a lens on holding Tab (3.8). A minimap, a task list and a compass bar
+  were considered and not adopted. Puzzle rooms get three beats and a list of templates (8). Nothing of this is built: the
+  pillar and H of the entry below are the fallback.
+
+### 2026-11-26: the guidance, two bugs found, the legacy removed
+
+- Found and fixed: **an invisible floor in the town.** `Player::SetScene(nullptr, 0)` meant "no table" but fell back to the demo
+  scene of the first prototype (`scene::kScene`): its floor of 24 x 24 m at y -1 was solid in the town, over the gorge beside the
+  rock. A body dropped at (11, 7, 9) came to rest at y -1.00 instead of the gorge floor at -6.00. The body no longer knows any
+  table of objects: it meets the solid of the town and nothing else.
+- Found and fixed: **a wall touched together with a floor was taken for ground in every other frame.** The walk speed at a wall
+  was 1.58 m/s and 0 in alternate frames (the push of the floor and of the wall were added before the test "does it point up").
+  `Moments::WallPush` asks each triangle on its own, as the old code asked each box. Found by `tests/test_player.cpp`, whose
+  wall test now runs on the triangles of the town and not on boxes.
+- Found and fixed: `scene/Guidance.h` named a variable `far`, which `windows.h` defines as a macro: it compiled for the tests and
+  not for Windows. Found by compiling every source for Windows (clang, -Wall -Wextra -Wshadow -Wconversion) before the commit.
+- Added: the guidance (`docs/DESIGN.md` 10): `scene/Guidance.h`, `[guidance]` in the config, H. The main path is data now: the
+  model writes `steps` into the town file (format 4); the game guides along them and `tests/test_route.cpp` plays them (the
+  scaffold of the west was computed twice, in the model and in the test; now once). The prompt TAB SWITCH WORLD for a player who
+  has not switched after 8 s of walking (`scene/Prompts.h`). The title bar says "steps N of 9".
+- Removed (KI-12): `scene/Collision.h`, the height field and the noise (`scene/Terrain.h`; the triangle maths stays in
+  `scene/TriMath.h`), the demo scene, the object table and the height field of `Player`, the spin of shapes, the night theme, the
+  baking of boxes (`StaticBatch.h` keeps the vertex and the joining), the M0 test triangle with its shader, and their tests
+  (`test_collision`, `test_terrain`; `test_batch` and `test_player` were rewritten on triangles): 7 files and 1,610 lines, and the
+  parts of `Models`, `Player`, `SceneData` and `StaticBatch` that only they used.
+- Changed (KI-11): `main.cpp` is 112 lines (it was 856); the loop is `app/TownSession` (steps of about 20 lines each: `ReadKeys`,
+  `SwitchMoment`, `WalkAndUse`, `ReturnFromFall`, `PlaceEye`, `BuildDrawTable`, `Render`), the GPU objects `app/Gpu`, the config
+  `app/AppConfig`, the keyboard `app/Input.h`.
+- Checked: all 15 fast logic tests build without a warning (g++ -O2 -Wall -Wextra -Wshadow -Wconversion) and pass, and
+  `test_route` plays the nine steps in order; every source of the game compiles for Windows with clang against a stand-in for
+  DirectXMath (no warning). MSVC, the Visual Studio build and a run of the game are not done: run `tools\check.ps1`, then
+  play E-16 and E-17 of `docs/BUILD.md`.
+
 ### 2026-11-26: the code tidied for review
+
 - Removed: the greybox prototype that the town replaced (the hand-placed rooms, the block, orb and canal puzzles, the seals, the
   bells, the endings, the ground and the plants of the old map) with its tests and `tools/maze_search.cpp`: 23 headers, 9 tests.
   It stays in the git tag `m2-greybox`. `[map] town` and `[hints]` are gone from the configuration; the game always runs the town.
@@ -262,8 +342,10 @@ git history of this file; it is summarised here.
 | ID | Symptom | Reproduce | Cause (if known) | Impact | Plan |
 |---|---|---|---|---|---|
 | KI-01 | Shaders are compiled at run time from `shaders/` | start the exe from a folder without `shaders/` | by design (hot reload comes in a later milestone); the post-build step copies `shaders\` next to the exe | log error, no picture | accepted for now; precompile for the delivery build |
-| KI-12 | Parts of the code that only the removed greybox used are still in the renderer and the body: `Models::SetNight` and the night theme, `Player::SetScene` / `SetLand` and the object-table collision, the height field `Land` in `scene/Terrain.h` | read `render/Models.cpp`, `scene/Player.h` | the town needs only part of what the first prototype built | a reader sees code that nothing in the game calls (their tests still pass) | remove them in a separate commit once the third-person body is settled |
-| KI-11 | `RunTown` in `main.cpp` is still one loop of about 390 lines | read `main.cpp` | the keys, the body, the camera and the drawing share many local variables | hard to explain in an interview in one piece | move its state into a struct with `Update` and `Draw` steps when the player is tuned |
+| KI-15 | The guidance is built in part: the lamps, the flame, H (two steps), the first frame and the map; not built: a beacon at the start of a way, the lens (holding Tab), the third press of H, the glyphs on the gates, the flame upright in the lower town | read `docs/DESIGN.md` 10 | the three ways and their gates are not modelled (KI-16) | the player is guided to the next step but not yet shown a choice between three ways | build with the three ways (DESIGN 12, steps 2 and 3) |
+| KI-16 | The main route is one line (west, rock, east, north), in the model, in `steps` and in `tests/test_route.cpp`; the three ways of DESIGN 7.4 are not modelled | read `steps`; the locks start from the rock, the upper street from the top lock | the order was fixed before the town was linear in play | the districts cannot be done in any order | model the stairs from the lower town, the links to the plaza, `goals`, and the tests of DESIGN 11 (step 3) |
+| KI-13 | The lamps of the mast, the flame, H, the map and the first frame have not been seen in the game | play E-16 .. E-20 | built on the 2026-11-26 without a Windows run | the lamps may be too small, too dim or lost in the fog or the sky of B; the flame may lean too little to see; the beam and the frame may cross walls; the map may be crowded | tune `[guidance]`, `Emblems.h` (size in the model, glow) and `MapView.h` after a play-test |
+| KI-14 | The lantern has no safe early demonstration before the scaffold of the west (docs/DESIGN.md 10, 12) | play the harbour | not built | the first required use of the lantern is the scaffold | a small demonstration in the harbour, with its own proof in the route test |
 | KI-07 | Most logic tests build without `/WX` | `tests/run_tests.ps1` | only `core` and `camera` have `/WX` | a new warning in a test is reported as WARN, not as a failure | turn `/WX` on test by test once a run shows no warning |
 | KI-08 | Hosted build status is not documented for this baseline | Compare this version with the hosted workflow run | - | A past successful run does not verify the current revision | Confirm the workflow on the intended release revision |
 | KI-09 | The uploaded town has district puzzles and bells, but its final bell route is not specified as complete | Follow the main route in the default town | The documented route proof ends at the night bell | The new finale must not be inferred from the legacy ending | Prototype and verify the intended final approach; see [Design](docs/DESIGN.md#5-bell-tower-finale-and-ending-views) |
@@ -273,6 +355,8 @@ git history of this file; it is summarised here.
 
 | ID | Symptom | Closed | How |
 |---|---|---|---|
+| KI-11 | `RunTown` in `main.cpp` was one loop of about 390 lines | 2026-11-26 | `app/TownSession`: the loop in steps of about 20 lines |
+| KI-12 | Code that only the removed greybox used was still in the renderer and the body (night theme, object table, height field) | 2026-11-26 | removed; the invisible floor it caused is closed with it |
 | KI-06 | Comments in the code pointed to sections of `docs/LEVEL_DESIGN.md`, which `docs/DESIGN.md` replaced | 2026-11-26 | the greybox code that carried most of them was removed and the rest of the comments were rewritten |
 | KI-03 | The Release build treats warnings as errors; the M1 and M2 files had not been compiled with MSVC | 2026-11-17 | `Release \| x64` was the configuration of the first real build; after the `min` / `max` fix it ran. The rule stays: a new file must build in Release (check Q-9, done by `tools/check.ps1`) |
 | KI-02 | A lost device ended the program | 2026-11-17 | `Gpu::Recover` in `main.cpp` builds device, triangle and models again (checks K-2, K-3 passed). Only the `F9` test path was run; a real device loss (driver reset, GPU switched off) has not been tried |

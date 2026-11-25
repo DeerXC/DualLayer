@@ -84,6 +84,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\app\AppConfig.cpp" />
+    <ClCompile Include="src\app\Gpu.cpp" />
+    <ClCompile Include="src\app\TownSession.cpp" />
     <ClCompile Include="src\core\Assert.cpp" />
     <ClCompile Include="src\core\Config.cpp" />
     <ClCompile Include="src\core\Log.cpp" />
@@ -93,10 +96,13 @@
     <ClCompile Include="src\render\Models.cpp" />
     <ClCompile Include="src\render\Overlay.cpp" />
     <ClCompile Include="src\render\ShaderCompiler.cpp" />
-    <ClCompile Include="src\render\Triangle.cpp" />
     <ClCompile Include="src\scene\Camera.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\app\AppConfig.h" />
+    <ClInclude Include="src\app\Gpu.h" />
+    <ClInclude Include="src\app\Input.h" />
+    <ClInclude Include="src\app\TownSession.h" />
     <ClInclude Include="src\core\Assert.h" />
     <ClInclude Include="src\core\Config.h" />
     <ClInclude Include="src\core\Log.h" />
@@ -105,6 +111,7 @@
     <ClInclude Include="src\render\GpuDebug.h" />
     <ClInclude Include="src\render\Hud.h" />
     <ClInclude Include="src\render\LayerRipple.h" />
+    <ClInclude Include="src\render\MapView.h" />
     <ClInclude Include="src\render\MeshData.h" />
     <ClInclude Include="src\render\Models.h" />
     <ClInclude Include="src\render\Font5x7.h" />
@@ -113,17 +120,19 @@
     <ClInclude Include="src\render\Projection.h" />
     <ClInclude Include="src\render\ShaderCompiler.h" />
     <ClInclude Include="src\render\StaticBatch.h" />
-    <ClInclude Include="src\render\Triangle.h" />
+    <ClInclude Include="src\scene\Emblems.h" />
+    <ClInclude Include="src\scene\Flame.h" />
+    <ClInclude Include="src\scene\Guidance.h" />
     <ClInclude Include="src\scene\Lantern.h" />
     <ClInclude Include="src\scene\LayerGuard.h" />
+    <ClInclude Include="src\scene\MapMemory.h" />
     <ClInclude Include="src\scene\Camera.h" />
-    <ClInclude Include="src\scene\Collision.h" />
     <ClInclude Include="src\scene\Player.h" />
     <ClInclude Include="src\scene\TownPlayer.h" />
     <ClInclude Include="src\scene\Moments.h" />
     <ClInclude Include="src\scene\Prompts.h" />
     <ClInclude Include="src\scene\Things.h" />
-    <ClInclude Include="src\scene\Terrain.h" />
+    <ClInclude Include="src\scene\TriMath.h" />
     <ClInclude Include="src\scene\Town.h" />
     <ClInclude Include="src\scene\TownEffects.h" />
     <ClInclude Include="src\scene\TriMesh.h" />
@@ -135,7 +144,6 @@
     <None Include="shaders\models.hlsl" />
     <None Include="shaders\overlay.hlsl" />
     <None Include="shaders\ripple.hlsl" />
-    <None Include="shaders\test_triangle.hlsl" />
     <None Include="config\default.ini" />
     <None Include="tools\check.ps1" />
     <None Include=".editorconfig" />
