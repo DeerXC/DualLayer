@@ -22,7 +22,7 @@ Every change is judged against these. A change that breaks one is not made.
 3. **Few actions per room.** A room asks for one or two placements of the lantern and one or two switches, at places the
    scene points to; the rest of the room is walked in one moment.
 4. **Seen before reached.** Each place is seen first, then reached from an unexpected direction. No text guides the way.
-5. **No long walks back.** No puzzle sends the player to another district; no shortcut leads back to a place already done.
+5. **No forced backtracking.** No puzzle sends the player to another district. A local connection may return to known ground only when it offers an immediate route or useful new perspective before the finale; no shortcut sends the player back to the start after the clear.
 6. **Nothing that looks like a bug.** The body is never pushed out of a wall; a switch or a pick-up into something solid is
    refused instead.
 7. **Two states of one town.** Light and colour distinguish the moments at a glance; damage, materials and signs of use keep the difference readable without colour (section 6).
@@ -152,7 +152,7 @@ The exact input and presentation for these three planned views must be tested. T
 
 ### 6.1 Style and scope
 
-**Simple forms, rich atmosphere.** DualLayer is a stylized medieval harbour diorama, not a voxel world or a photorealistic reconstruction. Keep the existing irregular terrain, terraces, walls, rooflines and bell tower. Use low- to mid-poly geometry with clear silhouettes. Add geometry where it changes the outline, explains function or helps navigation: coping stones, recessed doors, quayside supports and arch profiles. Keep passing walls quiet; reserve close-up detail for landmarks and interactions. Take the sense of depth and weathering from Elden Ring as a reference, not its asset complexity.
+**Simple forms, rich atmosphere.** DualLayer is a stylized medieval harbour diorama, not a voxel world or a photorealistic reconstruction. Keep the existing irregular terrain, terraces, walls, rooflines and bell tower. Use low- to mid-poly geometry with clear silhouettes. Add geometry where it changes the outline, explains function or helps navigation: coping stones, recessed doors, quayside supports and arch profiles. Keep passing walls quiet; reserve close-up detail for landmarks and interactions. Build depth and weathering through overlapping silhouettes, restrained surface detail and readable age differences between A and B; detail must support navigation rather than asset density.
 
 ### 6.2 Materials and surface detail
 
@@ -287,12 +287,34 @@ Fixed on 2026-11-24 and kept true by `city_model.py check`:
 | The lantern | the street_b view shows its circle on the west bridge: the middle of the bridge of A standing in B |
 | Still open | the exact walkable geometry from the northern overlook into the bell tower (section 5) |
 
-### 7.6 Compact and connected town (planned)
+### 7.6 Compact and connected town
 
-- Aim for about 60% of the current explorable footprint, not a uniform scale-down. Keep one whole hill town and its winding climb, the links between districts, and the bell tower as a landmark. Shorten empty approaches and combine redundant lanes before cutting distinctive places.
-- Make the town denser vertically: connected roofs, usable interiors, alleys that pass through buildings, and overlooks that reveal another route. A platform or landmark that looks reachable should have a real route. Clearly frame purely scenic terrain as background rather than blocking a promising route with an invisible wall.
-- Give each explorable branch a purpose: a playable detour, a new connection, a view that reveals a route, or a local lamp puzzle. Do not put a collectible at the end of every lane to justify leaving it open. Keep useful local connections; do not add a post-clear shortcut back to the start or mandatory cross-district errands.
-- Use 20 seconds of sprinting as an initial pacing check on traversable routes: a stretch without a decision, discovery or landmark worth stopping for is a candidate for compression. Check this in play rather than treating it as proof of an interesting map.
+Keep the complete town and its winding climb, but aim for about 60% of the current explorable footprint by shortening empty approaches, not by scaling every slope or jump. A roughly 20-second sprint without a decision, discovery or useful landmark is a candidate for compression, not a hard rule. Keep the tower as the skyline anchor. Visible doors, terraces and roofs should have an approach or clearly read as scenery. Never use a rewarding-looking doorway as an invisible boundary.
+
+#### Exploration structure
+
+- Different routes must reveal different information. The main street establishes the destination, roofs reveal district connections, and the gorge explains how the city's damage changed movement. A branch that only duplicates the main route should be shortened or removed.
+- Reconnect familiar space while exploration is still active. A local shortcut is useful when it changes the next choice, reveals the vertical structure or removes an immediate repeat walk. Do not reserve a long return-to-start shortcut for after the finale.
+- Start optional exploration with a visible spatial question and finish it with an answer. A grate, broken bridge, unreachable terrace or route seen from above can invite investigation; the payoff may be a connection, a new viewpoint or a visible causal result. Do not use mandatory collectibles to justify every branch.
+- Teach one spatial rule at a time. First show the safe route or consequence, then reuse the same rule in a less obvious form. New geometry should combine known rules rather than add a new interaction verb.
+
+#### Main spine and local loops
+
+| Area | Readable forward route | Optional connection |
+|---|---|---|
+| Harbour and sea gate | Keep the teaching sequence. Frame the bell tower and the first climb together after the gate. | A freight-yard back door leads to a loading deck and returns by a side stair. It never bypasses the sea gate lesson. |
+| West market, gorge and rock | Teach the lantern before the west bridgehead. In A the intact bridge ends at a closed gate; in B the fallen spans become the descent. Use the lift winch in A, then climb the surviving frame in B. | A grate at the west rim previews a maintenance gallery below the market. The lower latch is first reachable from the landing after the wreck descent. The gallery returns to the west rim and then rejoins the same landing; using it is optional. |
+| East roofs and theatre | Keep the plank lesson; only then split the route into street and roof paths. Both meet at the theatre backstage. | The street shows intact arcades; the roof previews the backstage and northern gatehouse. A side stair closes the local loop without a required return or pickup. |
+| Northern overlook and tower | Frame the tower entrance, first walkable segment and harbour. B exposes the approach; switch on safe ground into A and climb inside. | The warning bell and boats remain the payoff. Optional lamps can affect the visible boat outcome but cannot gate the tower, bell or any ending view. |
+
+#### West loop review and implementation boundary
+
+Keep the existing bridgehead, gorge and lift stations. Review the same west approach in A and B, then inspect the lift-house roof and the view back from the upper station. The first reveal is a change in topology: the intact bridge is not the solution; the wreck becomes the descent. From the upper station, the player should recognise the bridgehead and understand where the market gallery sits relative to the street. Preserve a continuous, safe forward route from the landing to the lift, independent of the gallery.
+
+The gallery in the review is a proposed centerline, not geometry. First test an exposed retaining-wall gallery or a switchback before committing to a tunnel. Its gate is a local B-side latch with no effect in A. The present town's A-only causal objects do not implement it. Begin with a closed passage; wire a local latch only when needed, without changing the causal interaction contract or the lantern rules. Keep the gallery and its upper exit downstream of the lantern lesson; do not expose the lift or the plaza before their intended progression.
+
+Place `west_loop_preview.py` beside `tools/layout/city_model.py` and run `python tools/layout/west_loop_preview.py` from the repository root with NumPy, Matplotlib and Pillow. It runs the existing street checks and writes `build/west_loop_preview.png`. Gold is the route intent; dashed teal is the gallery proposal. The sheet is rendered from the layout model, not the Windows game. Its schematic is not a collision, sight-line or clearance test.
+
 
 ## 8. Puzzles by district (draft)
 
@@ -349,7 +371,7 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 
 1. Prototype third-person movement, sprint, ledge climbing and a visible lantern in one compact section. Tune against a tight alley, a raised ledge and a switch in the air before changing the whole town.
 2. Rework the harbour through the first lantern lesson as a reference district. Validate the art on the quay-to-sea-gate route before extending it (section 6.8). Give first-time players a clear destination, one worthwhile detour and a visible reward for changing the past. Ask them to play without verbal coaching; note where they lose the route, cannot read an interaction or expect an unreachable platform to be playable.
-3. Apply the validated layout and guidance to the remaining districts. Re-test jumps, switch safety, ledge clearance, lantern-only routes, optional-lamp independence and unintended bypasses. Update the solver and verify key sequences with real player movement; the previous reachability results do not certify the new movement or layout.
+3. Prototype the west loop next, then repeat the proven approach in the east and north. In an uncoached west test, check whether players look down from the bridgehead, recognise it again from the upper station and find the lift without taking the optional gallery. Test locked and released gallery states with sprint, mantle and aerial switches. The landing, lift and plaza must stay in order; a viewpoint alone may be reached early. Re-test safe recovery and optional-lamp independence. The old route solver is a baseline, not proof for the new controller.
 4. Build the bell tower finale and boat payoff after the movement and exploration loop is stable. Verify the route to the final bell and all ending states, including a run with no optional lamps.
 
 The uploaded town already loads `data/town.dlt`, supports the lantern patch and causal objects, and has a solver for the old route. Keep those results as a baseline only. Before updating the layout broadly, review the first district with a new player: can the player find the route without coaching, explain why a trace appears in B and use the lantern unprompted at the first required obstacle? Test safe camera behaviour on every switch, a refused climb with inadequate clearance, a refused switch into solids or water, and recovery without lantern-dependent support. Test zero, some and all optional lamps; the same main route and ending views must remain available.
@@ -359,9 +381,11 @@ The uploaded town already loads `data/town.dlt`, supports the lantern patch and 
 - **2026-11-24:** one complete town, A before B, past-to-present cause and effect, one held patch from a placed lantern, no mandatory district-spanning errands and no post-clear shortcut back to the start.
 - **2026-11-25:** current town starts in B; the harbour teaches the switch and the one-way causal rule. The lantern receives a safe early demonstration in the next version. The town has a first third-person player pass. A denser town, fallback guidance and optional street lamps remain planned. Use the central warning bell and boats for the finale. See [Changelog](../CHANGELOG.md) for prototype history.
 
+- **2026-11-25, exploration pass:** linear harbour onboarding, a readable main spine and two optional local loops. Review the west bridge reversal first; leave the east loop and northern climb as follow-up prototypes.
+
 ## 14. Open
 
 - Tune the camera, sprint speed, ledge height and jump envelope on the reference route.
-- Finalise the compact street plan, playable roofs and interiors, and the exact north-to-tower approach; verify the final bell with actual input, not just route reachability.
+- Prove the west gallery alignment and lower latch in collision, then finalise playable roofs, interiors and the north-to-tower approach; verify the final bell with actual input, not just route reachability.
 - Set optional lamp locations, boat mapping and escape counts; prototype the Past, Present and Both views before choosing their controls.
 - Tune guidance thresholds and cue contrast. Holding Tab to preview a layer remains an optional idea, not required for the finale. Audio and further environmental detail can follow after the route works.

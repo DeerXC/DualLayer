@@ -181,3 +181,9 @@ seen".
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.
+
+## Town review cameras
+
+Run `python tools/layout/review_town.py` from the project root (Python 3, NumPy and Matplotlib). The tool writes matched A/B PNGs under `build/town-review/`, without replacing `data/town.dlt`. Use `--shot 05_north` for just the proposed tower approach or `--out` for a different output directory.
+
+The market and north shots approximate the default orbit camera. The silhouette is a 1.7 m scale marker, not the player asset. The offline renderer does not reproduce camera collision, dynamic lighting or gameplay. Orange plan lines connect route anchors; the gold dashed approach is a proposal, not geometry or a verified path.

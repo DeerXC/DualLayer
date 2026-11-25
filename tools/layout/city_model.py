@@ -542,7 +542,10 @@ def build_bridge_wreck():
         a = math.radians(174.0 - 7.0 * i)
         top = ROCK_Y - 1.5 * (i + 1)
         cx, cz = 20.0 * math.cos(a), 20.0 * math.sin(a)
-        prism(rect(cx, cz, 3.0, 2.2, a), GORGE_Y - 0.5, top, "stone", "B", True, "debris")
+        # Only the first two deck faces keep their lighter cut stone. The outline
+        # and collision stay identical; the rest of the wreck is weathered debris.
+        deck_face = "paving" if i < 2 else "debris"
+        prism(rect(cx, cz, 3.0, 2.2, a), GORGE_Y - 0.5, top, "stone", "B", True, deck_face)
         KEEP_CLEAR.append((cx, cz, 1.0))
 
 
@@ -677,7 +680,18 @@ def build_rock():
             xb = x0 + (x1 - x0) * k1 / n
             beam((xa, ROCK_Y + 0.05, 0.0), (xb, ROCK_Y + 0.05, 0.0), 3.2, 1.0, "stone", world)
             for sz in (-1.5, 1.5):
-                beam((xa, ROCK_Y + 1.0, sz), (xb, ROCK_Y + 1.0, sz), 0.3, 0.95, "stone", world)
+                if name == "west" and world == "both" and sz > 0:
+                    # This short north rail overlooks the first fallen span. Keep its
+                    # footprint, height and deck unchanged, but let the view through in B.
+                    beam((xa, ROCK_Y + 1.0, sz), (xb, ROCK_Y + 1.0, sz), 0.3, 0.95, "stone", "A")
+                    lo, hi = sorted((xa, xb))
+                    for j in range(4):
+                        x = lo + 0.07 + (hi - lo - 0.14) * j / 3
+                        prism(rect(x, sz, 0.14, 0.30, 0.0), ROCK_Y + 0.05, ROCK_Y + 1.0,
+                              "iron", "B")
+                    beam((xa, ROCK_Y + 1.0, sz), (xb, ROCK_Y + 1.0, sz), 0.30, 0.10, "iron", "B")
+                else:
+                    beam((xa, ROCK_Y + 1.0, sz), (xb, ROCK_Y + 1.0, sz), 0.3, 0.95, "stone", world)
         mid = (x0 + x1) / 2
         prism(rect(mid, 0.0, 1.6, 3.2, 0.0), GORGE_Y, ROCK_Y - 2.5, "stone_dark", "A" if name == "west" else "both")
     build_west_gatehouse()
@@ -1647,7 +1661,7 @@ def colour(mat, world):
     return np.array(a if world == "A" else b, float)
 
 
-def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None, lantern=None):
+def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None, lantern=None, *, vertical_fov=False):
     """`lantern` (x, y, z, r), in B: the lantern set down in A; inside its circle what stands is A, lit by A (docs/DESIGN.md
     3.2)."""
     to_light, light, amb, sky_top, horizon, fog = LIGHT[world]
@@ -1663,9 +1677,10 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None,
     right = np.cross(up0, f)
     right /= np.linalg.norm(right)
     up = np.cross(f, right)
-    focal = (W / 2) / math.tan(math.radians(fov) / 2) if ortho is None else None
+    focal = ((H if vertical_fov else W) / 2) / math.tan(math.radians(fov) / 2) if ortho is None else None
     polys, cols, depths, edges, widths = [], [], [], [], []
     for pts, mat, w, kind in POLYS:
+        pts = np.asarray(pts, dtype=float)
         inside = False
         if lantern is not None and world == "B":
             cx_, cy_, cz_ = pts.mean(axis=0)
@@ -1728,7 +1743,7 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None,
             fo *= 0.5
         c = c * (1 - fo) + np.array(LIGHT["A"][4] if inside else horizon) * fo
         c = np.clip(c, 0, 1)
-        depth = cam[:, 2].mean() if ortho is None else -float(rel.mean(axis=0) @ f)
+        depth = cam[:, 2].mean()
         if kind == "sea":
             depth = 1e9                                                               # the lowest surface: under everything
         elif kind == "terrain":

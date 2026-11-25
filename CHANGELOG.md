@@ -5,6 +5,18 @@ git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
 
+### 2026-11-25: west bridge descent readability
+
+- Refined the west bridgehead in B so the first fallen spans are visible through an open iron rail; the first two landing faces use lighter stone to make the descent readable without changing its collision or the A bridge.
+- Added `tools/layout/west_loop_preview.py` for matched A/B, plan and elevation review of the west loop. The maintenance gallery remains a layout proposal, not runtime geometry.
+- Consolidated the exploration rules in [Design](docs/DESIGN.md): a readable main spine, optional local loops, branches that answer visible spatial questions, useful reconnections before the finale and no forced district-spanning backtracking.
+- `tests/test_town.cpp` (35) and `tests/test_town_player.cpp` (14) pass with g++. The full route check reached the west wreck, gorge, lift, plaza and water-tower bell before the local run was stopped; run the complete Windows check before release.
+
+### Town camera review
+
+- Added matched A/B review cameras, a route-anchor plan and a proposed north approach overlay from the existing model. Fixed preview polygon conversion and orthographic depth order. No game geometry, puzzle or runtime changes.
+
+
 ### 2026-11-25: town atmosphere prototype
 
 - Added per-moment gradient skies, a sun or moon halo, ground bounce and near-ground mist. The normal view and both ripple pictures use the same sky pass; the lantern patch does not draw a separate sky.

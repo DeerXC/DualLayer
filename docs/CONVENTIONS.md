@@ -2,6 +2,8 @@
 
 Decided once, used everywhere.
 
+These are implementation conventions for the uploaded baseline. Rows naming `Stage`, `Canal`, `MechanismSet` or the old puzzle grid describe those legacy systems; the default town and its causal objects are documented in [Architecture](ARCHITECTURE.md#the-town). New movement targets and gameplay rules belong in [Design](DESIGN.md).
+
 | Item | Rule | Why / check |
 |---|---|---|
 | Length | metres | |
@@ -33,7 +35,7 @@ Decided once, used everywhere.
 | Stairs and slopes | stairs are walked as the ramp under them and drawn as steps of at most 0.3 m (the body snaps down 0.35 m); a slope steeper than about 53 degrees is not stood on (roofs); a railing (1.1 m) stops a walk, a parapet (2.6 m) seals a floor | `scene/Shapes.h`, `tests/test_shapes.cpp` |
 | Water | layer A only, fed by the aqueduct (broken in B); never solid for the body (feet 0.3 m under the surface: back to the lamp or entry of the room), solid for orbs (they float); the canal has a level that a wheel raises | `Shapes::Water`, `Stage::Submerged`, `Stage::kWaterFeeds`, `Canal::Submerged` |
 | Fall line | per room: 6 m below the bottom of the room (`Stage::FallLine`); the lowest point of an orb is `Stage::kFallY` | `TestFallLines` |
-| Moving things | as built: exist in both layers; only where they are may differ (the crate of the canal floats in A, lies on the bed in B); moved in one, they move in both (the drift). The design replaces this with the causal rule (DESIGN.md 3.3) | `Canal::Crate` |
+| Moving things | as built: exist in both layers; only where they are may differ (the crate of the canal floats in A, lies on the bed in B); moved in one, they move in both (the drift). The design replaces this with the causal rule ([Design, causal rule](DESIGN.md#33-the-causal-rule)) | `Canal::Crate` |
 | Prism | belongs to no world: worked in either layer, drawn the same in both, white; what it moves changes world, it does not come and go | `TriggerKind::Prism`, `Gate::swapsLayer` |
 | Places of return | a fall or R comes back to the lit lamp of the room, else its entry; under the water of the layer of the body, to the entry of the dry room next to it | `Recovery::SafeRespawn`, `TestRecovery` |
 | Ground | a height field of two triangles per cell, split from the (x0, z0) corner to the (x1, z1) corner; `Height()` is the height of those triangles (drawn and solid alike); flat-shaded; solid for the body in both layers. The town is levelled 5 cm under the street floors (`kPlainY`); under a place of the map without a floor at street level it steps down to a sunken lane a terrace step (1.6 m) under the street, deeper only under a room that goes deeper (`kPits`, `PitFloorAt`); the harbour is a basin of the sea. A body that stands on the ground has fallen out of the map (`OnOpenGround`) | `scene/Terrain.h`, `scene/Landscape.h`, `tests/test_terrain.cpp` |
