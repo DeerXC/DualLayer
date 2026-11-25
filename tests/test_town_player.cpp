@@ -79,6 +79,9 @@ int main()
     scene::SceneObject objects[20]{};
     const Player player;
     CHECK(AddTownAvatar(objects, 0, 20, player, 0.0f, 0.0f, 0.0f, false) == 15);
+    // The hood is object 3 and is unpitched, so its upper extent is half its Y scale.
+    CHECK(objects[3].shape == scene::ShapeKind::Sphere);
+    CHECK(std::fabs(objects[3].position[1] + objects[3].scale[1] * 0.5f - player.Feet().y - 1.72f) < 0.001f);
     CHECK(AddTownAvatar(objects, 0, 20, player, 0.0f, 1.0f, 1.6f, true) == 19);
     CHECK(objects[0].tilt > 0.15f && objects[17].glow > 0.7f && objects[17].layerMask == scene::kLayerBoth);
     CHECK(std::fabs(objects[8].tilt - objects[11].tilt) > 0.8f);

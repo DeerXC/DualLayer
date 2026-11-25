@@ -154,7 +154,11 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
     part(ShapeKind::Cube, {0, 1.18f, 0.04f * run}, {0.47f, 0.49f, 0.29f}, coat, lean);
     part(ShapeKind::Cube, {0, 0.91f, -0.04f}, {0.48f, 0.27f, 0.31f}, wool, -lean * 0.7f);
     part(ShapeKind::Cube, {0, 1.02f, 0.01f}, {0.49f, 0.065f, 0.32f}, leather);
-    part(ShapeKind::Sphere, {0, 1.60f, 0.08f * run}, {0.30f, 0.33f, 0.30f}, wool, lean);
+    // Visual stature only. Eye height, body clearance and mantle reach are unchanged.
+    constexpr float stature = 1.72f;
+    constexpr float hoodHeight = 0.30f;
+    part(ShapeKind::Sphere, {0, stature - hoodHeight * 0.5f, 0.08f * run},
+         {0.30f, hoodHeight, 0.30f}, wool);
     part(ShapeKind::Sphere, {0, 1.57f, 0.11f + 0.08f * run}, {0.20f, 0.21f, 0.13f}, {0.63f, 0.48f, 0.34f});
     part(ShapeKind::Cylinder, {0, 1.43f, 0.035f}, {0.31f, 0.09f, 0.30f}, {0.63f, 0.37f, 0.20f});
     part(ShapeKind::Cube, {-0.03f, 1.21f, -0.205f}, {0.30f, 0.32f, 0.15f}, leather, lean);
