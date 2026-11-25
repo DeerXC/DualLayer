@@ -66,6 +66,7 @@
 #include "scene/StageLights.h"
 #include "scene/Things.h"
 #include "scene/Town.h"
+#include "scene/TownPlayer.h"
 #include "scene/WaterFx.h"
 
 #include <DirectXMath.h>
@@ -142,6 +143,7 @@ void ApplyPlayerConfig(const dl::Config& config, dl::Player& player)
     dl::Player::Settings settings; // the defaults live in Player.h
     settings.radius = config.GetFloat("collision", "radius", kDefaultBodyRadius);
     settings.eyeHeight = config.GetFloat("player", "eye_height", settings.eyeHeight);
+    settings.sprintMultiplier = config.GetFloat("player", "sprint_multiplier", settings.sprintMultiplier);
     settings.walkSpeed = config.GetFloat("player", "walk_speed", settings.walkSpeed);
     settings.groundAccel = config.GetFloat("player", "ground_accel", settings.groundAccel);
     settings.groundDecel = config.GetFloat("player", "ground_decel", settings.groundDecel);
@@ -209,6 +211,15 @@ void ApplyTownThemes(dl::Models& models, const dl::town::TownData& town)
         t.sky = lin(l.shade);
         t.clear = lin(l.horizon);
         t.fogDensity = l.fog;
+        t.gradientSky = true;
+        // The procedural sky is deliberately less saturated than the model preview.
+        const float aZenith[3] = {0.51f, 0.59f, 0.72f};
+        t.zenith = lin(i == 0 ? aZenith : l.skyTop);
+        const float warmBounce[3] = {0.29f, 0.22f, 0.18f};
+        const float coolBounce[3] = {0.17f, 0.22f, 0.27f};
+        t.groundFill = lin(i == 0 ? warmBounce : coolBounce);
+        t.mistBase = town.sea + 2.0f;
+        t.mistDensity = i == 0 ? 0.0018f : 0.0042f;
         t.tint = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f); // the town has its own colours: no stone tint
         t.weathering = 0.0f;
     }
@@ -378,7 +389,7 @@ int BuildSolidTable(dl::puzzle::Puzzle& puzzle, const dl::stage::SealSet& seals,
 /// The overlay of one frame: the dot in the middle, the prompts at the bottom, the status line at the top left. Sizes follow
 /// the height of the window, so the text is as big on a laptop as on a desktop screen.
 void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl::prompt::Shown, 2>& prompts, const char* status,
-              const dl::endscreen::Screen* end, const dl::stage::Resonance& resonance, float clock, float underwater)
+              const dl::endscreen::Screen* end, const dl::stage::Resonance& resonance, float clock, float underwater, bool reticle = true)
 {
     namespace pr = dl::prompt;
     hud.Clear();
@@ -392,7 +403,10 @@ void BuildHud(dl::OverlayBatch& hud, int width, int height, const std::array<dl:
     const float unit = std::max(2.0f, std::floor(h / 320.0f)); // one font pixel, in screen pixels
     // the dot in the middle of the view: what E looks at
     const float dot = std::max(2.0f, std::floor(unit * 0.8f));
-    hud.AddRect(std::floor(0.5f * (w - dot)), std::floor(0.5f * (h - dot)), dot, dot, {1.0f, 1.0f, 1.0f, 0.75f});
+    if (reticle)
+    {
+        hud.AddRect(std::floor(0.5f * (w - dot)), std::floor(0.5f * (h - dot)), dot, dot, {1.0f, 1.0f, 1.0f, 0.75f});
+    }
     // the status line
     const float statusUnit = std::max(2.0f, std::floor(unit * 0.6f));
     hud.AddRect(0.0f, 0.0f, dl::OverlayBatch::TextWidth(status, statusUnit) + 4.0f * statusUnit, dl::OverlayBatch::TextHeight(statusUnit) + 3.0f * statusUnit,
@@ -500,7 +514,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
     player.SetTown(&moments);
     player.SetSpawn(town.spawn);
     player.Respawn();
-    camera.SetPose(player.Eye(), town.spawnYaw, 0.0f);
+    camera.SetPose(player.Eye(), town.spawnYaw, config.GetBool("player", "third_person", true) ? -0.18f : 0.0f);
     if (town.startLayer == 1)
     {
         gpu.models.ToggleLayer(); // the game opens in the present (docs/DESIGN.md 3.4): the first ripple goes from A to B
@@ -529,6 +543,10 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
     bool collide = config.GetBool("collision", "enabled", true);
     bool walk = config.GetBool("player", "walk", true);
     bool wasWalking = walk && collide;
+    float avatarYaw = town.spawnYaw;
+    float gaitPhase = 0.0f;
+    float gaitAmount = 0.0f;
+    float boom = 0.0f;
     int recoveries = 0;
 
     while (window.PumpMessages())
@@ -613,6 +631,8 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         const bool jumpPressed = PressedOnce(VK_SPACE, keyDown[5], focused);
         const bool usePressed = PressedOnce('E', keyDown[8], focused); // walking: set the lantern down or take it up
         const bool walking = walk && collide;
+        const bool thirdPerson = config.GetBool("player", "third_person", true);
+        const bool orbit = walking && thirdPerson;
 
         // ---- the switch, through the guard: refused into a wall or into the water of the other moment
         if (PressedOnce(VK_TAB, keyDown[6], focused && !IsDown(VK_MENU) && sinking < 0.0f))
@@ -641,7 +661,15 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         // ---- the camera
         if (walking && !wasWalking)
         {
-            player.Place(camera.Position());
+            // Debug fly is not a shortcut through the town in the orbit prototype.
+            if (thirdPerson)
+            {
+                boom = 0.0f;
+            }
+            else
+            {
+                player.Place(camera.Position());
+            }
         }
         wasWalking = walking;
         if (walking)
@@ -659,6 +687,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         const int solidLayer = guard.Refusing() ? guard.HeldLayer() : gpu.models.CollisionLayer();
 
         const bool resetPressed = PressedOnce('R', keyDown[7], focused);
+        const dl::Vec3 feetBeforeMove = player.Feet();
         if (walking)
         {
             dl::Player::Input move;
@@ -666,7 +695,22 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             move.moveRight = sinking >= 0.0f ? 0.0f : keys.moveRight;
             move.jumpPressed = jumpPressed && sinking < 0.0f;
             move.jumpHeld = focused && IsDown(VK_SPACE);
+            move.sprint = focused && IsDown(VK_SHIFT) && sinking < 0.0f &&
+                          config.GetBool("player", "sprint", true);
             player.Update(move, camera.Forward(), solidLayer, gpu.models.SpinSeconds(), dtf);
+            const dl::Vec3 wish = player.WishDirection();
+            if (wish.x * wish.x + wish.z * wish.z > 0.5f)
+            {
+                const float targetYaw = std::atan2(wish.x, wish.z);
+                const float error = std::remainder(targetYaw - avatarYaw, 6.2831853f);
+                avatarYaw += error * (1.0f - std::exp(-22.0f * dtf));
+            }
+            const float climb = std::clamp(config.GetFloat("player", "mantle_height", 2.2f), 0.0f, 2.2f);
+            if (move.jumpHeld && sinking < 0.0f && config.GetBool("player", "mantle", true) &&
+                dl::town::TryTownMantle(player, moments, town, solidLayer, climb))
+            {
+                DL_LOG_INFO("Player", "mantle: ledge reached");
+            }
 
             // E at the handle of a thing: it opens, in A only (the causal rule); its trace comes up in B
             bool used = false;
@@ -751,6 +795,9 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
                 player.Respawn();
                 respawn = Respawn{player.Feet(), 0.0f};
                 landDip = 0.0f;
+                boom = 0.0f;
+                gaitAmount = 0.0f;
+                gaitPhase = 0.0f;
                 stood = 0.0f;
                 if (!resetPressed)
                 {
@@ -784,7 +831,22 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             const float rise = eye.y - eyeY;
             eyeY = (player.Grounded() && std::fabs(rise) < kEyeEaseMax) ? eyeY + rise * (1.0f - std::exp(-kEyeEase * dtf)) : eye.y;
             eye.y = eyeY - landDip;
-            camera.SetPose(eye, camera.Yaw(), camera.Pitch());
+            if (orbit)
+            {
+                const float pitch = std::clamp(camera.Pitch(), -0.90f, 0.38f);
+                const float reach = std::clamp(config.GetFloat("camera", "orbit_distance", 3.8f), 2.0f, 6.0f);
+                eye.y -= 0.20f;
+                camera.SetPose(eye, camera.Yaw(), pitch);
+                const dl::Vec3 direction = camera.Forward();
+                const float clear = dl::town::CameraClearDistance(moments, eye, direction, reach, solidLayer,
+                                                                  gpu.models.LayerSwitching());
+                boom = (std::min)(clear, boom + 10.0f * dtf);
+                camera.SetPose(dl::town::Along(eye, direction, -boom), camera.Yaw(), pitch);
+            }
+            else
+            {
+                camera.SetPose(eye, camera.Yaw(), camera.Pitch());
+            }
         }
         else if (collide) // flying with collision: the camera is a ball pushed out of the town
         {
@@ -804,9 +866,30 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         const dl::town::Circle circle = moments.GetCircle();
         gpu.models.SetLantern(DirectX::XMFLOAT3(circle.centre.x, circle.centre.y, circle.centre.z), circle.radius);
         drawn = st::AddRespawnRing(respawn.at, respawn.since, drawTable, drawn, kDrawCapacity);
+        if (orbit)
+        {
+            const dl::Vec3 feet = player.Feet();
+            const float travel = std::hypot(feet.x - feetBeforeMove.x, feet.z - feetBeforeMove.z);
+            const float walkSpeed = player.GetSettings().walkSpeed;
+            // Use actual travel rather than requested velocity, so pushing into a wall does not animate a run.
+            const float moved = dtf > 0.0f && travel <= 2.0f * walkSpeed * dtf ? travel : 0.0f;
+            const float targetGait = player.Grounded() && walkSpeed > 0.0f && dtf > 0.0f
+                                         ? moved / (walkSpeed * dtf) : 0.0f;
+            gaitAmount += (targetGait - gaitAmount) * (1.0f - std::exp(-18.0f * dtf));
+            if (player.Grounded())
+            {
+                gaitPhase = std::remainder(gaitPhase + moved * 4.6f, 6.2831853f);
+            }
+            if (boom >= 0.85f)
+            {
+                drawn = dl::town::AddTownAvatar(drawTable, drawn, kDrawCapacity, player, avatarYaw, gaitPhase,
+                                                 gaitAmount, lantern.Carried());
+            }
+        }
         gpu.models.SetObjects(drawTable, drawn);
 
         const dl::Vec3 pos = camera.Position();
+        const dl::Vec3 body = walking ? player.Eye() : pos;
         const dl::Vec3 dir = camera.Forward();
         const DirectX::XMMATRIX view = DirectX::XMMatrixLookToLH(DirectX::XMVectorSet(pos.x, pos.y, pos.z, 1.0f), DirectX::XMVectorSet(dir.x, dir.y, dir.z, 0.0f),
                                                                   DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
@@ -823,7 +906,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
             }
             {
                 char status[160];
-                std::snprintf(status, sizeof(status), "%s", town.NearestPlace(pos.x, pos.z));
+                std::snprintf(status, sizeof(status), "%s", town.NearestPlace(body.x, body.z));
                 // the only prompt of the town: what E does here (a handle of the past first, then the lantern)
                 std::array<dl::prompt::Shown, 2> none{};
                 const int handle = things.InReach(player.Feet());
@@ -850,7 +933,7 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
                     }
                 }
                 const float under = sinking >= 0.0f ? 1.0f : 0.0f;
-                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), none, status, nullptr, st::Resonance{}, static_cast<float>(seconds), under);
+                BuildHud(hud, gpu.device->Width(), gpu.device->Height(), none, status, nullptr, st::Resonance{}, static_cast<float>(seconds), under, !orbit);
                 dl::GpuEvent pass(gpu.device->GetAnnotation(), L"Overlay");
                 gpu.overlay.Draw(gpu.device->GetContext(), hud, gpu.device->Width(), gpu.device->Height());
             }
@@ -863,9 +946,9 @@ int RunTown(dl::Window& window, Gpu& gpu, dl::Config& config, dl::Camera& camera
         {
             const wchar_t* mode = collide ? (walk ? L"collide | walk" : L"collide | fly") : L"noclip";
             wchar_t title[384];
-            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | camera %.1f %.1f %.1f | %s | %s | town: %hs | bells %d of %d | falls %d%s",
+            swprintf_s(title, L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | body %.1f %.1f %.1f | %s | %s | town: %hs | bells %d of %d | falls %d%s",
                        gpu.device->AdapterName().c_str(), gpu.device->Width(), gpu.device->Height(), fpsFrames / fpsTimer, 1000.0 * fpsTimer / fpsFrames,
-                       pos.x, pos.y, pos.z, gpu.models.StatusLine().c_str(), mode, town.NearestPlace(pos.x, pos.z), things.BellsRung(), things.BellCount(), falls,
+                       body.x, body.y, body.z, gpu.models.StatusLine().c_str(), mode, town.NearestPlace(body.x, body.z), things.BellsRung(), things.BellCount(), falls,
                        window.MouseCaptured() ? L"" : L" | click for mouse look");
             window.SetTitle(title);
             fpsTimer = 0.0;

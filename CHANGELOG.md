@@ -5,6 +5,20 @@ git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
 
+### 2026-11-25: town atmosphere prototype
+
+- Added per-moment gradient skies, a sun or moon halo, ground bounce and near-ground mist. The normal view and both ripple pictures use the same sky pass; the lantern patch does not draw a separate sky.
+- The atmosphere can be disabled from the render settings for comparison. Cast shadows, material textures and Windows visual acceptance remain open. No map geometry or puzzle logic changed.
+
+### 2026-11-25: town player first pass
+
+- Added the town player module and focused tests. The traveller distinguishes walking from sprinting and carries a visible lantern. The camera retracts around walls, and ledge climbs check support, clearance and water.
+- The town-player, player and lantern logic tests pass with g++. Windows build, visual tuning and the sprint/climb route-bypass pass remain open. No town layout or finale code changed.
+
+### 2026-11-25: next-version design consolidated
+
+- Merged the approved direction and bell-tower finale into [Design](docs/DESIGN.md). Updated the README and marked the build and architecture notes as baseline documentation. No source, map data or tests changed.
+
 ### 2026-11-25: the centre, and the whole main path proved
 
 - Made in the model: the centre (`docs/DESIGN.md` 7.4): the west bridge falls whole in B and its spans lie round the gorge
@@ -223,8 +237,8 @@ git history of this file; it is summarised here.
 | KI-01 | Shaders are compiled at run time from `shaders/` | start the exe from a folder without `shaders/` | by design (hot reload comes in a later milestone); the post-build step copies `shaders\` next to the exe | log error, no picture | accepted for now; precompile for the delivery build |
 | KI-06 | Comments in the code point to sections of `docs/LEVEL_DESIGN.md`, which `docs/DESIGN.md` replaced | read a comment such as "docs/LEVEL_DESIGN.md 6.4.2" | the design document was merged on 2026-11-24 | the section is found only in the git history | the comments are rewritten with the rebuild of the town |
 | KI-07 | Most logic tests build without `/WX` | `tests/run_tests.ps1` | only `core` and `camera` have `/WX` | a new warning in a test is reported as WARN, not as a failure | turn `/WX` on test by test once a run shows no warning |
-| KI-08 | `.github/workflows/build.yml` has not run on a hosted runner | - | - | the CI file is untested | run it once the repository is public |
-| KI-09 | The town has no puzzles, no lamps and no bells yet | start with `[map] town = true` | the rebuild is at step 3 of `docs/DESIGN.md` 12 | the town is walked, the lantern works, nothing more | step 4 |
+| KI-08 | Hosted build status is not documented for this baseline | Compare this version with the hosted workflow run | - | A past successful run does not verify the current revision | Confirm the workflow on the intended release revision |
+| KI-09 | The uploaded town has district puzzles and bells, but its final bell route is not specified as complete | Follow the main route in the default town | The documented route proof ends at the night bell | The new finale must not be inferred from the legacy ending | Prototype and verify the intended final approach; see [Design](docs/DESIGN.md#5-bell-tower-finale-and-ending-views) |
 | KI-10 | In the town a fall comes back to the last place the body stood still on, which may be just before a jump that keeps failing | jump short of a gap and fall | no anchor lamps in the town yet | a player may need R | the lamps of the town with step 4 |
 
 ## Closed issues

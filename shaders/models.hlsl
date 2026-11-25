@@ -16,7 +16,7 @@
 //          moving flecks. The wet band shows on its sides only. `time` (in Frame) drives it all.
 // Lantern: the circle of the lantern set down in A (src/scene/Lantern.h) is a sphere in which B shows A. B is drawn without
 //          its inside (lanternMode 1), then the town of A only inside it (lanternMode 2), with a warm rim at its edge.
-// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 192 and 160 bytes),
+// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 256 and 160 bytes),
 //          struct BatchVertex in src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
 
 #include "common.hlsli"
@@ -39,7 +39,57 @@ cbuffer Frame : register(b0)
     float3 tint;      // the stone of the city in this layer
     float weathering; // 0 .. 1: uneven blocks, moss on what looks up
     float4 lantern;   // xyz: the centre of the circle of the lantern; w: its radius
+    float4 skyRight;  // xyz: perspective-scaled camera right; w: extra low-mist density
+    float4 skyUpRay;  // xyz: perspective-scaled camera up; w: low-mist base
+    float4 skyForward; // xyz: camera forward; w: halo weight
+    float4 skyZenith; // rgb: linear zenith; w: gradient enabled
 };
+
+float3 SkyGradient(float altitude)
+{
+    const float up = smoothstep(0.0, 0.78, altitude);
+    const float down = smoothstep(0.02, 0.75, -altitude);
+    return lerp(lerp(fogColor, skyZenith.rgb, up), fogColor * 0.62, down);
+}
+
+float3 AtmosphereColour(float3 ray)
+{
+    const float alignment = saturate(dot(ray, toLight));
+    // Broad glow and a soft bright core; no noise or sky textures.
+    const float halo = pow(alignment, 20.0) * 0.23 + pow(alignment, 220.0) * 0.37;
+    return SkyGradient(ray.y) + lightColor * (skyForward.w * halo * smoothstep(-0.02, 0.10, ray.y));
+}
+
+float4 PSSky(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Target
+{
+    const float2 ndc = uv * float2(2.0, -2.0) + float2(-1.0, 1.0);
+    const float3 ray = normalize(skyForward.xyz + ndc.x * skyRight.xyz + ndc.y * skyUpRay.xyz);
+    // Small ordered dither in linear light limits bands on the eight-bit target.
+    const float dither = (frac(dot(floor(position.xy), float2(0.5, 0.25))) - 0.375) * 0.002;
+    return float4(saturate(AtmosphereColour(ray) + dither), 1.0);
+}
+
+float LowMist(float y)
+{
+    return 1.0 - smoothstep(skyUpRay.w, skyUpRay.w + 19.0, y);
+}
+
+float SceneFog(float3 worldPos, out float3 colour)
+{
+    const float3 offset = worldPos - eye;
+    const float metres = length(offset);
+    float density = fogDensity;
+    colour = fogColor;
+    if (skyZenith.w > 0.5)
+    {
+        // Three midpoint samples avoid making a tall object fully fogged just because its foot is low.
+        const float low = (LowMist(lerp(eye.y, worldPos.y, 1.0 / 6.0)) + LowMist(lerp(eye.y, worldPos.y, 0.5)) +
+                           LowMist(lerp(eye.y, worldPos.y, 5.0 / 6.0))) / 3.0;
+        density += low * skyRight.w;
+        colour = lerp(SkyGradient(offset.y / max(metres, 1.0e-4)), fogColor, low * 0.45);
+    }
+    return 1.0 - exp(-metres * density);
+}
 
 cbuffer Object : register(b1)
 {
@@ -199,9 +249,9 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
         const float clear = sea ? 0.2 : (flow ? 0.3 : 0.55);
         alpha = opacity * saturate(lerp(1.0 - clear, 1.0, fresnel) + crest * 0.5 + streak * 0.5);
     }
-    const float toEye = length(eye - p);
-    const float fog = 1.0 - exp(-toEye * fogDensity);
-    return float4(lerp(colour, fogColor, fog), alpha);
+    float3 haze;
+    const float fog = SceneFog(p, haze);
+    return float4(lerp(colour, haze, fog), alpha);
 }
 
 // The part of the light of the rim of the circle of the lantern: 1 at its edge, 0 a hand's breadth inside it. Discards
@@ -270,7 +320,7 @@ float4 PSMain(VSOut input) : SV_Target
     // glow: light of its own (a lamp, a hint, an orb), the same in both layers and on every side
     const float3 shaded = albedo * skyLight + albedo * lightColor * diffuse + lightColor * shine + albedo * input.knobs.w;
     // fog: what is far melts into the background; a thing that glows is seen through more of it (a lamp in the mist)
-    const float toEye = length(eye - input.worldPosition); // (not "distance" or "lit": names of intrinsics)
-    const float fog = (1.0 - exp(-toEye * fogDensity)) * (1.0 - 0.75 * saturate(input.knobs.w));
-    return float4(lerp(shaded, fogColor, fog), 1.0);
+    float3 haze;
+    const float fog = SceneFog(input.worldPosition, haze) * (1.0 - 0.75 * saturate(input.knobs.w));
+    return float4(lerp(shaded, haze, fog), 1.0);
 }

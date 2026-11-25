@@ -1,15 +1,13 @@
 # Design
 
-The design of DualLayer: what the game is, its rules, how it looks, the map and its puzzles. Decided on 2026-11-24, it
-replaces the level design, the art and map plan and the gameplay notes kept before. The code as built is described in
-[ARCHITECTURE.md](ARCHITECTURE.md); it is a greybox of the previous map and is being rebuilt to this design (section 12).
+The next version of DualLayer. Unless identified as a current-build baseline, this document describes the target design, not shipped features. The uploaded baseline is documented in [Architecture](ARCHITECTURE.md) and [Build](BUILD.md).
 
 ## 1. The game
 
-A first-person 3D exploration puzzle without combat. One walled harbour town on a hill, at two moments:
+A third-person 3D exploration puzzle without combat. One walled harbour town on a hill, at two moments:
 
 - **A, the past**: a warm evening, the town whole and empty, a minute before something ended;
-- **B, the present**: the same town much later, in ruins under a cold moon.
+- **B, the present**: the same town much later, in ruins under a cold moon after the flood.
 
 The body carries a lantern. **Tab** moves the whole world between the two moments. The lantern, **set down in the past**,
 keeps a circle of the past standing in the present. What is done in the past leaves its trace in the present. The way
@@ -27,7 +25,7 @@ Every change is judged against these. A change that breaks one is not made.
 5. **No long walks back.** No puzzle sends the player to another district; no shortcut leads back to a place already done.
 6. **Nothing that looks like a bug.** The body is never pushed out of a wall; a switch or a pick-up into something solid is
    refused instead.
-7. **Two temperatures.** The colour of the screen alone says which moment it is (section 6).
+7. **Two states of one town.** Light and colour distinguish the moments at a glance; damage, materials and signs of use keep the difference readable without colour (section 6).
 8. **Explained in person.** The core is hand-written C++ and small enough to be explained line by line in an interview.
 
 ## 3. Mechanics
@@ -67,7 +65,7 @@ the past, the gate of the present".
 
 As built (`scene/Lantern.h`, `scene/Moments.h`): the circle is a sphere of radius 3.5 m round the lamp, 0.45 m over the floor
 it is set on, 0.9 m ahead of the feet (at the feet at an edge); taken up within 1.8 m. Its edge in B is a warm rim of
-light. Open: the radius grown by finds, a second lantern late in the game.
+light. The new route assumes one lantern with no collectible-based radius upgrades.
 
 ### 3.3 The causal rule
 
@@ -113,60 +111,103 @@ Each object answers one question: what happens to it when the moment changes?
 
 Not used: free physics, throwing, timers on the main path, combat.
 
+### 3.7 Player and camera
+
+The town prototype uses a third-person follow camera. The lantern follows the right hand while carried; when placed, it follows the rules in section 3.2. Character and lantern art are specified in section 6.7.
+
+- **Movement:** hold Shift to sprint at 1.6 times walking speed by default, without stamina. Ground animation follows actual movement after collision. Sprinting lengthens the stride and leans the body forward. The main route should not require sprinting for every obstacle.
+- **Camera:** the follow distance starts at 3.8 m. The camera pulls in when blocked and extends gradually when clear. During a switch ripple, geometry in either moment can shorten the distance. The character is hidden if the camera gets too close.
+- **Climbing:** a forward jump with Space held can climb a nearby ledge up to 2.2 m above take-off if the top has support, the landing is dry and the body fits along the sampled path. Walking into a wall does not trigger a climb. A dedicated pull-up animation is not included in this pass.
+- **Acceptance:** verify the quay, sea gate and first aerial switch with this controller. Check that sprinting or climbing cannot bypass the intended gates. The baseline route solver does not model the new moves.
+
 ## 4. Progress and return
 
-| Element | Rule |
+- **Main route:** the existing district bells are prototype milestones. Keep the main route readable and the final bell reachable without lighting any optional street lamps. District machinery may change a view of town without creating a required errand in another district. The district gate requirements should be checked when the map is compressed.
+- **Anchor lamps:** checkpoints, not collectibles and not optional street lamps. Place them after meaningful progress. A fall or R returns to a safe floor in both moments without depending on the placed lantern. In the uploaded town baseline, this is the last safe standing point; anchor-based recovery and lamp travel belong to the legacy greybox unless migrated.
+- **Optional street lamps:** light a lamp in A and it remains lit in B. A lamp can clarify a nearby route or reveal a landmark. Reward exploration with changes visible in the town and with the boat outcome in section 5, not a collection counter. Memory fragments, fragment-based radius upgrades and unlockable story scenes are not part of the new route.
+
+## 5. Bell tower finale and ending views
+
+### 5.1 Final approach (layout to prototype)
+
+From the northern overlook, frame the bell tower, a recognisable entrance and the first walkable segment together. Keep the approach local. Prototype a broken approach in B that reveals the route, a safe position to switch to A, and a short climb through the intact tower. Use the established rules for any lantern-held floor or ledge; a new timing mechanic, long backtrack or precise aerial switch is not required. The bell platform must be reachable through an intended path, not by standing on a wall. Leave enough room to read the bell, the interaction and the harbour below with the third-person camera. The layout and whether the final climb requires a lantern placement remain play-test decisions.
+
+### 5.2 The warning and its consequence
+
+An upstream dam fails and floods the town. The central bell is rung in A to warn the people at the harbour before the flood reaches them; it does not stop the dam failure, control time or serve as a navigation signal. Establish several recognisable wrecks in B at the opening. Distinguish them by sail colour and, where useful, silhouette or a matching fabric pattern. In A, show the matching boats leaving their exposed berths after the bell. In B, the corresponding wrecks are absent, but the flood damage to the town remains. Show an absence in the same framing used at the opening so the cause and result can be read without dialogue. No playable boat sequence is required.
+
+Optional lamps increase the number of boats shown escaping without unlocking the tower, the bell or access to an ending view. The first prototype should show a visible baseline payoff with zero lamps and a larger payoff after exploration. The exact count, which lamp affects which boat and how the lamps relate to departure routes remain open; do not treat a one-to-one mapping as settled. Use the same recorded boat outcomes for all three views of a run.
+
+### 5.3 Past, Present and Both
+
+| View | What is shown |
+| --- | --- |
+| **Past** | The warning in A and the identified boats pulling away from the quay before the flood. |
+| **Present** | The damaged harbour in B. Locations previously occupied by the matching wrecks are now clear. |
+| **Both** | Match the quay framing across A and B so a departing boat and its empty wreck site read as one cause and one result. The town is not restored. |
+
+The exact input and presentation for these three planned views must be tested. The legacy third-stroke selection, held-Tab condition and R replay are not requirements for the new town finale. Do not gate Both on collectibles, a hidden room or a timed input. The payoff is understandable without finding any optional cloth clues.
+
+## 6. Art direction
+
+### 6.1 Style and scope
+
+**Simple forms, rich atmosphere.** DualLayer is a stylized medieval harbour diorama, not a voxel world or a photorealistic reconstruction. Keep the existing irregular terrain, terraces, walls, rooflines and bell tower. Use low- to mid-poly geometry with clear silhouettes. Add geometry where it changes the outline, explains function or helps navigation: coping stones, recessed doors, quayside supports and arch profiles. Keep passing walls quiet; reserve close-up detail for landmarks and interactions. Take the sense of depth and weathering from Elden Ring as a reference, not its asset complexity.
+
+### 6.2 Materials and surface detail
+
+| Material | Visual rules |
 |---|---|
-| Bells | one in each district, rung where it hangs. Each lights an emblem on the bell tower; the three open the way to its top. Each bell changes the whole town (the water of A rises, the machinery turns, night falls in A): it is seen, never needed elsewhere |
-| Anchor lamps | the rest points: few, at places that feel earned; a fall or R comes back to the last lit lamp of the room |
-| Lamp travel | after the first bell, between lit lamps (built) |
-| Resonance | after the second bell, the lantern pulses near a hidden memory light (built) |
-| Memory lights | hidden, each a second use of something taught; a ring of lamps on the bell tower shows those taken; some bring back a piece of A in B |
+| Stone | Broad, uneven courses; restrained joints and rough highlights. Use darker wall bases, coping stones and corner blocks before adding small cracks. Stairs and bridges should read as stone at normal camera distance. |
+| Wood | Grain follows the plank or beam. Place joints and end grain where the construction calls for them. Dry timber in A becomes grey and worn in B; do not redraw every plank. |
+| Plaster | Subtle broad variation, darker under eaves and near the ground, with exposed masonry only where there is a reason for damage. |
+| Roof tile | Use three or four closely related terracotta variants. In B retain the same roof identity where it survives, weather the tiles and remove them selectively. |
+| Metal | Reserve brass, iron and verdigris for functional details. Keep bright warm accents concentrated near useful interactions, not on every prop. |
 
-## 5. Endings
+Use shared 512 or 1024 px textures as a starting budget. Start with base colour and roughness; add restrained normal maps and baked contact shading where they improve the read. Do not model every stone or add fine noise across every surface. Keep texture scale consistent between assets.
 
-At the top of the bell tower the great bell strikes three times; the body may switch between the strokes. At the third:
-in A, **the past** (the moment is kept); in B, **the present** (time moves on); with the three bells rung and Tab held,
-**both** (the present, with what the memory lights brought back). R after an ending plays the last moment again. Built.
-The optional twist of section 9 may change what the endings mean.
+### 6.3 Light, sky and distance
 
-## 6. Art
+- Use one directional sun or moon with soft sky and ground fill. Keep detail visible in shadow. Start with a 2048 px directional shadow map focused on the reference district, with the character, larger plants, buildings and boats casting shadows. Expand coverage only after checking both target machines.
+- Start with baked or material-level contact shading at wall bases, door recesses, steps and under eaves. Consider screen-space ambient occlusion only if the first pass still looks flat and there is performance headroom.
+- Replace the solid sky with a procedural gradient. A moves from muted blue-grey overhead to pale gold at the horizon, with a low western sun. B moves from deep grey-blue overhead to a misty cyan-grey horizon, with cool moonlight.
+- Use restrained distance and height fog to separate the quay, sea wall, streets, bell tower and hills. Frame a readable route in the middle distance and keep the main landmark visible. Fog and shadows must not conceal the next landing or an important interaction.
 
-### 6.1 Two temperatures
+### 6.4 The same town at two moments
 
-| | A, the past (warm) | B, the present (cold) |
+| | A: the past | B: the present |
 |---|---|---|
-| Key light | low sun from the west, amber, long shadows | moon from high, blue-white, short soft shadows |
-| Shadows | violet, never black | deep blue-black |
-| Stone | sandstone lit amber, terracotta roofs | the same stone washed blue-grey, slate where roofs survive |
-| Accents | copper domes in teal, brass, lit windows | verdigris and moss; the only warm colours are a few lanterns and the lantern's circle |
-| Air | a light golden haze; far towers turn pink-orange | cold mist that hides the far side of the town |
+| Light and air | Long amber sunlight, cool soft shadows, light golden haze | Cool fill and moonlight, deeper blue-grey shadows, low cold mist |
+| Built surfaces | Dry stone, intact doors and roofs, timber and terracotta | Damp wall bases, greyer wood and rusted fittings; selective roof damage and debris |
+| Life and vegetation | Useful objects in place, crates stacked, plants tended around houses and water | Misplaced or missing objects, moss in shade, growth through cracks and rubble, changed water levels |
 
-### 6.2 Palette
+Changes should follow drainage, exposure, damage and disuse, not a uniform filter. Preserve enough shared geometry to recognise the same place immediately. In a greyscale A/B comparison, the player should still distinguish the moment through silhouette, value, damage or signs of use.
 
-| Role | A | B |
-|---|---|---|
-| Lit stone | `#E8B98A` | `#9FB3C4` |
-| Shadow stone | `#9A5E48` | `#3D4E63` |
-| Roof | `#C2553A` terracotta | `#4B5A6E` slate |
-| Metal | `#E3A63C` brass | `#5FA39A` verdigris |
-| Accent | `#3E8C7E` copper | `#4F6B52` moss |
-| Light | `#FFD27A` window | `#FFB65C` lantern |
-| Shade | `#5B3E6E` violet | `#1E2638` deep blue |
-| Sky | `#F2C49A` dusk | `#56677E` storm night |
+### 6.5 District identity and vegetation
 
-### 6.3 Rules
+- **Harbour:** hoist, warehouse doors, mooring posts, ropes and boats. Put the strongest visual cue on the way from the quay to the sea gate.
+- **Housing:** narrow doors, recessed windows, chimneys and occasional balconies or washing lines. **Market:** cloth awnings, timber stalls and a few carts. Keep crossings clear of decorative clutter.
+- **Bell tower:** regular masonry, a clear arch and visible steps distinguish the approach from residential streets. Keep the entrance legible, not just the tower spire.
+- Replace cone placeholders near the player with trunks, a few branches and grouped low-poly foliage. Use sparse grass clumps and a few greens. Place growth by moisture, soil and shelter: more near water and ruins, moss on damp shaded bases, and little in the middle of an intact route.
 
-- Warm light and cool shade in the same frame; never grey on grey.
-- Three depths in a view: a dark frame close by (an arch, a balustrade), the lit street in the middle, a pale skyline with
-  one landmark.
-- Detail where the eye stops (balustrades, lamp posts, benches, crates); plain walls where it passes.
-- Gold is only for things to use. The material says the moment: wood and iron in A, fallen masonry in B.
-- Form: low-poly and flat-shaded, no textures; a soft outline on silhouettes only; fog tinted per moment; the sky a
-  gradient.
-- Borrowed from, without copying: the walls and roofs of Dubrovnik and Kotor, the terraces of the Amalfi coast, the
-  theatre of Taormina, the stone of Matera, the campanile of St Mark's (it fell in 1902 into its own foot); the haze of
-  Journey, the forms of A Short Hike.
+Props and planting should identify where the player is, point towards the next route or show how the place changed. Do not add a high-contrast door or platform that looks usable if it leads nowhere.
+
+### 6.6 Water
+
+Keep one stylized water language across the sea, harbour, pools, channels and waterfalls. Start with scrolling surface normals, a stronger reflection at shallow viewing angles, colour by depth and restrained shore foam. Use warmer reflections and clearer green-blue shallows in A; use deeper blue-green, less transparency and cooler reflections in B. Match ripples and foam to flow, impact or rising and falling water. Make the shoreline and hazardous depth readable before adding richer reflections. Sound and gameplay rules are not changed by this visual pass.
+
+### 6.7 Character and lantern
+
+Keep the current low-poly harbour traveller's teal coat, rounded hood and small pack as the starting silhouette. Refine proportions, visible joint separation and the shapes of cuffs, boots and straps before adding surface detail. Read cloth as matte, leather as slightly smoother and brass as a controlled highlight. The same silhouette and materials carry across both moments; make the figure readable against both sunlit stone and cold ruins without relying on a heavy outline.
+
+The lantern is the character's strongest warm accent. Its handle, frame and light source should remain identifiable when carried or placed. Show and hide the hand-held model with the existing lantern state. Keep visual geometry separate from the collision body; the interaction rules stay in sections 3.2 and 3.7.
+
+### 6.8 First playable art pass
+
+1. Work on the existing **quay to sea gate** route, including a tight passage, a water edge and the view to the bell tower. Start with sky, fog, directional shadows and ambient fill; then apply the core materials and water. Add district props, plants and character refinements only where needed.
+2. Capture paired A/B views from the same third-person camera positions. Check that stone, timber, plaster and roof tiles read at play distance; the route and water edge are clear; the tower holds the skyline; and the character and lantern stand out in both moments. Repeat in greyscale and verify performance on the laptop and desktop before extending the pass to the rest of town.
+
+The first rendering pass implements the gradient sky, ground fill and distance and low mist. Cast shadows, surface materials, water refinements and the paired Windows play-test remain open. Do not rebuild the city or add advanced shadow and post-processing systems before the reference route proves the visual direction.
 
 ## 7. The map
 
@@ -184,7 +225,7 @@ quays, the graveyard, the top of the theatre) for a step; it reports nothing on 
 every street with the real body (tests/test_town.cpp): in A every street is open; in B fallen arches and the rubble of the
 sea gate close two of them, to be passed by a jump or by A.
 
-The game will load the model's terrain, streets and buildings as data, so the game and the model are one town.
+The current town loads the model's terrain, streets and buildings as data. Update the model and re-export the town together for the next layout.
 
 ### 7.2 One hill town
 
@@ -244,11 +285,18 @@ Fixed on 2026-11-24 and kept true by `city_model.py check`:
 | The market | the market stairs pass west of the well, clear of its parapet |
 | The centre | the tunnel from the well opens into the gorge under the west bridge (under the water of A); the lift: in A the cage at the plaza, in B its frame leaning up the face of the rock; the west bridge: its middle in A only, its gate on the rock end shut in A and open in ruin in B |
 | The lantern | the street_b view shows its circle on the west bridge: the middle of the bridge of A standing in B |
-| Still open | the way from the graveyard to the top of the bell tower (designed with the last puzzle) |
+| Still open | the exact walkable geometry from the northern overlook into the bell tower (section 5) |
+
+### 7.6 Compact and connected town (planned)
+
+- Aim for about 60% of the current explorable footprint, not a uniform scale-down. Keep one whole hill town and its winding climb, the links between districts, and the bell tower as a landmark. Shorten empty approaches and combine redundant lanes before cutting distinctive places.
+- Make the town denser vertically: connected roofs, usable interiors, alleys that pass through buildings, and overlooks that reveal another route. A platform or landmark that looks reachable should have a real route. Clearly frame purely scenic terrain as background rather than blocking a promising route with an invisible wall.
+- Give each explorable branch a purpose: a playable detour, a new connection, a view that reveals a route, or a local lamp puzzle. Do not put a collectible at the end of every lane to justify leaving it open. Keep useful local connections; do not add a post-clear shortcut back to the start or mandatory cross-district errands.
+- Use 20 seconds of sprinting as an initial pacing check on traversable routes: a stretch without a decision, discovery or landmark worth stopping for is a candidate for compression. Check this in play rather than treating it as proof of an interesting map.
 
 ## 8. Puzzles by district (draft)
 
-Each mechanic is taught where a mistake costs nothing, then turned round. The puzzles are designed on the fixed model.
+These are baseline puzzles on the uploaded model, not final layouts for the compact town. Keep the original teaching intent where useful. Give the player a safe lantern demonstration before the west market scaffold; the scaffold is the first required use, not first exposure.
 
 | District | Taught or used | Sketch |
 |---|---|---|
@@ -258,36 +306,28 @@ Each mechanic is taught where a mistake costs nothing, then turned round. The pu
 | East: the locks | water and the crate | **placed** (2026-11-25): the plank laid between two roofs in A holds in B. Still: a crate floated in A to where it is needed lies there on the dry bed in B; the tower lock re-made the same way; the dawn bell in the water tower |
 | North: theatre and graveyard | the prism; the switch in the air | **placed** (2026-11-25): the gatehouse of the theatre: a crate pushed under its balcony in A, then a switch in the air onto the heap of B. Still: the prism moves a thing of A into B; the fallen back wall of the theatre passed with a switch in the air; the night bell; the traces of the whole game seen from the cliff |
 
-## 9. Story
+## 9. Environmental storytelling
 
-The story is written last; nothing of the map or the code depends on it. Fixed now:
+The flood premise is in section 5. Main-route play does not depend on knowing the backstory. Keep story beats in places the player already explores rather than in collectible-triggered scenes.
 
-- Two moments of one town; told without words, by places and pairs of things in A and B.
-- A story prop in A has a partner in the same place in B, and also points somewhere: to a way, a puzzle or a light. A
-  prop that only decorates is cut. One to three in view from every place on the main path.
-- B keeps a few things made by hands (a carved mark, a laid stone, a frame), so the present is remembered, not only ruined.
-- Examples: a toy on the rim of a fountain in A, the same toy in the dry pool in B; fresh flowers in A, one grave apart in
-  B; a drawing on a wall in A, behind a frame someone made in B.
-
-**Optional twist** (decided at the story stage): the causal rule turns on the player at the end. Part of the ruin of B was
-caused by what the player did in A: the sluice opened to pass a lock is what flooded the lower town. The choice of the
-last moment becomes whether to leave the past as it was.
+- **Everyday life before the flood:** in A, set a wedding table, hang fishing nets to dry or show the market just after closing. Return to the same place in B to show what survived, what broke or what someone deliberately preserved. Use composition and props rather than explanatory text.
+- **Sail and cloth clues:** each highlighted wreck has a recognisable sail colour; somewhere in its owner's district, use matching fabric in an everyday scene. When a boat escapes in A and its matching wreck is missing in B, the player who noticed that clue can recognise whose boat it was. Pair colour with a pattern or silhouette when possible. Clues are not items, a checklist or a condition for saving a boat.
+- **Overlooks:** keep a high point in each district that frames a visible next destination and, when the terrain permits, the bell tower. The view should tell the player where a route might run, not just show scenery.
+- **Not carried forward:** the player-caused flood twist, graves as the finale payoff, unlockable memory scenes and a story-based true-ending requirement. Further backstory is not needed for the first playable finale.
 
 ## 10. Immersion and guidance
 
-- No text but key prompts. Light, material and sound guide: gold means use; in B the only warm light is the way.
-- Sound: A has voices, bells and gulls; B has wind, dripping and the far sea. A switch is heard as much as seen.
-- Each bell changes the whole town; the changes are seen, never needed elsewhere.
-- Every puzzle room has a framing point at its entry, from which its goal and a part of the answer are seen at once.
-- Hints grow with time in a room: the pale outlines of the other moment are always there; after 30 s they grow brighter,
-  after 60 s they pulse (built). A refused move shows what is in the way (built).
+- Make the environment explain the next move before adding markers: frame the destination from the entrance, give the next interaction a recognisable silhouette, and make the difference between A and B readable at the obstacle. Teach one new idea at a time and let the player try it somewhere safe before requiring it on the main path.
+- Keep the three agreed guidance aids as a fallback. A subtle pillar identifies the current local goal. Moving lights indicate direction, with warm light for A, cool light for B, and a distinct pulse at a suggested switch point; an arc can suggest an aerial switch. Show guidance during the first lesson, then offer it on H or after roughly 30 seconds without meaningful progress. Use brief key prompts where needed, not written walkthroughs. Do not reveal optional routes by default or show the complete answer before the player has tried.
+- Give the lantern an early, safe demonstration before the west market scaffold, where it is first required. Show the lantern in hand, placing it in A, the warm patch that retains A inside B, and how to retrieve it. The existing town build already supports placement in A and a patch of A in B; the problem reported in play is that the feature is not apparent. Validate any hint route with the real character and camera, not only the reachability solver.
+- Use sound as a second cue: harbour activity and gulls in A; wind, dripping and the far sea in B. Distinguish switch, refusal and lantern placement by sound once audio is added. Warm guidance colours in B must not be confused with the lantern patch or a causal trace.
 
 ## 11. Limits and proof
 
 The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numbers in
 [CONVENTIONS.md](CONVENTIONS.md)).
 
-| Item | Main path | Optional lights |
+| Item | Main path | Optional routes |
 |---|---|---|
 | Horizontal gap | 1.8 m | 2.5 m |
 | Step up | 1.2 m | 1.8 m |
@@ -305,45 +345,23 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | The ground | under every floor; every walk or jump off an edge ends in the map or is caught as a fall |
 | Immersion | every view down meets the map, the land or the sea |
 
-## 12. Order of work
+## 12. Order of work and acceptance
 
-1. Fix the model (7.5).
-2. Export the model as data the game loads; the game draws and walks the model's town (done 2026-11-24: `data/town.dlt`,
-   `scene/Town.h`; ARCHITECTURE.md, "The town").
-3. The lantern circle and the traces in code, with their tests (done 2026-11-24: `scene/Lantern.h`, `scene/Moments.h`,
-   tests/test_lantern.cpp; the traces wait for the first things that change, in step 4).
-4. The districts rebuilt on the model with their puzzles (the whole town), each room proved as in section 11. Begun
-   2026-11-25: the things that change (`scene/Things.h`, `data/town.dlt` format 3), the harbour (beats 1 to 4), one puzzle
-   placed in each other district, the centre (the lift), the bells. The whole main path is proved in order by
-   `tests/test_route.cpp`: every step reached, none before its turn.
-5. Refine by play; then the story and the sound.
+1. Prototype third-person movement, sprint, ledge climbing and a visible lantern in one compact section. Tune against a tight alley, a raised ledge and a switch in the air before changing the whole town.
+2. Rework the harbour through the first lantern lesson as a reference district. Validate the art on the quay-to-sea-gate route before extending it (section 6.8). Give first-time players a clear destination, one worthwhile detour and a visible reward for changing the past. Ask them to play without verbal coaching; note where they lose the route, cannot read an interaction or expect an unreachable platform to be playable.
+3. Apply the validated layout and guidance to the remaining districts. Re-test jumps, switch safety, ledge clearance, lantern-only routes, optional-lamp independence and unintended bypasses. Update the solver and verify key sequences with real player movement; the previous reachability results do not certify the new movement or layout.
+4. Build the bell tower finale and boat payoff after the movement and exploration loop is stable. Verify the route to the final bell and all ending states, including a run with no optional lamps.
+
+The uploaded town already loads `data/town.dlt`, supports the lantern patch and causal objects, and has a solver for the old route. Keep those results as a baseline only. Before updating the layout broadly, review the first district with a new player: can the player find the route without coaching, explain why a trace appears in B and use the lantern unprompted at the first required obstacle? Test safe camera behaviour on every switch, a refused climb with inadequate clearance, a refused switch into solids or water, and recovery without lantern-dependent support. Test zero, some and all optional lamps; the same main route and ending views must remain available.
 
 ## 13. Decisions
 
-| Date | Decision |
-|---|---|
-| 2026-11-17 .. 23 | one rule; one city in two moments; the switch in the air; puzzles proved by a solver and the real body; anchor lamps, lamp travel, resonance, three endings; worlds told by material; water from the aqueduct (history in the CHANGELOG) |
-| 2026-11-24 | A is the past, B is the present; the causal rule applies everywhere, and the crate puzzles are re-made in its direction |
-| 2026-11-24 | the lantern keeps a circle of A in B; the switch stays a switch of the whole world |
-| 2026-11-24 | puzzles start from the present; the player's changes show as traces |
-| 2026-11-24 | the greybox rooms are not kept: the town is rebuilt on the model, as a whole |
-| 2026-11-24 | dropped: puzzles that depend on another district, shortcuts back to places already done |
-| 2026-11-24 | the seal of a district is folded into its bell: one goal per district |
-| 2026-11-24 | the story twist of section 9 stays optional |
-| 2026-11-24 | one design document (this one); the level design, the art and map plan and the gameplay notes are merged into it |
-| 2026-11-25 | the game starts in B (the present), as every puzzle does; things that change are opened in A at a gold handle, and open in B by the causal rule |
-| 2026-11-25 | the harbour teaches the switch, the causal rule and the switch in the air; the lantern is first met in the shaft of the west |
-| 2026-11-25 | the centre without the cistern: the gorge is entered down the wreck of the west bridge in B and left by the lift; the west bridge is never crossed; walls between the districts close every way round a puzzle |
+- **2026-11-24:** one complete town, A before B, past-to-present cause and effect, one held patch from a placed lantern, no mandatory district-spanning errands and no post-clear shortcut back to the start.
+- **2026-11-25:** current town starts in B; the harbour teaches the switch and the one-way causal rule. The lantern receives a safe early demonstration in the next version. The town has a first third-person player pass. A denser town, fallback guidance and optional street lamps remain planned. Use the central warning bell and boats for the finale. See [Changelog](../CHANGELOG.md) for prototype history.
 
 ## 14. Open
 
-| Item | Note |
-|---|---|
-| The story | section 9 |
-| Sound and music | no audio in the project yet |
-| The lantern | the radius grown by finds, a second lantern |
-| Look before going | 3.1 |
-| The memory lights | their number and places on the new map |
-| A guide figure | a hint that shows one step after a long time in a room |
-| The bell tower | the last moment, from the graveyard (7.4, step 7) |
-| Lantern rooms | a lantern room leaves no floor of B within a running jump (3.6 m) of a floor of A the lantern stands on, or a switch in the air solves it (the bridge example of 3.2 is solved that way: to be re-made with the room) |
+- Tune the camera, sprint speed, ledge height and jump envelope on the reference route.
+- Finalise the compact street plan, playable roofs and interiors, and the exact north-to-tower approach; verify the final bell with actual input, not just route reachability.
+- Set optional lamp locations, boat mapping and escape counts; prototype the Past, Present and Both views before choosing their controls.
+- Tune guidance thresholds and cue contrast. Holding Tab to preview a layer remains an optional idea, not required for the finale. Audio and further environmental detail can follow after the route works.

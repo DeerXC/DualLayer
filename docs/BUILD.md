@@ -1,5 +1,7 @@
 # Build
 
+Controls and current checks apply to the uploaded build. The numbered legacy checks are retained for regression only; the new sprint, climb, hint key and boat finale are specified in [Design](DESIGN.md) and are not current controls or passing tests.
+
 ## Requirements
 
 1. Visual Studio 2026 with the workload **Desktop development with C++**, toolset v145.
@@ -21,9 +23,10 @@
 |---|---|
 | Click | capture the mouse for mouse look |
 | Esc | give the mouse back; a second Esc quits |
-| W A S D | walk (flying: move) |
+| W A S D | walk relative to the camera (flying: move) |
+| Shift | hold to sprint in the town |
 | Mouse, arrow keys | turn |
-| Space | jump; held = the full jump, a tap = a small hop |
+| Space | jump; held = full jump, tap = small hop; hold while moving towards a suitable ledge in the town to climb |
 | Tab | switch the moment (A the past, warm; B the present, cold); a switch into something solid or into water is refused and the ripple turns back |
 | E | (walking, in the town) at a gold handle in A, open its thing (the prompt says OPEN; in B a handle does nothing); else set the lantern down a step ahead, in A only (the prompt says PUT DOWN), or take it up within reach (TAKE). In the greybox map: take the orb in reach, or put the held one down one step ahead (on a socket, a plate or a hole when near one; the prompt says TAKE, PUT DOWN or PLACE). At a lit lamp after the first bell: the list of lamps (A / D choose, E travels, W / S / Space close) |
 | R | back to the lit lamp of the room, else its entry; puts back the objects of the room (the crate, the orbs, the canal). After an ending: the last moment again |
@@ -75,6 +78,10 @@ matplotlib; about a minute):
 
     python tools/layout/city_model.py export
 
+```powershell
+python tools/layout/city_model.py export
+```
+
 It checks the model first and writes nothing when the check finds a problem.
 
 ## One command
@@ -110,7 +117,23 @@ The message must be `type(scope): subject`, at most 72 characters, without a fin
 `git audit` (at most 90 s), `git commit` (120 s) and `git push` (180 s) run in turn and stop at the first failure; a command
 that does not answer in its time is stopped and reported. `--no-verify` is never used.
 
+## Town atmosphere play-test
+
+- At the quay, look from the horizon towards the sky and down over the water. The sky should stay tied to the world as the camera turns. Look through the sea gate and check the next step and the gate handle remain readable.
+- Switch between A and B in the same position and again while the window is resizing. Each side of the ripple should have its own sky and haze. In B, a placed lantern changes the nearby scene, not the sky.
+- Set `[render] town_atmosphere = false` in `config/default.ini` and press F5 to compare with the baseline. Restore `true` after testing. Record paired views from the same positions and check laptop and desktop performance before further art work.
+
+## Town player play-test
+
+- At the quay, compare walking, sprinting, turning and stopping against a wall. The lantern should follow the right hand and disappear from it when placed.
+- At the sea gate, turn the camera by the stonework and switch where a clear view becomes blocked. The camera should retract without crossing the wall and extend again outside.
+- At the first aerial switch, check that the intended landing remains visible. Try to bypass the old gates with sprint jumps or climbs before changing the layout.
+
+The focused logic test is `.\tests\run_tests.ps1 -Only town_player` in Developer PowerShell. If `data/town.dlt` is missing, `python tools/layout/city_model.py export` generates it from the existing map before the game is run.
+
 ## Checked by eye
+
+Run E-1 to E-23 with `[map] town = false` and E-24 onward with the default town. E-23 tests the legacy ending only.
 
 What `check.ps1` cannot see. Run in Debug after a change that touches it; write a result as "E-3 ok" or "E-3 fails: what was
 seen".

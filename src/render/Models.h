@@ -55,6 +55,11 @@ class Models
         DirectX::XMFLOAT3 clear = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);      ///< the background, and the colour of the fog
         float fogDensity = 0.0f;                                            ///< UNITS: 1 / metres: the part of the light lost per metre
         DirectX::XMFLOAT3 tint = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);       ///< the stone of the city in this layer: multiplies its albedo
+        DirectX::XMFLOAT3 zenith{};    ///< linear sky colour overhead
+        DirectX::XMFLOAT3 groundFill{}; ///< linear bounce from the ground
+        float mistBase = 0.0f;         ///< UNITS: metres, world height at which low mist starts to thin
+        float mistDensity = 0.0f;      ///< UNITS: 1 / metres, additional low mist
+        bool gradientSky = false;      ///< town only; the legacy test map retains its solid backdrop
         float weathering = 0.0f; ///< 0 .. 1: how uneven the stone blocks are and how much moss grows on surfaces that look up
     };
 
@@ -266,6 +271,8 @@ class Models
     LayerRipple m_ripple;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_rippleVertexShader;
     Microsoft::WRL::ComPtr<ID3D11PixelShader> m_ripplePixelShader;
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_skyPixelShader;
+    bool m_townAtmosphere = true;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_rippleBuffer;
     Microsoft::WRL::ComPtr<ID3D11SamplerState> m_sampler;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_noCullState;

@@ -4,6 +4,8 @@ The code as built. By default it runs the town of the layout model, loaded as da
 `[map] town = false` it runs the greybox of the previous map, with all its puzzles. The design is [DESIGN.md](DESIGN.md). Some comments in the code still point to sections of the level design that DESIGN.md replaced
 (see the known issues in the CHANGELOG).
 
+This is the uploaded implementation baseline, not the next-version specification. [The town](#the-town) describes the default model-based runtime. The frame overview and the `Stage`-based map, `CityState`, memory fragments and three-stroke `Ending` describe the legacy greybox where applicable. The planned third-person camera and new ending are specified only in [Design](DESIGN.md).
+
 ## One frame
 
 ```
@@ -94,7 +96,11 @@ Every object carries a layer mask (A = 1, B = 2, both = 3); a draw call and a co
 hold the layer. Each layer has its own theme (light, sky, background, fog, and the stone of the city), never mixed: A is
 the past, the whole city in a warm evening, B the present, the same city after a storm, cold and foggy, its stone dark and mossy. The model shader
 gives the city (objects of both layers that do not glow) the tint and the weathering of the layer, and fogs everything by
-its distance into the background colour; glowing things are seen through more of the fog.
+its distance into the background colour; glowing things are seen through more of the fog. In the town, the renderer
+also draws a world-aligned sky before the opaque scene, using the same full-screen triangle vertex shader as the
+ripple. Each ripple target gets its own sky; the local lantern pass changes only geometry and water. The 256-byte
+frame buffer carries the camera axes, sky colour and low-mist parameters. Opaque objects and water share the same
+distance and height haze.
 
 `LayerRipple` keeps the timing of a switch. While no ripple runs, one layer is drawn straight to the back buffer. During a
 ripple, `Models::DrawRipple` draws the outer layer and the inner layer into two off-screen pictures (sRGB colour and their

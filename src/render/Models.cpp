@@ -53,6 +53,10 @@ struct FrameConstants
     XMFLOAT3 tint;     // the stone of the city in this layer (multiplies the albedo of the city)
     float weathering;  // 0 .. 1
     XMFLOAT4 lantern;  // xyz: the centre of the circle of the lantern (world); w: its radius (metres)
+    XMFLOAT4 skyRight;  // xyz: camera right / projection x scale; w: additional near-ground fog density
+    XMFLOAT4 skyUpRay;  // xyz: camera up / projection y scale; w: near-ground fog base height
+    XMFLOAT4 skyForward; // xyz: camera forward; w: solar / lunar halo weight
+    XMFLOAT4 skyZenith; // rgb: linear colour; w: gradient enabled
 };
 
 struct ObjectConstants
@@ -76,7 +80,7 @@ struct RippleConstants
     float pad1;
 };
 
-static_assert(sizeof(FrameConstants) == 192, "cbuffer Frame is 12 registers of 16 bytes");
+static_assert(sizeof(FrameConstants) == 256, "cbuffer Frame is 16 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
 
@@ -280,9 +284,11 @@ bool Models::Init(ID3D11Device* device, int segments)
     ComPtr<ID3DBlob> vsBlob;
     ComPtr<ID3DBlob> psBlob;
     ComPtr<ID3DBlob> batchBlob;
+    ComPtr<ID3DBlob> skyBlob;
     if (!CompileShader(kModelsShaderPath, "VSMain", "vs_5_0", vsBlob) ||
         !CompileShader(kModelsShaderPath, "PSMain", "ps_5_0", psBlob) ||
-        !CompileShader(kModelsShaderPath, "VSBatched", "vs_5_0", batchBlob))
+        !CompileShader(kModelsShaderPath, "VSBatched", "vs_5_0", batchBlob) ||
+        !CompileShader(kModelsShaderPath, "PSSky", "ps_5_0", skyBlob))
     {
         Shutdown();
         return false;
@@ -299,6 +305,14 @@ bool Models::Init(ID3D11Device* device, int segments)
         Shutdown();
         return false;
     }
+    hr = m_device->CreatePixelShader(skyBlob->GetBufferPointer(), skyBlob->GetBufferSize(), nullptr, &m_skyPixelShader);
+    if (FAILED(hr))
+    {
+        DL_LOG_ERROR("Models", "creating the sky shader failed (0x%08X)", static_cast<unsigned>(hr));
+        Shutdown();
+        return false;
+    }
+    SetDebugName(m_skyPixelShader.Get(), "Models.Sky.PS");
     // a vertex is MeshVertex: a position (12 bytes), then a normal (12 bytes)
     const D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(MeshVertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -391,6 +405,7 @@ void Models::Shutdown()
     m_sampler.Reset();
     m_rippleBuffer.Reset();
     m_ripplePixelShader.Reset();
+    m_skyPixelShader.Reset();
     m_rippleVertexShader.Reset();
     m_blendState.Reset();
     m_depthState.Reset();
@@ -772,6 +787,7 @@ bool Models::CreateBatchBuffers()
 
 void Models::LoadThemes(const Config& config)
 {
+    m_townAtmosphere = config.GetBool("render", "town_atmosphere", true);
     static const char* const kSections[2] = {"layer_a", "layer_b"};
     const std::array<Theme, 2> defaults = DefaultThemes();
     for (std::size_t i = 0; i < 2; ++i)
@@ -898,6 +914,11 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
 {
     // ---- the frame: the camera and the light of a layer. View * Projection is worked out once
     // (docs/CONVENTIONS.md: row vectors, no transpose). `mode`: the clip of the circle of the lantern (FrameConstants).
+    const XMMATRIX cameraAxes = XMMatrixTranspose(view);
+    XMFLOAT3 right{}, up{}, forward{};
+    XMStoreFloat3(&right, XMVectorScale(cameraAxes.r[0], 1.0f / XMVectorGetX(projection.r[0])));
+    XMStoreFloat3(&up, XMVectorScale(cameraAxes.r[1], 1.0f / XMVectorGetY(projection.r[1])));
+    XMStoreFloat3(&forward, cameraAxes.r[2]);
     const auto setFrame = [&](int themeLayer, float mode) {
         const Theme theme = ThemeOf(themeLayer);
         FrameConstants frame{};
@@ -915,6 +936,14 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         frame.tint = theme.tint;
         frame.weathering = theme.weathering;
         frame.lantern = m_lantern;
+        if (m_townAtmosphere && theme.gradientSky)
+        {
+            frame.skyDown = theme.groundFill;
+            frame.skyRight = XMFLOAT4(right.x, right.y, right.z, theme.mistDensity);
+            frame.skyUpRay = XMFLOAT4(up.x, up.y, up.z, theme.mistBase);
+            frame.skyForward = XMFLOAT4(forward.x, forward.y, forward.z, themeLayer == 0 ? 1.0f : 0.42f);
+            frame.skyZenith = XMFLOAT4(theme.zenith.x, theme.zenith.y, theme.zenith.z, 1.0f);
+        }
         D3D11_MAPPED_SUBRESOURCE mapped{};
         if (FAILED(context->Map(m_frameBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
         {
@@ -950,6 +979,18 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     if (!setFrame(layer, circle ? 1.0f : 0.0f))
     {
         return;
+    }
+    if (m_townAtmosphere && ThemeOf(layer).gradientSky)
+    {
+        // The background belongs to the whole layer, never to the local lantern patch.
+        context->OMSetDepthStencilState(m_noDepthState.Get(), 0);
+        context->RSSetState(m_noCullState.Get());
+        context->IASetInputLayout(nullptr);
+        context->VSSetShader(m_rippleVertexShader.Get(), nullptr, 0); // SV_VertexID fullscreen triangle
+        context->PSSetShader(m_skyPixelShader.Get(), nullptr, 0);
+        context->Draw(3, 0);
+        ++m_drawCalls;
+        BindScenePipeline(context);
     }
     drawBatch(m_batch[static_cast<std::size_t>(layer)]);
     if (circle)
