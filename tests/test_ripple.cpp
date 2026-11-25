@@ -66,13 +66,13 @@ void TestTurnRound()
     r.Toggle();
     r.Update(0.4f);
     const float before = r.Opened();
-    r.Toggle(); // press again: close
-    CHECK(r.Active() && r.Target() == 0);   // heading back to A
-    CHECK(Near(r.Opened(), before));        // no jump at the moment of the press
+    r.Toggle();                           // press again: close
+    CHECK(r.Active() && r.Target() == 0); // heading back to A
+    CHECK(Near(r.Opened(), before));      // no jump at the moment of the press
     r.Update(0.2f);
-    CHECK(r.Opened() < before);             // it closes
+    CHECK(r.Opened() < before); // it closes
     r.Update(0.5f);
-    CHECK(!r.Active() && r.Outer() == 0);   // closed: the old layer is still the one on the screen
+    CHECK(!r.Active() && r.Outer() == 0); // closed: the old layer is still the one on the screen
     // several presses: the last one decides
     r.Toggle();
     r.Update(0.3f);

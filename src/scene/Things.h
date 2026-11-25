@@ -1,14 +1,18 @@
-// Things.h - the things that change in the town (docs/DESIGN.md 3.3, 3.5 and 8): a gate raised by its winch, and the like.
-// Data:      each thing comes from the model (data/town.dlt, scene/Town.h ThingDef): a handle and boxes, each box in one or
+// Things.h - the things that change in the town (docs/DESIGN.md 3.3, 3.5 and 8): a gate raised by its winch, and the
+// like. Data:      each thing comes from the model (data/town.dlt, scene/Town.h ThingDef): a handle and boxes, each box
+// in one or
 //            both moments and in one state (shut or open).
 // Verbs:     what the prompt says: OPEN (a gate), PUSH (a crate), LAY ACROSS (a plank), RING (a bell: its only box is a
 //            lamp lit in B over its rope), LOWER (the lift of the rock).
-// Rule:      the causal rule. E at the handle, in A, standing, opens the thing; it opens in A and in B at once (what is done
-//            in A leaves its trace in B). Nothing in B opens anything: at the handle in B, E does nothing. An opening that
-//            would put a box of A where the body is, is refused.
-// Solid:     the boxes of the state now are solids of their moments (Moments::SetExtra through ApplyTo), so the circle of the
+// Rule:      the causal rule. E at the handle, in A, standing, opens the thing; it opens in A and in B at once (what is
+// done
+//            in A leaves its trace in B). Nothing in B opens anything: at the handle in B, E does nothing. An opening
+//            that would put a box of A where the body is, is refused.
+// Solid:     the boxes of the state now are solids of their moments (Moments::SetExtra through ApplyTo), so the circle
+// of the
 //            lantern treats them as the town's own triangles.
-// Drawn:     AddDraw gives each box of the state now as a turned cube of its material's colour in that moment; the handle of
+// Drawn:     AddDraw gives each box of the state now as a turned cube of its material's colour in that moment; the
+// handle of
 //            a shut thing glows gold in A (gold means use). The boxes of B of an opened thing carry its trace (Traces).
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_things.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
@@ -27,7 +31,8 @@
 namespace dl::town
 {
 
-inline constexpr float kHandleReach = 1.6f; ///< UNITS: metres between the feet and a handle (on the ground plane), for E
+inline constexpr float kHandleReach =
+    1.6f; ///< UNITS: metres between the feet and a handle (on the ground plane), for E
 
 class Things
 {
@@ -134,7 +139,8 @@ class Things
     }
 
     /// E: opens the thing in reach, in A only. `balls` are the centres of the body's balls, `radius` their radius.
-    Result Use(const Vec3& feet, const Vec3* balls, int ballCount, float radius, int layer, Moments& moments, Traces& traces)
+    Result Use(const Vec3& feet, const Vec3* balls, int ballCount, float radius, int layer, Moments& moments,
+               Traces& traces)
     {
         const int i = InReach(feet);
         if (i < 0)
@@ -176,8 +182,8 @@ class Things
         ApplyTo(moments);
     }
 
-    /// The things as drawn: each box of the state now, in the colour of its material in its moment; the trace on the boxes of
-    /// B of an opened thing; the gold handle of a shut thing in A. Returns the new count.
+    /// The things as drawn: each box of the state now, in the colour of its material in its moment; the trace on the
+    /// boxes of B of an opened thing; the gold handle of a shut thing in A. Returns the new count.
     int AddDraw(scene::SceneObject* out, int count, int capacity, const Traces& traces) const
     {
         if (m_town == nullptr || out == nullptr)
@@ -242,7 +248,8 @@ class Things
     {
         const float c = std::cos(b.yaw);
         const float s = std::sin(b.yaw);
-        const float u[4][2] = {{-b.half.x, -b.half.z}, {b.half.x, -b.half.z}, {b.half.x, b.half.z}, {-b.half.x, b.half.z}};
+        const float u[4][2] = {
+            {-b.half.x, -b.half.z}, {b.half.x, -b.half.z}, {b.half.x, b.half.z}, {-b.half.x, b.half.z}};
         for (int k = 0; k < 4; ++k)
         {
             const float x = b.centre.x + u[k][0] * c - u[k][1] * s;

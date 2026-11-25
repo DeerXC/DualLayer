@@ -1,14 +1,17 @@
-// test_collision.cpp - tests of the collision maths (no window, no GPU): src/scene/Collision.h and src/scene/SceneData.h.
+// test_collision.cpp - tests of the collision maths (no window, no GPU): src/scene/Collision.h and
+// src/scene/SceneData.h.
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_collision.cpp -o test_collision
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. the two rotations are the ones of DirectXMath (the facts that the renderer's world matrix depends on)
 //   2. the layer rule: an object is solid only in its own layers; the floor is solid in both
 //   3. every shape: a ball that starts inside, or touching, is pushed out to exactly its radius from the surface
-//   4. NEVER INSIDE: many points, both layers, many moments of the turning; after ResolveSphere the ball is outside every
-//      solid of the layer. The check measures the distance in a DIFFERENT way than the code does (box: projection on the
-//      world axes; torus: sampling the circle of the tube), so a mistake in the inverse rotation cannot hide
-//   5. a settled ball is not pushed again; a walk into a solid stops at it; the same walk in the other layer goes through
+//   4. NEVER INSIDE: many points, both layers, many moments of the turning; after ResolveSphere the ball is outside
+//   every
+//      solid of the layer. The check measures the distance in a DIFFERENT way than the code does (box: projection on
+//      the world axes; torus: sampling the circle of the tube), so a mistake in the inverse rotation cannot hide
+//   5. a settled ball is not pushed again; a walk into a solid stops at it; the same walk in the other layer goes
+//   through
 //   6. bad input (NaN, a layer that does not exist) does not change anything
 // Returns 1 when a check fails.
 
@@ -211,9 +214,11 @@ void TestLayerRule()
     // the floor: solid in both layers, and the ball is lifted onto it
     for (int layer = 0; layer < 2; ++layer)
     {
-        const dl::CollisionResult r = dl::ResolveSphere({0.0f, kFloorY - 0.05f, 0.0f}, kBall, layer, 0.0f); // inside the slab
+        const dl::CollisionResult r =
+            dl::ResolveSphere({0.0f, kFloorY - 0.05f, 0.0f}, kBall, layer, 0.0f); // inside the slab
         CHECK(r.pushed && Near(r.position.y, kFloorY + kBall) && Near(r.position.x, 0.0f));
-        const dl::CollisionResult above = dl::ResolveSphere({0.0f, kFloorY + 0.2f, 0.0f}, kBall, layer, 0.0f); // too low
+        const dl::CollisionResult above =
+            dl::ResolveSphere({0.0f, kFloorY + 0.2f, 0.0f}, kBall, layer, 0.0f); // too low
         CHECK(above.pushed && Near(above.position.y, kFloorY + kBall));
         CHECK(!dl::ResolveSphere({0.0f, kFloorY + 1.0f, 0.0f}, kBall, layer, 0.0f).pushed); // clear
     }
@@ -254,7 +259,8 @@ void TestEachShape()
             }
             else
             {
-                const float outer = 0.5f * o.scale[0]; // the face of the cube / the side of the cylinder / the sphere, at +X
+                const float outer =
+                    0.5f * o.scale[0]; // the face of the cube / the side of the cylinder / the sphere, at +X
                 const float along = outer - 0.1f;
                 const Vec3 p = Centre(o);
                 start = {p.x + axes[0].x * along, p.y + axes[0].y * along, p.z + axes[0].z * along};
@@ -282,18 +288,21 @@ void TestEachShape()
     // the exact middle of a sphere and of the tube still get out (no division by zero)
     const SceneObject& sphere = Find(ShapeKind::Sphere, kLayerB);
     const dl::CollisionResult mid = dl::ResolveSphere(Centre(sphere), kBall, 1, 0.0f);
-    CHECK(mid.pushed && std::isfinite(mid.position.y) && Near(DistanceToSolid(sphere, mid.position, 0.0f), kBall, 2e-3f));
+    CHECK(mid.pushed && std::isfinite(mid.position.y) &&
+          Near(DistanceToSolid(sphere, mid.position, 0.0f), kBall, 2e-3f));
     // the axis of the cylinder (rho = 0) also gets out
     const SceneObject& cylinder = Find(ShapeKind::Cylinder, kLayerA);
     const dl::CollisionResult axis = dl::ResolveSphere(Centre(cylinder), kBall, 0, 0.0f);
-    CHECK(axis.pushed && std::isfinite(axis.position.x) && DistanceToSolid(cylinder, axis.position, 0.0f) > kBall - 2e-3f);
+    CHECK(axis.pushed && std::isfinite(axis.position.x) &&
+          DistanceToSolid(cylinder, axis.position, 0.0f) > kBall - 2e-3f);
 }
 
 void TestNeverInside()
 {
     // a plain, repeatable "random" series: no <random>, so the result is the same on every compiler
     unsigned state = 12345u;
-    const auto next = [&state]() {
+    const auto next = [&state]()
+    {
         state = state * 1664525u + 1013904223u;
         return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f; // 0 .. 1
     };
@@ -315,7 +324,8 @@ void TestSettledAndWalking()
 {
     // a ball that has been pushed out is settled: a second call changes nothing
     unsigned state = 777u;
-    const auto next = [&state]() {
+    const auto next = [&state]()
+    {
         state = state * 1664525u + 1013904223u;
         return static_cast<float>((state >> 8) & 0xFFFFu) / 65535.0f;
     };
@@ -366,8 +376,8 @@ void TestSettledAndWalking()
 
 void TestYaw()
 {
-    // a box turned by a fixed yaw (a house turned to its street): local and world round trip, and a ball pushed out of it to
-    // exactly its radius, measured in the frame of the box worked out forward (RotateY of the axes), not backward
+    // a box turned by a fixed yaw (a house turned to its street): local and world round trip, and a ball pushed out of
+    // it to exactly its radius, measured in the frame of the box worked out forward (RotateY of the axes), not backward
     SceneObject o{};
     o.shape = ShapeKind::Cube;
     o.position[0] = 2.0f;
@@ -381,14 +391,15 @@ void TestYaw()
     const Vec3 p{2.7f, 0.3f, -0.2f};
     CHECK(Near3(dl::collision_detail::ToWorld(o, dl::collision_detail::ToLocal(o, p, 0.0f), 0.0f), p, 1e-4f));
     const Vec3 ax = dl::collision_detail::RotateY({1.0f, 0.0f, 0.0f}, o.yaw); // the long axis of the box in the world
-    const Vec3 start{2.0f + ax.x * 1.3f, 0.5f, -1.0f + ax.z * 1.3f};             // inside, 0.2 m from its end face
+    const Vec3 start{2.0f + ax.x * 1.3f, 0.5f, -1.0f + ax.z * 1.3f};          // inside, 0.2 m from its end face
     const dl::CollisionResult r = dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1);
     CHECK(r.pushed);
     const Vec3 d{r.position.x - 2.0f, r.position.y - 0.5f, r.position.z + 1.0f};
     const float along = Dot(d, ax); // out through the end face: 1.5 + the radius along the long axis
     CHECK(Near(along, 1.5f + kBall, 2e-3f));
     o.yaw = 0.0f; // the same box without the yaw does not hold that point
-    CHECK(!dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1).pushed || dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1).position.x != r.position.x);
+    CHECK(!dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1).pushed ||
+          dl::ResolveSphere(start, kBall, 0, 0.0f, &o, 1).position.x != r.position.x);
 }
 
 void TestBadInput()
@@ -397,7 +408,8 @@ void TestBadInput()
     const Vec3 start{1.0f, 0.5f, -2.0f};
     CHECK(!dl::ResolveSphere({notANumber, 0.0f, 0.0f}, kBall, 0, 0.0f).pushed);
     CHECK(!dl::ResolveSphere(start, kBall, 0, notANumber).pushed);
-    CHECK(Near3(dl::ResolveSphere(start, kBall, 2, 0.0f).position, start) && !dl::ResolveSphere(start, kBall, 2, 0.0f).pushed);
+    CHECK(Near3(dl::ResolveSphere(start, kBall, 2, 0.0f).position, start) &&
+          !dl::ResolveSphere(start, kBall, 2, 0.0f).pushed);
     CHECK(Near3(dl::ResolveSphere(start, kBall, -1, 0.0f).position, start));
     CHECK(Near3(dl::ResolveSphere(start, 0.0f, 0, 0.0f).position, start));
     CHECK(Near3(dl::ResolveSphere(start, -1.0f, 0, 0.0f).position, start));

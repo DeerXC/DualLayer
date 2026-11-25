@@ -1,6 +1,7 @@
 // test_core.cpp - tests of the parts of src/core that need no window and no GPU.
-//   g++ -std=c++20 -Wall -Wextra -I src tests/test_core.cpp src/core/Config.cpp src/core/Log.cpp src/core/Assert.cpp -o test_core
-//   MSVC (Developer PowerShell):  cl /nologo /std:c++20 /EHsc /W4 /I src tests\test_core.cpp src\core\Config.cpp src\core\Log.cpp src\core\Assert.cpp
+//   g++ -std=c++20 -Wall -Wextra -I src tests/test_core.cpp src/core/Config.cpp src/core/Log.cpp src/core/Assert.cpp -o
+//   test_core MSVC (Developer PowerShell):  cl /nologo /std:c++20 /EHsc /W4 /I src tests\test_core.cpp
+//   src\core\Config.cpp src\core\Log.cpp src\core\Assert.cpp
 #include "core/Assert.h"
 #include "core/Config.h"
 #include "core/Log.h"
@@ -36,25 +37,24 @@ void CountingHandler(const char*, int, const char*, const char*)
 void TestConfig()
 {
     dl::Config c;
-    const auto r = c.ParseString(
-        "# comment\n"
-        "[Window]\n"
-        "width = 1600   # pixels\n"
-        "height=900\n"
-        "\n"
-        "[render]\n"
-        "vsync = Yes\n"
-        "clear_r = 0.25\n"
-        "name = a#b\n"
-        "bad_number = 12abc\n"
-        "adapter = -1\r\n"
-        "[unterminated\n"
-        "no equals sign here\n"
-        " = nokey\n");
+    const auto r = c.ParseString("# comment\n"
+                                 "[Window]\n"
+                                 "width = 1600   # pixels\n"
+                                 "height=900\n"
+                                 "\n"
+                                 "[render]\n"
+                                 "vsync = Yes\n"
+                                 "clear_r = 0.25\n"
+                                 "name = a#b\n"
+                                 "bad_number = 12abc\n"
+                                 "adapter = -1\r\n"
+                                 "[unterminated\n"
+                                 "no equals sign here\n"
+                                 " = nokey\n");
     CHECK(r.entries == 7);
     CHECK(r.errors.size() == 3);
     CHECK(r.errors.size() == 3 && r.errors[0] == "line 12: section is missing ']'");
-    CHECK(c.GetInt("window", "width", 0) == 1600);    // inline comment removed, section and key are case-insensitive
+    CHECK(c.GetInt("window", "width", 0) == 1600); // inline comment removed, section and key are case-insensitive
     CHECK(c.GetInt("WINDOW", "HEIGHT", 0) == 900);
     CHECK(c.GetBool("render", "vsync", false) == true);
     CHECK(c.GetFloat("render", "clear_r", 0.0f) == 0.25f);
@@ -95,9 +95,9 @@ void TestLog()
         DL_LOG_TRACE("T", "line %d", i);
     }
     const auto recent = dl::log::Recent();
-    CHECK(recent.size() == dl::log::kRecentCapacity);                 // the ring is bounded
-    CHECK(recent.back().find("line 399") != std::string::npos);        // newest last
-    CHECK(recent.front().find("line 144") != std::string::npos);       // 400 - 256 = 144 is the oldest kept
+    CHECK(recent.size() == dl::log::kRecentCapacity);            // the ring is bounded
+    CHECK(recent.back().find("line 399") != std::string::npos);  // newest last
+    CHECK(recent.front().find("line 144") != std::string::npos); // 400 - 256 = 144 is the oldest kept
     dl::log::ResetForTest();
 }
 

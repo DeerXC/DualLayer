@@ -1,15 +1,18 @@
 // Town.h - the town of the layout model, loaded as data (docs/DESIGN.md 7.1 and 12, step 2).
-// File:      data/town.dlt, written by `python tools/layout/city_model.py export` (its docstring of export() is the format):
-//            the lights of both moments, the materials (an sRGB colour in A and in B, and whether it shines), the stations of
-//            the main path, the streets (their middle lines) and the polygons of the town (their moment, their kind and their
-//            material). The game and the
-//            model are one town: a change of the layout is made in the model and exported again.
-// Kinds:     solid (walls, roofs, bridges, trees...), terrain (the ground), overlay (paving and treads laid on the ground:
-//            drawn, not solid: the ground under them already has their height), water (in A: drawn as water, a body under
-//            its surface is in the water).
-// Drawn:     BakeLayer gives the static batch of one moment: every polygon of that moment as a fan of triangles, both sides
-//            (the model's polygons have no fixed winding), the terrain and the water from above only. Colours are the model's
-//            own (not the stone of the greybox city), a shining material glows. BakeWater gives the water of A.
+// File:      data/town.dlt, written by `python tools/layout/city_model.py export` (its docstring of export() is the
+// format):
+//            the lights of both moments, the materials (an sRGB colour in A and in B, and whether it shines), the
+//            stations of the main path, the streets (their middle lines) and the polygons of the town (their moment,
+//            their kind and their material). The game and the model are one town: a change of the layout is made in the
+//            model and exported again.
+// Kinds:     solid (walls, roofs, bridges, trees...), terrain (the ground), overlay (paving and treads laid on the
+// ground:
+//            drawn, not solid: the ground under them already has their height), water (in A: drawn as water, a body
+//            under its surface is in the water).
+// Drawn:     BakeLayer gives the static batch of one moment: every polygon of that moment as a fan of triangles, both
+// sides
+//            (the model's polygons have no fixed winding), the terrain and the water from above only. Colours are the
+//            model's own (no stone tint), a shining material glows. BakeWater gives the water of A.
 // Solid:     BuildMesh gives the TriMesh of one moment: its solid and terrain polygons.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_town.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
@@ -75,14 +78,15 @@ struct Street
     std::vector<Vec3> line; ///< its middle line, on its surface
 };
 
-/// One box of a thing that changes (scene/Things.h): solid and drawn in the moments of `worlds` while the thing is in `state`.
+/// One box of a thing that changes (scene/Things.h): solid and drawn in the moments of `worlds` while the thing is in
+/// `state`.
 struct ThingBox
 {
     std::uint8_t state = 0;  ///< 0 shut, 1 open
     std::uint8_t worlds = 0; ///< bit 0: in A, bit 1: in B
     std::uint16_t material = 0;
     Vec3 centre{};
-    Vec3 half{};    ///< UNITS: metres: half its size along its own axes
+    Vec3 half{};      ///< UNITS: metres: half its size along its own axes
     float yaw = 0.0f; ///< radians round Y (the model's rect turn: x' = x cos - z sin, z' = x sin + z cos)
 };
 
@@ -161,12 +165,13 @@ class TownData
             return false;
         }
         std::uint8_t start = 0;
-        bool ok = r.F32(sea) && r.F32(spawn.x) && r.F32(spawn.y) && r.F32(spawn.z) && r.F32(spawnYaw) && r.U8(start) && start <= 1;
+        bool ok = r.F32(sea) && r.F32(spawn.x) && r.F32(spawn.y) && r.F32(spawn.z) && r.F32(spawnYaw) && r.U8(start) &&
+                  start <= 1;
         startLayer = start;
         for (Light& l : lights)
         {
-            ok = ok && r.Floats(l.toLight, 3) && r.Floats(l.color, 3) && r.Floats(l.shade, 3) && r.Floats(l.skyTop, 3) && r.Floats(l.horizon, 3) &&
-                 r.F32(l.fog);
+            ok = ok && r.Floats(l.toLight, 3) && r.Floats(l.color, 3) && r.Floats(l.shade, 3) &&
+                 r.Floats(l.skyTop, 3) && r.Floats(l.horizon, 3) && r.F32(l.fog);
         }
         std::uint32_t n = 0;
         ok = ok && r.U32(n) && n < 1024u;
@@ -207,14 +212,15 @@ class TownData
         {
             Polygon p;
             std::uint8_t kind = 0;
-            ok = r.U8(p.worlds) && r.U8(kind) && r.U16(p.material) && r.U8(p.count) && kind <= 3 && p.worlds >= 1 && p.worlds <= 3 && p.count >= 3 &&
-                 p.material < materials.size();
+            ok = r.U8(p.worlds) && r.U8(kind) && r.U16(p.material) && r.U8(p.count) && kind <= 3 && p.worlds >= 1 &&
+                 p.worlds <= 3 && p.count >= 3 && p.material < materials.size();
             p.kind = static_cast<Kind>(kind);
             p.first = static_cast<std::uint32_t>(vertices.size());
             for (int k = 0; ok && k < p.count; ++k)
             {
                 Vec3 v{};
-                ok = r.F32(v.x) && r.F32(v.y) && r.F32(v.z) && std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+                ok = r.F32(v.x) && r.F32(v.y) && r.F32(v.z) && std::isfinite(v.x) && std::isfinite(v.y) &&
+                     std::isfinite(v.z);
                 vertices.push_back(v);
             }
             if (ok && p.kind == Kind::Water)
@@ -229,13 +235,15 @@ class TownData
             ThingDef t;
             std::uint16_t boxes = 0;
             std::uint8_t verb = 0;
-            ok = r.Name(t.name) && r.U8(verb) && verb <= 4 && r.F32(t.handle.x) && r.F32(t.handle.y) && r.F32(t.handle.z) && r.U16(boxes) && boxes >= 1;
+            ok = r.Name(t.name) && r.U8(verb) && verb <= 4 && r.F32(t.handle.x) && r.F32(t.handle.y) &&
+                 r.F32(t.handle.z) && r.U16(boxes) && boxes >= 1;
             for (std::uint16_t k = 0; ok && k < boxes; ++k)
             {
                 ThingBox b;
-                ok = r.U8(b.state) && r.U8(b.worlds) && r.U16(b.material) && r.F32(b.centre.x) && r.F32(b.centre.y) && r.F32(b.centre.z) &&
-                     r.F32(b.half.x) && r.F32(b.half.y) && r.F32(b.half.z) && r.F32(b.yaw) && b.state <= 1 && b.worlds >= 1 && b.worlds <= 3 &&
-                     b.material < materials.size() && b.half.x > 0.0f && b.half.y > 0.0f && b.half.z > 0.0f;
+                ok = r.U8(b.state) && r.U8(b.worlds) && r.U16(b.material) && r.F32(b.centre.x) && r.F32(b.centre.y) &&
+                     r.F32(b.centre.z) && r.F32(b.half.x) && r.F32(b.half.y) && r.F32(b.half.z) && r.F32(b.yaw) &&
+                     b.state <= 1 && b.worlds >= 1 && b.worlds <= 3 && b.material < materials.size() &&
+                     b.half.x > 0.0f && b.half.y > 0.0f && b.half.z > 0.0f;
                 t.boxes.push_back(b);
             }
             t.verb = static_cast<Verb>(verb);
@@ -292,7 +300,8 @@ class TownData
             const Vec3& a = vertices[p.first];
             for (int k = 1; k + 1 < p.count; ++k)
             {
-                mesh.Add(a, vertices[p.first + static_cast<std::uint32_t>(k)], vertices[p.first + static_cast<std::uint32_t>(k + 1)]);
+                mesh.Add(a, vertices[p.first + static_cast<std::uint32_t>(k)],
+                         vertices[p.first + static_cast<std::uint32_t>(k + 1)]);
             }
         }
         mesh.Build();
@@ -327,8 +336,8 @@ class TownData
         return mesh;
     }
 
-    /// True when a body of `layer` with its feet at `feet` is in the water: under a water polygon (seen from above) by more
-    /// than `depth` metres.
+    /// True when a body of `layer` with its feet at `feet` is in the water: under a water polygon (seen from above) by
+    /// more than `depth` metres.
     bool Submerged(const Vec3& feet, int layer, float depth = 0.3f) const
     {
         return SubmergedIn(feet, layer, depth);
@@ -396,8 +405,8 @@ class TownData
             {
                 return false;
             }
-            v = static_cast<std::uint32_t>(b[0]) | (static_cast<std::uint32_t>(b[1]) << 8) | (static_cast<std::uint32_t>(b[2]) << 16) |
-                (static_cast<std::uint32_t>(b[3]) << 24);
+            v = static_cast<std::uint32_t>(b[0]) | (static_cast<std::uint32_t>(b[1]) << 8) |
+                (static_cast<std::uint32_t>(b[2]) << 16) | (static_cast<std::uint32_t>(b[3]) << 24);
             return true;
         }
         bool F32(float& v)
@@ -462,9 +471,10 @@ class TownData
         return false;
     }
 
-    /// The vertices of one side of polygon p, all with the normal n, and its fan of triangles: (0, k, k + 1) when `forward`,
-    /// (0, k + 1, k) for the other side.
-    void AddSide(BatchMesh& mesh, const Polygon& p, const Vec3& n, bool forward, const float colour[4], const float params[4]) const
+    /// The vertices of one side of polygon p, all with the normal n, and its fan of triangles: (0, k, k + 1) when
+    /// `forward`, (0, k + 1, k) for the other side.
+    void AddSide(BatchMesh& mesh, const Polygon& p, const Vec3& n, bool forward, const float colour[4],
+                 const float params[4]) const
     {
         const std::uint32_t first = static_cast<std::uint32_t>(mesh.vertices.size());
         for (int k = 0; k < p.count; ++k)
@@ -492,8 +502,8 @@ class TownData
         }
     }
 
-    /// The normal of polygon p that faces the side its fan (0, k, k + 1) shows as front (Newell's method: right for a polygon
-    /// that is not quite flat, as a cell of the ground). Zero for a polygon with no area.
+    /// The normal of polygon p that faces the side its fan (0, k, k + 1) shows as front (Newell's method: right for a
+    /// polygon that is not quite flat, as a cell of the ground). Zero for a polygon with no area.
     Vec3 FanNormal(const Polygon& p) const
     {
         Vec3 n{0.0f, 0.0f, 0.0f};
@@ -505,7 +515,8 @@ class TownData
             n.y += (a.z - b.z) * (a.x + b.x);
             n.z += (a.x - b.x) * (a.y + b.y);
         }
-        return n; // along (b - a) x (c - a) of its fan triangles, the side their order shows as front (tests/test_town.cpp)
+        return n; // along (b - a) x (c - a) of its fan triangles, the side their order shows as front
+                  // (tests/test_town.cpp)
     }
 
     void AddPolygon(BatchMesh& mesh, const Polygon& p, int layer, bool water) const
@@ -513,8 +524,9 @@ class TownData
         const Material& m = materials[p.material];
         const float* srgb = layer == 0 ? m.a : m.b;
         const bool shines = layer == 0 ? m.shinesA : m.shinesB;
-        // its own colour (a = 0: not the stone of the greybox city); a shining material glows; water is drawn as water
-        const float colour[4] = {batch_detail::SrgbToLinear(srgb[0]), batch_detail::SrgbToLinear(srgb[1]), batch_detail::SrgbToLinear(srgb[2]), 0.0f};
+        // its own colour (a = 0: no stone tint); a shining material glows; water is drawn as water
+        const float colour[4] = {batch_detail::SrgbToLinear(srgb[0]), batch_detail::SrgbToLinear(srgb[1]),
+                                 batch_detail::SrgbToLinear(srgb[2]), 0.0f};
         float params[4] = {0.0f, 0.04f, 8.0f, shines ? 0.9f : 0.0f};
         if (water)
         {
@@ -531,7 +543,8 @@ class TownData
         }
         n = {n.x / length, n.y / length, n.z / length};
         const Vec3 back{-n.x, -n.y, -n.z};
-        if ((water && std::fabs(n.y) > 0.3f) || p.kind == Kind::Terrain) // a surface seen from above only: the side that faces up
+        if ((water && std::fabs(n.y) > 0.3f) ||
+            p.kind == Kind::Terrain) // a surface seen from above only: the side that faces up
         {
             if (n.y >= 0.0f)
             {

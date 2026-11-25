@@ -1,11 +1,12 @@
 // SceneData.h - what is in the scene: the floor and four shapes, where they stand, and in which layer they exist.
-// Why here: the renderer (render/Models.cpp) and the collision (scene/Collision.h) read the SAME table, so what is drawn
+// Why here: the renderer (render/Models.cpp) and the collision (scene/Collision.h) read the SAME table, so what is
+// drawn
 //            and what is solid can never disagree. Plain data: no Windows, no Direct3D (tested without a window).
 // Space:     left-handed, +Y up (docs/CONVENTIONS.md). UNITS: metres, radians, seconds.
 // Rules:     A shape is 1 metre big before the scale (a sphere: across). The world matrix of an object is
-//            Scale * RotationX(tilt) * RotationY(spinSpeed * time + yaw) * Translation (row vectors, read left to right).
-//            The collision relies on the shapes being round where the table says so: SceneIsSupported() checks it when
-//            the program is compiled, so a wrong edit of the table is an error and not a bug.
+//            Scale * RotationX(tilt) * RotationY(spinSpeed * time + yaw) * Translation (row vectors, read left to
+//            right). The collision relies on the shapes being round where the table says so: SceneIsSupported() checks
+//            it when the program is compiled, so a wrong edit of the table is an error and not a bug.
 #pragma once
 
 namespace dl::scene
@@ -34,10 +35,12 @@ inline constexpr float kRowZ = 3.0f;
 inline constexpr float kTorusMajor = 0.8f; // UNITS: metres, from the centre of the ring to the middle of the tube
 inline constexpr float kTorusMinor = 0.3f; // UNITS: metres, the radius of the tube
 
-// Materials: `checker` also says how a surface is drawn (shaders/models.hlsl). 0 a plain surface, 1 the checkered floor; from
-// 2 on, water, drawn after everything else and seen through (render/Models.cpp): its `glow` is then how opaque it is.
-inline constexpr float kMatWater = 2.0f;   ///< still water: pools, locks, the canal, the well (small waves)
-inline constexpr float kMatFlow = 3.0f;    ///< running and falling water: the channel, spouts, waterfalls (streaks, white water)
+// Materials: `checker` also says how a surface is drawn (shaders/models.hlsl). 0 a plain surface, 1 the checkered
+// floor; from 2 on, water, drawn after everything else and seen through (render/Models.cpp): its `glow` is then how
+// opaque it is.
+inline constexpr float kMatWater = 2.0f; ///< still water: pools, locks, the canal, the well (small waves)
+inline constexpr float kMatFlow =
+    3.0f; ///< running and falling water: the channel, spouts, waterfalls (streaks, white water)
 inline constexpr float kMatSea = 4.0f;     ///< the sea (long swells, white crests)
 inline constexpr float kMatWetBand = 5.0f; ///< the dark wet band left on walls when water goes down (its sides only)
 inline constexpr float kMatFoam = 6.0f;    ///< foam: the rim of a surface, the foot of a fall, splash rings and drops
@@ -59,8 +62,8 @@ struct SceneObject
     float shineStrength;
     float shininess;
     unsigned layerMask = kLayerBoth; // which layers have this object (not written = both)
-    float glow = 0.0f;               // light of its own: 0 = none, 1 = its colour at full strength (a lamp, a hint, an orb)
-    float yaw = 0.0f;                // radians, a fixed turn round Y after the tilt (a house turned to its street); 0 = axis-aligned
+    float glow = 0.0f; // light of its own: 0 = none, 1 = its colour at full strength (a lamp, a hint, an orb)
+    float yaw = 0.0f;  // radians, a fixed turn round Y after the tilt (a house turned to its street); 0 = axis-aligned
 };
 
 // THE SCENE. Edit it to move or to change something. Every object stands on the floor: y = kFloorY + half of its height
@@ -111,7 +114,8 @@ inline constexpr SceneObject kScene[] = {
      .shineStrength = 0.30f,
      .shininess = 48.0f,
      .layerMask = kLayerA},
-    // the torus: a ring of 0.8 metres (to the middle of the tube) and a tube of 0.3, tilted so that the hole shows; layer B
+    // the torus: a ring of 0.8 metres (to the middle of the tube) and a tube of 0.3, tilted so that the hole shows;
+    // layer B
     {.shape = ShapeKind::Torus,
      .position = {3.3f, kFloorY + 0.75f, kRowZ},
      .scale = {1.0f, 1.0f, 1.0f},
@@ -152,7 +156,8 @@ constexpr bool SceneIsSupported()
     }
     return true;
 }
-static_assert(SceneIsSupported(), "scene/SceneData.h: a sphere / torus must be scaled evenly, a cylinder must be round, "
-                                  "every scale must be above 0, and every layer mask must be A, B or both");
+static_assert(SceneIsSupported(),
+              "scene/SceneData.h: a sphere / torus must be scaled evenly, a cylinder must be round, "
+              "every scale must be above 0, and every layer mask must be A, B or both");
 
 } // namespace dl::scene

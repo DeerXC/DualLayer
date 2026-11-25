@@ -1,18 +1,13 @@
-// Prompts.h - which key prompt the screen shows now, and how strongly (docs/LEVEL_DESIGN.md, 9: guidance without words; the
-//            prompt is the one place with words, and it names only a key and a verb).
-// Rules:     at most one prompt for E and one for another key at a time.
-//            E: holding an orb -> PLACE when it would go onto a socket, a plate or a hole (Mechanisms::SpotAhead), else PUT
-//            DOWN; holding nothing -> TAKE when an orb is in reach (Mechanisms::OrbInReach).
-//            TAB: SWITCH WORLD until the switch has been used kLearnedAfter times (the first lesson of the game), and again
-//            whenever a held orb is in front of a socket or plate of the other world (it fits only in its own world).
-//            R: RESET ROOM in a room with a puzzle after kStuckSeconds in it without leaving.
-// Fading:    a prompt that has been followed kLearnedAfter times is drawn dimmer (kLearnedAlpha): it is still there when it
-//            is needed, but it no longer shouts. TAB is not shown at all once learned.
-// Plain logic, no Windows, no Direct3D: tested without a window (tests/test_overlay.cpp). UNITS: seconds.
+// Prompts.h - which key prompt the screen shows now: the key and a verb, the only words of the game.
+// Rule:      at most one prompt, for E. In order of importance: a thing of the past within reach that is still shut
+// (OPEN, PUSH,
+//            LAY ACROSS, RING or LOWER, as its verb says; only in the past, because in the present a handle does
+//            nothing); the lantern set down far away (CALL THE LANTERN, dimmed: it is a reminder); the lantern within
+//            reach (TAKE); the lantern in hand on the ground in the past (PUT DOWN, dimmed). Nothing while the body
+//            does not walk or is sinking.
+// Plain logic, no Windows, no Direct3D: tested without a window (tests/test_overlay.cpp). The caller reads the state of
+// the game into an Input; this file knows nothing of the town.
 #pragma once
-
-#include <array>
-#include <cstddef>
 
 namespace dl::prompt
 {
@@ -21,9 +16,6 @@ enum class Kind
 {
     Take,
     PutDown,
-    Place,
-    SwitchWorld,
-    ResetRoom,
     Open, ///< a thing that changes, at its handle in A (scene/Things.h)
     Push,
     Lay,
@@ -34,6 +26,9 @@ enum class Kind
 };
 
 inline constexpr int kKindCount = static_cast<int>(Kind::Count);
+
+inline constexpr float kRecallAlpha = 0.45f; ///< how strong the reminder to call the lantern is drawn
+inline constexpr float kPutDownAlpha = 0.6f; ///< how strong the offer to put the lantern down is drawn
 
 struct Text
 {
@@ -50,12 +45,6 @@ constexpr Text TextOf(Kind k)
         return {"E", "TAKE"};
     case Kind::PutDown:
         return {"E", "PUT DOWN"};
-    case Kind::Place:
-        return {"E", "PLACE"};
-    case Kind::SwitchWorld:
-        return {"TAB", "SWITCH WORLD"};
-    case Kind::ResetRoom:
-        return {"R", "RESET ROOM"};
     case Kind::Open:
         return {"E", "OPEN"};
     case Kind::Push:
@@ -74,20 +63,24 @@ constexpr Text TextOf(Kind k)
     return {"", ""};
 }
 
-inline constexpr int kLearnedAfter = 3;        ///< uses after which a prompt is dimmed (TAB: hidden)
-inline constexpr float kLearnedAlpha = 0.45f;  ///< how strong a learned prompt is drawn
-inline constexpr float kStuckSeconds = 90.0f;  ///< UNITS: seconds in a puzzle room before R is offered
+/// The prompt of a verb of a thing (the order of the verbs in data/town.dlt: OPEN, PUSH, LAY ACROSS, RING, LOWER);
+/// anything else counts as OPEN.
+constexpr Kind KindOfVerb(int verb)
+{
+    constexpr Kind kOfVerb[5] = {Kind::Open, Kind::Push, Kind::Lay, Kind::Ring, Kind::Lower};
+    return kOfVerb[verb >= 0 && verb < 5 ? verb : 0];
+}
 
 /// What the game knows this frame.
 struct Input
 {
-    bool walking = true;     ///< E and R only mean something while walking
-    bool holding = false;    ///< an orb is held
-    bool wouldPlace = false; ///< holding: the put-down would go onto a socket, a plate or a hole
-    bool orbInReach = false; ///< not holding: E would take an orb
-    bool otherWorldSpot = false; ///< holding: a socket or plate of the other world is in front
-    bool puzzleRoom = false; ///< the room has something that R puts back
-    float secondsInRoom = 0.0f;
+    bool active = false;     ///< the body walks and is not sinking: E means something
+    int layer = 0;           ///< the moment on the screen: 0 = A (the past), 1 = B
+    int shutThingVerb = -1;  ///< the verb of a still shut thing within reach, or -1 for none
+    bool lanternFar = false; ///< the lantern is set down, out of reach but not out of call
+    bool lanternInReach = false;
+    bool lanternCarried = false;
+    bool grounded = false; ///< the body stands on something
 };
 
 struct Shown
@@ -96,62 +89,30 @@ struct Shown
     float alpha = 0.0f;
 };
 
-/// Counts how often each prompt was followed, and chooses what to show.
-class Tracker
+/// The prompt for E, or nothing.
+constexpr Shown Choose(const Input& in)
 {
-  public:
-    /// The player pressed the key of `k` (and it did something).
-    void Used(Kind k)
+    if (!in.active)
     {
-        if (k != Kind::Count)
-        {
-            ++m_uses[static_cast<std::size_t>(k)];
-        }
+        return {};
     }
-
-    int Uses(Kind k) const
+    if (in.shutThingVerb >= 0 && in.layer == 0)
     {
-        return k == Kind::Count ? 0 : m_uses[static_cast<std::size_t>(k)];
+        return {KindOfVerb(in.shutThingVerb), 1.0f};
     }
-
-    float Alpha(Kind k) const
+    if (in.lanternFar)
     {
-        return Uses(k) >= kLearnedAfter ? kLearnedAlpha : 1.0f;
+        return {Kind::Recall, kRecallAlpha};
     }
-
-    /// The prompt for E (first) and the other prompt (second); either may be nothing.
-    std::array<Shown, 2> Choose(const Input& in) const
+    if (!in.lanternCarried && in.lanternInReach)
     {
-        std::array<Shown, 2> out{};
-        if (in.walking)
-        {
-            Kind e = Kind::Count;
-            if (in.holding)
-            {
-                e = in.wouldPlace ? Kind::Place : Kind::PutDown;
-            }
-            else if (in.orbInReach)
-            {
-                e = Kind::Take;
-            }
-            if (e != Kind::Count)
-            {
-                out[0] = {e, Alpha(e)};
-            }
-        }
-        if (Uses(Kind::SwitchWorld) < kLearnedAfter || (in.walking && in.holding && in.otherWorldSpot && !in.wouldPlace))
-        {
-            out[1] = {Kind::SwitchWorld, 1.0f};
-        }
-        else if (in.walking && in.puzzleRoom && in.secondsInRoom >= kStuckSeconds)
-        {
-            out[1] = {Kind::ResetRoom, Alpha(Kind::ResetRoom)};
-        }
-        return out;
+        return {Kind::Take, 1.0f};
     }
-
-  private:
-    std::array<int, kKindCount> m_uses{};
-};
+    if (in.lanternCarried && in.layer == 0 && in.grounded)
+    {
+        return {Kind::PutDown, kPutDownAlpha};
+    }
+    return {};
+}
 
 } // namespace dl::prompt

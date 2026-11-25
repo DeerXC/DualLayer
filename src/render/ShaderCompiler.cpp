@@ -14,7 +14,8 @@ namespace dl
 bool CompileShader(const char* path, const char* entry, const char* target, Microsoft::WRL::ComPtr<ID3DBlob>& out,
                    const char* logModule)
 {
-    UINT flags = D3DCOMPILE_PACK_MATRIX_ROW_MAJOR | D3DCOMPILE_ENABLE_STRICTNESS; // docs/CONVENTIONS.md, as common.hlsli
+    UINT flags =
+        D3DCOMPILE_PACK_MATRIX_ROW_MAJOR | D3DCOMPILE_ENABLE_STRICTNESS; // docs/CONVENTIONS.md, as common.hlsli
 #if defined(_DEBUG)
     flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #else

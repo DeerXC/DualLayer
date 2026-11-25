@@ -1,13 +1,17 @@
-// Terrain.h - a height field: the ground the city stands on (docs/LEVEL_DESIGN.md, 5.4 and 12, step 2).
-// Field:     a grid of heights, (nx + 1) x (nz + 1) vertices `cell` metres apart from (x0, z0). Each cell is two triangles
+// Terrain.h - a height field: the ground, and the triangle maths that the solid of the town uses.
+// Field:     a grid of heights, (nx + 1) x (nz + 1) vertices `cell` metres apart from (x0, z0). Each cell is two
+// triangles
 //            split along the diagonal from its (x0, z0) corner to its (x1, z1) corner. Height() is the height of those
 //            triangles (exactly what is drawn and what is solid), not a smooth guess between the vertices.
-// Land:      two fields: a fine one round the map (`nearField`) and a coarse one to the far plane and beyond (`farField`).
-//            The coarse one has a hole where the fine one is; the outer edge of the fine one is pinned to the coarse one, so
-//            the two meet without a crack (PinEdge). Height(), Normal() and PushOut() choose the field that is drawn there.
+// Land:      two fields: a fine one round the map (`nearField`) and a coarse one to the far plane and beyond
+// (`farField`).
+//            The coarse one has a hole where the fine one is; the outer edge of the fine one is pinned to the coarse
+//            one, so the two meet without a crack (PinEdge). Height(), Normal() and PushOut() choose the field that is
+//            drawn there.
 // Collision: PushOut moves a ball out of the triangles near it (the closest point on each triangle; a centre under the
 //            surface is first lifted onto it). Used by the walking body (scene/Player.h SetLand) like any other solid.
-// Noise:     value noise, its sum over octaves (fbm) and a ridged sum (sharp crests): the shapes of the land. Plain arithmetic
+// Noise:     value noise, its sum over octaves (fbm) and a ridged sum (sharp crests): the shapes of the land. Plain
+// arithmetic
 //            with a fixed hash, so the same land comes out on every machine.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_terrain.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
@@ -28,7 +32,8 @@ namespace dl::terrain
 
 inline float Hash01(std::int64_t ix, std::int64_t iz, std::uint32_t seed)
 {
-    std::uint32_t h = static_cast<std::uint32_t>(ix) * 374761393u + static_cast<std::uint32_t>(iz) * 668265263u + seed * 1442695041u;
+    std::uint32_t h =
+        static_cast<std::uint32_t>(ix) * 374761393u + static_cast<std::uint32_t>(iz) * 668265263u + seed * 1442695041u;
     h = (h ^ (h >> 13)) * 1274126177u;
     return static_cast<float>(h & 0xFFFFu) / 65535.0f;
 }
@@ -99,9 +104,9 @@ struct Field
 {
     float x0 = 0.0f;
     float z0 = 0.0f;
-    float cell = 1.0f; ///< UNITS: metres between two vertices
-    int nx = 0;        ///< cells along x
-    int nz = 0;        ///< cells along z
+    float cell = 1.0f;    ///< UNITS: metres between two vertices
+    int nx = 0;           ///< cells along x
+    int nz = 0;           ///< cells along z
     std::vector<float> h; ///< (nx + 1) * (nz + 1) heights, x fastest
 
     float X1() const
@@ -134,8 +139,7 @@ struct Field
     }
 
     /// Sets every vertex from `height(x, z)`.
-    template <class F>
-    void Build(float originX, float originZ, float cellSize, int cellsX, int cellsZ, F height)
+    template <class F> void Build(float originX, float originZ, float cellSize, int cellsX, int cellsZ, F height)
     {
         x0 = originX;
         z0 = originZ;
@@ -320,8 +324,8 @@ class Land
         return std::sqrt(n.x * n.x + n.z * n.z) / (n.y > 1.0e-4f ? n.y : 1.0e-4f);
     }
 
-    /// Sets the outer edge of the fine field to the coarse field under it, so that the two meet without a crack. The fine
-    /// field must lie on whole cells of the coarse one.
+    /// Sets the outer edge of the fine field to the coarse field under it, so that the two meet without a crack. The
+    /// fine field must lie on whole cells of the coarse one.
     void PinEdge()
     {
         Field& f = nearField;
@@ -337,11 +341,12 @@ class Land
         }
     }
 
-    /// Calls f(a, b, c) for every drawn and solid triangle whose cell overlaps the square of half size `reach` round (x, z).
-    template <class F>
-    void ForEachTriangleNear(float x, float z, float reach, F f) const
+    /// Calls f(a, b, c) for every drawn and solid triangle whose cell overlaps the square of half size `reach` round
+    /// (x, z).
+    template <class F> void ForEachTriangleNear(float x, float z, float reach, F f) const
     {
-        const auto visit = [&](const Field& field, bool skipHidden) {
+        const auto visit = [&](const Field& field, bool skipHidden)
+        {
             if (field.nx <= 0)
             {
                 return;
@@ -376,7 +381,8 @@ class Land
     /// Moves a ball (centre `c`, radius `r`) out of the ground. Returns how far it moved (0 = it did not touch).
     float PushOut(Vec3& c, float r) const
     {
-        if (!(r > 0.0f) || !std::isfinite(c.x) || !std::isfinite(c.y) || !std::isfinite(c.z) || (nearField.nx <= 0 && farField.nx <= 0))
+        if (!(r > 0.0f) || !std::isfinite(c.x) || !std::isfinite(c.y) || !std::isfinite(c.z) ||
+            (nearField.nx <= 0 && farField.nx <= 0))
         {
             return 0.0f;
         }
@@ -391,17 +397,19 @@ class Land
             Vec3 best = c;
             float bestD2 = r * r;
             bool hit = false;
-            ForEachTriangleNear(c.x, c.z, r, [&](const Vec3& a, const Vec3& b, const Vec3& t) {
-                const Vec3 q = ClosestOnTriangle(c, a, b, t);
-                const Vec3 d = Sub(c, q);
-                const float d2 = Dot(d, d);
-                if (d2 < bestD2)
-                {
-                    bestD2 = d2;
-                    best = q;
-                    hit = true;
-                }
-            });
+            ForEachTriangleNear(c.x, c.z, r,
+                                [&](const Vec3& a, const Vec3& b, const Vec3& t)
+                                {
+                                    const Vec3 q = ClosestOnTriangle(c, a, b, t);
+                                    const Vec3 d = Sub(c, q);
+                                    const float d2 = Dot(d, d);
+                                    if (d2 < bestD2)
+                                    {
+                                        bestD2 = d2;
+                                        best = q;
+                                        hit = true;
+                                    }
+                                });
             if (!hit)
             {
                 break;

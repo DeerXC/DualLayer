@@ -14,13 +14,14 @@ inline Vec3 Along(const Vec3& point, const Vec3& direction, float distance)
 
 // March a camera sphere towards the desired eye. The step is smaller than its radius,
 // so even a thin wall cannot be skipped. During a ripple, either visible world may block it.
-inline float CameraClearDistance(const Moments& moments, const Vec3& pivot, const Vec3& forward, float reach,
-                                 int layer, bool both)
+inline float CameraClearDistance(const Moments& moments, const Vec3& pivot, const Vec3& forward, float reach, int layer,
+                                 bool both)
 {
     constexpr float radius = 0.20f;
     constexpr float step = 0.09f;
     constexpr float skin = 0.02f;
-    const auto blocked = [&](float distance, int world) {
+    const auto blocked = [&](float distance, int world)
+    {
         Vec3 p = Along(pivot, forward, -distance);
         return moments.PushOut(p, radius, world) > 0.001f;
     };
@@ -109,8 +110,8 @@ inline bool TryTownMantle(Player& player, const Moments& moments, const TownData
 }
 
 // A draw-only traveller. All parts, including the hand-held lantern, use the same local pose in A and B.
-inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const Player& player, float yaw,
-                         float phase, float gait, bool carried)
+inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const Player& player, float yaw, float phase,
+                         float gait, bool carried)
 {
     constexpr int bodyParts = 15;
     constexpr int lampParts = 4;
@@ -127,7 +128,8 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
     const float airborne = player.Grounded() ? 0.0f : 1.0f;
     const float lift = 0.021f * std::fabs(std::sin(phase)) * (std::min)(gait, 1.0f);
     const float lean = 0.16f * run + 0.08f * airborne;
-    const auto part = [&](ShapeKind shape, Vec3 p, Vec3 size, Vec3 tint, float tilt = 0.0f, float glow = 0.0f) {
+    const auto part = [&](ShapeKind shape, Vec3 p, Vec3 size, Vec3 tint, float tilt = 0.0f, float glow = 0.0f)
+    {
         scene::SceneObject o{};
         o.shape = shape;
         o.position[0] = feet.x + cy * p.x + sy * p.z;
@@ -157,8 +159,7 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
     // Visual stature only. Eye height, body clearance and mantle reach are unchanged.
     constexpr float stature = 1.72f;
     constexpr float hoodHeight = 0.30f;
-    part(ShapeKind::Sphere, {0, stature - hoodHeight * 0.5f, 0.08f * run},
-         {0.30f, hoodHeight, 0.30f}, wool);
+    part(ShapeKind::Sphere, {0, stature - hoodHeight * 0.5f, 0.08f * run}, {0.30f, hoodHeight, 0.30f}, wool);
     part(ShapeKind::Sphere, {0, 1.57f, 0.11f + 0.08f * run}, {0.20f, 0.21f, 0.13f}, {0.63f, 0.48f, 0.34f});
     part(ShapeKind::Cylinder, {0, 1.43f, 0.035f}, {0.31f, 0.09f, 0.30f}, {0.63f, 0.37f, 0.20f});
     part(ShapeKind::Cube, {-0.03f, 1.21f, -0.205f}, {0.30f, 0.32f, 0.15f}, leather, lean);
@@ -172,13 +173,13 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
         const float angle = (i == 1 && carried) ? -0.46f - swing * 0.18f : -leg * 0.85f;
         const float ankleY = 0.77f - 0.67f * std::cos(leg);
         const float ankleZ = -0.67f * std::sin(leg);
-        part(ShapeKind::Cube, {side * 0.13f, (0.77f + ankleY) * 0.5f, ankleZ * 0.5f},
-             {0.16f, 0.68f, 0.17f}, {0.19f, 0.21f, 0.22f}, leg);
+        part(ShapeKind::Cube, {side * 0.13f, (0.77f + ankleY) * 0.5f, ankleZ * 0.5f}, {0.16f, 0.68f, 0.17f},
+             {0.19f, 0.21f, 0.22f}, leg);
         part(ShapeKind::Cube, {side * 0.13f, ankleY - 0.025f, ankleZ + 0.045f}, {0.18f, 0.15f, 0.29f}, leather);
         const float handY = 1.36f - 0.45f * std::cos(angle);
         const float handZ = -0.45f * std::sin(angle);
-        part(ShapeKind::Cylinder, {side * 0.275f, (1.36f + handY) * 0.5f, handZ * 0.5f},
-             {0.15f, 0.46f, 0.15f}, coat, angle);
+        part(ShapeKind::Cylinder, {side * 0.275f, (1.36f + handY) * 0.5f, handZ * 0.5f}, {0.15f, 0.46f, 0.15f}, coat,
+             angle);
         if (i == 1)
         {
             lampY = handY;

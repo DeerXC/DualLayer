@@ -10,7 +10,7 @@ namespace
 constexpr wchar_t kClassName[] = L"DualLayerWindow";
 constexpr USHORT kUsagePageGeneric = 0x01; // HID usage page "generic desktop"
 constexpr USHORT kUsageMouse = 0x02;       // HID usage "mouse"
-}
+} // namespace
 
 Window::~Window()
 {
@@ -27,7 +27,8 @@ bool Window::Create(HINSTANCE instance, const wchar_t* title, int clientWidth, i
     // It must be called before any window exists. Failure (already set, or an old Windows) is not fatal.
     if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
     {
-        DL_LOG_WARN("Window", "SetProcessDpiAwarenessContext failed (error %lu); the picture may be scaled by Windows", GetLastError());
+        DL_LOG_WARN("Window", "SetProcessDpiAwarenessContext failed (error %lu); the picture may be scaled by Windows",
+                    GetLastError());
     }
 
     WNDCLASSEXW wc{};
@@ -62,7 +63,8 @@ bool Window::Create(HINSTANCE instance, const wchar_t* title, int clientWidth, i
     mouse.hwndTarget = m_hwnd;
     if (RegisterRawInputDevices(&mouse, 1, sizeof(mouse)) == FALSE)
     {
-        DL_LOG_WARN("Window", "RegisterRawInputDevices failed (error %lu): no mouse look, the arrow keys still turn", GetLastError());
+        DL_LOG_WARN("Window", "RegisterRawInputDevices failed (error %lu): no mouse look, the arrow keys still turn",
+                    GetLastError());
     }
 
     RECT client{};
@@ -199,13 +201,15 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
         RAWINPUT raw{};
         UINT size = sizeof(raw);
         if (m_captured &&
-            GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) != static_cast<UINT>(-1) &&
+            GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) !=
+                static_cast<UINT>(-1) &&
             raw.header.dwType == RIM_TYPEMOUSE && (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
         {
             m_mouseDx += raw.data.mouse.lLastX;
             m_mouseDy += raw.data.mouse.lLastY;
         }
-        return DefWindowProcW(hwnd, message, wParam, lParam); // WHY: WM_INPUT must reach DefWindowProc so Windows can free its data
+        return DefWindowProcW(hwnd, message, wParam,
+                              lParam); // WHY: WM_INPUT must reach DefWindowProc so Windows can free its data
     }
     case WM_LBUTTONDOWN:
         SetMouseCaptured(true);

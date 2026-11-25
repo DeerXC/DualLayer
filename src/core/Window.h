@@ -1,10 +1,11 @@
 // Window.h - one Win32 window. Declares per-monitor DPI awareness before creating it.
 // Owns:      the HWND, and the state of the mouse capture.
-// Units:     all sizes are PHYSICAL pixels of the client area (at 150% scaling a 1600 px window is about 1067 logical px wide).
-// Mouse:     raw mouse input (WM_INPUT) is read while the mouse is captured: a click into the window captures it (the cursor is
-//            hidden and kept inside the window), Esc or leaving the window (Alt + Tab) releases it. The movement is added up
-//            in counts of the mouse, not in pixels, so it does not stop at the edge of the screen and ignores the pointer speed
-//            setting of Windows. Esc while the mouse is free closes the window.
+// Units:     all sizes are PHYSICAL pixels of the client area (at 150% scaling a 1600 px window is about 1067 logical
+// px wide). Mouse:     raw mouse input (WM_INPUT) is read while the mouse is captured: a click into the window captures
+// it (the cursor is
+//            hidden and kept inside the window), Esc or leaving the window (Alt + Tab) releases it. The movement is
+//            added up in counts of the mouse, not in pixels, so it does not stop at the edge of the screen and ignores
+//            the pointer speed setting of Windows. Esc while the mouse is free closes the window.
 // Threading: main thread only (messages are pumped by PumpMessages()).
 #pragma once
 
@@ -17,7 +18,7 @@ namespace dl
 
 class Window
 {
-public:
+  public:
     Window() = default;
     ~Window();
     Window(const Window&) = delete;
@@ -29,23 +30,39 @@ public:
     bool PumpMessages();
     void SetTitle(const wchar_t* title);
 
-    HWND Handle() const { return m_hwnd; }
-    int Width() const { return m_width; }
-    int Height() const { return m_height; }
-    bool IsMinimized() const { return m_minimized; }
+    HWND Handle() const
+    {
+        return m_hwnd;
+    }
+    int Width() const
+    {
+        return m_width;
+    }
+    int Height() const
+    {
+        return m_height;
+    }
+    bool IsMinimized() const
+    {
+        return m_minimized;
+    }
 
     /// True once after the client size changed (resize, DPI change, restore).
     bool ConsumeResized();
     /// True once after F5 was pressed.
     bool ConsumeReloadKey();
 
-    /// The mouse movement since the last call, in counts of the mouse (+x right, +y toward the user); 0 while not captured.
+    /// The mouse movement since the last call, in counts of the mouse (+x right, +y toward the user); 0 while not
+    /// captured.
     void ConsumeMouseDelta(long& dx, long& dy);
-    bool MouseCaptured() const { return m_captured; }
+    bool MouseCaptured() const
+    {
+        return m_captured;
+    }
     /// Hides the cursor and keeps it inside the window (true), or gives it back (false).
     void SetMouseCaptured(bool captured);
 
-private:
+  private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
     void ClipToClient();

@@ -1,4 +1,4 @@
-"""city_model.py - the layout model of the map (docs/DESIGN.md 6 and 7).
+"""city_model.py - the layout model of the town (docs/DESIGN.md 6 and 7).
 
 A design model, not game data (yet): the town, its ground and its two moments, drawn so that the layout can be judged and
 checked before it is moved into the game.

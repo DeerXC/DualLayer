@@ -1,15 +1,20 @@
-// Lantern.h - the lantern and the circle of the past it keeps standing in the present (docs/DESIGN.md 3.2), and the traces
+// Lantern.h - the lantern and the circle of the past it keeps standing in the present (docs/DESIGN.md 3.2), and the
+// traces
 //            that what was done in the past leaves in the present (3.5).
 // Circle:    the lantern set down in A keeps a sphere of radius kRadius round it in A in both moments. In B, inside the
-//            sphere, what is solid and what is seen is A; outside it, B. (A is A everywhere: the circle changes nothing in A.)
-// Moments:   the solid of the town with the circle (scene/Moments.h). The water of A is water inside the circle in B as well.
-// Rules:     set down in A only, by a body that stands on something; taken up in either moment from within kReach, unless
-//            taking it would leave the body inside something or without the floor it stands on (refused, as a switch is).
-//            While it is set down, the body carries nothing; a switch is checked against the moment with the circle.
-// Traces:    a thing changed in A is marked in B by a faint glow of the colour of the lantern (never gold: gold means use),
-//            which comes up over kTraceRise seconds after the change and then stays (Traces). The things that change in A
-//            come with the puzzles of the town (docs/DESIGN.md 12, step 4); the record is here so that every one of them
-//            uses the same rule.
+//            sphere, what is solid and what is seen is A; outside it, B. (A is A everywhere: the circle changes nothing
+//            in A.)
+// Moments:   the solid of the town with the circle (scene/Moments.h). The water of A is water inside the circle in B as
+// well. Rules:     set down in A only, by a body that stands on something; taken up in either moment from within
+// kReach, unless
+//            taking it would leave the body inside something or without the floor it stands on (refused, as a switch
+//            is). While it is set down, the body carries nothing; a switch is checked against the moment with the
+//            circle.
+// Traces:    a thing changed in A is marked in B by a faint glow of the colour of the lantern (never gold: gold means
+// use),
+//            which comes up over kTraceRise seconds after the change and then stays (Traces). The things that change in
+//            A come with the puzzles of the town (docs/DESIGN.md 12, step 4); the record is here so that every one of
+//            them uses the same rule.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lantern.cpp).
 // UNITS: metres, seconds. Space: left-handed, +Y up.
 #pragma once
@@ -25,10 +30,11 @@
 namespace dl::town
 {
 
-inline constexpr float kRadius = 3.5f;      ///< UNITS: metres: the radius of the circle of the past
-inline constexpr float kLanternUp = 0.45f;  ///< UNITS: metres: the centre of the circle over the floor the lantern stands on
-inline constexpr float kReach = 1.8f;       ///< UNITS: metres between the feet and the lantern, to take it up
-inline constexpr float kPutAhead = 0.9f;    ///< UNITS: metres ahead of the feet where it is set down
+inline constexpr float kRadius = 3.5f; ///< UNITS: metres: the radius of the circle of the past
+inline constexpr float kLanternUp =
+    0.45f;                            ///< UNITS: metres: the centre of the circle over the floor the lantern stands on
+inline constexpr float kReach = 1.8f; ///< UNITS: metres between the feet and the lantern, to take it up
+inline constexpr float kPutAhead = 0.9f;   ///< UNITS: metres ahead of the feet where it is set down
 inline constexpr float kRecallFrom = 8.0f; ///< UNITS: metres from the set-down lantern from which E calls it back
 
 /// The lantern: carried, or set down with its circle.
@@ -74,8 +80,9 @@ class Lantern
         return m_placed && dx * dx + dz * dz <= kReach * kReach && std::fabs(feet.y - m_at.y) <= 1.5f;
     }
 
-    /// E: takes it up when it is in reach, else sets it down `kPutAhead` ahead along `forward` (in A, standing). `moments`
-    /// must hold the circle as it is now; on a change the caller gives it the new one (GetCircle). `radius`: the body's.
+    /// E: takes it up when it is in reach, else sets it down `kPutAhead` ahead along `forward` (in A, standing).
+    /// `moments` must hold the circle as it is now; on a change the caller gives it the new one (GetCircle). `radius`:
+    /// the body's.
     Result Use(const Vec3& feet, bool grounded, const Vec3& forward, int layer, float radius, Moments& moments)
     {
         if (m_placed)
@@ -139,8 +146,8 @@ class Lantern
         return m_placed && dx * dx + dy * dy + dz * dz >= kRecallFrom * kRecallFrom;
     }
 
-    /// E far from the set-down lantern: it comes back to the hand (the circle goes), refused as a take-up is when the body
-    /// would be left inside something or without its floor. A lantern left behind is never lost.
+    /// E far from the set-down lantern: it comes back to the hand (the circle goes), refused as a take-up is when the
+    /// body would be left inside something or without its floor. A lantern left behind is never lost.
     Result Recall(const Vec3& feet, bool grounded, int layer, float radius, Moments& moments)
     {
         if (!Far(feet))

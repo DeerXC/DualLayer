@@ -1,4 +1,4 @@
-# run_tests.ps1 - builds and runs the logic tests with MSVC, and builds the tools that are not part of the game.
+# run_tests.ps1 - builds and runs the logic tests with MSVC (and builds the tools that are not part of the game, if any).
 # Run it from a "Developer PowerShell for VS" in the repository folder (tools\check.ps1 runs it too, and finds that environment
 # by itself):
 #   .\tests\run_tests.ps1               every test
@@ -16,21 +16,14 @@ $tests = @(
     @{ Name = "camera";    Sources = @("tests\test_camera.cpp", "src\scene\Camera.cpp");                                      Flags = @("/WX") },
     @{ Name = "mesh";      Sources = @("tests\test_mesh.cpp", "src\render\MeshData.cpp");                                     Flags = @() },
     @{ Name = "batch";     Sources = @("tests\test_batch.cpp", "src\render\MeshData.cpp");                                    Flags = @("/O2") },
-    @{ Name = "shapes";    Sources = @("tests\test_shapes.cpp");                                                              Flags = @("/O2") },
     @{ Name = "collision"; Sources = @("tests\test_collision.cpp");                                                           Flags = @() },
     @{ Name = "ripple";    Sources = @("tests\test_ripple.cpp");                                                              Flags = @() },
     @{ Name = "player";    Sources = @("tests\test_player.cpp");                                                              Flags = @("/O2") },
+    @{ Name = "layer_guard"; Sources = @("tests\test_layer_guard.cpp");                                                      Flags = @() },
+    @{ Name = "effects";   Sources = @("tests\test_effects.cpp");                                                            Flags = @() },
     @{ Name = "town_player"; Sources = @("tests\test_town_player.cpp");                                                        Flags = @("/O2") },
-    @{ Name = "puzzle";    Sources = @("tests\test_puzzle.cpp");                                                              Flags = @("/O2") },
-    @{ Name = "maze";      Sources = @("tests\test_maze.cpp");                                                                Flags = @("/O2") },
-    @{ Name = "stage";     Sources = @("tests\test_stage.cpp");                                                               Flags = @("/O2") },
-    @{ Name = "mechanisms"; Sources = @("tests\test_mechanisms.cpp");                                                         Flags = @("/O2") },
-    @{ Name = "reach";     Sources = @("tests\test_reach.cpp");                                                               Flags = @("/O2") },
     @{ Name = "overlay";   Sources = @("tests\test_overlay.cpp");                                                             Flags = @() },
-    @{ Name = "hints";     Sources = @("tests\test_hints.cpp");                                                               Flags = @() },
-    @{ Name = "lights";    Sources = @("tests\test_lights.cpp");                                                              Flags = @() },
     @{ Name = "terrain";   Sources = @("tests\test_terrain.cpp", "src\render\MeshData.cpp");                                 Flags = @("/O2") },
-    @{ Name = "water";     Sources = @("tests\test_water.cpp", "src\render\MeshData.cpp");                                   Flags = @("/O2") },
     @{ Name = "town";      Sources = @("tests\test_town.cpp");                                                               Flags = @("/O2") },
     @{ Name = "lantern";   Sources = @("tests\test_lantern.cpp");                                                            Flags = @("/O2") },
     @{ Name = "things";    Sources = @("tests\test_things.cpp");                                                             Flags = @("/O2") },
@@ -38,9 +31,8 @@ $tests = @(
 )
 
 # Tools that are kept in the repository but are not part of the game: they are only BUILT, so that they cannot rot unseen.
-$tools = @(
-    @{ Name = "maze_search"; Sources = @("tools\maze_search.cpp"); Flags = @("/O2") }
-)
+# None at the moment.
+$tools = @()
 
 function Build-One($entry, [string]$exe)
 {

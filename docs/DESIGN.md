@@ -123,7 +123,7 @@ The town prototype uses a third-person follow camera. The lantern follows the ri
 ## 4. Progress and return
 
 - **Main route:** the existing district bells are prototype milestones. Keep the main route readable and the final bell reachable without lighting any optional street lamps. District machinery may change a view of town without creating a required errand in another district. The district gate requirements should be checked when the map is compressed.
-- **Anchor lamps:** checkpoints, not collectibles and not optional street lamps. Place them after meaningful progress. A fall or R returns to a safe floor in both moments without depending on the placed lantern. In the uploaded town baseline, this is the last safe standing point; anchor-based recovery and lamp travel belong to the legacy greybox unless migrated.
+- **Anchor lamps:** checkpoints, not collectibles and not optional street lamps. Place them after meaningful progress. A fall or R returns to a safe floor in both moments without depending on the placed lantern. In the uploaded town baseline, this is the last safe standing point; anchor-based recovery and lamp travel belonged to the earlier greybox prototype (git tag `m2-greybox`) and must be rebuilt if wanted.
 - **Optional street lamps:** light a lamp in A and it remains lit in B. A lamp can clarify a nearby route or reveal a landmark. Reward exploration with changes visible in the town and with the boat outcome in section 5, not a collection counter. Memory fragments, fragment-based radius upgrades and unlockable story scenes are not part of the new route.
 
 ## 5. Bell tower finale and ending views
@@ -360,12 +360,12 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 
 | Target | Proof |
 |---|---|
-| Push and crate puzzles | the solver: solvable, fewest moves, fewest switches, not solvable in one moment |
-| Every room | walked by the real body; the known wrong moves tried |
-| Skips | the search of `tests/test_reach.cpp`: no jump ends higher in a room not joined by walking |
-| Recovery | every place of return is a place to stand, out of the water, in both moments |
-| The ground | under every floor; every walk or jump off an edge ends in the map or is caught as a fall |
-| Immersion | every view down meets the map, the land or the sea |
+| The main route | `tests/test_route.cpp`: a solver over both moments plays the things in order; each is reached, nothing further on is reached early, and any way round a puzzle is listed |
+| Things and the causal rule | `tests/test_things.cpp`: a thing opens in A only, its trace shows in B, an opening that would close on the body is refused; a flood of every place the body can walk to |
+| The lantern | `tests/test_lantern.cpp`: the circle, the solid with it in both moments, the rules of setting down and taking up |
+| The town | `tests/test_town.cpp`: the file, the solid, every street walked end to end, the water of each moment |
+| Recovery | every place of return is a place to stand, out of the water, in both moments (`FitsInTown`, `Moments::Supports`) |
+| The third-person body | `tests/test_town_player.cpp`: the climb checks support, clearance and water; the camera retracts round walls |
 
 ## 12. Order of work and acceptance
 

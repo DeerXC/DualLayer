@@ -39,32 +39,32 @@ struct FrameConstants
     XMFLOAT4X4 viewProjection; // row-major, row vectors: v' = v * M
     XMFLOAT3 eye;              // UNITS: metres, world space
     float time;                // UNITS: seconds since the start (the waves of the water)
-    XMFLOAT3 toLight; // unit vector from a surface TO the light
+    XMFLOAT3 toLight;          // unit vector from a surface TO the light
     float ambient;
     XMFLOAT3 lightColor; // linear
-    float lanternMode;   // 0: none; 1: this is B, what is inside the circle of the lantern is not drawn; 2: this is the A
-                         // inside the circle, what is outside it is not drawn (scene/Lantern.h)
-    XMFLOAT3 skyUp; // linear: the sky light on a surface that looks up
+    float lanternMode; // 0: none; 1: this is B, what is inside the circle of the lantern is not drawn; 2: this is the A
+                       // inside the circle, what is outside it is not drawn (scene/Lantern.h)
+    XMFLOAT3 skyUp;    // linear: the sky light on a surface that looks up
     float pad2;
     XMFLOAT3 skyDown; // linear: the ground light on a surface that looks down
     float pad3;
-    XMFLOAT3 fogColor; // linear: the colour of the fog (= the background)
-    float fogDensity;  // UNITS: 1 / metres
-    XMFLOAT3 tint;     // the stone of the city in this layer (multiplies the albedo of the city)
-    float weathering;  // 0 .. 1
-    XMFLOAT4 lantern;  // xyz: the centre of the circle of the lantern (world); w: its radius (metres)
-    XMFLOAT4 skyRight;  // xyz: camera right / projection x scale; w: additional near-ground fog density
-    XMFLOAT4 skyUpRay;  // xyz: camera up / projection y scale; w: near-ground fog base height
+    XMFLOAT3 fogColor;   // linear: the colour of the fog (= the background)
+    float fogDensity;    // UNITS: 1 / metres
+    XMFLOAT3 tint;       // the stone of the city in this layer (multiplies the albedo of the city)
+    float weathering;    // 0 .. 1
+    XMFLOAT4 lantern;    // xyz: the centre of the circle of the lantern (world); w: its radius (metres)
+    XMFLOAT4 skyRight;   // xyz: camera right / projection x scale; w: additional near-ground fog density
+    XMFLOAT4 skyUpRay;   // xyz: camera up / projection y scale; w: near-ground fog base height
     XMFLOAT4 skyForward; // xyz: camera forward; w: solar / lunar halo weight
-    XMFLOAT4 skyZenith; // rgb: linear colour; w: gradient enabled
+    XMFLOAT4 skyZenith;  // rgb: linear colour; w: gradient enabled
 };
 
 struct ObjectConstants
 {
     XMFLOAT4X4 world;
     XMFLOAT4X4 normalMatrix; // inverse transpose of the 3x3 of `world`
-    XMFLOAT4 color;          // rgb: linear albedo; a: 1 = part of the city (takes the tint and the weathering of the layer)
-    XMFLOAT4 params;         // x: checkered floor, y: shine strength, z: shininess, w: glow (its own light)
+    XMFLOAT4 color;  // rgb: linear albedo; a: 1 = part of the city (takes the tint and the weathering of the layer)
+    XMFLOAT4 params; // x: checkered floor, y: shine strength, z: shininess, w: glow (its own light)
 };
 
 // KEEP IN SYNC: cbuffer Ripple in shaders/ripple.hlsl (field for field).
@@ -96,15 +96,17 @@ using scene::SceneObject;
 constexpr float kSkyDownScale = 0.28f; // the ground light is this part of the sky light (the same ratio as in M1)
 
 // ---- the ripple (M2). The built-in values; [ripple] in config/default.ini changes them.
-constexpr float kDefaultRippleSeconds = 0.9f;     // UNITS: seconds for the circle to cover the screen
-constexpr float kDefaultRippleWidth = 0.07f;      // UNITS: screen heights
+constexpr float kDefaultRippleSeconds = 0.9f;      // UNITS: seconds for the circle to cover the screen
+constexpr float kDefaultRippleWidth = 0.07f;       // UNITS: screen heights
 constexpr float kDefaultRippleDistortion = 0.012f; // UNITS: uv (a part of the screen)
-constexpr float kRippleGlow = 0.5f;               // the ring adds this much of the light colour of the layer it opens
-constexpr float kRippleOvershoot = 1.5f;          // the circle grows this many ring widths past the corner, so the ring leaves the screen
+constexpr float kRippleGlow = 0.5f;                // the ring adds this much of the light colour of the layer it opens
+constexpr float kRippleOvershoot =
+    1.5f; // the circle grows this many ring widths past the corner, so the ring leaves the screen
 
-/// The two faces of the city (docs/LEVEL_DESIGN.md, 13). A, the whole city: a low evening sun, warm sandstone, a light
-/// haze, a bright sky behind it. B, the city after the storm: a cold light from above, wet dark stone with moss on what looks
-/// up, a thick fog that hides what is far. They differ in every channel at once, so that a single glance tells them apart.
+/// The built-in looks of the two moments, used until the town gives its own (ApplyTownThemes in main.cpp). A, the whole
+/// city: a low evening sun, warm sandstone, a light haze, a bright sky behind it. B, the city after the storm: a cold
+/// light from above, wet dark stone with moss on what looks up, a thick fog that hides what is far. They differ in
+/// every channel at once, so that a single glance tells them apart.
 std::array<Models::Theme, 2> DefaultThemes()
 {
     Models::Theme a;
@@ -126,7 +128,7 @@ std::array<Models::Theme, 2> DefaultThemes()
     return {{a, b}};
 }
 
-/// The night of A (the night bell, scene/CityState.h): a low moon, a dark blue sky, the stone of the town cool.
+/// The night of A (SetNight): a low moon, a dark blue sky, the stone of the town cool.
 Models::Theme NightTheme()
 {
     Models::Theme n;
@@ -322,25 +324,29 @@ bool Models::Init(ID3D11Device* device, int segments)
                                      &m_inputLayout);
     if (SUCCEEDED(hr))
     {
-        hr = m_device->CreateVertexShader(batchBlob->GetBufferPointer(), batchBlob->GetBufferSize(), nullptr, &m_batchVertexShader);
+        hr = m_device->CreateVertexShader(batchBlob->GetBufferPointer(), batchBlob->GetBufferSize(), nullptr,
+                                          &m_batchVertexShader);
     }
     // a baked vertex is BatchVertex: position (12 bytes), normal (12), colour (16), parameters (16)
     const D3D11_INPUT_ELEMENT_DESC batchLayout[] = {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(BatchVertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(BatchVertex, position), D3D11_INPUT_PER_VERTEX_DATA,
+         0},
         {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(BatchVertex, normal), D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(BatchVertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(BatchVertex, params), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(BatchVertex, params), D3D11_INPUT_PER_VERTEX_DATA,
+         0},
     };
     if (SUCCEEDED(hr))
     {
-        hr = m_device->CreateInputLayout(batchLayout, ARRAYSIZE(batchLayout), batchBlob->GetBufferPointer(), batchBlob->GetBufferSize(),
-                                         &m_batchLayout);
+        hr = m_device->CreateInputLayout(batchLayout, ARRAYSIZE(batchLayout), batchBlob->GetBufferPointer(),
+                                         batchBlob->GetBufferSize(), &m_batchLayout);
     }
     if (FAILED(hr))
     {
-        DL_LOG_ERROR("Models",
-                     "CreateInputLayout failed (0x%08X): the vertex of the shader and MeshVertex / BatchVertex do not match",
-                     static_cast<unsigned>(hr));
+        DL_LOG_ERROR(
+            "Models",
+            "CreateInputLayout failed (0x%08X): the vertex of the shader and MeshVertex / BatchVertex do not match",
+            static_cast<unsigned>(hr));
         Shutdown();
         return false;
     }
@@ -463,8 +469,8 @@ bool Models::CreateStates()
     {
         hr = m_device->CreateBlendState(&blend, &m_blendState);
     }
-    // water: blended over what is behind it (its alpha says how much of it is seen), tested against the depth but not written,
-    // so that what is under it still shows and one water does not hide another
+    // water: blended over what is behind it (its alpha says how much of it is seen), tested against the depth but not
+    // written, so that what is under it still shows and one water does not hide another
     D3D11_BLEND_DESC waterBlend{};
     waterBlend.RenderTarget[0].BlendEnable = TRUE;
     waterBlend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
@@ -488,7 +494,8 @@ bool Models::CreateStates()
     }
     D3D11_SAMPLER_DESC sampler{};
     sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sampler.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP; // the ring bends the picture a little past the edge: clamp, do not wrap
+    sampler.AddressU =
+        D3D11_TEXTURE_ADDRESS_CLAMP; // the ring bends the picture a little past the edge: clamp, do not wrap
     sampler.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampler.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampler.ComparisonFunc = D3D11_COMPARISON_NEVER;
@@ -756,12 +763,13 @@ bool Models::UploadBatch(const BatchMesh& baked, GpuMesh& target, const char* ve
     return true;
 }
 
-// The fixed boxes of each layer, baked into one immutable vertex and index buffer; the still water of each layer into its
-// own. Nothing to bake is not an error.
+// The fixed boxes of each layer, baked into one immutable vertex and index buffer; the still water of each layer into
+// its own. Nothing to bake is not an error.
 bool Models::CreateBatchBuffers()
 {
-    static const char* const kNames[2][4] = {{"Models.Batch.A.VB", "Models.Batch.A.IB", "Models.Water.A.VB", "Models.Water.A.IB"},
-                                             {"Models.Batch.B.VB", "Models.Batch.B.IB", "Models.Water.B.VB", "Models.Water.B.IB"}};
+    static const char* const kNames[2][4] = {
+        {"Models.Batch.A.VB", "Models.Batch.A.IB", "Models.Water.A.VB", "Models.Water.A.IB"},
+        {"Models.Batch.B.VB", "Models.Batch.B.IB", "Models.Water.B.VB", "Models.Water.B.IB"}};
     for (int layer = 0; layer < 2; ++layer)
     {
         const std::size_t l = static_cast<std::size_t>(layer);
@@ -774,8 +782,8 @@ bool Models::CreateBatchBuffers()
         }
         if (!baked.indices.empty())
         {
-            DL_LOG_INFO("Models", "static batch %s: %d boxes, %zu triangles in one draw call", layer == 0 ? "A" : "B", baked.objects,
-                        baked.indices.size() / 3);
+            DL_LOG_INFO("Models", "static batch %s: %d boxes, %zu triangles in one draw call", layer == 0 ? "A" : "B",
+                        baked.objects, baked.indices.size() / 3);
         }
     }
     return true;
@@ -797,15 +805,16 @@ void Models::LoadThemes(const Config& config)
         Theme& t = m_themes[i];
         t.toLight = XMFLOAT3(config.GetFloat(s, "light_x", d.toLight.x), config.GetFloat(s, "light_y", d.toLight.y),
                              config.GetFloat(s, "light_z", d.toLight.z));
-        t.lightColor = XMFLOAT3(config.GetFloat(s, "light_r", d.lightColor.x),
-                                config.GetFloat(s, "light_g", d.lightColor.y),
-                                config.GetFloat(s, "light_b", d.lightColor.z));
+        t.lightColor =
+            XMFLOAT3(config.GetFloat(s, "light_r", d.lightColor.x), config.GetFloat(s, "light_g", d.lightColor.y),
+                     config.GetFloat(s, "light_b", d.lightColor.z));
         t.sky = XMFLOAT3(config.GetFloat(s, "sky_r", d.sky.x), config.GetFloat(s, "sky_g", d.sky.y),
                          config.GetFloat(s, "sky_b", d.sky.z));
         t.clear = XMFLOAT3(config.GetFloat(s, "clear_r", d.clear.x), config.GetFloat(s, "clear_g", d.clear.y),
                            config.GetFloat(s, "clear_b", d.clear.z));
         t.fogDensity = std::clamp(config.GetFloat(s, "fog_density", d.fogDensity), 0.0f, 0.2f);
-        t.tint = XMFLOAT3(std::clamp(config.GetFloat(s, "tint_r", d.tint.x), 0.0f, 4.0f), std::clamp(config.GetFloat(s, "tint_g", d.tint.y), 0.0f, 4.0f),
+        t.tint = XMFLOAT3(std::clamp(config.GetFloat(s, "tint_r", d.tint.x), 0.0f, 4.0f),
+                          std::clamp(config.GetFloat(s, "tint_g", d.tint.y), 0.0f, 4.0f),
                           std::clamp(config.GetFloat(s, "tint_b", d.tint.z), 0.0f, 4.0f));
         t.weathering = std::clamp(config.GetFloat(s, "weathering", d.weathering), 0.0f, 1.0f);
         // a light with no direction cannot be normalised: keep the built-in one
@@ -887,7 +896,7 @@ void Models::Update(float deltaSeconds)
     {
         m_spin += dt;
     }
-    m_ripple.Update(dt); // runs even while the shapes are stopped: the layer must still change
+    m_ripple.Update(dt);                      // runs even while the shapes are stopped: the layer must still change
     m_time = std::fmod(m_time + dt, 3600.0f); // the water moves on (wrapped once an hour: a float keeps its precision)
 }
 
@@ -919,7 +928,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     XMStoreFloat3(&right, XMVectorScale(cameraAxes.r[0], 1.0f / XMVectorGetX(projection.r[0])));
     XMStoreFloat3(&up, XMVectorScale(cameraAxes.r[1], 1.0f / XMVectorGetY(projection.r[1])));
     XMStoreFloat3(&forward, cameraAxes.r[2]);
-    const auto setFrame = [&](int themeLayer, float mode) {
+    const auto setFrame = [&](int themeLayer, float mode)
+    {
         const Theme theme = ThemeOf(themeLayer);
         FrameConstants frame{};
         XMStoreFloat4x4(&frame.viewProjection, view * projection);
@@ -931,7 +941,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         frame.lanternMode = mode;
         frame.skyUp = theme.sky;
         frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale, theme.sky.y * kSkyDownScale, theme.sky.z * kSkyDownScale);
-        frame.fogColor = theme.clear; // the fog is the colour of the sky behind it: what is far melts into the background
+        frame.fogColor =
+            theme.clear; // the fog is the colour of the sky behind it: what is far melts into the background
         frame.fogDensity = theme.fogDensity;
         frame.tint = theme.tint;
         frame.weathering = theme.weathering;
@@ -954,7 +965,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         return true;
     };
     // one baked mesh in one draw call (render/StaticBatch.h)
-    const auto drawBatch = [&](const GpuMesh& batch) {
+    const auto drawBatch = [&](const GpuMesh& batch)
+    {
         if (batch.indexCount == 0)
         {
             return;
@@ -971,8 +983,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->IASetInputLayout(m_inputLayout.Get()); // back to the objects drawn one by one
         context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     };
-    // the lantern set down in A keeps a circle of A standing in B (scene/Lantern.h): B is drawn without the inside of the
-    // circle, then the fixed town of A, in the light of A, only inside it
+    // the lantern set down in A keeps a circle of A standing in B (scene/Lantern.h): B is drawn without the inside of
+    // the circle, then the fixed town of A, in the light of A, only inside it
     const bool circle = layer == 1 && m_lantern.w > 0.0f;
 
     // ---- the fixed city of this layer: one draw call
@@ -1000,10 +1012,12 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         setFrame(layer, 0.0f); // the objects drawn one by one are not clipped
     }
 
-    // ---- one draw call per object: only the objects of this layer; the water (scene::IsWaterMaterial) waits for its own pass
+    // ---- one draw call per object: only the objects of this layer; the water (scene::IsWaterMaterial) waits for its
+    // own pass
     const unsigned layerBit = 1u << layer;
     m_water.clear();
-    const auto drawOne = [&](const SceneObject& object) {
+    const auto drawOne = [&](const SceneObject& object)
+    {
         const GpuMesh& mesh = m_meshes[static_cast<std::size_t>(object.shape)];
         if (!mesh.vertexBuffer || !mesh.indexBuffer)
         {
@@ -1012,7 +1026,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         // World = Scale * Rotation * Translation: first the size, then the tilt and the turn, then the place (row
         // vectors: read left to right)
         const XMMATRIX world = XMMatrixScaling(object.scale[0], object.scale[1], object.scale[2]) *
-                               XMMatrixRotationX(object.tilt) * XMMatrixRotationY(object.spinSpeed * m_spin + object.yaw) *
+                               XMMatrixRotationX(object.tilt) *
+                               XMMatrixRotationY(object.spinSpeed * m_spin + object.yaw) *
                                XMMatrixTranslation(object.position[0], object.position[1], object.position[2]);
         ObjectConstants data{};
         XMStoreFloat4x4(&data.world, world);
@@ -1020,8 +1035,9 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         // transpose), or the light is wrong. For this affine matrix the 3x3 part of the result is the inverse transpose
         // of the 3x3 of `world`.
         XMStoreFloat4x4(&data.normalMatrix, XMMatrixTranspose(XMMatrixInverse(nullptr, world)));
-        // the city (an object of both layers that does not shine by itself) takes the stone of the layer; the key objects of
-        // one layer and everything that glows keep their own colours, so that red, blue and gold always mean the same
+        // the city (an object of both layers that does not shine by itself) takes the stone of the layer; the key
+        // objects of one layer and everything that glows keep their own colours, so that red, blue and gold always mean
+        // the same
         const float city = (object.layerMask == scene::kLayerBoth && object.glow <= 0.0f) ? 1.0f : 0.0f;
         data.color = XMFLOAT4(SrgbToLinear(object.colorSrgb[0]), SrgbToLinear(object.colorSrgb[1]),
                               SrgbToLinear(object.colorSrgb[2]), city);
@@ -1055,8 +1071,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         drawOne(object);
     }
 
-    // ---- the water: after everything opaque, blended; the still water of the static batch first, then the water objects far
-    // to near (the sea first: it is under everything else)
+    // ---- the water: after everything opaque, blended; the still water of the static batch first, then the water
+    // objects far to near (the sea first: it is under everything else)
     const GpuMesh& stillWater = m_waterBatch[static_cast<std::size_t>(layer)];
     const bool waterOfA = circle && m_waterBatch[0].indexCount > 0; // the water of A inside the circle
     if (stillWater.indexCount > 0 || waterOfA)
@@ -1079,7 +1095,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     }
     if (!m_water.empty())
     {
-        const auto farness = [&](const SceneObject* o) {
+        const auto farness = [&](const SceneObject* o)
+        {
             if (o->checker > scene::kMatSea - 0.5f && o->checker < scene::kMatSea + 0.5f)
             {
                 return 1.0e12f;
@@ -1089,7 +1106,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
             const float dz = o->position[2] - eye.z;
             return dx * dx + dy * dy + dz * dz;
         };
-        std::sort(m_water.begin(), m_water.end(), [&](const SceneObject* a, const SceneObject* b) { return farness(a) > farness(b); });
+        std::sort(m_water.begin(), m_water.end(),
+                  [&](const SceneObject* a, const SceneObject* b) { return farness(a) > farness(b); });
         context->OMSetBlendState(m_waterBlend.Get(), nullptr, 0xffffffff);
         context->OMSetDepthStencilState(m_waterDepth.Get(), 0);
         for (const SceneObject* object : m_water)
@@ -1153,8 +1171,8 @@ bool Models::DrawRipple(ID3D11DeviceContext* context, const XMMATRIX& view, cons
     const float aspect = viewport.Width / viewport.Height;
     RippleConstants ripple{};
     ripple.center = m_rippleCenter;
-    ripple.radius = m_ripple.Opened() *
-                    (FarthestCornerDistance(m_rippleCenter.x, m_rippleCenter.y, aspect) + kRippleOvershoot * m_rippleWidth);
+    ripple.radius = m_ripple.Opened() * (FarthestCornerDistance(m_rippleCenter.x, m_rippleCenter.y, aspect) +
+                                         kRippleOvershoot * m_rippleWidth);
     ripple.ringWidth = m_rippleWidth;
     ripple.aspect = aspect;
     ripple.distortion = m_rippleDistortion;
@@ -1240,9 +1258,9 @@ int Models::VisibleModelCount() const
 std::wstring Models::StatusLine() const
 {
     wchar_t text[160];
-    swprintf_s(text, L"%d models | %d draws | %d segments | %d triangles | %s%s | layer %s", VisibleModelCount(), m_drawCalls, m_segments,
-               TriangleTotal(), m_wireframe ? L"wireframe" : L"solid", m_spinning ? L"" : L" | stopped",
-               m_ripple.Target() == 0 ? L"A" : L"B");
+    swprintf_s(text, L"%d models | %d draws | %d segments | %d triangles | %s%s | layer %s", VisibleModelCount(),
+               m_drawCalls, m_segments, TriangleTotal(), m_wireframe ? L"wireframe" : L"solid",
+               m_spinning ? L"" : L" | stopped", m_ripple.Target() == 0 ? L"A" : L"B");
     return text;
 }
 

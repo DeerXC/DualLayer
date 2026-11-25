@@ -1,30 +1,39 @@
-// Player.h - a walking body for the camera: it walks, falls, lands, jumps, stands on solid objects and can fall off the floor.
-// Plain maths, no Windows, no Direct3D: tested without a window (tests/test_player.cpp).
-// Body:      three balls of the collision radius, one above the other: at the feet, at the eye (the camera) and one halfway, so that
-//            the body cannot slip between thin parts (the tube of the torus is 0.6 m thick, the balls overlap). The camera is the
-//            eye; the feet are the point on the ground.
-// Layers:    only the objects of the given layer are solid (scene/Collision.h). The layer is a parameter of every Update, so a body
+// Player.h - a walking body for the camera: it walks, falls, lands, jumps, stands on solid objects and can fall off the
+// floor. Plain maths, no Windows, no Direct3D: tested without a window (tests/test_player.cpp). Body:      three balls
+// of the collision radius, one above the other: at the feet, at the eye (the camera) and one halfway, so that
+//            the body cannot slip between thin parts (the tube of the torus is 0.6 m thick, the balls overlap). The
+//            camera is the eye; the feet are the point on the ground.
+// Layers:    only the objects of the given layer are solid (scene/Collision.h). The layer is a parameter of every
+// Update, so a body
 //            standing on an object that is not in the new layer falls at once.
-// Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h). SetScene
-//            gives the body another one (a test, or the solids of the map, whose block moves and whose doors open).
-// Land:      SetLand gives the body the ground of the world (scene/Terrain.h): it is solid in both layers, like a floor of both.
-// Town:      SetTown gives the body the solid of the town of the model in both moments, with the circle of the lantern
+// Table:     the solid objects come from a table; the default is the scene table of the program (scene/SceneData.h).
+// SetScene
+//            gives the body another one (a test).
+// Land:      SetLand gives the body the ground of the world (scene/Terrain.h): it is solid in both layers, like a floor
+// of both. Town:      SetTown gives the body the solid of the town of the model in both moments, with the circle of the
+// lantern
 //            (scene/Moments.h).
-// Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06 s, a stop in
-//            about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is stronger while the
-//            body falls than while it rises, so a jump goes up softly and comes down firmly. Letting the jump key go while the body
-//            still rises cuts the rise (a short tap is a small hop, a held key the full jump height). Coyote time: a jump still works
-//            for 0.08 s after the body left an edge; jump buffer: a jump pressed 0.1 s before the landing happens at the landing.
-// Method:    per small step: the speed on the ground moves toward the wish of the keys; gravity; jump; move; push the three balls out
-//            of the solids (ResolveSphere). The direction of the push is the normal of what was hit: the part of the speed that goes
-//            into it is removed and the rest stays, so a floor ends a fall and a slope that is too steep turns the fall into a
-//            slide. The walk is taken away only by the solids that are not ground (AddWallPush): a ramp keeps the walk, a wall
-//            takes the part into it, also when the floor pushes in the same step. Then a probe a few centimetres below the feet
-//            tells whether the body stands on something (the surface must face up: a slope limit of about 53 degrees).
-// Snap:      a body that stood in the last step and did not jump is kept on the ground when the ground drops away by at most
-//            kSnapDown in one step (walking down a ramp or off a low step), so that it does not fly off in small hops: that was the
-//            shaking of the camera on the way down.
-// Time:      Update takes the real frame time, limited to 0.1 s, and cuts it into steps that move the body by less than the radius,
+// Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06
+// s, a stop in
+//            about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is stronger
+//            while the body falls than while it rises, so a jump goes up softly and comes down firmly. Letting the jump
+//            key go while the body still rises cuts the rise (a short tap is a small hop, a held key the full jump
+//            height). Coyote time: a jump still works for 0.08 s after the body left an edge; jump buffer: a jump
+//            pressed 0.1 s before the landing happens at the landing.
+// Method:    per small step: the speed on the ground moves toward the wish of the keys; gravity; jump; move; push the
+// three balls out
+//            of the solids (ResolveSphere). The direction of the push is the normal of what was hit: the part of the
+//            speed that goes into it is removed and the rest stays, so a floor ends a fall and a slope that is too
+//            steep turns the fall into a slide. The walk is taken away only by the solids that are not ground
+//            (AddWallPush): a ramp keeps the walk, a wall takes the part into it, also when the floor pushes in the
+//            same step. Then a probe a few centimetres below the feet tells whether the body stands on something (the
+//            surface must face up: a slope limit of about 53 degrees).
+// Snap:      a body that stood in the last step and did not jump is kept on the ground when the ground drops away by at
+// most
+//            kSnapDown in one step (walking down a ramp or off a low step), so that it does not fly off in small hops:
+//            that was the shaking of the camera on the way down.
+// Time:      Update takes the real frame time, limited to 0.1 s, and cuts it into steps that move the body by less than
+// the radius,
 //            so that nothing is jumped over (the floor is only 0.2 m thick).
 // Falling:   a body that falls kFallDepth below the floor goes back to the spawn point (JustRespawned tells it).
 // Space:     left-handed, +Y up. With the forward direction f on the ground, right = (f.z, 0, -f.x).
@@ -55,11 +64,12 @@ class Player
         float walkSpeed = 5.5f;        ///< UNITS: metres per second
         float groundAccel = 95.0f;     ///< UNITS: m/s^2 toward the wished speed on the ground (5.5 m/s in about 0.06 s)
         float groundDecel = 120.0f;    ///< UNITS: m/s^2 when the keys are let go or point back (a stop in about 0.05 s)
-        float airAccel = 40.0f;        ///< UNITS: m/s^2 toward the wished speed in the air (steering, not turning on the spot)
-        float gravity = 30.0f;         ///< UNITS: m/s^2 while rising (a snappy jump, not the real 9.8)
+        float airAccel = 40.0f; ///< UNITS: m/s^2 toward the wished speed in the air (steering, not turning on the spot)
+        float gravity = 30.0f;  ///< UNITS: m/s^2 while rising (a snappy jump, not the real 9.8)
         float fallGravityScale = 1.6f; ///< gravity is this many times stronger while the body falls
         float jumpHeight = 2.0f;       ///< UNITS: metres that the feet rise in a full jump
-        float jumpCut = 0.45f;         ///< the part of the upward speed that is kept when the jump key is let go early (1 = no cut)
+        float jumpCut =
+            0.45f; ///< the part of the upward speed that is kept when the jump key is let go early (1 = no cut)
     };
 
     struct Input
@@ -67,13 +77,16 @@ class Player
         float moveForward = 0.0f; ///< -1 .. +1
         float moveRight = 0.0f;   ///< -1 .. +1
         bool jumpPressed = false; ///< true for the frame in which the key went down
-        bool sprint = false;     ///< optional, enabled by the town runtime only
-        bool jumpHeld = true;     ///< false while the jump key is up; a caller that does not track the key gets the full jump
+        bool sprint = false;      ///< optional, enabled by the town runtime only
+        bool jumpHeld =
+            true; ///< false while the jump key is up; a caller that does not track the key gets the full jump
     };
 
-    static constexpr float kGroundFacing = 0.6f; ///< the push of the ground points up by at least this part (about 53 degrees)
-    static constexpr float kSnapDown = 0.35f;    ///< UNITS: metres the ground may drop away in one step and still hold the body
-    static constexpr float kSnapStep = 0.025f;   ///< UNITS: metres; the snap looks for the ground in steps this small
+    static constexpr float kGroundFacing =
+        0.6f; ///< the push of the ground points up by at least this part (about 53 degrees)
+    static constexpr float kSnapDown =
+        0.35f; ///< UNITS: metres the ground may drop away in one step and still hold the body
+    static constexpr float kSnapStep = 0.025f; ///< UNITS: metres; the snap looks for the ground in steps this small
 
     /// Values that make no sense are pulled back into a range that works (NaN gets the default).
     void SetSettings(const Settings& settings)
@@ -97,8 +110,8 @@ class Player
         return m_s;
     }
 
-    /// The table of solid objects (BORROWS: it must stay alive while the body uses it). A null table or a count of 0 goes
-    /// back to the scene table of the program.
+    /// The table of solid objects (BORROWS: it must stay alive while the body uses it). A null table or a count of 0
+    /// goes back to the scene table of the program.
     void SetScene(const scene::SceneObject* objects, int count)
     {
         if (objects != nullptr && count > 0)
@@ -140,8 +153,8 @@ class Player
         ResetMotion();
     }
 
-    /// Moves the body by `delta` without changing its speed: what stands on a moving platform (scene/Shapes.h, Lift) is carried
-    /// with it. Call it before Update, with the move of the platform in this frame.
+    /// Moves the body by `delta` without changing its speed: what stands on a moving platform (scene/Shapes.h, Lift) is
+    /// carried with it. Call it before Update, with the move of the platform in this frame.
     void Carry(const Vec3& delta)
     {
         if (std::isfinite(delta.x) && std::isfinite(delta.y) && std::isfinite(delta.z))
@@ -200,8 +213,8 @@ class Player
         return std::sqrt(m_vx * m_vx + m_vz * m_vz);
     }
 
-    /// Where the keys wanted to go in the last Update, on the ground (x, z), as a unit direction; (0, 0) when no key was held.
-    /// The puzzle reads it to know whether the body pushes against the block.
+    /// Where the keys wanted to go in the last Update, on the ground (x, z), as a unit direction; (0, 0) when no key
+    /// was held. The puzzle reads it to know whether the body pushes against the block.
     Vec3 WishDirection() const
     {
         return m_wish;
@@ -243,8 +256,8 @@ class Player
         return true;
     }
 
-    /// True once after the body came down on something it can stand on at more than kImpactMin; `speed` is the falling speed
-    /// at the moment it hit (m/s). The camera uses it for a small dip, so a landing is felt.
+    /// True once after the body came down on something it can stand on at more than kImpactMin; `speed` is the falling
+    /// speed at the moment it hit (m/s). The camera uses it for a small dip, so a landing is felt.
     bool ConsumeImpact(float& speed)
     {
         if (!m_impactPending)
@@ -256,8 +269,9 @@ class Player
         return true;
     }
 
-    /// lookForward: where the camera looks (only its direction on the ground counts; straight up or down gives no walking).
-    /// layer: 0 = A, 1 = B, the layer whose objects are solid. spinSeconds: the time that the renderer uses for the turning shapes.
+    /// lookForward: where the camera looks (only its direction on the ground counts; straight up or down gives no
+    /// walking). layer: 0 = A, 1 = B, the layer whose objects are solid. spinSeconds: the time that the renderer uses
+    /// for the turning shapes.
     void Update(const Input& input, const Vec3& lookForward, int layer, float spinSeconds, float dtSeconds)
     {
         m_respawned = false;
@@ -330,13 +344,13 @@ class Player
 
   private:
     static constexpr float kMaxFrameSeconds = 0.1f;
-    static constexpr float kMaxFallSpeed = 40.0f;      // UNITS: metres per second
+    static constexpr float kMaxFallSpeed = 40.0f; // UNITS: metres per second
     static constexpr float kCoyoteSeconds = 0.08f;
     static constexpr float kJumpBufferSeconds = 0.10f;
-    static constexpr float kProbe = 0.03f;             // UNITS: metres, how far below the feet the ground is looked for
-    static constexpr float kFallDepth = 20.0f;         // UNITS: metres below the floor of the scene
-    static constexpr float kMinAirSeconds = 0.05f;     // a jump cannot end in the first 0.05 s
-    static constexpr float kImpactMin = 2.0f;          // UNITS: metres per second; a softer landing is not reported
+    static constexpr float kProbe = 0.03f;         // UNITS: metres, how far below the feet the ground is looked for
+    static constexpr float kFallDepth = 20.0f;     // UNITS: metres below the floor of the scene
+    static constexpr float kMinAirSeconds = 0.05f; // a jump cannot end in the first 0.05 s
+    static constexpr float kImpactMin = 2.0f;      // UNITS: metres per second; a softer landing is not reported
     static constexpr int kMaxSteps = 32;
     static constexpr int kBalls = 3;
 
@@ -379,7 +393,8 @@ class Player
     CollisionResult ResolveBall(const Vec3& centre, int layer, float spinSeconds) const
     {
         CollisionResult r = ResolveSphere(centre, m_s.radius, layer, spinSeconds, m_objects, m_objectCount);
-        if (m_land != nullptr && (layer == 0 || layer == 1) && m_land->PushOut(r.position, m_s.radius) > collision_detail::kTouch)
+        if (m_land != nullptr && (layer == 0 || layer == 1) &&
+            m_land->PushOut(r.position, m_s.radius) > collision_detail::kTouch)
         {
             r.pushed = true;
         }
@@ -390,8 +405,8 @@ class Player
         return r;
     }
 
-    /// Adds to the wall push the part of the push on the ball at `centre` that comes from solids which are not ground: each
-    /// solid of `layer` is asked on its own, so that a floor and a wall touched together are told apart.
+    /// Adds to the wall push the part of the push on the ball at `centre` that comes from solids which are not ground:
+    /// each solid of `layer` is asked on its own, so that a floor and a wall touched together are told apart.
     void AddWallPush(const Vec3& centre, int layer, float spinSeconds)
     {
         const unsigned bit = 1u << layer;
@@ -447,8 +462,9 @@ class Player
         }
     }
 
-    /// Pushes the three balls out of the solids of `layer`; each push moves the whole body. A few rounds, because a push of
-    /// one ball can put another one into something. `wall`: add the wall part of every push to m_wallX / m_wallZ.
+    /// Pushes the three balls out of the solids of `layer`; each push moves the whole body. A few rounds, because a
+    /// push of one ball can put another one into something. `wall`: add the wall part of every push to m_wallX /
+    /// m_wallZ.
     void ResolveBody(int layer, float spinSeconds, bool wall)
     {
         for (int round = 0; round < 8; ++round)
@@ -495,9 +511,9 @@ class Player
         return dy > 0.005f && dy > kGroundFacing * length;
     }
 
-    /// Keeps a body that stood in the last step on the ground when the ground dropped away by at most kSnapDown: the feet are
-    /// lowered straight down in small steps until the probe finds ground that faces up, then settled on it. When there is no such
-    /// ground within kSnapDown, nothing changes (an edge: the body falls).
+    /// Keeps a body that stood in the last step on the ground when the ground dropped away by at most kSnapDown: the
+    /// feet are lowered straight down in small steps until the probe finds ground that faces up, then settled on it.
+    /// When there is no such ground within kSnapDown, nothing changes (an edge: the body falls).
     bool SnapToGround(int layer, float spinSeconds)
     {
         const Vec3 before = m_feet;
@@ -565,8 +581,8 @@ class Player
         {
             m_airSeconds += h;
         }
-        // the jump key let go while the body still rises: keep only a part of the rise (once per jump; after the top the speed is
-        // not upward any more, so letting go changes nothing)
+        // the jump key let go while the body still rises: keep only a part of the rise (once per jump; after the top
+        // the speed is not upward any more, so letting go changes nothing)
         if (m_cuttable && !m_jumpHeld && m_vy > 0.0f)
         {
             m_vy *= m_s.jumpCut;
@@ -575,7 +591,8 @@ class Player
 
         Steer(wishX, wishZ, h);
 
-        // gravity: stronger while falling; the average speed of the step, so that a jump of height H rises to H and not a little less
+        // gravity: stronger while falling; the average speed of the step, so that a jump of height H rises to H and not
+        // a little less
         const float g = m_vy > 0.0f ? m_s.gravity : m_s.gravity * m_s.fallGravityScale;
         float newVy = m_vy - g * h;
         newVy = newVy < -kMaxFallSpeed ? -kMaxFallSpeed : newVy;
@@ -590,8 +607,8 @@ class Player
         m_wallZ = 0.0f;
         ResolveBody(layer, spinSeconds, true);
 
-        // the push points away from what was hit: take the part of the speed that goes into it away (a floor ends a fall, a ceiling
-        // ends a rise, a slope turns the fall into a slide)
+        // the push points away from what was hit: take the part of the speed that goes into it away (a floor ends a
+        // fall, a ceiling ends a rise, a slope turns the fall into a slide)
         const float px = m_feet.x - moved.x;
         const float py = m_feet.y - moved.y;
         const float pz = m_feet.z - moved.z;
@@ -633,7 +650,8 @@ class Player
             m_coyote = kCoyoteSeconds;
             m_vx = 0.0f; // standing: the friction of the ground stops a slide
             m_vz = 0.0f;
-            if (vyBeforeContact < -kImpactMin && !stood) // a body that already stood has no such speed: this is the moment of contact
+            if (vyBeforeContact < -kImpactMin &&
+                !stood) // a body that already stood has no such speed: this is the moment of contact
             {
                 m_impactSpeed = -vyBeforeContact;
                 m_impactPending = true;

@@ -1,15 +1,16 @@
 // TriMesh.h - a solid made of triangles: the town of the model (scene/Town.h), one per layer.
-// Grid:      the triangles are filed in a grid of square cells over the ground plane (x, z), kCell metres each; a triangle
+// Grid:      the triangles are filed in a grid of square cells over the ground plane (x, z), kCell metres each; a
+// triangle
 //            is filed in every cell its box over the ground touches. A query looks only at the cells round a ball.
 // Collision: PushOut moves a ball out of the triangles near it, as the ground does (scene/Terrain.h Land::PushOut): the
-//            closest point on each triangle, a few rounds. A triangle has no inside: a ball is pushed out to the side its
-//            centre is on, so a surface is solid from both sides. The walking body (scene/Player.h SetMeshes) uses it like
-//            any other solid.
+//            closest point on each triangle, a few rounds. A triangle has no inside: a ball is pushed out to the side
+//            its centre is on, so a surface is solid from both sides. The walking body (scene/Player.h SetMeshes) uses
+//            it like any other solid.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_town.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
 #pragma once
 
-#include "scene/Camera.h" // Vec3
+#include "scene/Camera.h"  // Vec3
 #include "scene/Terrain.h" // ClosestOnTriangle, Sub, Dot, Cross
 
 #include <cmath>
@@ -62,9 +63,11 @@ class TriMesh
         m_nx = static_cast<int>(std::floor((x1 - x0) / kCell)) + 1;
         m_nz = static_cast<int>(std::floor((z1 - z0) / kCell)) + 1;
         std::vector<std::uint32_t> counts(static_cast<std::size_t>(m_nx) * static_cast<std::size_t>(m_nz) + 1u, 0u);
-        const auto forCells = [&](const Tri& t, auto&& f) {
+        const auto forCells = [&](const Tri& t, auto&& f)
+        {
             int i0, i1, j0, j1;
-            CellRange(Min3(t.a.x, t.b.x, t.c.x), Max3(t.a.x, t.b.x, t.c.x), Min3(t.a.z, t.b.z, t.c.z), Max3(t.a.z, t.b.z, t.c.z), i0, i1, j0, j1);
+            CellRange(Min3(t.a.x, t.b.x, t.c.x), Max3(t.a.x, t.b.x, t.c.x), Min3(t.a.z, t.b.z, t.c.z),
+                      Max3(t.a.z, t.b.z, t.c.z), i0, i1, j0, j1);
             for (int j = j0; j <= j1; ++j)
             {
                 for (int i = i0; i <= i1; ++i)
@@ -96,8 +99,7 @@ class TriMesh
     }
 
     /// Calls f(a, b, c) once for every triangle whose cell lies within `r` of (x, z) on the ground plane.
-    template <class F>
-    void ForEachNear(float x, float z, float r, F&& f) const
+    template <class F> void ForEachNear(float x, float z, float r, F&& f) const
     {
         if (m_nx <= 0)
         {
@@ -114,7 +116,8 @@ class TriMesh
         {
             for (int i = i0; i <= i1; ++i)
             {
-                const std::size_t cell = static_cast<std::size_t>(j) * static_cast<std::size_t>(m_nx) + static_cast<std::size_t>(i);
+                const std::size_t cell =
+                    static_cast<std::size_t>(j) * static_cast<std::size_t>(m_nx) + static_cast<std::size_t>(i);
                 for (std::uint32_t k = m_offsets[cell]; k < m_offsets[cell + 1u]; ++k)
                 {
                     const std::uint32_t t = m_items[k];
@@ -143,18 +146,20 @@ class TriMesh
             Vec3 bestNormal{0.0f, 1.0f, 0.0f};
             float bestD2 = r * r;
             bool hit = false;
-            ForEachNear(c.x, c.z, r, [&](const Vec3& a, const Vec3& b, const Vec3& t) {
-                const Vec3 q = terrain::ClosestOnTriangle(c, a, b, t);
-                const Vec3 d = terrain::Sub(c, q);
-                const float d2 = terrain::Dot(d, d);
-                if (d2 < bestD2)
-                {
-                    bestD2 = d2;
-                    best = q;
-                    bestNormal = terrain::Cross(terrain::Sub(b, a), terrain::Sub(t, a));
-                    hit = true;
-                }
-            });
+            ForEachNear(c.x, c.z, r,
+                        [&](const Vec3& a, const Vec3& b, const Vec3& t)
+                        {
+                            const Vec3 q = terrain::ClosestOnTriangle(c, a, b, t);
+                            const Vec3 d = terrain::Sub(c, q);
+                            const float d2 = terrain::Dot(d, d);
+                            if (d2 < bestD2)
+                            {
+                                bestD2 = d2;
+                                best = q;
+                                bestNormal = terrain::Cross(terrain::Sub(b, a), terrain::Sub(t, a));
+                                hit = true;
+                            }
+                        });
             if (!hit)
             {
                 break;
@@ -185,14 +190,16 @@ class TriMesh
     bool HighestBelow(float x, float z, float y1, float y0, float& y) const
     {
         bool found = false;
-        ForEachNear(x, z, 0.0f, [&](const Vec3& a, const Vec3& b, const Vec3& c) {
-            float h = 0.0f;
-            if (HeightOn(a, b, c, x, z, h) && h <= y1 && h >= y0 && (!found || h > y))
-            {
-                y = h;
-                found = true;
-            }
-        });
+        ForEachNear(x, z, 0.0f,
+                    [&](const Vec3& a, const Vec3& b, const Vec3& c)
+                    {
+                        float h = 0.0f;
+                        if (HeightOn(a, b, c, x, z, h) && h <= y1 && h >= y0 && (!found || h > y))
+                        {
+                            y = h;
+                            found = true;
+                        }
+                    });
         return found;
     }
 

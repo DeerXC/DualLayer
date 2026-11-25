@@ -1,16 +1,16 @@
 # DualLayer
 
-日本語：同じ港町の「過去」と「現在」を切り替え、過去に置いたランタンで現在に道を残す、戦闘のない 3D 探索パズル。C++20 / Direct3D 11 で制作中。現行版は一人称で、次の版では三人称操作を試作する。
+日本語：同じ港町の「過去」と「現在」を切り替え、過去に置いたランタンで現在に道を残す、戦闘のない 3D 探索パズル。C++20 / Direct3D 11 で制作中。現行版は三人称の移動（走り、よじ登り、ランタンの持ち運び）を試作済み。
 
 DualLayer is a 3D exploration puzzle without combat, set in two versions of one harbour town. Actions in the past leave traces in the present. A lantern placed in the past keeps a small piece of it standing in the present. The project uses C++20 and Direct3D 11 without a game engine.
 
-**M2 prototype:** the current first-person build loads the model-based town and supports world switching, causal objects and the lantern patch. The next version is specified in [Design](docs/DESIGN.md); its third-person movement, compact town and bell-tower finale are not presented as implemented. The former greybox remains available with `[map] town = false`.
+**M2 prototype:** the current build loads the model-based town and supports world switching, causal objects, the lantern patch and a first pass of third-person movement (sprint, ledge climb, a visible lantern). The next version is specified in [Design](docs/DESIGN.md); its compact town, hint key and bell-tower finale are not presented as implemented.
 
 ## Highlights
 
 - **One-way cause and effect.** Opening a gate or moving a crate in A changes what is found in B. The lantern provides a local exception to the appearance of the ruined town, not a reverse change to the past.
 - **One town, two surfaces.** Town data drives both view and collision, including the lantern patch and the water check. The ripple draws the two layers separately before compositing them.
-- **Route testing.** The uploaded baseline includes a reachability solver for the model-based route and tests for lantern placement, causal objects and collision. Older greybox solver results apply to that prototype only.
+- **Route testing.** A reachability solver (`tests/test_route.cpp`) plays the things of the town in the order of the main route and reports any way round a puzzle; further logic tests cover the lantern, causal objects, collision and the walking body. All of them run without a window or a GPU.
 - **Custom rendering and movement.** Static batching, procedural meshes, water shading, collision, variable-height jumping and device recovery are implemented without a game engine.
 
 ## Demo
@@ -32,7 +32,7 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 |---|---|
 | [docs/DESIGN.md](docs/DESIGN.md) | The game: principles, the switch, the lantern and the causal rule, art, the map, puzzles, limits and proof, order of work |
 | [docs/BUILD.md](docs/BUILD.md) | Requirements, build, keys, configuration, the one-command check, what is checked by eye |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The code as built: one frame, the modules, layers and the ripple, collision and the walking body, the puzzle, the map, water |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The code as built: one frame, the modules, the town, layers and the ripple, collision and the walking body, water, the overlay |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, layers, naming |
 | [CHANGELOG.md](CHANGELOG.md) | Milestone records and known issues |
 

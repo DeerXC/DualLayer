@@ -76,7 +76,8 @@ void Camera::Update(const CameraInput& input, float dt)
     m_yaw = WrapAngle(m_yaw + input.lookRight * m_settings.turnSpeed * dt);
     m_pitch = ClampPitch(m_pitch + input.lookUp * m_settings.turnSpeed * dt);
 
-    // 2. move: add up the wanted directions; WHY normalise: W and D together must not be faster than W alone (1.41 times).
+    // 2. move: add up the wanted directions; WHY normalise: W and D together must not be faster than W alone (1.41
+    // times).
     const Vec3 forward = Forward();
     const Vec3 right = Right();
     Vec3 wish{forward.x * input.moveForward + right.x * input.moveRight, forward.y * input.moveForward + input.moveUp,

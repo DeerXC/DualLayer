@@ -1,10 +1,12 @@
-// LayerRipple.h - the timing of the switch between layer A and layer B: a circle that opens from one point of the screen.
-// Owns:      which layer is outside the circle, which one is inside, and how far the circle has opened (0 .. 1). It knows
+// LayerRipple.h - the timing of the switch between layer A and layer B: a circle that opens from one point of the
+// screen. Owns:      which layer is outside the circle, which one is inside, and how far the circle has opened (0 ..
+// 1). It knows
 //            nothing about Direct3D, so it is tested without a window; Models turns the numbers into pixels.
 // Rules:     idle          = the whole screen shows one layer (Outer), the circle is closed.
 //            Toggle        = the other layer starts to open as a circle from the centre (the ripple).
 //            Toggle again while it moves = the circle turns round and closes again; the picture never jumps.
-//            When the circle has covered the whole screen, the inner layer becomes the outer one and the ripple is over.
+//            When the circle has covered the whole screen, the inner layer becomes the outer one and the ripple is
+//            over.
 // Layers:    0 = A, 1 = B.
 // Threading: main thread only.
 #pragma once
@@ -99,7 +101,8 @@ class LayerRipple
         return (m_moving && m_direction > 0) ? m_inner : m_outer;
     }
 
-    /// How far the circle has opened, 0 .. 1, with an easing that is fast at the start and slow at the end (like a wave).
+    /// How far the circle has opened, 0 .. 1, with an easing that is fast at the start and slow at the end (like a
+    /// wave).
     float Opened() const
     {
         const float rest = 1.0f - std::clamp(m_progress, 0.0f, 1.0f);

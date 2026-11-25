@@ -1,19 +1,22 @@
-// test_lantern.cpp - tests of the lantern, its circle of the past and the traces (no window, no GPU): src/scene/Lantern.h,
-// src/scene/Moments.h and the walking body on them (src/scene/Player.h SetTown). Built on a small town made here, so that it
-// does not depend on the exported town:
+// test_lantern.cpp - tests of the lantern, its circle of the past and the traces (no window, no GPU):
+// src/scene/Lantern.h, src/scene/Moments.h and the walking body on them (src/scene/Player.h SetTown). Built on a small
+// town made here, so that it does not depend on the exported town:
 //   A: a floor from z -10 to 16 at y 0 (a bridge over a gap), a wall across it at z 14 from y 0 to 3.
 //   B: the same floor, broken: z -10 .. 0 and 6 .. 16 (a gap of 6 m, past any jump); no wall.
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_lantern.cpp -o test_lantern
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only lantern
 // What is checked:
 //   1. the circle: a sphere; nothing without it
-//   2. the solid with the circle: in A nothing changes; in B a ball over the gap is held inside the circle and not outside it;
+//   2. the solid with the circle: in A nothing changes; in B a ball over the gap is held inside the circle and not
+//   outside it;
 //      a wall of A inside the circle is solid in B, outside it is not
-//   3. the rules of the lantern: set down only in A and standing; on the floor of A ahead (at the feet at an edge); taken up
+//   3. the rules of the lantern: set down only in A and standing; on the floor of A ahead (at the feet at an edge);
+//   taken up
 //      within reach in either moment; refused while the body stands on what only the circle keeps; allowed elsewhere
 //   4. the walk: in B the body cannot cross the gap; with the lantern set down on the bridge in A it walks across in B
 //   5. the water of A is water inside the circle in B
-//   6. traces: none until a change, coming up over kTraceRise, marked toward the colour of the lantern, gone with an undo
+//   6. traces: none until a change, coming up over kTraceRise, marked toward the colour of the lantern, gone with an
+//   undo
 // Returns 1 when a check fails.
 
 #include "scene/Lantern.h"
@@ -88,7 +91,8 @@ void TestCircle()
     town::Circle none;
     CHECK(!none.On() && !none.Contains({0.0f, 0.0f, 0.0f}));
     town::Circle c{{0.0f, 1.0f, 0.0f}, 2.0f};
-    CHECK(c.Contains({0.0f, 2.9f, 0.0f}) && !c.Contains({0.0f, 3.1f, 0.0f}) && c.Contains({1.4f, 1.0f, 1.4f}) && !c.Contains({1.5f, 1.0f, 1.5f}));
+    CHECK(c.Contains({0.0f, 2.9f, 0.0f}) && !c.Contains({0.0f, 3.1f, 0.0f}) && c.Contains({1.4f, 1.0f, 1.4f}) &&
+          !c.Contains({1.5f, 1.0f, 1.5f}));
 }
 
 void TestSolid()
@@ -128,15 +132,16 @@ void TestRules()
     using R = town::Lantern::Result;
     const Vec3 north{0.0f, 0.0f, 1.0f};
     CHECK(l.Carried() && !l.GetCircle().On());
-    CHECK(l.Use({0.0f, 0.0f, 2.1f}, true, north, 1, kR, w.moments) == R::OnlyInPast);  // not in B
-    CHECK(l.Use({0.0f, 0.0f, 2.1f}, false, north, 0, kR, w.moments) == R::NoFloor);    // not in the air
-    CHECK(l.Use({0.0f, 0.0f, 2.1f}, true, north, 0, kR, w.moments) == R::Put);         // in A, standing
+    CHECK(l.Use({0.0f, 0.0f, 2.1f}, true, north, 1, kR, w.moments) == R::OnlyInPast); // not in B
+    CHECK(l.Use({0.0f, 0.0f, 2.1f}, false, north, 0, kR, w.moments) == R::NoFloor);   // not in the air
+    CHECK(l.Use({0.0f, 0.0f, 2.1f}, true, north, 0, kR, w.moments) == R::Put);        // in A, standing
     CHECK(!l.Carried() && Near(l.At().z, 2.1f + town::kPutAhead, 1e-4f) && Near(l.At().y, 0.0f, 1e-4f));
     CHECK(w.moments.GetCircle().On() && Near(w.moments.GetCircle().centre.y, town::kLanternUp, 1e-4f));
     CHECK(l.Use({0.0f, 0.0f, -8.0f}, true, north, 0, kR, w.moments) == R::Nothing); // out of reach: nothing
     // in B, standing on the bridge that only the circle keeps: refused; on the floor of B in reach: taken
     CHECK(l.Use({0.0f, 0.0f, 3.0f}, true, north, 1, kR, w.moments) == R::RefusedTake && !l.Carried());
-    CHECK(l.Use({0.0f, 0.0f, 1.5f}, true, north, 0, kR, w.moments) == R::Taken && l.Carried() && !w.moments.GetCircle().On());
+    CHECK(l.Use({0.0f, 0.0f, 1.5f}, true, north, 0, kR, w.moments) == R::Taken && l.Carried() &&
+          !w.moments.GetCircle().On());
     // at an edge (nothing of A ahead): at the feet
     CHECK(l.Use({0.0f, 0.0f, 15.6f}, true, north, 0, kR, w.moments) == R::Put && Near(l.At().z, 15.6f, 1e-4f));
     CHECK(l.Use({0.0f, 0.0f, 15.0f}, true, north, 1, kR, w.moments) == R::Taken); // taken up in B, on the floor of B
@@ -180,7 +185,8 @@ void TestWalk()
     town::Lantern l;
     CHECK(l.Use({0.0f, 0.0f, 2.1f}, true, {0.0f, 0.0f, 1.0f}, 0, kR, w.moments) == town::Lantern::Result::Put);
     const Vec3 c = WalkNorth(w, 1, 2.5f);
-    std::printf("  with the lantern on the bridge, B: the body walked to z %.1f at y %.2f\n", static_cast<double>(c.z), static_cast<double>(c.y));
+    std::printf("  with the lantern on the bridge, B: the body walked to z %.1f at y %.2f\n", static_cast<double>(c.z),
+                static_cast<double>(c.y));
     CHECK(c.z > 9.0f && Near(c.y, 0.0f, 0.05f)); // B with the circle: across
 }
 

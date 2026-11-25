@@ -1,20 +1,24 @@
-// test_things.cpp - tests of the things that change (src/scene/Things.h) and of the first two beats of the harbour, on the
-// town of the model (docs/DESIGN.md 8). Reads data/town.dlt (python tools/layout/city_model.py export).
+// test_things.cpp - tests of the things that change (src/scene/Things.h) and of the first two beats of the harbour, on
+// the town of the model (docs/DESIGN.md 8). Reads data/town.dlt (python tools/layout/city_model.py export).
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_things.cpp -o test_things
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only things
 // What is checked:
-//   1. the rules on a box of their own: E opens in A only; nothing happens in B; an opening into the body is refused; the
+//   1. the rules on a box of their own: E opens in A only; nothing happens in B; an opening into the body is refused;
+//   the
 //      solid of a thing follows its state in both moments; the trace comes up in B; Reset shuts everything
 //   2. the data: the game starts in B; the sea gate has a handle, and boxes of both states in both moments
-//   3. beat 1, the switch: a flood of every place the body can walk to (steps up to 1.2 m, any drop that lands in the map,
+//   3. beat 1, the switch: a flood of every place the body can walk to (steps up to 1.2 m, any drop that lands in the
+//   map,
 //      no jump across a gap) shows that in B the start is closed off from the sea stair by the heap, and in A it is not
-//   4. beat 2, the causal rule: from the foot of the sea stair the top of it (the lower town) is reached in B only after
+//   4. beat 2, the causal rule: from the foot of the sea stair the top of it (the lower town) is reached in B only
+//   after
 //      the gate was opened in A; never in A (the cargo), never in B with the gate shut
 //   5. the same with the real body: in A it walks to the winch, E opens the gate, it switches to B where it stands, and
 //      walks up through the gate; in B the handle does nothing
 //   6. beat 3, the switch in the air: the lower street is closed in both moments (the flood); the real body climbs the
-//      crates in A, and a jump from the top crate without a switch stays east, a jump with a switch at its top lands on the
-//      heap of B and walks down its steps to the street beyond; in B alone a jump from the street does not reach the heap
+//      crates in A, and a jump from the top crate without a switch stays east, a jump with a switch at its top lands on
+//      the heap of B and walks down its steps to the street beyond; in B alone a jump from the street does not reach
+//      the heap
 // Returns 1 when a check fails.
 
 #include "scene/Lantern.h"
@@ -85,7 +89,8 @@ void TestRules()
     town::ThingDef d;
     d.name = "door";
     d.handle = {0.0f, 1.0f, 0.0f};
-    // shut: a wall across z = 3 in A and in B; open: in A a slab over the head, in B a slab at the feet (to test refusal)
+    // shut: a wall across z = 3 in A and in B; open: in A a slab over the head, in B a slab at the feet (to test
+    // refusal)
     d.boxes.push_back({0, 3, 0, {0.0f, 1.5f, 3.0f}, {2.0f, 1.5f, 0.1f}, 0.0f});
     d.boxes.push_back({1, 1, 0, {0.0f, 4.0f, 3.0f}, {2.0f, 0.5f, 0.1f}, 0.0f});
     d.boxes.push_back({1, 2, 0, {0.0f, 0.2f, 3.0f}, {2.0f, 0.2f, 0.1f}, 0.0f});
@@ -97,13 +102,15 @@ void TestRules()
     things.ApplyTo(moments);
     const Vec3 feet{0.5f, 0.0f, 0.5f};
     const Vec3 balls[3] = {{0.5f, 0.35f, 0.5f}, {0.5f, 0.95f, 0.5f}, {0.5f, 1.55f, 0.5f}};
-    const auto blocked = [&](int layer) {
+    const auto blocked = [&](int layer)
+    {
         Vec3 c{0.0f, 1.0f, 2.8f};
         return moments.PushOut(c, 0.35f, layer) > 0.01f;
     };
     CHECK(blocked(0) && blocked(1));
     CHECK(things.InReach(feet) == 0 && things.InReach({5.0f, 0.0f, 0.0f}) == -1);
-    CHECK(things.Use(feet, balls, 3, 0.35f, 1, moments, traces) == TR::OnlyInPast && !things.Open(0)); // nothing done in B
+    CHECK(things.Use(feet, balls, 3, 0.35f, 1, moments, traces) == TR::OnlyInPast &&
+          !things.Open(0)); // nothing done in B
     CHECK(things.Use({5.0f, 0.0f, 0.0f}, balls, 3, 0.35f, 0, moments, traces) == TR::Nothing);
     CHECK(things.Use(feet, balls, 3, 0.35f, 0, moments, traces) == TR::Opened && things.Open(0));
     CHECK(!blocked(0) && !blocked(1)); // open in both moments; in B its slab lies at the feet
@@ -185,8 +192,9 @@ struct World
         return !Town().Submerged(feet, layer);
     }
 
-    /// Every place the body walks to from `from` in `layer` inside the box [x0, x1] x [z0, z1]: a step up of at most 1.2 m
-    /// (the jump of the main path), any drop that lands; cells of 0.5 m. True when it comes within 1 m of `to`.
+    /// Every place the body walks to from `from` in `layer` inside the box [x0, x1] x [z0, z1]: a step up of at
+    /// most 1.2 m (the jump of the main path), any drop that lands; cells of 0.5 m. True when it comes within 1 m of
+    /// `to`.
     bool Reaches(const Vec3& from, const Vec3& to, int layer, float x0, float x1, float z0, float z1) const
     {
         const town::TriMesh& mesh = layer == 0 ? a : b;
@@ -200,7 +208,8 @@ struct World
         };
         std::unordered_map<long long, std::vector<float>> seen;
         std::vector<Node> open;
-        const auto visit = [&](int i, int j, float y) {
+        const auto visit = [&](int i, int j, float y)
+        {
             if (i < 0 || j < 0 || i >= nx || j >= nz)
             {
                 return;
@@ -397,8 +406,10 @@ void TestRealBody()
     CHECK(b.WalkTo(gate.handle.x + 0.9f, gate.handle.z - 0.6f));
     const Vec3 balls[3] = {b.Balls(0), b.Balls(1), b.Balls(2)};
     // in B the handle does nothing
-    CHECK(b.world.things.Use(b.body.Feet(), balls, 3, b.world.radius, 1, b.world.moments, b.world.traces) == TR::OnlyInPast);
-    CHECK(b.world.things.Use(b.body.Feet(), balls, 3, b.world.radius, 0, b.world.moments, b.world.traces) == TR::Opened);
+    CHECK(b.world.things.Use(b.body.Feet(), balls, 3, b.world.radius, 1, b.world.moments, b.world.traces) ==
+          TR::OnlyInPast);
+    CHECK(b.world.things.Use(b.body.Feet(), balls, 3, b.world.radius, 0, b.world.moments, b.world.traces) ==
+          TR::Opened);
     // up the stair in A: the cargo stops it in the passage
     bool through = true;
     for (std::size_t k = 1; through && k < stair->line.size(); ++k)
@@ -463,8 +474,8 @@ bool AlongStreet(const char* name, float s, Vec3& at, Vec3& along)
 
 constexpr float kAirStepS = 36.0f; // tools/layout/city_model.py AIR_STEP_S
 
-/// A jump along `dir` with the forward key held for `frames` steps; at step `switchAt` (if >= 0) the moment changes when the
-/// body fits in the other one (as the game's guard does). Returns true when it switched.
+/// A jump along `dir` with the forward key held for `frames` steps; at step `switchAt` (if >= 0) the moment changes
+/// when the body fits in the other one (as the game's guard does). Returns true when it switched.
 bool JumpAlong(Body& b, const Vec3& dir, int switchAt, int frames = 90)
 {
     bool switched = false;
@@ -509,7 +520,8 @@ void TestAirStep()
     Vec3 p{}, v{};
     CHECK(AlongStreet("lower street", kAirStepS, p, v));
     const Vec3 n{-v.z, 0.0f, v.x};
-    const auto pt = [&](float u, float x) { return Vec3{p.x + v.x * u + n.x * x, p.y + 0.3f, p.z + v.z * u + n.z * x}; };
+    const auto pt = [&](float u, float x)
+    { return Vec3{p.x + v.x * u + n.x * x, p.y + 0.3f, p.z + v.z * u + n.z * x}; };
     // the flood: the street closed in both moments
     {
         World w(t);
@@ -522,7 +534,8 @@ void TestAirStep()
         CHECK(w.Reaches(west, OnFloor(w, pt(12.0f, 0.0f), 1), 1, x0, x1, z0, z1)); // the far side goes on to the market
         // the way to it in B: from the top of the sea stair (beat 2) along the lower street, steps of 1.2 m at most
         const Vec3 top = OnFloor(w, kLowerTown, 1);
-        CHECK(w.Reaches(top, east, 1, std::min(top.x, x0) - 5.0f, std::max(top.x, x1) + 5.0f, std::min(top.z, z0) - 5.0f, std::max(top.z, z1) + 5.0f));
+        CHECK(w.Reaches(top, east, 1, std::min(top.x, x0) - 5.0f, std::max(top.x, x1) + 5.0f,
+                        std::min(top.z, z0) - 5.0f, std::max(top.z, z1) + 5.0f));
     }
     // in B alone: a jump from the street at the heap does not get onto it
     {
@@ -547,8 +560,8 @@ void TestAirStep()
         JumpAlong(b, v, withSwitch != 0 ? 14 : -1, 40);
         const float u = UAt(b, p, v);
         const float up = b.body.Feet().y - p.y;
-        std::printf("  air step, %s: u %.2f, up %.2f, moment %c\n", withSwitch != 0 ? "switch at the top" : "no switch", static_cast<double>(u),
-                    static_cast<double>(up), b.layer == 0 ? 'A' : 'B');
+        std::printf("  air step, %s: u %.2f, up %.2f, moment %c\n", withSwitch != 0 ? "switch at the top" : "no switch",
+                    static_cast<double>(u), static_cast<double>(up), b.layer == 0 ? 'A' : 'B');
         if (withSwitch == 0)
         {
             CHECK(u < -0.3f && b.layer == 0);

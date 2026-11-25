@@ -1,8 +1,11 @@
 // Font5x7.h - a small bitmap font for the screen overlay: 5 x 7 pixels per character, drawn as rectangles.
-// Why its own: the project writes its core itself (no font library, no texture). A glyph is seven rows of five bits; the
+// Why its own: the project writes its core itself (no font library, no texture). A glyph is seven rows of five bits;
+// the
 //            overlay turns every run of lit pixels in a row into one rectangle (render/OverlayBatch.h).
-// Set:       space, the digits, the capital letters and : / . - + ( ) ! ? ' , > < = and the middle dot. A small letter is
-//            drawn as its capital; a character that is not in the set is drawn as a box, so a missing glyph is seen at once.
+// Set:       space, the digits, the capital letters and : / . - + ( ) ! ? ' , > < = and the middle dot. A small letter
+// is
+//            drawn as its capital; a character that is not in the set is drawn as a box, so a missing glyph is seen at
+//            once.
 // Units:     font pixels; one character cell is kAdvance (6) pixels wide (5 + a gap) and 7 high.
 // Plain data, no Windows, no Direct3D: tested without a window (tests/test_overlay.cpp).
 #pragma once

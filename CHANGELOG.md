@@ -4,6 +4,21 @@ The detailed record of each step before 2026-11-24 (every test count, every deli
 git history of this file; it is summarised here.
 
 ## m2-layers (in progress)
+### 2026-11-26: the code tidied for review
+- Removed: the greybox prototype that the town replaced (the hand-placed rooms, the block, orb and canal puzzles, the seals, the
+  bells, the endings, the ground and the plants of the old map) with its tests and `tools/maze_search.cpp`: 23 headers, 9 tests.
+  It stays in the git tag `m2-greybox`. `[map] town` and `[hints]` are gone from the configuration; the game always runs the town.
+- Changed: `main.cpp` is the town only (1668 -> about 860 lines); the E key (`HandleUse`), the prompt (`ChoosePrompt`) and the title
+  bar (`SetTitleBar`) left the frame loop. New small modules, each with a test: `scene/LayerGuard.h` (out of the old puzzle
+  header), `scene/TownEffects.h` (the sea and the ring of a return), `render/Hud.h` (the overlay). `scene/Prompts.h` now holds
+  one pure function from the state of the game to the prompt. `tests/test_batch.cpp` bakes a table made in the test;
+  `tests/test_terrain.cpp` keeps the height field; `tests/test_overlay.cpp` keeps the font, the batch and the prompts.
+- Style: every C++ file formatted with the repository `.clang-format` (no line over 120 columns); comments that pointed to the
+  retired level design were rewritten; `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/BUILD.md` (the by-eye checks are
+  numbered again from E-1) and the README describe only what exists.
+- Checked: all 16 logic tests build without a warning (g++ -O2 -Wall -Wextra) and pass; every source file of the game compiles
+  for Windows with clang (-Wall -Wextra, no warning) against a stand-in for DirectXMath. MSVC, the Visual Studio build and a run
+  of the game on the laptop are not done: run `tools\check.ps1` before the commit.
 
 ### 2026-11-25: west bridge descent readability
 
@@ -247,7 +262,8 @@ git history of this file; it is summarised here.
 | ID | Symptom | Reproduce | Cause (if known) | Impact | Plan |
 |---|---|---|---|---|---|
 | KI-01 | Shaders are compiled at run time from `shaders/` | start the exe from a folder without `shaders/` | by design (hot reload comes in a later milestone); the post-build step copies `shaders\` next to the exe | log error, no picture | accepted for now; precompile for the delivery build |
-| KI-06 | Comments in the code point to sections of `docs/LEVEL_DESIGN.md`, which `docs/DESIGN.md` replaced | read a comment such as "docs/LEVEL_DESIGN.md 6.4.2" | the design document was merged on 2026-11-24 | the section is found only in the git history | the comments are rewritten with the rebuild of the town |
+| KI-12 | Parts of the code that only the removed greybox used are still in the renderer and the body: `Models::SetNight` and the night theme, `Player::SetScene` / `SetLand` and the object-table collision, the height field `Land` in `scene/Terrain.h` | read `render/Models.cpp`, `scene/Player.h` | the town needs only part of what the first prototype built | a reader sees code that nothing in the game calls (their tests still pass) | remove them in a separate commit once the third-person body is settled |
+| KI-11 | `RunTown` in `main.cpp` is still one loop of about 390 lines | read `main.cpp` | the keys, the body, the camera and the drawing share many local variables | hard to explain in an interview in one piece | move its state into a struct with `Update` and `Draw` steps when the player is tuned |
 | KI-07 | Most logic tests build without `/WX` | `tests/run_tests.ps1` | only `core` and `camera` have `/WX` | a new warning in a test is reported as WARN, not as a failure | turn `/WX` on test by test once a run shows no warning |
 | KI-08 | Hosted build status is not documented for this baseline | Compare this version with the hosted workflow run | - | A past successful run does not verify the current revision | Confirm the workflow on the intended release revision |
 | KI-09 | The uploaded town has district puzzles and bells, but its final bell route is not specified as complete | Follow the main route in the default town | The documented route proof ends at the night bell | The new finale must not be inferred from the legacy ending | Prototype and verify the intended final approach; see [Design](docs/DESIGN.md#5-bell-tower-finale-and-ending-views) |
@@ -257,6 +273,7 @@ git history of this file; it is summarised here.
 
 | ID | Symptom | Closed | How |
 |---|---|---|---|
+| KI-06 | Comments in the code pointed to sections of `docs/LEVEL_DESIGN.md`, which `docs/DESIGN.md` replaced | 2026-11-26 | the greybox code that carried most of them was removed and the rest of the comments were rewritten |
 | KI-03 | The Release build treats warnings as errors; the M1 and M2 files had not been compiled with MSVC | 2026-11-17 | `Release \| x64` was the configuration of the first real build; after the `min` / `max` fix it ran. The rule stays: a new file must build in Release (check Q-9, done by `tools/check.ps1`) |
 | KI-02 | A lost device ended the program | 2026-11-17 | `Gpu::Recover` in `main.cpp` builds device, triangle and models again (checks K-2, K-3 passed). Only the `F9` test path was run; a real device loss (driver reset, GPU switched off) has not been tried |
 | KI-05 | The GPU used by default on the dual-GPU laptop was not confirmed | 2026-11-17 | the code picks the high-performance adapter and exports the two driver hints; check K-1 passed (NVIDIA RTX 5060) |

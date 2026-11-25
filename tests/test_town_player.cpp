@@ -6,7 +6,19 @@ using namespace dl::town;
 
 static int failures = 0;
 static int passed = 0;
-#define CHECK(value) do { if (!(value)) { std::printf("FAIL %d: %s\n", __LINE__, #value); ++failures; } else { ++passed; } } while (false)
+#define CHECK(value)                                                                                                   \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if (!(value))                                                                                                  \
+        {                                                                                                              \
+            std::printf("FAIL %d: %s\n", __LINE__, #value);                                                            \
+            ++failures;                                                                                                \
+        }                                                                                                              \
+        else                                                                                                           \
+        {                                                                                                              \
+            ++passed;                                                                                                  \
+        }                                                                                                              \
+    } while (false)
 
 static void Quad(TriMesh& mesh, Vec3 a, Vec3 b, Vec3 c, Vec3 d)
 {

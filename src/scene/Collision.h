@@ -1,18 +1,19 @@
 // Collision.h - keeps a ball (the body of the player) out of the solid things of the scene, layer by layer.
 // Plain maths, no Windows, no Direct3D: tested without a window (tests/test_collision.cpp).
-// Rule:      only the objects that exist in the given layer are solid. The floor is in both layers, the red cube and the
+// Rule:      only the objects that exist in the given layer are solid. The floor is in both layers, the red cube and
+// the
 //            grey cylinder only in A, the blue sphere and the yellow torus only in B (scene/SceneData.h).
 // Table:     the objects come from a table. The short form of ResolveSphere uses the scene table of the program
-//            (scene::kScene); the long form takes any table, so that a test or a puzzle (scene/Puzzle.h, whose block and
-//            door move and open) can bring its own.
+//            (scene::kScene); the long form takes any table, so that a test can bring its own.
 // Shapes:    cube = a box that can be stretched and turned; sphere; cylinder with flat ends; torus = a tube bent into a
 //            ring. All of them are exact (no bounding boxes), so the ball touches what the player sees.
 // Turning:   the shapes turn with time (spinSpeed * spinSeconds). Pass the same time that the renderer uses
 //            (Models::SpinSeconds), or the solid and the picture drift apart.
-// Method:    a ball outside the bounding sphere of a solid is skipped at once (BoundingRadius); otherwise the centre of the
-//            ball is moved into the local space of the object (the inverse of the world matrix of the renderer), pushed out
-//            along the shortest way, and moved back. Up to kPasses rounds, so that a ball between two solids settles. No speed
-//            and no time: the camera moves, then this corrects the place.
+// Method:    a ball outside the bounding sphere of a solid is skipped at once (BoundingRadius); otherwise the centre of
+// the
+//            ball is moved into the local space of the object (the inverse of the world matrix of the renderer), pushed
+//            out along the shortest way, and moved back. Up to kPasses rounds, so that a ball between two solids
+//            settles. No speed and no time: the camera moves, then this corrects the place.
 // Space:     left-handed, +Y up. DirectXMath RotationX / RotationY on a row vector are written out here (a rotation of
 //            +90 degrees round Y turns +Z into +X; round X it turns +Y into +Z), see tests/test_collision.cpp.
 // UNITS:     metres, radians, seconds.
@@ -36,10 +37,12 @@ struct CollisionResult
 namespace collision_detail
 {
 
-// a ball that is pushed by less than this (metres) counts as not touching: it keeps a settled ball from "pushing" every frame
+// a ball that is pushed by less than this (metres) counts as not touching: it keeps a settled ball from "pushing" every
+// frame
 inline constexpr float kTouch = 1.0e-5f;
 // WHY 16: in the narrow gap between two solids (the tilted torus touches the floor) each push undoes a part of the
-// other; the ball settles after a few rounds. A real frame moves the ball a few centimetres, so it is far from this limit.
+// other; the ball settles after a few rounds. A real frame moves the ball a few centimetres, so it is far from this
+// limit.
 inline constexpr int kPasses = 16;
 
 inline float Clamp(float v, float lo, float hi)
@@ -78,8 +81,8 @@ inline Vec3 RotateX(const Vec3& v, float a)
     return {v.x, v.y * c - v.z * s, v.y * s + v.z * c};
 }
 
-/// The world matrix of the renderer is Scale * RotationX(tilt) * RotationY(spin + yaw) * Translation. So the way from the
-/// local space of an object to the world is: tilt, then turn, then move; and back: move back, turn back, tilt back.
+/// The world matrix of the renderer is Scale * RotationX(tilt) * RotationY(spin + yaw) * Translation. So the way from
+/// the local space of an object to the world is: tilt, then turn, then move; and back: move back, turn back, tilt back.
 inline Vec3 ToLocal(const scene::SceneObject& o, const Vec3& world, float spinSeconds)
 {
     const Vec3 moved = Sub(world, {o.position[0], o.position[1], o.position[2]});
@@ -88,7 +91,8 @@ inline Vec3 ToLocal(const scene::SceneObject& o, const Vec3& world, float spinSe
 
 inline Vec3 ToWorld(const scene::SceneObject& o, const Vec3& local, float spinSeconds)
 {
-    return Add(RotateY(RotateX(local, o.tilt), o.spinSpeed * spinSeconds + o.yaw), {o.position[0], o.position[1], o.position[2]});
+    return Add(RotateY(RotateX(local, o.tilt), o.spinSpeed * spinSeconds + o.yaw),
+               {o.position[0], o.position[1], o.position[2]});
 }
 
 // Each Push function works in the local space of the object (scale already in it). It moves `c` so that a ball of
@@ -182,13 +186,15 @@ inline float PushOutOfCylinder(Vec3& c, float R, float H, float radius)
     return radius - dist;
 }
 
-/// A torus lying flat round the Y axis: the tube has the radius `tubeRadius` and its middle runs on a circle of radius `ringRadius`.
+/// A torus lying flat round the Y axis: the tube has the radius `tubeRadius` and its middle runs on a circle of radius
+/// `ringRadius`.
 inline float PushOutOfTorus(Vec3& c, float ringRadius, float tubeRadius, float radius)
 {
     const float rho = std::sqrt(c.x * c.x + c.z * c.z);
     const float dirX = rho > 1.0e-6f ? c.x / rho : 1.0f;
     const float dirZ = rho > 1.0e-6f ? c.z / rho : 0.0f;
-    const Vec3 core{dirX * ringRadius, 0.0f, dirZ * ringRadius}; // the nearest point of the circle that the tube is bent round
+    const Vec3 core{dirX * ringRadius, 0.0f,
+                    dirZ * ringRadius}; // the nearest point of the circle that the tube is bent round
     const Vec3 d = Sub(c, core);
     const float dist = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
     const float reach = tubeRadius + radius;
@@ -208,8 +214,8 @@ inline float PushOutOfTorus(Vec3& c, float ringRadius, float tubeRadius, float r
     return reach - dist;
 }
 
-/// The radius of a sphere round the centre of `o` that holds the whole object at every turn (the turn and the tilt are round
-/// its centre). A ball farther than this plus its radius cannot touch it.
+/// The radius of a sphere round the centre of `o` that holds the whole object at every turn (the turn and the tilt are
+/// round its centre). A ball farther than this plus its radius cannot touch it.
 inline float BoundingRadius(const scene::SceneObject& o)
 {
     const float hx = 0.5f * o.scale[0];
@@ -233,8 +239,8 @@ inline float BoundingRadius(const scene::SceneObject& o)
 /// Pushes the ball out of one object. Returns the depth of the overlap (0 = no contact) and changes `world`.
 inline float PushOutOf(const scene::SceneObject& o, Vec3& world, float radius, float spinSeconds)
 {
-    // the broad phase: a ball outside the bounding sphere cannot touch the object (exact, so nothing changes but the time;
-    // most of the about 300 boxes of the map are far from the body)
+    // the broad phase: a ball outside the bounding sphere cannot touch the object (exact, so nothing changes but the
+    // time; most of the boxes of a table are far from the body)
     const float dx = world.x - o.position[0];
     const float dy = world.y - o.position[1];
     const float dz = world.z - o.position[2];

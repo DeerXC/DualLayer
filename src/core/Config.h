@@ -1,7 +1,7 @@
-// Config.h - tiny INI reader for tunable values (data-driven: change a number without recompiling; F5 reloads it in the game).
-// Syntax:   [section]   key = value   lines starting with # or ; are comments; a " #" after a value starts a comment too.
-// Access:   Get*(section, key, default) never fails: a missing or malformed value gives the default.
-// Owns:     its key/value map.   Threading: main thread only.
+// Config.h - tiny INI reader for tunable values (data-driven: change a number without recompiling; F5 reloads it in the
+// game). Syntax:   [section]   key = value   lines starting with # or ; are comments; a " #" after a value starts a
+// comment too. Access:   Get*(section, key, default) never fails: a missing or malformed value gives the default. Owns:
+// its key/value map.   Threading: main thread only.
 #pragma once
 
 #include <map>
@@ -12,11 +12,11 @@ namespace dl
 {
 class Config
 {
-public:
+  public:
     struct ParseResult
     {
-        int entries = 0;                  ///< number of key = value pairs read
-        std::vector<std::string> errors;  ///< "line N: reason" (parsing continues after an error)
+        int entries = 0;                 ///< number of key = value pairs read
+        std::vector<std::string> errors; ///< "line N: reason" (parsing continues after an error)
     };
 
     /// Replaces all values. Pure: no file access.
@@ -28,10 +28,11 @@ public:
     bool Has(const std::string& section, const std::string& key) const;
     std::string GetString(const std::string& section, const std::string& key, const std::string& fallback) const;
     int GetInt(const std::string& section, const std::string& key, int fallback) const;
-    float GetFloat(const std::string& section, const std::string& key, float fallback) const; // UNITS: as written in the file
+    float GetFloat(const std::string& section, const std::string& key,
+                   float fallback) const; // UNITS: as written in the file
     bool GetBool(const std::string& section, const std::string& key, bool fallback) const;
 
-private:
+  private:
     std::map<std::string, std::string> m_values; // key = "section.key"
 };
 } // namespace dl

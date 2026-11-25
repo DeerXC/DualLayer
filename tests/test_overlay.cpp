@@ -4,19 +4,20 @@
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_overlay.cpp -o test_overlay
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only overlay
 // Header-only: there is no .cpp to add to the project. What is checked:
-//   1. the font: every letter, digit and sign that the game writes has its own glyph; a small letter is drawn as its capital;
+//   1. the font: every letter, digit and sign that the game writes has its own glyph; a small letter is drawn as its
+//   capital;
 //      an unknown character is a box; some glyphs pixel by pixel ('E', 'T', '1')
-//   2. the batch: a rectangle is six vertices with the right corners and colour; a frame is four rectangles round the inside
-//      of its box; text covers exactly the lit pixels of its glyphs (the area is counted), its width is n * 6 - 1 font pixels;
-//      a full batch drops whole rectangles and says so; nothing for a size that is not above 0
-//   3. the prompts: E says TAKE, PUT DOWN or PLACE as the game state says, and nothing while flying; TAB is shown until it
-//      has been used three times, then only when a held orb is in front of a socket of the other world; R only in a puzzle room after 90 s; a prompt used three times is dimmed; every
-//      prompt text can be drawn by the font
-//   4. the end screen: its lines (time as m:ss.s, capped), and every character in the font
+//   2. the batch: a rectangle is six vertices with the right corners and colour; a frame is four rectangles round the
+//   inside
+//      of its box; text covers exactly the lit pixels of its glyphs (the area is counted), its width is n * 6 - 1 font
+//      pixels; a full batch drops whole rectangles and says so; nothing for a size that is not above 0
+//   3. the prompts: nothing unless the body walks; a shut thing in reach in the past wins and says its verb, then the
+//   lantern
+//      (call it back, take it, put it down); nothing for a thing in the present; every prompt text can be drawn by the
+//      font
 // Returns 1 when a check fails.
 
 #include "render/OverlayBatch.h"
-#include "scene/EndScreen.h"
 #include "scene/Prompts.h"
 
 #include <cmath>
@@ -73,7 +74,8 @@ float Area(const OverlayBatch& b, int first = 0)
     const dl::OverlayVertex* v = b.Data();
     for (int i = first; i + 2 < b.Count(); i += 3)
     {
-        area += 0.5f * std::fabs((v[i + 1].x - v[i].x) * (v[i + 2].y - v[i].y) - (v[i + 2].x - v[i].x) * (v[i + 1].y - v[i].y));
+        area += 0.5f * std::fabs((v[i + 1].x - v[i].x) * (v[i + 2].y - v[i].y) -
+                                 (v[i + 2].x - v[i].x) * (v[i + 1].y - v[i].y));
     }
     return area;
 }
@@ -88,7 +90,8 @@ void TestFont()
     CHECK(&font::Find('e') == &font::Find('E') && &font::Find('z') == &font::Find('Z'));
     CHECK(&font::Find('~') == &font::kMissing && LitPixels(font::kMissing) == 5 + 5 + 5 * 2);
     CHECK(LitPixels(font::Find(' ')) == 0);
-    const font::Glyph& e = font::Find('E'); // the top row is full, the middle row is four from the left, the left column is full
+    const font::Glyph& e =
+        font::Find('E'); // the top row is full, the middle row is four from the left, the left column is full
     for (int x = 0; x < 5; ++x)
     {
         CHECK(font::Lit(e, x, 0) && font::Lit(e, x, 6));
@@ -146,7 +149,8 @@ void TestBatch()
     for (int i = 0; i < b.Count(); ++i)
     {
         const dl::OverlayVertex& v = b.Data()[i];
-        inside = inside && v.x >= 5.0f && v.x <= 5.0f + width && v.y >= 7.0f && v.y <= 7.0f + OverlayBatch::TextHeight(scale);
+        inside = inside && v.x >= 5.0f && v.x <= 5.0f + width && v.y >= 7.0f &&
+                 v.y <= 7.0f + OverlayBatch::TextHeight(scale);
     }
     CHECK(inside);
     CHECK(b.Count() < lit * 6); // runs of pixels are merged: fewer rectangles than lit pixels
@@ -165,47 +169,39 @@ void TestBatch()
 
 void TestPrompts()
 {
-    prompt::Tracker t;
     prompt::Input in;
-    auto shown = t.Choose(in); // nothing to take, TAB not learned yet
-    CHECK(shown[0].kind == prompt::Kind::Count && shown[1].kind == prompt::Kind::SwitchWorld && shown[1].alpha == 1.0f);
-    in.orbInReach = true;
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::Take);
-    in.holding = true;
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::PutDown); // holding wins over an orb in reach
-    in.wouldPlace = true;
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::Place);
-    in.walking = false;
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::Count); // flying: E is "up", not "use"
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Count); // not active: nothing
+    in.active = true;
+    in.lanternInReach = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Take && Near(prompt::Choose(in).alpha, 1.0f));
+    in.lanternCarried = true; // carried: nothing to take; on the ground in the past it can be put down
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Count);
+    in.grounded = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::PutDown && Near(prompt::Choose(in).alpha, prompt::kPutDownAlpha));
+    in.layer = 1; // in the present the lantern is not set down
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Count);
     in = prompt::Input{};
-    for (int i = 0; i < prompt::kLearnedAfter; ++i) // TAB: shown until used three times, then never
+    in.active = true;
+    in.lanternFar = true;
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Recall && Near(prompt::Choose(in).alpha, prompt::kRecallAlpha));
+    in.lanternInReach = true; // a lantern out of reach wins over a take
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Recall);
+    // a shut thing in reach wins over the lantern, in the past only, with the prompt of its verb
+    const prompt::Kind verbs[5] = {prompt::Kind::Open, prompt::Kind::Push, prompt::Kind::Lay, prompt::Kind::Ring,
+                                   prompt::Kind::Lower};
+    for (int v = 0; v < 5; ++v)
     {
-        CHECK(t.Choose(in)[1].kind == prompt::Kind::SwitchWorld);
-        t.Used(prompt::Kind::SwitchWorld);
+        in.shutThingVerb = v;
+        in.layer = 0;
+        CHECK(prompt::Choose(in).kind == verbs[v]);
+        in.layer = 1;
+        CHECK(prompt::Choose(in).kind == prompt::Kind::Recall);
     }
-    CHECK(t.Choose(in)[1].kind == prompt::Kind::Count);
-    in.puzzleRoom = true; // R: only in a puzzle room after 90 s
-    in.secondsInRoom = 89.0f;
-    CHECK(t.Choose(in)[1].kind == prompt::Kind::Count);
-    in.secondsInRoom = 91.0f;
-    CHECK(t.Choose(in)[1].kind == prompt::Kind::ResetRoom);
-    in.puzzleRoom = false;
-    CHECK(t.Choose(in)[1].kind == prompt::Kind::Count);
-    in = prompt::Input{}; // a held orb in front of a socket of the other world: TAB again, though it was learned
-    in.holding = true;
-    in.otherWorldSpot = true;
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::PutDown && t.Choose(in)[1].kind == prompt::Kind::SwitchWorld && t.Choose(in)[1].alpha == 1.0f);
-    in.wouldPlace = true; // (a place of its own world is in front too: no switch needed)
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::Place && t.Choose(in)[1].kind == prompt::Kind::Count);
-    in = prompt::Input{}; // a prompt used three times is dimmed, not hidden
-    in.orbInReach = true;
-    for (int i = 0; i < prompt::kLearnedAfter; ++i)
-    {
-        CHECK(Near(t.Choose(in)[0].alpha, 1.0f));
-        t.Used(prompt::Kind::Take);
-    }
-    CHECK(t.Choose(in)[0].kind == prompt::Kind::Take && Near(t.Choose(in)[0].alpha, prompt::kLearnedAlpha));
-    CHECK(t.Uses(prompt::Kind::Take) == 3 && t.Uses(prompt::Kind::Count) == 0);
+    in.layer = 0;
+    in.shutThingVerb = 99; // a verb that is not known counts as OPEN
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Open);
+    in.active = false; // sinking or flying: E means nothing
+    CHECK(prompt::Choose(in).kind == prompt::Kind::Count);
     for (int k = 0; k < prompt::kKindCount; ++k) // every text can be drawn
     {
         const prompt::Text text = prompt::TextOf(static_cast<prompt::Kind>(k));
@@ -221,24 +217,6 @@ void TestPrompts()
     }
 }
 
-void TestEndScreen()
-{
-    const dl::endscreen::Screen e = dl::endscreen::Make(252.34, 2, 4, 3);
-    CHECK(e.count == dl::endscreen::kLines);
-    CHECK(std::strcmp(e.lines[0], "CLEAR") == 0 && std::strcmp(e.lines[1], "TIME 4:12.3") == 0);
-    CHECK(std::strcmp(e.lines[2], "HIDDEN LIGHTS 2/4") == 0 && std::strcmp(e.lines[3], "FALLS 3") == 0);
-    CHECK(std::strcmp(dl::endscreen::Make(5.0, 0, 4, 0).lines[1], "TIME 0:05.0") == 0);
-    CHECK(std::strcmp(dl::endscreen::Make(-3.0, 0, 4, 0).lines[1], "TIME 0:00.0") == 0);
-    CHECK(std::strcmp(dl::endscreen::Make(1.0e9, 0, 4, 0).lines[1], "TIME 99:59.0") == 0); // capped, never cut off
-    for (int i = 0; i < e.count; ++i) // every character can be drawn
-    {
-        for (const char* p = e.lines[i]; *p != '\0'; ++p)
-        {
-            CHECK(&font::Find(*p) != &font::kMissing);
-        }
-    }
-}
-
 } // namespace
 
 int main()
@@ -246,7 +224,6 @@ int main()
     TestFont();
     TestBatch();
     TestPrompts();
-    TestEndScreen();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

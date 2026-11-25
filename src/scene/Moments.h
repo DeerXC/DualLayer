@@ -1,15 +1,17 @@
-// Moments.h - the solid of the town in both moments, with the circle of the lantern (docs/DESIGN.md 3.2; scene/Lantern.h).
-// Circle:    a sphere in which B is A: what is solid there and what is seen is A.
-// PushOut:   a ball is pushed out of a triangle of A when the point of the triangle nearest to it lies inside the circle, and
-//            out of a triangle of B when that point lies outside it. So a floor of A ends at the edge of the circle under the
-//            centre of the ball, as the picture ends there (shaders/models.hlsl LanternClip). In A the circle changes nothing.
-// Extra:     the things that change (scene/Things.h) add small solids to a moment (SetExtra): the boxes of their state now.
+// Moments.h - the solid of the town in both moments, with the circle of the lantern (docs/DESIGN.md 3.2;
+// scene/Lantern.h). Circle:    a sphere in which B is A: what is solid there and what is seen is A. PushOut:   a ball
+// is pushed out of a triangle of A when the point of the triangle nearest to it lies inside the circle, and
+//            out of a triangle of B when that point lies outside it. So a floor of A ends at the edge of the circle
+//            under the centre of the ball, as the picture ends there (shaders/models.hlsl LanternClip). In A the circle
+//            changes nothing.
+// Extra:     the things that change (scene/Things.h) add small solids to a moment (SetExtra): the boxes of their state
+// now.
 //            They follow the same rule as the town's own triangles.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lantern.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
 #pragma once
 
-#include "scene/Camera.h" // Vec3
+#include "scene/Camera.h"  // Vec3
 #include "scene/Terrain.h" // ClosestOnTriangle
 #include "scene/TriMesh.h"
 
@@ -99,33 +101,37 @@ class Moments
             const Vec3 moved = terrain::Sub(c, start);
             return std::sqrt(terrain::Dot(moved, moved));
         }
-        // B with the circle: the triangles of A whose nearest point is inside it, those of B whose nearest point is outside
+        // B with the circle: the triangles of A whose nearest point is inside it, those of B whose nearest point is
+        // outside
         const Vec3 start = c;
         for (int round = 0; round < 4; ++round)
         {
             Vec3 best = c;
             float bestD2 = r * r;
             bool hit = false;
-            const auto look = [&](const TriMesh* mesh, bool inside) {
+            const auto look = [&](const TriMesh* mesh, bool inside)
+            {
                 if (mesh == nullptr)
                 {
                     return;
                 }
-                mesh->ForEachNear(c.x, c.z, r, [&](const Vec3& a, const Vec3& b, const Vec3& t) {
-                    const Vec3 q = terrain::ClosestOnTriangle(c, a, b, t);
-                    if (m_circle.Contains(q) != inside)
-                    {
-                        return;
-                    }
-                    const Vec3 d = terrain::Sub(c, q);
-                    const float d2 = terrain::Dot(d, d);
-                    if (d2 < bestD2)
-                    {
-                        bestD2 = d2;
-                        best = q;
-                        hit = true;
-                    }
-                });
+                mesh->ForEachNear(c.x, c.z, r,
+                                  [&](const Vec3& a, const Vec3& b, const Vec3& t)
+                                  {
+                                      const Vec3 q = terrain::ClosestOnTriangle(c, a, b, t);
+                                      if (m_circle.Contains(q) != inside)
+                                      {
+                                          return;
+                                      }
+                                      const Vec3 d = terrain::Sub(c, q);
+                                      const float d2 = terrain::Dot(d, d);
+                                      if (d2 < bestD2)
+                                      {
+                                          bestD2 = d2;
+                                          best = q;
+                                          hit = true;
+                                      }
+                                  });
             };
             look(m_mesh[0], true);
             look(m_mesh[1], false);
@@ -156,8 +162,8 @@ class Moments
         return std::sqrt(terrain::Dot(moved, moved));
     }
 
-    /// True when a ball of radius `r` resting with its lowest point at `feet` has something under it that faces up (the floor
-    /// it stands on), in `layer`.
+    /// True when a ball of radius `r` resting with its lowest point at `feet` has something under it that faces up (the
+    /// floor it stands on), in `layer`.
     bool Supports(const Vec3& feet, float r, int layer) const
     {
         Vec3 c{feet.x, feet.y + r - 0.08f, feet.z};
@@ -176,7 +182,8 @@ class Moments
     bool FloorAt(float x, float z, float y1, float y0, int layer, float& y) const
     {
         bool found = false;
-        const auto scan = [&](const TriMesh* mesh, int source) {
+        const auto scan = [&](const TriMesh* mesh, int source)
+        {
             float top = y1;
             float h = 0.0f;
             while (mesh != nullptr && top >= y0 && mesh->HighestBelow(x, z, top, y0, h))
@@ -193,7 +200,8 @@ class Moments
                 top = h - 0.001f;
             }
         };
-        const auto scanLayer = [&](int source) {
+        const auto scanLayer = [&](int source)
+        {
             scan(m_mesh[static_cast<std::size_t>(source)], source);
             for (const TriMesh* mesh : m_extra[static_cast<std::size_t>(source)])
             {

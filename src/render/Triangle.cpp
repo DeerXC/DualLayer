@@ -47,7 +47,8 @@ bool Triangle::Init(ID3D11Device* device)
         return false;
     }
 
-    HRESULT hr = device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader);
+    HRESULT hr =
+        device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader);
     if (SUCCEEDED(hr))
     {
         hr = device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_pixelShader);
@@ -62,7 +63,8 @@ bool Triangle::Init(ID3D11Device* device)
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    hr = device->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &m_inputLayout);
+    hr = device->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
+                                   &m_inputLayout);
     if (FAILED(hr))
     {
         DL_LOG_ERROR("Triangle", "CreateInputLayout failed (0x%08X)", static_cast<unsigned>(hr));

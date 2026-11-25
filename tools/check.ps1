@@ -222,7 +222,7 @@ function Wait-Title($proc, [string]$text, [double]$seconds)
 }
 
 # the town starts on the quay of the harbour: the eye at -6.2 + 1.55 m (tools/layout/city_model.py QUAY_Y, Player eye height).
-# The greybox map ([map] town = false) started at -7.5 + 1.55 = -5.95
+
 $standY = -4.65
 Write-Host "== 4. the game (do not touch the keyboard or the mouse)" -ForegroundColor Cyan
 $jumpTried = $false

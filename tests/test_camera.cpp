@@ -122,7 +122,7 @@ void TestPitch()
     dl::Camera c;
     dl::CameraInput in;
     in.lookUp = 1.0f;
-    Run(c, in, 10.0f); // much longer than needed
+    Run(c, in, 10.0f);                                    // much longer than needed
     CHECK(Near(c.Pitch(), dl::Camera::kMaxPitch, 1e-5f)); // stops at 89 degrees
     CHECK(c.Forward().y < 1.0f && Near(Length(c.Forward()), 1.0f));
     CHECK(Near(Length(c.Right()), 1.0f));

@@ -39,23 +39,27 @@ bool Overlay::Init(ID3D11Device* device)
     }
     ComPtr<ID3DBlob> vsBlob;
     ComPtr<ID3DBlob> psBlob;
-    if (!CompileShader(kShaderPath, "VSMain", "vs_5_0", vsBlob, "Overlay") || !CompileShader(kShaderPath, "PSMain", "ps_5_0", psBlob, "Overlay"))
+    if (!CompileShader(kShaderPath, "VSMain", "vs_5_0", vsBlob, "Overlay") ||
+        !CompileShader(kShaderPath, "PSMain", "ps_5_0", psBlob, "Overlay"))
     {
         return false;
     }
-    HRESULT hr = device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader);
+    HRESULT hr =
+        device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &m_vertexShader);
     if (SUCCEEDED(hr))
     {
         hr = device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_pixelShader);
     }
-    // a vertex is OverlayVertex: a position in clip space after the copy (8 bytes), then a linear colour with alpha (16 bytes)
+    // a vertex is OverlayVertex: a position in clip space after the copy (8 bytes), then a linear colour with alpha (16
+    // bytes)
     const D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(OverlayVertex, x), D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(OverlayVertex, r), D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
     if (SUCCEEDED(hr))
     {
-        hr = device->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &m_inputLayout);
+        hr = device->CreateInputLayout(layout, ARRAYSIZE(layout), vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
+                                       &m_inputLayout);
     }
     if (SUCCEEDED(hr))
     {
@@ -141,7 +145,8 @@ void Overlay::Draw(ID3D11DeviceContext* context, const OverlayBatch& batch, int 
     const OverlayVertex* in = batch.Data();
     for (int i = 0; i < batch.Count(); ++i)
     {
-        out[i] = OverlayVertex{in[i].x * sx - 1.0f, 1.0f - in[i].y * sy, SrgbToLinear(in[i].r), SrgbToLinear(in[i].g), SrgbToLinear(in[i].b), in[i].a};
+        out[i] = OverlayVertex{in[i].x * sx - 1.0f,   1.0f - in[i].y * sy,   SrgbToLinear(in[i].r),
+                               SrgbToLinear(in[i].g), SrgbToLinear(in[i].b), in[i].a};
     }
     context->Unmap(m_vertexBuffer.Get(), 0);
 

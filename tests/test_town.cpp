@@ -1,16 +1,21 @@
-// test_town.cpp - tests of the town of the model as data (no window, no GPU): src/scene/Town.h, src/scene/TriMesh.h and the
-// walking body on them (src/scene/Player.h SetTown). Reads data/town.dlt (python tools/layout/city_model.py export).
+// test_town.cpp - tests of the town of the model as data (no window, no GPU): src/scene/Town.h, src/scene/TriMesh.h and
+// the walking body on them (src/scene/Player.h SetTown). Reads data/town.dlt (python tools/layout/city_model.py
+// export).
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_town.cpp -o test_town
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only town
 // What is checked:
 //   1. the file: a bad magic, another version, a file cut short and bytes after the end are refused
 //   2. the data: polygons, materials, stations and streets; every material used exists; the water is in A only
-//   3. the triangle solid: a ball resting on a floor, pushed out of a wall from either side, a surface found under a point
-//   4. drawn: each polygon of a moment drawn from both sides (the terrain and a surface of water from above); the front of
+//   3. the triangle solid: a ball resting on a floor, pushed out of a wall from either side, a surface found under a
+//   point
+//   4. drawn: each polygon of a moment drawn from both sides (the terrain and a surface of water from above); the front
+//   of
 //      every triangle faces along its normal
-//   5. the start: the body stands on the quay in both moments, and fits there (a switch is allowed); walking north from it for
+//   5. the start: the body stands on the quay in both moments, and fits there (a switch is allowed); walking north from
+//   it for
 //      0.8 s keeps it on the quay (tools/check.ps1 does that in the game and reads the height of the eye)
-//   6. the streets: the real body walks every street from end to end in A without a jump, but the five the puzzles close
+//   6. the streets: the real body walks every street from end to end in A without a jump, but the five the puzzles
+//   close
 //      (docs/DESIGN.md 8); in B the streets it cannot walk are listed (fallen arches lie across some of them)
 //   7. the water: under the moat of A is in the water, the same place in B is not
 // Returns 1 when a check fails.
@@ -82,7 +87,8 @@ void TestFile()
     CHECK(!d.Parse(junk, sizeof(junk), error) && !error.empty());
     unsigned char head[12] = {'D', 'L', 'T', 'O', 'W', 'N', 0, 0, 99, 0, 0, 0};
     CHECK(!d.Parse(head, sizeof(head), error) && error.find("version") != std::string::npos);
-    std::ifstream in(town::kPath, std::ios::binary); // WHY not fopen: MSVC warns C4996 on it; this is the same in both compilers
+    std::ifstream in(town::kPath,
+                     std::ios::binary); // WHY not fopen: MSVC warns C4996 on it; this is the same in both compilers
     CHECK(in.good());
     if (!in.good())
     {
@@ -90,7 +96,8 @@ void TestFile()
     }
     std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     CHECK(d.Parse(bytes.data(), bytes.size(), error));
-    CHECK(!d.Parse(bytes.data(), bytes.size() - 7, error) && d.polygons.empty()); // cut short: nothing half-read is kept
+    CHECK(!d.Parse(bytes.data(), bytes.size() - 7, error) &&
+          d.polygons.empty()); // cut short: nothing half-read is kept
     bytes.push_back(0);
     CHECK(!d.Parse(bytes.data(), bytes.size(), error));
 }
@@ -98,8 +105,8 @@ void TestFile()
 void TestData()
 {
     const town::TownData& t = Town();
-    std::printf("  town: %zu polygons, %zu vertices, %zu materials, %zu places, %zu streets\n", t.polygons.size(), t.vertices.size(), t.materials.size(),
-                t.places.size(), t.streets.size());
+    std::printf("  town: %zu polygons, %zu vertices, %zu materials, %zu places, %zu streets\n", t.polygons.size(),
+                t.vertices.size(), t.materials.size(), t.places.size(), t.streets.size());
     CHECK(t.polygons.size() > 10000 && t.materials.size() >= 20 && t.places.size() >= 10 && t.streets.size() >= 8);
     int water = 0;
     bool ok = true;
@@ -113,7 +120,8 @@ void TestData()
         }
     }
     CHECK(ok && water > 10 && static_cast<std::size_t>(water) == t.waters.size());
-    CHECK(t.lights[0].fog > 0.0f && t.lights[1].fog > t.lights[0].fog); // the cold present is foggier than the warm past
+    CHECK(t.lights[0].fog > 0.0f &&
+          t.lights[1].fog > t.lights[0].fog); // the cold present is foggier than the warm past
     CHECK(std::string(t.NearestPlace(t.spawn.x, t.spawn.z)).find("quay") != std::string::npos);
 }
 
@@ -137,7 +145,8 @@ void TestTriMesh()
     m.PushOut(e, 0.35f);
     CHECK(Near(e.x, 2.35f, 1e-4f)); // and from the other side
     float y = 0.0f;
-    CHECK(m.HighestBelow(-1.0f, -1.0f, 1.0f, -1.0f, y) && Near(y, 0.0f, 1e-5f) && !m.HighestBelow(20.0f, 0.0f, 1.0f, -1.0f, y));
+    CHECK(m.HighestBelow(-1.0f, -1.0f, 1.0f, -1.0f, y) && Near(y, 0.0f, 1e-5f) &&
+          !m.HighestBelow(20.0f, 0.0f, 1.0f, -1.0f, y));
     Vec3 far{50.0f, 0.0f, 50.0f};
     CHECK(m.PushOut(far, 0.35f) == 0.0f);
 }
@@ -149,8 +158,8 @@ void TestDrawn()
     {
         const dl::BatchMesh drawn = t.BakeLayer(layer);
         const dl::BatchMesh water = t.BakeWater(layer);
-        std::printf("  drawn %c: %zu triangles, %zu vertices; water %zu triangles\n", layer == 0 ? 'A' : 'B', drawn.indices.size() / 3, drawn.vertices.size(),
-                    water.indices.size() / 3);
+        std::printf("  drawn %c: %zu triangles, %zu vertices; water %zu triangles\n", layer == 0 ? 'A' : 'B',
+                    drawn.indices.size() / 3, drawn.vertices.size(), water.indices.size() / 3);
         CHECK(drawn.indices.size() > 30000 * 3 && drawn.indices.size() % 3 == 0);
         CHECK(layer == 0 ? water.indices.size() > 0 : water.indices.empty());
         // the front of every triangle faces along its normal (the static batch culls back faces)
@@ -160,20 +169,22 @@ void TestDrawn()
             const dl::BatchVertex& a = drawn.vertices[drawn.indices[i]];
             const dl::BatchVertex& b = drawn.vertices[drawn.indices[i + 1]];
             const dl::BatchVertex& c = drawn.vertices[drawn.indices[i + 2]];
-            const Vec3 n = dl::terrain::Cross(Vec3{b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]},
-                                              Vec3{c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]});
+            const Vec3 n = dl::terrain::Cross(
+                Vec3{b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]},
+                Vec3{c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]});
             const float along = n.x * a.normal[0] + n.y * a.normal[1] + n.z * a.normal[2];
             wrong += along < -1.0e-6f ? 1 : 0;
         }
         CHECK(wrong == 0);
-        // every water is drawn as water; a surface of water faces up (a fall of water stands: it is seen from both sides)
+        // every water is drawn as water; a surface of water faces up (a fall of water stands: it is seen from both
+        // sides)
         bool up = true;
         for (const dl::BatchVertex& v : water.vertices)
         {
             up = up && v.params[0] > 1.5f && (v.normal[1] > 0.0f || std::fabs(v.normal[1]) < 0.3f);
         }
         CHECK(up);
-        // no colour is the stone tint of the greybox (alpha 0)
+        // no colour takes the stone tint (alpha 0)
         bool own = true;
         for (std::size_t i = 0; i < drawn.vertices.size(); i += 97)
         {
@@ -299,12 +310,14 @@ void TestStreets()
             else
             {
                 char where[160];
-                std::snprintf(where, sizeof(where), "%s%s (stopped at %.1f %.1f %.1f)", blocked.empty() ? "" : "; ", s.name.c_str(), static_cast<double>(w.body.Feet().x),
+                std::snprintf(where, sizeof(where), "%s%s (stopped at %.1f %.1f %.1f)", blocked.empty() ? "" : "; ",
+                              s.name.c_str(), static_cast<double>(w.body.Feet().x),
                               static_cast<double>(w.body.Feet().y), static_cast<double>(w.body.Feet().z));
                 blocked += where;
             }
         }
-        std::printf("  streets walked in %c: %d of %zu%s%s\n", layer == 0 ? 'A' : 'B', walked, t.streets.size(), blocked.empty() ? "" : "; not: ", blocked.c_str());
+        std::printf("  streets walked in %c: %d of %zu%s%s\n", layer == 0 ? 'A' : 'B', walked, t.streets.size(),
+                    blocked.empty() ? "" : "; not: ", blocked.c_str());
         if (layer == 0)
         {
             // in the past every street is open but those the puzzles close (docs/DESIGN.md 8; tests/test_things.cpp and

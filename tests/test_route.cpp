@@ -1,14 +1,14 @@
-// test_route.cpp - the whole town played through by a solver (docs/DESIGN.md 11): every puzzle shuts the way until it is
-// solved, and the town can be finished. Reads data/town.dlt (python tools/layout/city_model.py export).
+// test_route.cpp - the whole town played through by a solver (docs/DESIGN.md 11): every puzzle shuts the way until it
+// is solved, and the town can be finished. Reads data/town.dlt (python tools/layout/city_model.py export).
 //   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_route.cpp -o test_route
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only route
-// The solver: a flood over cells of 0.5 m of both moments. From a cell the body walks to a neighbour (a step up of at most
-// 1.65 m onto a ledge up to 1 m away, any drop that lands, no slope over 53 degrees; it fits there and halfway); it
-// switches where it stands when it fits in the other moment (and falls there when there is no floor); it switches in the
-// air: a jump of at most 1.65 m up with the moment changed at its top, onto a floor of the other moment within 1 m that
-// the moment it jumped in does not have. The lantern is a circle (set down on the scaffold of the west). The water of a
-// moment is not walked. A handle is reached in A within its reach.
-// Ways: test_route [every] x y z [thing numbers done] [L]  prints the way found to (x, y, z) (every cell with "every");
+// The solver: a flood over cells of 0.5 m of both moments. From a cell the body walks to a neighbour (a step up of at
+// most 1.65 m onto a ledge up to 1 m away, any drop that lands, no slope over 53 degrees; it fits there and halfway);
+// it switches where it stands when it fits in the other moment (and falls there when there is no floor); it switches in
+// the air: a jump of at most 1.65 m up with the moment changed at its top, onto a floor of the other moment within 1 m
+// that the moment it jumped in does not have. The lantern is a circle (set down on the scaffold of the west). The water
+// of a moment is not walked. A handle is reached in A within its reach. Ways: test_route [every] x y z [thing numbers
+// done] [L]  prints the way found to (x, y, z) (every cell with "every");
 //       test_route probe x y z [things] [L]  prints the floor and the fit there in both moments.
 // The steps: the things in the order of the main path and the lantern (kSteps); for each, its handle is reached, and no
 // handle further on is reached before it is done (no way round a puzzle). Returns 1 when a check fails.
@@ -69,7 +69,7 @@ const town::TownData& Town()
 
 constexpr float kCell = 0.5f;
 bool g_verbose = false;
-int g_every = 0; ///< every how many cells Way prints one (1 with the argument "every"; else 8)
+int g_every = 0;               ///< every how many cells Way prints one (1 with the argument "every"; else 8)
 constexpr float kStep = 1.65f; // a jump onto a ledge (the full jump is 2.0 m; the margin is for the arc)
 constexpr float kAirUp = 1.65f;
 
@@ -161,7 +161,8 @@ class Solver
         }
     }
 
-    /// True when the flood came within `r` metres (on the ground plane) and 2 m (up and down) of `p`, in `layer` (-1: any).
+    /// True when the flood came within `r` metres (on the ground plane) and 2 m (up and down) of `p`, in `layer` (-1:
+    /// any).
     bool Reached(const Vec3& p, float r = 1.0f, int layer = -1) const
     {
         for (const Node& n : m_all)
@@ -207,8 +208,8 @@ class Solver
             const Node& n = m_all[static_cast<std::size_t>(way[q])];
             if (n.how != 'w' || q % (g_every > 0 ? g_every : 8) == 0 || q + 1 == way.size())
             {
-                std::printf("      %c %c %.1f %.1f %.1f\n", n.how, n.layer == 0 ? 'A' : 'B', static_cast<double>(X(n.i)), static_cast<double>(n.y),
-                            static_cast<double>(Z(n.j)));
+                std::printf("      %c %c %.1f %.1f %.1f\n", n.how, n.layer == 0 ? 'A' : 'B',
+                            static_cast<double>(X(n.i)), static_cast<double>(n.y), static_cast<double>(Z(n.j)));
             }
         }
     }
@@ -218,15 +219,17 @@ class Solver
         {
             float f = 0.0f;
             const bool has = Floor(x, z, y + 0.5f, y - 3.0f, layer, f);
-            std::printf("  %c: floor %d %.2f fits %d steep? sub %d\n", layer == 0 ? 'A' : 'B', has ? 1 : 0, static_cast<double>(f), Fits(x, f + 0.05f, z, layer) ? 1 : 0,
+            std::printf("  %c: floor %d %.2f fits %d steep? sub %d\n", layer == 0 ? 'A' : 'B', has ? 1 : 0,
+                        static_cast<double>(f), Fits(x, f + 0.05f, z, layer) ? 1 : 0,
                         m_t.Submerged({x, f + 0.05f, z}, layer) ? 1 : 0);
             for (int i = 0; i < 3; ++i)
             {
                 Vec3 c{x, f + 0.05f + m_radius + 0.02f + 0.6f * static_cast<float>(i), z};
                 const Vec3 c0 = c;
                 const float d = m_moments.PushOut(c, m_radius - 0.03f, layer);
-                std::printf("     ball %d pushed %.3f to %.2f %.2f %.2f (from %.2f)\n", i, static_cast<double>(d), static_cast<double>(c.x), static_cast<double>(c.y),
-                            static_cast<double>(c.z), static_cast<double>(c0.y));
+                std::printf("     ball %d pushed %.3f to %.2f %.2f %.2f (from %.2f)\n", i, static_cast<double>(d),
+                            static_cast<double>(c.x), static_cast<double>(c.y), static_cast<double>(c.z),
+                            static_cast<double>(c0.y));
             }
         }
     }
@@ -277,12 +280,14 @@ class Solver
         return m_z0 + static_cast<float>(j) * kCell;
     }
 
-    /// The highest floor between y0 and y1 that the body would stand on in `layer` (with the circle, the floors of A in it).
+    /// The highest floor between y0 and y1 that the body would stand on in `layer` (with the circle, the floors of A in
+    /// it).
     bool Floor(float x, float z, float y1, float y0, int layer, float& y) const
     {
         bool found = false;
         const town::Circle& c = m_moments.GetCircle();
-        const auto take = [&](const town::TriMesh& mesh, bool inCircle) {
+        const auto take = [&](const town::TriMesh& mesh, bool inCircle)
+        {
             float h = 0.0f;
             float top = y1;
             while (mesh.HighestBelow(x, z, top, y0, h))
@@ -317,8 +322,8 @@ class Solver
         {
             found = false; // a slope the body slides off (Player.h: about 53 degrees)
         }
-        // the things are floors too (their boxes are in the moments' extra solids): a ray down through PushOut is costly, so
-        // the boxes are looked at directly
+        // the things are floors too (their boxes are in the moments' extra solids): a ray down through PushOut is
+        // costly, so the boxes are looked at directly
         for (std::size_t k = 0; k < m_t.things.size(); ++k)
         {
             const std::uint8_t state = m_things.Open(k) ? 1 : 0;
@@ -333,7 +338,8 @@ class Solver
                 const float lu = dx * cs + dz * sn;
                 const float lx = -dx * sn + dz * cs;
                 const float top = b.centre.y + b.half.y;
-                if (std::fabs(lu) <= b.half.x && std::fabs(lx) <= b.half.z && top <= y1 && top >= y0 && (!found || top > y))
+                if (std::fabs(lu) <= b.half.x && std::fabs(lx) <= b.half.z && top <= y1 && top >= y0 &&
+                    (!found || top > y))
                 {
                     if (layer == 1 && c.On() && c.Contains({x, top, z}) && (b.worlds & 1u) == 0u)
                     {
@@ -382,7 +388,8 @@ class Solver
         {
             return;
         }
-        const long long key = ((static_cast<long long>(i) * 4096 + j) * 2 + layer) * 2048 + static_cast<long long>(std::lround((y + 100.0f) * 2.0f));
+        const long long key = ((static_cast<long long>(i) * 4096 + j) * 2 + layer) * 2048 +
+                              static_cast<long long>(std::lround((y + 100.0f) * 2.0f));
         // heights within 0.5 m are one node
         if (m_seen.count(key) != 0 || m_seen.count(key - 1) != 0 || m_seen.count(key + 1) != 0)
         {
@@ -424,7 +431,8 @@ class Solver
                     continue; // the far cells only for a jump up
                 }
                 const float top = std::max(n.y, y) + 0.05f;
-                if (!Fits((x + nx) * 0.5f, top, (z + nz) * 0.5f, n.layer) || (!near && !Fits(x, n.y + kStep, z, n.layer)))
+                if (!Fits((x + nx) * 0.5f, top, (z + nz) * 0.5f, n.layer) ||
+                    (!near && !Fits(x, n.y + kStep, z, n.layer)))
                 {
                     continue;
                 }
@@ -493,9 +501,10 @@ void Report(const Solver& s, const char* stage)
     std::fflush(stdout);
 }
 
-/// The steps of the main path (docs/DESIGN.md 7.4, 8): a thing to use in A, or "lantern" (set down on the scaffold of the
-/// west). Each is reached only after the one before it.
-const char* const kSteps[] = {"sea gate", "canal crate", "day bell", "lantern", "lift", "dawn bell", "plank", "gatehouse crate", "night bell"};
+/// The steps of the main path (docs/DESIGN.md 7.4, 8): a thing to use in A, or "lantern" (set down on the scaffold of
+/// the west). Each is reached only after the one before it.
+const char* const kSteps[] = {"sea gate",  "canal crate", "day bell",        "lantern",   "lift",
+                              "dawn bell", "plank",       "gatehouse crate", "night bell"};
 constexpr int kStepCount = static_cast<int>(sizeof(kSteps) / sizeof(kSteps[0]));
 
 bool IsLantern(int k)
@@ -530,7 +539,8 @@ void TestRoute()
             std::printf("  not reached: %s\n", kSteps[k]);
             return;
         }
-        // nothing further on is reached before this step is done: no way round a puzzle (a bell closes nothing: it is a goal)
+        // nothing further on is reached before this step is done: no way round a puzzle (a bell closes nothing: it is a
+        // goal)
         const bool bell = std::string(kSteps[k]).find("bell") != std::string::npos;
         for (int later = k + 1; later < kStepCount && !bell; ++later)
         {
@@ -601,7 +611,8 @@ int main(int argc, char** argv)
                 s.Do(std::atoi(argv[k]));
             }
         }
-        s.Probe(static_cast<float>(std::atof(argv[2])), static_cast<float>(std::atof(argv[3])), static_cast<float>(std::atof(argv[4])));
+        s.Probe(static_cast<float>(std::atof(argv[2])), static_cast<float>(std::atof(argv[3])),
+                static_cast<float>(std::atof(argv[4])));
         return 0;
     }
     if (argc >= 5 && std::string(argv[1]) == "every")
@@ -629,9 +640,11 @@ int main(int argc, char** argv)
         Report(s, "way");
         for (std::size_t k = 0; k < Town().things.size(); ++k)
         {
-            std::printf("  handle %s: %d\n", Town().things[k].name.c_str(), s.HandleReached(static_cast<int>(k)) ? 1 : 0);
+            std::printf("  handle %s: %d\n", Town().things[k].name.c_str(),
+                        s.HandleReached(static_cast<int>(k)) ? 1 : 0);
         }
-        s.Way({static_cast<float>(std::atof(argv[1])), static_cast<float>(std::atof(argv[2])), static_cast<float>(std::atof(argv[3]))});
+        s.Way({static_cast<float>(std::atof(argv[1])), static_cast<float>(std::atof(argv[2])),
+               static_cast<float>(std::atof(argv[3]))});
         return 0;
     }
     (void)argc;

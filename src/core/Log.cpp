@@ -15,7 +15,8 @@ namespace dl::log
 {
 namespace
 {
-// WHY: one state object behind a function-local static instead of loose file-level globals (project rule: no file-level globals).
+// WHY: one state object behind a function-local static instead of loose file-level globals (project rule: no file-level
+// globals).
 struct State
 {
     Level minLevel = Level::Trace;
@@ -83,7 +84,8 @@ void Close()
 std::string FormatLine(double seconds, Level level, const char* module, const char* message)
 {
     char head[64];
-    std::snprintf(head, sizeof(head), "[%8.3f] [%s] [%s] ", seconds, LevelName(level), module != nullptr ? module : "-");
+    std::snprintf(head, sizeof(head), "[%8.3f] [%s] [%s] ", seconds, LevelName(level),
+                  module != nullptr ? module : "-");
     return std::string(head) + (message != nullptr ? message : "");
 }
 

@@ -111,7 +111,8 @@ bool Device::Init(HWND hwnd, int width, int height, int requestedAdapter, bool v
         }
         else
         {
-            DL_LOG_WARN("Device", "adapter %d does not exist: using the first hardware adapter instead", requestedAdapter);
+            DL_LOG_WARN("Device", "adapter %d does not exist: using the first hardware adapter instead",
+                        requestedAdapter);
         }
     }
     if (chosen < 0)
@@ -134,12 +135,13 @@ bool Device::Init(HWND hwnd, int width, int height, int requestedAdapter, bool v
 #endif
     D3D_FEATURE_LEVEL obtained{};
     IDXGIAdapter1* adapter = adapters[static_cast<std::size_t>(chosen)].Get();
-    hr = D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
-                           &m_device, &obtained, &m_context);
+    hr = D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, levels, ARRAYSIZE(levels),
+                           D3D11_SDK_VERSION, &m_device, &obtained, &m_context);
     if (FAILED(hr) && (flags & D3D11_CREATE_DEVICE_DEBUG) != 0)
     {
         DL_LOG_WARN("Device",
-                    "D3D11 debug layer is not available (0x%08X). Install: Settings > System > Optional features > Graphics Tools",
+                    "D3D11 debug layer is not available (0x%08X). Install: Settings > System > Optional features > "
+                    "Graphics Tools",
                     static_cast<unsigned>(hr));
         flags &= ~static_cast<UINT>(D3D11_CREATE_DEVICE_DEBUG);
         hr = D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, levels, ARRAYSIZE(levels),
@@ -188,9 +190,10 @@ bool Device::Init(HWND hwnd, int width, int height, int requestedAdapter, bool v
 
 bool Device::CreateDepthBuffer(int width, int height)
 {
-    // WHY: without a depth buffer the triangles are drawn in the order of the draw calls: a sphere drawn after the floor is ALWAYS on top of it,
-    // even where it is behind. With one, every pixel remembers how far away the nearest thing drawn so far is, and only a nearer thing replaces it.
-    // D32_FLOAT: 32 bits of float depth (Reverse-Z, which would use the extra float precision close to 0, was not adopted: docs/CONVENTIONS.md, "Depth").
+    // WHY: without a depth buffer the triangles are drawn in the order of the draw calls: a sphere drawn after the
+    // floor is ALWAYS on top of it, even where it is behind. With one, every pixel remembers how far away the nearest
+    // thing drawn so far is, and only a nearer thing replaces it. D32_FLOAT: 32 bits of float depth (Reverse-Z, which
+    // would use the extra float precision close to 0, was not adopted: docs/CONVENTIONS.md, "Depth").
     D3D11_TEXTURE2D_DESC desc{};
     desc.Width = static_cast<UINT>(width);
     desc.Height = static_cast<UINT>(height);
@@ -207,7 +210,8 @@ bool Device::CreateDepthBuffer(int width, int height)
     }
     if (FAILED(hr))
     {
-        DL_LOG_ERROR("Device", "the depth buffer (%d x %d) could not be created (0x%08X)", width, height, static_cast<unsigned>(hr));
+        DL_LOG_ERROR("Device", "the depth buffer (%d x %d) could not be created (0x%08X)", width, height,
+                     static_cast<unsigned>(hr));
         m_depthView.Reset();
         m_depthTexture.Reset();
         return false;
@@ -251,7 +255,8 @@ bool Device::Resize(int width, int height)
     m_backBufferRtv.Reset(); // all views of the back buffer must be gone before ResizeBuffers
     m_depthView.Reset();     // the depth buffer must have the size of the back buffer: it is made again below
     m_depthTexture.Reset();
-    const HRESULT hr = m_swapChain->ResizeBuffers(0, static_cast<UINT>(width), static_cast<UINT>(height), DXGI_FORMAT_UNKNOWN, 0);
+    const HRESULT hr =
+        m_swapChain->ResizeBuffers(0, static_cast<UINT>(width), static_cast<UINT>(height), DXGI_FORMAT_UNKNOWN, 0);
     if (FAILED(hr))
     {
         DL_LOG_ERROR("Device", "ResizeBuffers failed (0x%08X)", static_cast<unsigned>(hr));
@@ -272,7 +277,8 @@ void Device::BeginFrame(const float linearClear[4])
     m_context->ClearRenderTargetView(rtv, linearClear);
     if (m_depthView != nullptr)
     {
-        m_context->ClearDepthStencilView(m_depthView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0); // 1.0 = the far plane: everything is nearer than that
+        m_context->ClearDepthStencilView(m_depthView.Get(), D3D11_CLEAR_DEPTH, 1.0f,
+                                         0); // 1.0 = the far plane: everything is nearer than that
     }
 }
 
