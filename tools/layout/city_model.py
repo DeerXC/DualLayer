@@ -802,6 +802,7 @@ def build_harbour():
     ship(-40.0, -230.0, 0.2, 20.0, "A")
     ship(-20.0, z1 - 10.0, 0.6, 12.0, "B", sails=False)                                 # B: a wreck in the basin
     build_quay_works(z1 - 3.0)
+    build_harbour_frontage(z1 - 3.0)
     # The damaged mole sheds stone at its break, rather than leaving stepping
     # stones across the basin. Keep the highest debris below the quay deck.
     for i, (along, offset, radius) in enumerate(((0.53, -1.2, 0.85), (0.56, 0.9, 1.1),
@@ -817,6 +818,41 @@ def build_harbour():
     prism(ngon(hx, hz, 2.6, 10), y + 18.0, y + 20.0, "lantern", "A")
     prism(ngon(hx, hz, 2.6, 10), y + 18.0, y + 20.0, "iron", "B")
     cone(hx, hz, 2.8, y + 20.0, y + 23.0, "roof", "both", 10)
+
+
+def build_harbour_frontage(edge):
+    """Separate the working shore from the through route without changing the tutorial."""
+    deck = QUAY_Y
+    # Two quay aprons with chamfered ends. Leave the slip, the start-area wreck
+    # and the sea-stair corridor unchanged. The seaward edge is not a shortcut.
+    for left, right, reach in ((-18.0, -5.0, 4.1), (15.0, 32.0, 4.6)):
+        apron = [(left, edge + 0.04), (left + 2.0, edge - reach),
+                 (right - 2.0, edge - reach), (right, edge + 0.04)]
+        prism(apron, SEA - 4.0, deck + 0.025, "stone_dark", top_mat="stone")
+        for i in range(3):
+            t = (i + 0.5) / 3.0
+            x = left + 2.8 + t * (right - left - 5.6)
+            prism(ngon(x, edge - reach + 0.35, 0.21, 6), deck, deck + 0.34, "stone_dark")
+
+    # Low timber work bays give the curtain wall a human-scale foreground.
+    # The shared stone base and surviving rear wall explain the B-layer ruin.
+    for x, width, depth, rise in ((-10.0, 5.2, 2.5, 0.9), (15.9, 3.6, 2.15, 0.70)):
+        z = edge + 7.1
+        y = float(ground(x, z))
+        if not math.isfinite(y):
+            raise ValueError("harbour work bay has no ground")
+        top = y + 2.40
+        prism(rect(x, z, width, depth, 0.0), min(deck, y) - 0.45, y + 0.12, "stone_dark")
+        back_z = z + depth / 2.0 - 0.13
+        prism(rect(x, back_z, width, 0.26, 0.0), y + 0.08, top, "plaster3", "A")
+        prism(rect(x, back_z, width, 0.26, 0.0), y + 0.08, y + 0.74, "stone", "B")
+        for dx in (-width / 2.0 + 0.16, width / 2.0 - 0.16):
+            for dz in (-depth / 2.0 + 0.15, depth / 2.0 - 0.15):
+                prism(rect(x + dx, z + dz, 0.21, 0.21, 0.0), y + 0.08, top + 0.04, "wood", "A")
+        for dz in (-depth / 2.0 + 0.15, depth / 2.0 - 0.15):
+            beam((x - width / 2.0, top, z + dz), (x + width / 2.0, top, z + dz), 0.24, 0.24, "wood", "A")
+        gable(x, z, width + 0.55, depth + 0.65, 0.0, top + 0.10, rise, "roof", "A")
+        prism(rect(x, z + 0.40, width * 0.65, 0.52, 0.0), y + 0.09, y + 0.8, "wood", "A")
 
 
 def build_quay_works(edge):
@@ -1095,6 +1131,32 @@ def thing(name, handle, boxes, verb="open"):
     drawn and solid in the moment of their world, while the thing is in their state. Not in POLYS: the game draws them.
     `verb` is what the prompt says (open, push, lay, ring, lower); a bell is a thing with no boxes of its own but its rope."""
     THINGS.append((name, tuple(float(v) for v in handle), boxes, verb))
+
+
+def build_harbour_wayfinding():
+    # Worn stone channels follow the foot traffic and turn up the sea stair.
+    # In B the pattern stops on the near side of the wreck, not around it.
+    for start, end, world in ((12.9, 16.6, "both"), (7.9, 12.9, "A")):
+        for x in np.arange(start, end - 0.12, 0.62):
+            for z in (-72.82, -71.18):
+                quad = rect(x + 0.22, z, 0.44, 0.19, 0.0)
+                poly([(px, QUAY_Y + 0.09, pz) for px, pz in reversed(quad)],
+                     "stone_dark", world, "overlay")
+    c, w, _ = STREET["sea stair"]
+    ys = _HEIGHTS["sea stair"]
+    for i in range(0, len(c) - 1, 2):
+        a, b = c[i], c[i + 1]
+        d = b - a
+        n = np.array([-d[1], d[0]]) / np.linalg.norm(d)
+        for side in (-1, 1):
+            shift = n * side * (w / 2 - 0.28)
+            inner = n * side * 0.18
+            corners = [(a + shift, ys[i]), (b + shift, ys[i + 1]),
+                       (b + shift - inner, ys[i + 1]), (a + shift - inner, ys[i])]
+            if side == -1:
+                corners.reverse()
+            poly([(q[0], y + 0.09, q[1]) for q, y in corners],
+                 "stone_dark", "both", "overlay")
 
 
 def build_harbour_beats():
@@ -1550,10 +1612,24 @@ def house(cx, cz, w, dd, ang, k, height, front=None):
             prism(rect(px_, pz_, 0.5, 0.5, ang), top, top + pitch * min(w, dd) + 1.4, "chimney", "A" if (ruin or unroofed) else "both")
     if front is not None:                                                              # the street side: door, shutters, balcony
         fx, fz = front
+        c, s = math.cos(ang), math.sin(ang)
+        grade = max(base, float(ground(cx + fx * dd / 2, cz + fz * dd / 2)))
         out_n = dd / 2 + 0.04
         dx_, dz_ = cx + fx * out_n, cz + fz * out_n
-        poly([(dx_ - c * 0.55, base, dz_ - s * 0.55), (dx_ + c * 0.55, base, dz_ + s * 0.55), (dx_ + c * 0.55, base + 2.2, dz_ + s * 0.55),
-              (dx_ - c * 0.55, base + 2.2, dz_ - s * 0.55)], "door", "A" if ruin else "both")
+        # Facade sizes are in metres for a 1.72 m traveller.
+        if grade + 2.08 < base + height:
+            poly([(dx_ - c * 0.46, grade, dz_ - s * 0.46), (dx_ + c * 0.46, grade, dz_ + s * 0.46), (dx_ + c * 0.46, grade + 2.08, dz_ + s * 0.46),
+                  (dx_ - c * 0.46, grade + 2.08, dz_ - s * 0.46)], "door", "A" if ruin else "both")
+            # Stone jambs frame a closed door; trim must never add a ledge.
+            def trim(u0, u1, y0, y1, mat):
+                x, z = dx_ + fx * 0.012, dz_ + fz * 0.012
+                poly([(x + c * u, y, z + s * u) for u, y in
+                      ((u0, y0), (u1, y0), (u1, y1), (u0, y1))],
+                     mat, "A" if ruin else "both", "overlay")
+
+            for lo, hi in ((-0.56, -0.46), (0.46, 0.56)):
+                trim(lo, hi, grade + 0.02, grade + 2.08, "stone_dark")
+            trim(-0.56, 0.56, grade + 2.08, min(grade + 2.20, top), "stone")
         if height > 6.0 and hash01(k, 45) < 0.35 and not ruin:                         # a balcony on the first floor
             by = base + 3.1
             bx0, bz0 = cx + fx * (dd / 2 + 0.7), cz + fz * (dd / 2 + 0.7)
@@ -1569,13 +1645,19 @@ def house(cx, cz, w, dd, ang, k, height, front=None):
             if hash01(k, 20 + j) < 0.45:
                 u = (j - 0.5) * w * 0.45
                 px, pz = cx + u * c + fx * (dd / 2 + 0.03), cz + u * s + fz * (dd / 2 + 0.03)
-                y = base + 3.0 if height > 6 else base + 1.6
-                poly([(px - c * 0.4, y, pz - s * 0.4), (px + c * 0.4, y, pz + s * 0.4), (px + c * 0.4, y + 1.1, pz + s * 0.4),
-                      (px - c * 0.4, y + 1.1, pz - s * 0.4)], "window", "A")
+                y = grade + (3.10 if height > 6.0 else 1.15)
+                if y + 0.81 >= base + height:
+                    continue
+                poly([(px - c * 0.4, y, pz - s * 0.4), (px + c * 0.4, y, pz + s * 0.4), (px + c * 0.4, y + 0.81, pz + s * 0.4),
+                      (px - c * 0.4, y + 0.81, pz - s * 0.4)], "window" if hash01(k, 71 + j) < 0.40 else "stone_dark", "A")
+                sill_x, sill_z = px + fx * 0.016, pz + fz * 0.016
+                poly([(sill_x + c * u, v, sill_z + s * u) for u, v in
+                      ((-0.48, y - 0.09), (0.48, y - 0.09), (0.48, y), (-0.48, y))],
+                     "stone", "A" if ruin else "both", "overlay")
                 for sg in (-1, 1):                                                     # shutters
                     q0 = (px + sg * c * 0.45, pz + sg * s * 0.45)
                     q1 = (px + sg * c * 0.85, pz + sg * s * 0.85)
-                    poly([(q0[0], y, q0[1]), (q1[0], y, q1[1]), (q1[0], y + 1.1, q1[1]), (q0[0], y + 1.1, q0[1])], "shutter",
+                    poly([(q0[0], y, q0[1]), (q1[0], y, q1[1]), (q1[0], y + 0.81, q1[1]), (q0[0], y + 0.81, q0[1])], "shutter",
                          "A" if ruin else "both")
     return True
 
@@ -2007,6 +2089,7 @@ def build_all():
     build_north()
     build_bastion_gate()
     build_harbour_beats()
+    build_harbour_wayfinding()
     build_air_step()
     corridor("lower street", 30.0, 53.7)
     corridor("market stairs", 0.0, 22.0)
