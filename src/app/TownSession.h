@@ -164,7 +164,7 @@ class TownSession
     float m_boom = 0.0f; ///< UNITS: metres, how far the camera is behind the body now
 
     // ---- the first lesson and the clocks
-    int m_lightView = 0; ///< what the picture shows of the light: 0 everything .. 4 only the lamps (key L)
+    int m_lightView = 0; ///< what the picture shows of the light: 0 everything .. 4 only the lamps, 5 plain (key L)
     int m_switches = 0;  ///< how many times the player asked for a switch
     float m_walkSeconds =
         0.0f;             ///< UNITS: seconds the body has walked (the prompts of TAB and M are offered after a while)

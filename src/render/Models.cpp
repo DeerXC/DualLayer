@@ -64,9 +64,15 @@ struct FrameConstants
     XMFLOAT4 skyForward;      // xyz: camera forward; w: solar / lunar halo weight
     XMFLOAT4 skyZenith;       // rgb: linear colour; w: gradient enabled
     XMFLOAT4X4 lightViewProj; // the world into the shadow map of the sun or the moon (render/ShadowMath.h)
-    XMFLOAT4 shadow; // x: one texel of the map (uv), y: depth bias, z: normal offset (metres), w: strength (0: none)
-    XMFLOAT4 grade;  // x: exposure, y: knee of the shoulder, z: debug view, w: sun scatter
-    XMFLOAT4 grade2; // reserved
+    XMFLOAT4 shadow;    // x: one texel of the map (uv), y: depth bias, z: normal offset (metres), w: strength (0: none)
+    XMFLOAT4 grade;     // x: exposure, y: knee of the shoulder, z: debug view, w: sun scatter
+    XMFLOAT4 grade2;    // x: the sun in bands, y: the rim, z: saturation, w: vignette (the style of the light)
+    XMFLOAT4 styleCool; // rgb: the multiplier of the sky light of a face the sun does not reach, a: how far
+    XMFLOAT4 styleLow;  // rgb: the grade of the darks, a: how much
+    XMFLOAT4 styleHigh; // rgb: the grade of the lights, a: how much
+    XMFLOAT4 styleLight; // x: the shadow of the clouds, y: the rings of a lamp, z: the light shafts, w: their samples
+    XMFLOAT4 styleFar;   // rgb: what the haze is multiplied by far away, a: how far
+    XMFLOAT4 styleMisc;  // x: the painted blotches of the stone, y: the damp near the water, zw: reserved
 };
 
 struct ObjectConstants
@@ -98,7 +104,7 @@ struct LampConstants
     float tint[kMaxLamps][4]; // rgb: colour times strength (linear)
 };
 
-static_assert(sizeof(FrameConstants) == 368, "cbuffer Frame is 23 registers of 16 bytes");
+static_assert(sizeof(FrameConstants) == 464, "cbuffer Frame is 29 registers of 16 bytes");
 static_assert(sizeof(LampConstants) == 1040, "cbuffer Lamps is 65 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
@@ -1150,6 +1156,15 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
             XMFLOAT4(texel, depthBias, normalOffset, shadowOn && mode < 1.5f ? m_lighting.shadowStrength : 0.0f);
         frame.grade =
             XMFLOAT4(m_lighting.exposure, m_lighting.knee, static_cast<float>(m_debugView), m_lighting.sunScatter);
+        // the style of the light of this theme (render/LightingSettings.h); the debug view "plain" leaves it out
+        const StyleConstants style = MakeStyle(m_lighting, themeLayer, m_debugView == kDebugViewPlain);
+        std::memcpy(&frame.grade2, style.grade2, sizeof(style.grade2));
+        std::memcpy(&frame.styleCool, style.cool, sizeof(style.cool));
+        std::memcpy(&frame.styleLow, style.low, sizeof(style.low));
+        std::memcpy(&frame.styleHigh, style.high, sizeof(style.high));
+        std::memcpy(&frame.styleLight, style.light, sizeof(style.light));
+        std::memcpy(&frame.styleFar, style.hazeTint, sizeof(style.hazeTint));
+        std::memcpy(&frame.styleMisc, style.misc, sizeof(style.misc));
         return frame;
     };
     const auto writeFrame = [&](const FrameConstants& frame)

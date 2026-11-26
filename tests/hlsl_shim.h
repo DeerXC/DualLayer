@@ -1,10 +1,10 @@
 // hlsl_shim.h - the vector types and the functions of HLSL that shaders/lighting.hlsli uses, written in C++, so that
 // the test (tests/test_lighting.cpp) can include that file and run its functions. Only what lighting.hlsli needs: three
-// floats, the arithmetic of a shader, saturate, step, dot, length, normalize, pow, max, min, abs. Use: include every
-// standard and project header FIRST, then this file, then shaders/lighting.hlsli, then hlsl_shim_end.h. The names
-//      that the C++ library has too (pow, abs, max, min: MSVC and GCC declare some of them in the global namespace) are
-//      not defined here as functions but as macros for the length of the include of the .hlsli, so that they cannot
-//      clash with anything.
+// floats, the arithmetic of a shader, saturate, step, smoothstep, lerp, frac, dot, length, normalize, pow, max, min,
+// abs, floor, sin and sqrt. Use: include every standard and project header FIRST, then this file, then
+// shaders/lighting.hlsli, then hlsl_shim_end.h. The names that the C++ library has too (pow, abs, max, min, floor, sin
+// and sqrt: MSVC and GCC declare some of them in the global namespace) are not defined here as functions but as macros
+// for the length of the include of the .hlsli, so that they cannot clash with anything.
 #pragma once
 
 #include <cmath>
@@ -80,7 +80,40 @@ inline float hlsl_min(float a, float b)
     return a < b ? a : b;
 }
 
+inline float hlsl_floor(float v)
+{
+    return std::floor(v);
+}
+inline float hlsl_sin(float v)
+{
+    return std::sin(v);
+}
+inline float hlsl_sqrt(float v)
+{
+    return std::sqrt(v);
+}
+inline float frac(float v)
+{
+    return v - std::floor(v);
+}
+inline float lerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+inline float3 lerp(const float3& a, const float3& b, float t)
+{
+    return a + (b - a) * t;
+}
+inline float smoothstep(float e0, float e1, float x)
+{
+    const float t = saturate((x - e0) / (e1 - e0));
+    return t * t * (3.0f - 2.0f * t);
+}
+
 #define pow(a, b) hlsl_pow((a), (b))
+#define floor(a) hlsl_floor((a))
+#define sin(a) hlsl_sin((a))
+#define sqrt(a) hlsl_sqrt((a))
 #define abs(a) hlsl_abs((a))
 #define max(a, b) hlsl_max((a), (b))
 #define min(a, b) hlsl_min((a), (b))

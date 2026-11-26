@@ -22,8 +22,14 @@
 //          Lamps: up to MAX_LAMPS point lights chosen by render/Lights.h), and the sky and the glow of the surface are added; the
 //          sum is bent by a soft shoulder (lighting.hlsli SoftShoulder) so that no lamp turns a wall into a white patch. A haze is
 //          scattered toward the sun. Glowing soft spheres (kMatHalo) are added to the picture over the lit lamps.
+// Style:   the light is not photographic (lighting.hlsli, "the style of the light"; docs/DESIGN.md 6.3): the sun falls in soft bands, the
+//          sun-less side takes a cool fill, clouds drift their shadows over the town, an edge has a rim, a lamp has rings and a warm
+//          edge, rays of light stand in the air (LightShafts: a march along the ray of sight through the shadow map), and the picture is
+//          graded (split tone, colour, a soft dark corner); the stone is painted with soft blotches and is damp near the water; the far
+//          haze leans to a colour. All of it comes from the seven registers at the end of cbuffer Frame (gradeParams2 and the six after it), set by
+//          render/LightingSettings.h (MakeStyle); with all of them 0 the light is the plain one (the debug view "plain").
 // KEEP IN SYNC: struct FrameConstants, struct ObjectConstants and struct LampConstants in src/render/Models.cpp (field for field;
-//          368, 160 and 1040 bytes), MAX_LAMPS with kMaxLamps in src/render/Lights.h, struct BatchVertex in
+//          464, 160 and 1040 bytes), MAX_LAMPS with kMaxLamps in src/render/Lights.h, struct BatchVertex in
 //          src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
 
 #include "common.hlsli"
@@ -56,7 +62,13 @@ cbuffer Frame : register(b0)
     float4x4 lightViewProj; // the world into the shadow map of the sun or the moon (render/ShadowMath.h)
     float4 shadowParams;    // x: one texel of the map (uv), y: depth bias (0 .. 1 along the light), z: normal offset (metres), w: strength (0: no shadow)
     float4 gradeParams;     // x: exposure, y: knee of the shoulder, z: debug view (0 normal, 1 no shadow, 2 no lamps, 3 the shadow, 4 the lamps), w: sun scatter
-    float4 gradeParams2;    // reserved
+    float4 gradeParams2;    // x: sun in bands (0 .. 1), y: rim strength, z: saturation, w: vignette
+    float4 styleCool;       // rgb: what the sky light of an unlit surface is multiplied by, a: how far
+    float4 styleLow;        // rgb: the grade of the darks, a: how much
+    float4 styleHigh;       // rgb: the grade of the lights, a: how much
+    float4 styleLight;      // x: the shadow of the clouds, y: the rings of a lamp, z: strength of the light shafts, w: their samples
+    float4 styleFar;        // rgb: what the haze is multiplied by far away, a: how far
+    float4 styleMisc;       // x: the painted blotches of the stone, y: the damp near the water, z: the contrast, w: reserved
 };
 
 cbuffer Lamps : register(b2)
@@ -68,6 +80,32 @@ cbuffer Lamps : register(b2)
 
 Texture2D<float> shadowMap : register(t0);
 SamplerComparisonState shadowSampler : register(s0);
+
+// The style of the light of this frame (lighting.hlsli StyleParams), from the registers of cbuffer Frame.
+StyleParams Style()
+{
+    StyleParams s;
+    s.toon = gradeParams2.x;
+    s.rim = gradeParams2.y;
+    s.saturation = gradeParams2.z;
+    s.vignette = gradeParams2.w;
+    s.contrast = styleMisc.z;
+    s.cool = styleCool.rgb;
+    s.coolAmount = styleCool.a;
+    s.low = styleLow.rgb;
+    s.lowAmount = styleLow.a;
+    s.high = styleHigh.rgb;
+    s.highAmount = styleHigh.a;
+    s.cloud = styleLight.x;
+    s.lampRings = styleLight.y;
+    s.shaft = styleLight.z;
+    s.shaftSteps = styleLight.w;
+    s.wash = styleMisc.x;
+    s.damp = styleMisc.y;
+    s.farTint = styleFar.rgb;
+    s.farAmount = styleFar.a;
+    return s;
+}
 
 // What the sun or the moon leaves of a surface: 1 lit, down to 1 - strength in a shadow. `ndl`: how squarely the light falls on it.
 float ShadowAt(float3 worldPos, float3 n, float ndl)
@@ -116,17 +154,74 @@ LampSum LampsAt(float3 p, float3 n, float3 v, float shine, float power)
     [loop]
     for (int i = 0; i < count; ++i)
     {
-        const LampLight one = LampShade(p, n, v, lampPos[i].xyz, lampPos[i].w, lampTint[i].xyz, shine, power);
+        const LampLight one = LampShadeStyled(p, n, v, lampPos[i].xyz, lampPos[i].w, lampTint[i].xyz, shine, power, styleLight.y);
         sum.diffuse += one.diffuse;
         sum.specular += one.specular;
     }
     return sum;
 }
 
-// The last step of every colour: the exposure, then the soft shoulder.
-float3 Finish(float3 c)
+// The place of a point of the world on the screen, -1 .. 1 (for the dark corner of the grade).
+float2 NdcOf(float3 worldPos)
 {
-    return SoftShoulder(c * gradeParams.x, gradeParams.y);
+    const float4 clip = mul(float4(worldPos, 1.0), viewProjection);
+    return clip.xy / max(clip.w, 1.0e-4);
+}
+
+// The last step of every colour: the exposure, the grade of the style (lighting.hlsli StyleGrade), then the soft shoulder.
+float3 Finish(float3 c, float2 ndc)
+{
+    return SoftShoulder(StyleGrade(c * gradeParams.x, Style(), ndc.x, ndc.y), gradeParams.y);
+}
+
+float LowMist(float y)
+{
+    return 1.0 - smoothstep(skyUpRay.w, skyUpRay.w + 19.0, y);
+}
+
+#define SHAFT_REACH 48.0 // UNITS: metres: how far along the ray of sight the light shafts are looked for (the shadow map is 60 m round)
+
+// A number 0 .. 1 that differs from pixel to pixel (interleaved gradient noise): it moves the samples along a ray, so that the steps of
+// the march do not show as bands.
+float PixelNoise(float2 pixel)
+{
+    return frac(52.9829189 * frac(dot(pixel, float2(0.06711056, 0.00583715))));
+}
+
+// The light of the sun (or the moon) that the air scatters toward the eye along a ray of sight: the ray is walked in `steps` samples from
+// the eye for `metres` (at most SHAFT_REACH), and each sample counts the light that the shadow map lets through at that point of the air.
+// Only a ray that crosses the edge of a shadow shows a shaft (lighting.hlsli ShaftEdge): the rays through the gaps between the buildings;
+// a ray that is all in the light is left to the fog. The air is thicker near the sea (LowMist). Points outside the shadow map count as lit. 0 when the style has no shafts, when there is no shadow map (the lantern's circle) or for
+// the debug views that show the light in parts.
+float3 LightShafts(float3 dir, float metres, float2 pixel)
+{
+    const float strength = styleLight.z;
+    const bool partView = (gradeParams.z > 0.5 && gradeParams.z < 1.5) || gradeParams.z > 2.5; // the views 1, 3, 4, 5 show no shafts
+    if (strength <= 0.0 || shadowParams.w <= 0.0 || partView)
+    {
+        return float3(0.0, 0.0, 0.0);
+    }
+    const int steps = clamp((int)(styleLight.w + 0.5), 1, 32);
+    const float reach = min(metres, SHAFT_REACH);
+    const float jitter = PixelNoise(pixel);
+    float sum = 0.0;
+    [loop]
+    for (int i = 0; i < steps; ++i)
+    {
+        const float3 p = eye + dir * (reach * ((float)i + jitter) / (float)steps);
+        const float4 lp = mul(float4(p, 1.0), lightViewProj);
+        const float2 uv = lp.xy * float2(0.5, -0.5) + float2(0.5, 0.5);
+        const float fade = ShadowEdgeFade(uv.x, uv.y);
+        float passed = 1.0;
+        if (fade > 0.0 && lp.z < 1.0 && lp.z > 0.0)
+        {
+            passed = shadowMap.SampleCmpLevelZero(shadowSampler, uv, lp.z - shadowParams.y);
+        }
+        const float air = (skyZenith.w > 0.5) ? lerp(0.35, 1.0, LowMist(p.y)) : 1.0;
+        sum += lerp(1.0, passed, fade) * air;
+    }
+    const float amount = strength * ShaftPhase(dot(dir, toLight)) * ShaftEdge(sum / (float)steps) * (reach / SHAFT_REACH);
+    return lightColor * amount;
 }
 
 float3 SkyGradient(float altitude)
@@ -150,12 +245,9 @@ float4 PSSky(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Target
     const float3 ray = normalize(skyForward.xyz + ndc.x * skyRight.xyz + ndc.y * skyUpRay.xyz);
     // Small ordered dither in linear light limits bands on the eight-bit target.
     const float dither = (frac(dot(floor(position.xy), float2(0.5, 0.25))) - 0.375) * 0.002;
-    return float4(saturate(Finish(AtmosphereColour(ray)) + dither), 1.0);
-}
-
-float LowMist(float y)
-{
-    return 1.0 - smoothstep(skyUpRay.w, skyUpRay.w + 19.0, y);
+    // the shafts of light seen against the open sky (through the gaps of the town), to the reach of the march
+    const float3 sky = AtmosphereColour(ray) + LightShafts(ray, SHAFT_REACH, position.xy);
+    return float4(saturate(Finish(sky, ndc) + dither), 1.0);
 }
 
 float SceneFog(float3 worldPos, out float3 colour)
@@ -265,6 +357,7 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     const float kind = input.knobs.x;
     const float opacity = saturate(input.knobs.w);
     const float3 p = input.worldPosition;
+    const float2 pixel = input.position.xy;
     const float3 albedo = input.tone.rgb;
     const float diffuse = saturate(dot(n, l));
     const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
@@ -337,7 +430,9 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     }
     float3 haze;
     const float fog = SceneFog(p, haze);
-    return float4(Finish(lerp(colour, haze, fog)), alpha);
+    haze = StyleHaze(haze, length(p - eye), Style());
+    const float3 shafts = LightShafts((p - eye) / max(length(p - eye), 1.0e-4), length(p - eye), pixel) * (1.0 - fog);
+    return float4(Finish(lerp(colour, haze, fog) + shafts, NdcOf(p)), alpha);
 }
 
 // The part of the light of the rim of the circle of the lantern: 1 at its edge, 0 a hand's breadth inside it. Discards
@@ -412,22 +507,33 @@ float4 PSMain(VSOut input) : SV_Target
         const float up = saturate(n.y * 2.0 - 1.0);
         albedo = lerp(albedo, float3(0.035, 0.07, 0.03), up * weathering * 0.55 * grain);
     }
+    // the style: the stone painted by hand and damp near the water (the city only: what keeps its own colour is left as it is)
+    const StyleParams style = Style();
+    if (input.tone.a > 0.5)
+    {
+        const float nearWater = (skyZenith.w > 0.5) ? LowMist(input.worldPosition.y) : 0.0;
+        albedo = PaintAlbedo(albedo, input.worldPosition, n, nearWater, style);
+    }
 
     // a sky above and a ground below: a surface that looks up gets more light than one that looks down, and a face turned away from the light is dark but not black
     const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
     const float diffuse = saturate(dot(n, l));
     const float shine = pow(saturate(dot(n, h)), max(input.knobs.z, 1.0)) * input.knobs.y * step(0.0001, diffuse);
-    // the shadow of the sun or the moon, and the lamps of the moment (the debug views of gradeParams.z leave one of them out)
+    // the shadow of the sun or the moon and of the clouds, and the lamps of the moment (the debug views of gradeParams.z leave one of them out)
     const int view = (int)(gradeParams.z + 0.5);
-    const float sun = (view == 1) ? 1.0 : ShadowAt(input.worldPosition, n, diffuse);
+    float sun = 1.0;
+    if (view != 1)
+    {
+        sun = ShadowAt(input.worldPosition, n, diffuse) * CloudShade(input.worldPosition, l, time, style.cloud);
+    }
     if (view == 3)
     {
         return float4(sun, sun, sun, 1.0);
     }
     const LampSum lamps = LampsAt(input.worldPosition, n, v, input.knobs.y, input.knobs.z);
-    // glow: light of its own (a lamp, a hint, an orb), the same in both layers and on every side
-    float3 shaded = albedo * skyLight + albedo * lightColor * (diffuse * sun) + lightColor * (shine * sun) +
-                    albedo * input.knobs.w + albedo * lamps.diffuse + lamps.specular;
+    // glow: light of its own (a lamp, a hint, an orb), the same in both layers and on every side. The city has less rim than what keeps its own colour.
+    const float rimScale = input.tone.a > 0.5 ? 0.35 : 1.0;
+    float3 shaded = StyleShade(albedo, n, l, v, skyLight, lightColor, sun, shine, input.knobs.w, lamps.diffuse, lamps.specular, rimScale, style);
     if (view == 4)
     {
         shaded = albedo * lamps.diffuse + lamps.specular;
@@ -435,5 +541,10 @@ float4 PSMain(VSOut input) : SV_Target
     // fog: what is far melts into the background; a thing that glows is seen through more of it (a lamp in the mist)
     float3 haze;
     const float fog = SceneFog(input.worldPosition, haze) * (1.0 - 0.75 * saturate(input.knobs.w));
-    return float4(Finish(lerp(shaded, haze, fog)), 1.0);
+    const float3 offset = input.worldPosition - eye;
+    const float metres = length(offset);
+    haze = StyleHaze(haze, metres, style);
+    // the light shafts: the light of the sun scattered by the air between the eye and this point, added in front of the fog
+    const float3 shafts = LightShafts(offset / max(metres, 1.0e-4), metres, input.position.xy) * (1.0 - fog);
+    return float4(Finish(lerp(shaded, haze, fog) + shafts, NdcOf(input.worldPosition)), 1.0);
 }

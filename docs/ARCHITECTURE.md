@@ -72,7 +72,7 @@ that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `
 | `scene/TownEffects.h` | the sea round the eye and the ring of a return |
 | `render/Hud.h` | the overlay of one frame |
 | `render/Lights.h`, `scene/Lamps.h` | the point lights: the choice of the 32 for a frame (the moment, the distance, the flicker); the lamps of the town file, the lantern, the lamps that bells light, and the halos |
-| `render/ShadowMath.h`, `render/LightingSettings.h` | the matrix of the shadow box on the texel grid; every number of `[lighting]` |
+| `render/ShadowMath.h`, `render/LightingSettings.h` | the matrix of the shadow box on the texel grid; every number of `[lighting]`, the looks of A and B (`StyleLookOf`) and their registers (`MakeStyle`) |
 
 ## The town
 
@@ -152,7 +152,8 @@ The model shader (`shaders/models.hlsl`) lights a surface with five terms: the s
 - Lamps: the town's lamps come from the file (`TownData::lamps`; the model writes one for each lantern it builds, `city_model.py lamp`), the moving ones from `MovingLamps` every frame. `SelectLamps` (`render/Lights.h`) takes for each moment the 32 that light the surroundings of the camera most (strength, distance, range), fades a lamp out with distance and gives it its flicker; they go to the constant buffer `Lamps` (b2) and the shader adds `LampShade` for each: a diffuse term and a highlight, falling with the inverse square and ending exactly at the range of the lamp.
 - Halos: `AddHalos` makes a soft sphere (`kMatHalo`) for each of the nearest lamps; `Models` draws them after the water, added to the picture (an additive blend, depth tested and not written, both sides), and the shader gives them a strength that falls to 0 at their rim and into the fog.
 - The haze: the fog colour gets the light of the sun scattered toward the sun (`SunScatter`).
-- Debug: the key L cycles the debug view of `gradeParams.z` in the frame buffer: everything, no shadows, no lamps, only the shadow, only the lamps.
+- Style: the pixel shader builds a `StyleParams` (`lighting.hlsli`, "the style of the light") from the seven registers that end the frame buffer (`gradeParams2`, `styleCool`, `styleLow`, `styleHigh`, `styleLight`, `styleFar`, `styleMisc`; 464 bytes in all) and every part is a function of that file that `tests/test_style.cpp` runs as C++: `ToonRamp`, `CloudShade`, `RimTerm`, `LampShadeStyled` (`LampRings`, `LampWarmth`), `PaintAlbedo`, `StyleShade` (the plain sum with the cool fill and the rim), `StyleHaze`, `StyleGrade` (`StyleContrast`, the tones, the saturation, the dark corner; it comes before `SoftShoulder` in `Finish`) and `ShaftPhase`. The one part that needs the shadow map is `LightShafts` in `models.hlsl`: it walks the ray of sight from the eye to the surface (to 48 m) in `shaft_steps` samples, moved by a noise per pixel, and adds the light that the map lets through, thicker near the sea; the sky pass does the same along the ray into the sky. `render/LightingSettings.h` turns `[lighting]` into those registers (`MakeStyle`; the colours of the cool fill, the tones and the haze of A and B are `StyleLookOf`), and `Models::DrawObjects` copies them into the frame buffer. All of it is 0 in the view "plain".
+- Debug: the key L cycles the debug view of `gradeParams.z` in the frame buffer: everything, no shadows, no lamps, only the shadow, only the lamps, plain (the style left out: `MakeStyle` with `plain` true gives all zeros).
 
 ## Collision and the walking body
 

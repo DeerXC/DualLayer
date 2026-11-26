@@ -111,11 +111,16 @@ class Models
         m_movingLamps = lamps;
     }
 
-    /// What the picture shows instead of the whole light: 0 everything, 1 no shadows, 2 no lamps, 3 only the shadow of
-    /// the sun, 4 only the lamps. Anything else is 0.
+    /// The views of the light (key L): 0 everything, 1 no shadows, 2 no lamps, 3 only the shadow of the sun, 4 only the
+    /// lamps, 5 plain (the light without its style: the bands, the cool fill, the clouds, the rim, the rings of the
+    /// lamps, the shafts and the grade are left out).
+    static constexpr int kDebugViewPlain = 5;
+    static constexpr int kDebugViewCount = 6;
+
+    /// What the picture shows instead of the whole light (the views above). Anything else is 0.
     void SetDebugView(int view)
     {
-        m_debugView = view >= 0 && view <= 4 ? view : 0;
+        m_debugView = view >= 0 && view < kDebugViewCount ? view : 0;
     }
     int DebugView() const
     {

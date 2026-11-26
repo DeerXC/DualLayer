@@ -41,8 +41,8 @@ constexpr float kMapOfferSeconds =
     40.0f; // UNITS: seconds of walking before M is offered to a player who has not opened the map
 constexpr float kMarkerHeight = 16.0f; // UNITS: metres: a marker stands in the world as a column of light this tall
 constexpr float kMarkerGrab = 10.0f; // UNITS: pixels: a marker this close to the pointer is the one that is taken away
-constexpr const char* kLightViewNames[5] = {"full", "no shadow", "no lamps", "shadow",
-                                            "lamps"}; // key L: what the picture shows
+constexpr const char* kLightViewNames[Models::kDebugViewCount] = {"full",  "no shadow", "no lamps", "shadow",
+                                                                  "lamps", "plain"}; // key L: what the picture shows
 static_assert(kFarPlane <= town::kViewDistance,
               "scene/TownEffects.h kViewDistance must reach the far plane: the sea is sized by it");
 
@@ -367,7 +367,8 @@ void TownSession::ReadKeys(Frame& frame)
     frame.resetPressed = input::PressedOnce('R', m_resetDown, focused);
     if (input::PressedOnce('L', m_lightDown, focused))
     {
-        m_lightView = (m_lightView + 1) % 5; // everything, no shadows, no lamps, only the shadow, only the lamps
+        // everything, no shadows, no lamps, only the shadow, only the lamps, the plain light (no style)
+        m_lightView = (m_lightView + 1) % Models::kDebugViewCount;
         m_gpu.models.SetDebugView(m_lightView);
         DL_LOG_INFO("Main", "light: %s", kLightViewNames[m_lightView]);
     }
