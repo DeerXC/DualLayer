@@ -38,10 +38,18 @@ inline constexpr float kMatFlow =
 inline constexpr float kMatSea = 4.0f;     ///< the sea (long swells, white crests)
 inline constexpr float kMatWetBand = 5.0f; ///< the dark wet band left on walls when water goes down (its sides only)
 inline constexpr float kMatFoam = 6.0f;    ///< foam: the rim of a surface, the foot of a fall, splash rings and drops
+inline constexpr float kMatHalo =
+    7.0f; ///< a soft glow round a lamp: a sphere added to the picture, its `glow` the strength (docs/DESIGN.md 6.3)
 
 constexpr bool IsWaterMaterial(float checker)
 {
-    return checker > 1.5f;
+    return checker > 1.5f && checker < 6.5f;
+}
+
+/// A halo is drawn after the water, added to what is behind it (no blending by alpha), not lit, and casts no shadow.
+constexpr bool IsHalo(float checker)
+{
+    return checker > 6.5f;
 }
 
 struct SceneObject

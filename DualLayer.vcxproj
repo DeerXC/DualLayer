@@ -111,6 +111,8 @@
     <ClInclude Include="src\render\GpuDebug.h" />
     <ClInclude Include="src\render\Hud.h" />
     <ClInclude Include="src\render\LayerRipple.h" />
+    <ClInclude Include="src\render\LightingSettings.h" />
+    <ClInclude Include="src\render\Lights.h" />
     <ClInclude Include="src\render\MapView.h" />
     <ClInclude Include="src\render\MeshData.h" />
     <ClInclude Include="src\render\Models.h" />
@@ -119,10 +121,12 @@
     <ClInclude Include="src\render\OverlayBatch.h" />
     <ClInclude Include="src\render\Projection.h" />
     <ClInclude Include="src\render\ShaderCompiler.h" />
+    <ClInclude Include="src\render\ShadowMath.h" />
     <ClInclude Include="src\render\StaticBatch.h" />
     <ClInclude Include="src\scene\Emblems.h" />
     <ClInclude Include="src\scene\Flame.h" />
     <ClInclude Include="src\scene\Guidance.h" />
+    <ClInclude Include="src\scene\Lamps.h" />
     <ClInclude Include="src\scene\Lantern.h" />
     <ClInclude Include="src\scene\LayerGuard.h" />
     <ClInclude Include="src\scene\MapMemory.h" />
@@ -141,6 +145,7 @@
   <ItemGroup>
     <!-- shaders are compiled at run time by the game (hot reload comes later): VS must NOT compile them -->
     <None Include="shaders\common.hlsli" />
+    <None Include="shaders\lighting.hlsli" />
     <None Include="shaders\models.hlsl" />
     <None Include="shaders\overlay.hlsl" />
     <None Include="shaders\ripple.hlsl" />

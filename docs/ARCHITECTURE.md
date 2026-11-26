@@ -13,7 +13,7 @@ WinMain > RunApp
   frame:  TownSession::Run
           1. Window::PumpMessages
           2. lost device (or F9)   > RecoverDevice, Gpu::Recover: every GPU object made again on a new Device; the town and the body stay
-          3. F5                    > ReloadConfig: the config, the themes of the moments, the settings of the body and of the guidance
+          3. F5                    > ReloadConfig: the config, the themes of the moments, the lighting, the settings of the body and of the guidance
           4. resize                > Device::Resize
           5. LookWithMouse, ReadKeys   > the mouse turns the camera (not while the map is open); Z X N F toggles; the edges of Space, E, R and H
              MapKeys                > M opens and closes the map; inside it Tab turns the sheet, E marks; the game stands still
@@ -27,8 +27,9 @@ WinMain > RunApp
              PushFlyingCamera (flying)  > Moments::PushOut on the camera ball
           9. UpdateGuidance        > the goal and the progress of the flame (scene/Guidance.h); what the body has seen (MapMemory)
          10. BuildDrawTable        > the sea round the eye, the lamps of the signal mast, the lantern and its flame, the things and
-                                     their traces, the ring of a return, the markers, the beam or the frame of H, the avatar > Models::SetObjects
-         11. Render                > Device::BeginFrame, Models::Draw (one moment, or the ripple), Overlay::Draw (BuildHud: the
+                                     their traces, the ring of a return, the markers, the beam or the frame of H, the avatar, the halos of the lamps > Models::SetObjects;
+                                     the lamps that move (scene/Lamps.h MovingLamps: the lantern, the lit lamps of the mast, the lamps of the bells rung) > Models::SetMovingLamps
+         11. Render                > Device::BeginFrame, Models::Draw (the shadow map and the picture of one moment, or the ripple), Overlay::Draw (BuildHud: the
                                      prompt, the status line; BuildMap over it when the map is open), Device::EndFrame (Present)
          12. UpdateTitle           > adapter, speed, body, moment, place, bells, steps, falls
   end:    Gpu::Shutdown (Models, Overlay, Device: the debug layer reports leaks), log closed
@@ -42,9 +43,10 @@ What is drawn and what is solid come from the same data in the same frame, so th
 main
  +- app      AppConfig, Gpu, Input, TownSession                                                    > render, scene, core
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug,
-             Overlay, OverlayBatch, Font5x7, StaticBatch, Hud, MapView                              > core, scene (data only)
+             Overlay, OverlayBatch, Font5x7, StaticBatch, Hud, MapView, Lights, ShadowMath,
+             LightingSettings                                                                       > core, scene (data only)
  +- scene    Camera, SceneData, TriMath, TriMesh, Moments, Player, TownPlayer, Town, Lantern,
-             Things, Guidance, Flame, Emblems, MapMemory, LayerGuard, Prompts, TownEffects         > standard library only
+             Things, Guidance, Flame, Emblems, Lamps, MapMemory, LayerGuard, Prompts, TownEffects     > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -69,13 +71,15 @@ that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `
 | `scene/Prompts.h` | the one key prompt, chosen from the state of the game |
 | `scene/TownEffects.h` | the sea round the eye and the ring of a return |
 | `render/Hud.h` | the overlay of one frame |
+| `render/Lights.h`, `scene/Lamps.h` | the point lights: the choice of the 32 for a frame (the moment, the distance, the flicker); the lamps of the town file, the lantern, the lamps that bells light, and the halos |
+| `render/ShadowMath.h`, `render/LightingSettings.h` | the matrix of the shadow box on the texel grid; every number of `[lighting]` |
 
 ## The town
 
 The layout model `tools/layout/city_model.py` writes the town as data: `python tools/layout/city_model.py export` checks the
 model and writes `data/town.dlt` (the format is in the docstring of its `export`). `scene/Town.h` reads it: the lights of the
 two moments, the materials (an sRGB colour in A and in B, and whether it shines), the stations of the main path, the middle
-lines of the streets, and the polygons of the town with their moment and their kind (solid, terrain, overlay, water).
+lines of the streets, the lamps, and the polygons of the town with their moment and their kind (solid, terrain, overlay, water).
 
 - Drawn: `TownData::BakeLayer` gives one batch per moment, each polygon as a fan of triangles with one normal (Newell's), from
   both sides because the model's polygons have no fixed winding (the terrain and a surface of water only from above). The
@@ -114,7 +118,7 @@ gives the city (objects of both layers that do not glow) the tint and the weathe
 its distance into the background colour; glowing things are seen through more of the fog. In the town, the renderer
 also draws a world-aligned sky before the opaque scene, using the same full-screen triangle vertex shader as the
 ripple. Each ripple target gets its own sky; the local lantern pass changes only geometry and water. The 256-byte
-frame buffer carries the camera axes, sky colour and low-mist parameters. Opaque objects and water share the same
+frame buffer carries the camera axes, sky colour and low-mist parameters, the matrix of the shadow box and the exposure. Opaque objects and water share the same
 distance and height haze.
 
 `LayerRipple` keeps the timing of a switch. While no ripple runs, one layer is drawn straight to the back buffer. During a
@@ -139,6 +143,16 @@ what is under a surface shows through it and one surface never hides another. Th
 (waves, the sky, the sun, streaks, foam). A body that goes into water sinks for `kSinkSeconds` before it comes back, and the view
 is tinted under the surface (`BuildHud`). `TownData::Submerged` answers whether a point is under the water of a moment, with the
 circle of the lantern.
+
+## Light
+
+The model shader (`shaders/models.hlsl`) lights a surface with five terms: the sky light (a hemisphere, lighter above than below), the sun of A or the moon of B (Lambert, times the shadow), a highlight, the glow of the surface itself, and the lamps of the moment. The sum is faded into the fog and goes through the soft shoulder (`Finish`: the exposure, then `SoftShoulder` of `shaders/lighting.hlsli`). The maths that needs no texture and no buffer is in `lighting.hlsli`, written in the part of HLSL that is also C++, so that `tests/test_lighting.cpp` runs it.
+
+- Shadow: `Models::DrawObjects` first draws the casters of the moment into one depth texture (`CreateShadowMap`: 32 bit, a depth view and a shader view) with the same two vertex shaders as the picture and no pixel shader, seen from the light with the matrix of `FitSunShadow` (`render/ShadowMath.h`: an orthographic box that follows the camera and moves on the texel grid). The pass draws both sides, is not clipped by the near plane of the box, and puts back the render target and the viewport it found. The picture then reads the map (t0, a comparison sampler, 3 x 3 taps of a hardware 2 x 2 comparison) after a move of the surface along its normal; the shadow fades out over the last tenth of the map. In the circle of the lantern (the part of B that shows A) there is no shadow. A map that cannot be made switches the shadows off (the log says so) and nothing else changes.
+- Lamps: the town's lamps come from the file (`TownData::lamps`; the model writes one for each lantern it builds, `city_model.py lamp`), the moving ones from `MovingLamps` every frame. `SelectLamps` (`render/Lights.h`) takes for each moment the 32 that light the surroundings of the camera most (strength, distance, range), fades a lamp out with distance and gives it its flicker; they go to the constant buffer `Lamps` (b2) and the shader adds `LampShade` for each: a diffuse term and a highlight, falling with the inverse square and ending exactly at the range of the lamp.
+- Halos: `AddHalos` makes a soft sphere (`kMatHalo`) for each of the nearest lamps; `Models` draws them after the water, added to the picture (an additive blend, depth tested and not written, both sides), and the shader gives them a strength that falls to 0 at their rim and into the fog.
+- The haze: the fog colour gets the light of the sun scattered toward the sun (`SunScatter`).
+- Debug: the key L cycles the debug view of `gradeParams.z` in the frame buffer: everything, no shadows, no lamps, only the shadow, only the lamps.
 
 ## Collision and the walking body
 

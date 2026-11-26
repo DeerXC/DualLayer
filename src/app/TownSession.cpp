@@ -7,6 +7,7 @@
 #include "render/Hud.h"
 #include "render/Projection.h"
 #include "scene/Emblems.h"
+#include "scene/Lamps.h"
 #include "scene/Prompts.h"
 #include "scene/TownEffects.h"
 #include "scene/TownPlayer.h"
@@ -40,6 +41,8 @@ constexpr float kMapOfferSeconds =
     40.0f; // UNITS: seconds of walking before M is offered to a player who has not opened the map
 constexpr float kMarkerHeight = 16.0f; // UNITS: metres: a marker stands in the world as a column of light this tall
 constexpr float kMarkerGrab = 10.0f; // UNITS: pixels: a marker this close to the pointer is the one that is taken away
+constexpr const char* kLightViewNames[5] = {"full", "no shadow", "no lamps", "shadow",
+                                            "lamps"}; // key L: what the picture shows
 static_assert(kFarPlane <= town::kViewDistance,
               "scene/TownEffects.h kViewDistance must reach the far plane: the sea is sized by it");
 
@@ -186,6 +189,7 @@ TownSession::TownSession(Window& window, Gpu& gpu, Config& config, Camera& camer
     m_things.ApplyTo(m_moments);
     m_things.ApplyTo(m_plain);
     m_guidance.Init(m_town, ReadGuidanceSettings(m_config));
+    m_townLamps = town::TownLamps(m_town);
     m_memory.Init(m_town.plan, ReadMapRevealRadius(m_config));
     m_player.SetTown(&m_moments);
     m_player.SetSpawn(m_town.spawn);
@@ -300,6 +304,7 @@ void TownSession::ReloadConfig()
 {
     LoadConfig(m_config, m_camera);
     m_gpu.models.LoadThemes(m_config);
+    m_gpu.models.LoadLighting(m_config);
     ApplyTownThemes(m_gpu.models, m_town);
     m_gpu.device->SetVsync(m_config.GetBool("render", "vsync", true));
     ApplyPlayerConfig(m_config, m_player);
@@ -360,6 +365,12 @@ void TownSession::ReadKeys(Frame& frame)
     frame.usePressed =
         input::PressedOnce('E', m_useDown, focused); // walking: the lantern or a thing; in the map: a marker
     frame.resetPressed = input::PressedOnce('R', m_resetDown, focused);
+    if (input::PressedOnce('L', m_lightDown, focused))
+    {
+        m_lightView = (m_lightView + 1) % 5; // everything, no shadows, no lamps, only the shadow, only the lamps
+        m_gpu.models.SetDebugView(m_lightView);
+        DL_LOG_INFO("Main", "light: %s", kLightViewNames[m_lightView]);
+    }
     if (input::PressedOnce('H', m_hintDown, focused) && !m_mapOpen)
     {
         m_guidance.Press(); // the lantern raised and a beam over the place; again, and the thing to use
@@ -694,6 +705,8 @@ void TownSession::BuildDrawTable(const Frame& frame)
     const float sy = std::sin(m_avatarYaw);
     const float cy = std::cos(m_avatarYaw);
     const Vec3 feet = m_player.Feet();
+    Vec3 lanternAt{feet.x, feet.y + 1.2f,
+                   feet.z}; // where the light of the lantern is: in the hand, else over the feet (first person)
     const Vec3 hand{feet.x + sy * 0.45f + cy * 0.31f, feet.y + 1.3f, feet.z + cy * 0.45f - sy * 0.31f};
     drawn = m_guidance.AddDraw(table, drawn, kDrawCapacity, m_clock, hand);
     if (frame.orbit)
@@ -713,8 +726,20 @@ void TownSession::BuildDrawTable(const Frame& frame)
         {
             const town::Flame flame = m_guidance.FlameFrom(feet);
             drawn = town::AddTownAvatar(table, drawn, kDrawCapacity, m_player, m_avatarYaw, m_gaitPhase, m_gaitAmount,
-                                        m_lantern.Carried(), &flame, m_guidance.Raise(), m_clock);
+                                        m_lantern.Carried(), &flame, m_guidance.Raise(), m_clock, &lanternAt);
         }
+    }
+    // the light: the lantern, the lit lamps of the mast and the bells go to the renderer, and a soft glow is drawn
+    // round every lamp near
+    town::MovingLamps(m_town, m_things, m_lantern, lanternAt, m_movingLamps);
+    m_gpu.models.SetMovingLamps(m_movingLamps);
+    const LightingSettings& light = m_gpu.models.Lighting();
+    if (light.halos)
+    {
+        const Vec3 at = m_camera.Position();
+        const float eyeAt[3] = {at.x, at.y, at.z};
+        drawn = town::AddHalos(m_townLamps, m_movingLamps, eyeAt, light.haloA, light.haloB, m_gpu.models.Time(), table,
+                               drawn, kDrawCapacity);
     }
     m_gpu.models.SetObjects(table, drawn);
 }
@@ -775,18 +800,18 @@ void TownSession::UpdateTitle(const Frame& frame)
     // the words "layer", "walk", "fly", "noclip" and "quay" are part of the contract.
     const Vec3 body = frame.walking ? m_player.Eye() : m_camera.Position();
     const wchar_t* mode = m_collide ? (m_walk ? L"collide | walk" : L"collide | fly") : L"noclip";
-    wchar_t title[460];
+    wchar_t title[520];
     swprintf_s(
         title,
         L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | body %.1f %.1f %.1f | %s | %s | town: %hs | bells %d of %d | "
-        L"lamps %d of %d | steps %d of %d | falls %d%s%s",
+        L"lamps %d of %d | steps %d of %d | falls %d | light %hs%s%s",
         m_gpu.device->AdapterName().c_str(), m_gpu.device->Width(), m_gpu.device->Height(),
         static_cast<double>(m_fpsFrames) / m_fpsTimer, 1000.0 * m_fpsTimer / static_cast<double>(m_fpsFrames),
         static_cast<double>(body.x), static_cast<double>(body.y), static_cast<double>(body.z),
         m_gpu.models.StatusLine().c_str(), mode, m_town.NearestPlace(body.x, body.z), m_things.BellsRung(),
         m_things.BellCount(), town::LitEmblems(m_town, m_things), static_cast<int>(m_town.emblems.size()),
-        m_guidance.Done(), static_cast<int>(m_town.steps.size()), m_falls, m_mapOpen ? L" | map" : L"",
-        m_window.MouseCaptured() ? L"" : (m_mapOpen ? L"" : L" | click for mouse look"));
+        m_guidance.Done(), static_cast<int>(m_town.steps.size()), m_falls, kLightViewNames[m_lightView],
+        m_mapOpen ? L" | map" : L"", m_window.MouseCaptured() ? L"" : (m_mapOpen ? L"" : L" | click for mouse look"));
     m_window.SetTitle(title);
     m_fpsTimer = 0.0;
     m_fpsFrames = 0;

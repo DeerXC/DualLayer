@@ -31,6 +31,7 @@ Controls and checks apply to the current build. The lens, the beacons, the three
 | E | (walking, in the town) at a gold handle in A, open its thing (the prompt says OPEN; in B a handle does nothing); else set the lantern down a step ahead, in A only (the prompt says PUT DOWN), or take it up within reach (TAKE). In the greybox map: take the orb in reach, or put the held one down one step ahead (on a socket, a plate or a hole when near one; the prompt says TAKE, PUT DOWN or PLACE). At a lit lamp after the first bell: the list of lamps (A / D choose, E travels, W / S / Space close) |
 | R | back to the last place the body stood still on |
 | H | ask the lantern for more help: the lantern is raised and a warm beam sweeps over the place for 6 s; pressed again during the sweep after 90 s without progress, a frame shows round the thing to use. The flame over the lantern always leans toward the next thing to do (it leans further, with sparks, after 30 s without progress) |
+| L | look at the light in parts (the title bar says which): everything, no shadows, no lamps, only the shadow of the sun or the moon (white where it reaches, grey in a shadow), only the lamps |
 | M | open the map: two sheets of tracing paper, the past (warm) over the present (cool); the game stands still behind it, the pointer is free. In the map: Tab turns the other sheet to the top, E puts a marker where the pointer is (or takes the one there away; five at most), M or Esc closes it |
 | F | walking / flying |
 | Q / E | down / up (flying) |
@@ -74,6 +75,10 @@ no sense are pulled into a working range.
 | `[debug]` | `device_reset_key` (false) | F9 tests the device recovery |
 | `[guidance]` | `enabled` (true), `lean_degrees` (18), `lean_idle_degrees` (40), `idle_seconds` (30), `sweep_seconds` (6), `ghost_after_seconds` (90), `ghost_seconds` (12) | the flame of the lantern and H: how far the flame leans toward the goal, how far and after how long without progress it grows restless, how long the beam stays, when the second press shows the thing to use and for how long |
 | `[map]` | `reveal_radius` (15) | metres round the body that the map shows |
+| `[lighting]` | `shadows` (true), `shadow_size` (2048), `shadow_radius` (60), `shadow_strength` (0.85), `shadow_bias` (3), `shadow_normal` (1.5) | the shadow map of the sun and the moon: texels along a side (512 .. 4096), metres round the camera, how much of the direct light a shadow takes, the depth bias and the normal offset in texels |
+| | `point_lights` (true), `lamps_a` (0.55), `lamps_b` (1), `lantern` (1) | the lamps of the town, in A and in B, and the lantern of the traveller with the lamps that the bells light |
+| | `sun_a` (1), `sun_b` (0.8), `ambient_a` (1), `ambient_b` (0.9), `sun_scatter` (0.25) | the light of the sun and of the moon, the sky light of each, the haze toward the sun |
+| | `exposure` (1), `knee` (0.78), `halos` (true), `halo_a` (0.35), `halo_b` (1) | the exposure and the knee of the soft shoulder; the glow round the lit lamps and its strength in each moment |
 
 The town is data made by the layout model. After a change of `tools/layout/city_model.py`, write it again (Python 3, numpy,
 matplotlib; about a minute):
@@ -96,7 +101,7 @@ It starts from any PowerShell, finds the project and the Visual Studio build too
    incremental build would then keep the old exe. `-Fast` builds incrementally; the time check still runs;
 3. the game, with a fresh `logs\dual.log`: it starts on the quay of the harbour, walks along it, jumps with Space held, switches walking and
    flying, switches layers (also during a resize), turns collision off and on, closes, and reads the title bar and the log
-   (no error, the ripple pictures were made, a normal end, no fall, the jump height). It presses keys for about 35 seconds:
+   (no error, the ripple pictures were made, the shadow map was made, the title bar says light full, a normal end, no fall, the jump height). It presses keys for about 35 seconds:
    the keyboard and the mouse must stay untouched. No key is left down, even when the script is stopped;
 4. the repository: nothing that must not be uploaded (build output, logs, private files, `config/local.ini`, one-time
    scripts `tools\apply_*` / `fix_*` / `docs_*` / `add_*`, files over 50 MB), and whether the hooks are on.
@@ -155,6 +160,10 @@ seen".
 | E-18 | H | press H; wait 7 s; stand still for 95 s, then press H twice | the arm raises the lantern and a warm beam swings over the place and settles toward the winch, and ends by itself; after the long wait the second press shows a faint frame round the winch with a line of motes to the lantern (12 s); a press while it shows puts it away |
 | E-19 | The bells | ring the day bell in the market (E at its rope in A); look at the mast from the quay | the title bar says lamps 1 of 3; the lamp of the well (the sphere, on the left) glows warm, the other two stay dark; it glows in B as well |
 | E-20 | The map | press M at the start; walk to the sea stair; press M, Tab, E with the pointer on the paper, M | the paper is blank but for a disc round the arrow and the tower north of it with three dark squares; Tab turns the other sheet to the top (the frame changes colour; the world does not switch); E plants a flag and, once closed, a thin column of light stands in the world (in A and in B); E on the flag takes it away; M closes and the mouse looks again; opening it at the west bastion reveals the town far round |
+| E-21 | The light | start and touch nothing; press L four times, then once more | the title bar says light no shadow, no lamps, shadow, lamps and then full again; in "shadow" the quay is white and the traveller, the heap of wreck, the sea wall and the posts leave grey shadows that all lie the same way; in "lamps" only the warm pool of the lantern near the feet and the lit lamps along the sea stair show; no speckle (acne) on the stone, no shadow floating away from its object |
+| E-22 | The shadows | in A walk along the quay and up the sea stair and turn the camera slowly; Tab; walk and turn again | the shadows of A are long and low (the sun is low), those of B short and steeper (the moon is high); they do not crawl or shimmer when the body walks or the camera turns; their edges are soft; they end softly toward the far town, not with a line; the shadow of the traveller follows the traveller |
+| E-23 | The lamps | in B walk the sea stair and the lower street; E in A sets the lantern down, Tab, walk 6 m away, E calls it back | the lit lamps of the path are warm pools about 14 m across with a soft glow round each, in A all lamps are lit and weaker; the lantern lights the stone round the traveller and flickers; set down it stays with its circle; no lamp blinks on or off as the body walks; a bell rung lights its lamp on the mast and the tower under it |
+| E-24 | The exposure | stand with the sun of A in the picture, then in the light of a lamp of B; edit `[lighting]` (`exposure`, `knee`, `lamps_b`, `shadows = false`) and press F5 | no wall is a flat white patch; the pool of a lamp keeps its hue; the edits take effect at once and the game goes on; note the frame time on the laptop with and without shadows (the shadow pass draws the town a second time) |
 
 Only when the device recovery is touched: `[debug] device_reset_key = 1`, F5, press F9 during a ripple. The picture goes on
 after a short flicker and the log says `recovered (1 of at most 5)`.

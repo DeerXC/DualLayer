@@ -273,6 +273,7 @@ else
                 # ---- walking (Q-15 .. Q-18)
                 Add-Result "walking is the default (Q-15)" (Verdict ((Get-Title $proc) -like "*walk*")) "the title bar says walk"
                 Add-Result "three dark lamps (first minute)" (Verdict ((Get-Title $proc) -like "*lamps 0 of 3*")) "the title bar says lamps 0 of 3"
+                Add-Result "light on (E-21)" (Verdict ((Get-Title $proc) -like "*light full*")) "the title bar says light full (the shadows, the lamps and the shoulder are in the picture)"
                 Hold-Key 0x44 800    # D held for 0.8 s: about 3.5 m to the right, east-north-east along the quay (the start looks north-west, at the heap of B and the sea gate; S would walk off the edge of the quay)
                 Start-Sleep -Milliseconds 700
                 $p1 = Get-BodyPos $proc
@@ -364,6 +365,11 @@ else
         elseif ($warns.Count -gt 0) { Add-Result "log" "WARN" ("0 errors, {0} warning(s): read them in logs\dual.log" -f $warns.Count) }
         else { Add-Result "log" "OK" "0 errors, 0 warnings, the ripple pictures were made" }
         Add-Result "no fall in the prologue" (Verdict ($falls.Count -eq 0)) ("{0} fall(s) in the log" -f $falls.Count)
+        $shadowMap = @($log | Where-Object { $_ -match "shadow map: \d+ x \d+" })
+        $shadowOff = @($log | Where-Object { $_ -match "could not be made .*no shadows" })
+        if ($shadowOff.Count -gt 0) { Add-Result "shadow map" "WARN" "the shadow map could not be made: the game ran without shadows (read logs\dual.log)" }
+        elseif ($shadowMap.Count -gt 0) { Add-Result "shadow map" "OK" $shadowMap[0].Trim() }
+        else { Add-Result "shadow map" "WARN" "no shadow map line in the log: shadows off in [lighting]?" }
         if ($jumpTried)
         {
             $peaks = @($log | Where-Object { $_ -match "jump peak [0-9.]+ m" })

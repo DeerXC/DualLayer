@@ -21,13 +21,23 @@
 // (render/StaticBatch.h),
 //            given once by SetStaticTown / SetStaticWater and drawn with one call per layer. The baked lists are kept
 //            on the CPU, so a new device after a lost one makes the buffers again by itself.
+// Light:     the sun of A and the moon of B cast shadows into a shadow map (an orthographic box that follows the
+// camera, drawn with the
+//            same shaders and no pixel shader: render/ShadowMath.h), the lamps of the moment (render/Lights.h: the
+//            fixed lamps of the town and the moving ones, at most kMaxLamps chosen every frame) light every surface,
+//            the sum is bent by a soft shoulder, and the halos (kMatHalo objects) are added over the lit lamps. All of
+//            it is set by LightingSettings ([lighting] in the config); a shadow map that cannot be made switches the
+//            shadows off and the rest goes on.
 // Keys:      main.cpp reads the keyboard (focus rules live there) and calls ToggleWireframe / CycleDetail /
 // ToggleLayer. Threading: main thread only.
 #pragma once
 
 #include "core/Config.h"
 #include "render/LayerRipple.h"
+#include "render/LightingSettings.h"
+#include "render/Lights.h"
 #include "render/MeshData.h"
+#include "render/ShadowMath.h"
 #include "render/StaticBatch.h"
 #include "scene/SceneData.h"
 
@@ -78,6 +88,58 @@ class Models
     /// Reads [layer_a], [layer_b] and [ripple] from the config. A missing key keeps the built-in value, so the program
     /// works without any of them. Call it after Init and again when F5 reloads the config.
     void LoadThemes(const Config& config);
+
+    /// Reads [lighting] from the config (render/LightingSettings.h) and applies it: the shadow map is made again when
+    /// its size changed. Call it after Init and again when F5 reloads the config.
+    void LoadLighting(const Config& config);
+    void SetLighting(const LightingSettings& settings);
+    const LightingSettings& Lighting() const
+    {
+        return m_lighting;
+    }
+
+    /// The lamps that stay where they are (the street lamps of the town: scene/Lamps.h), copied; survive a lost device.
+    void SetStaticLamps(const std::vector<PointLight>& lamps)
+    {
+        m_fixedLamps = lamps;
+    }
+
+    /// The lamps of this frame that move or change (the lantern, the lit lamps of the mast), copied. Call it every
+    /// frame.
+    void SetMovingLamps(const std::vector<PointLight>& lamps)
+    {
+        m_movingLamps = lamps;
+    }
+
+    /// What the picture shows instead of the whole light: 0 everything, 1 no shadows, 2 no lamps, 3 only the shadow of
+    /// the sun, 4 only the lamps. Anything else is 0.
+    void SetDebugView(int view)
+    {
+        m_debugView = view >= 0 && view <= 4 ? view : 0;
+    }
+    int DebugView() const
+    {
+        return m_debugView;
+    }
+
+    /// True when the shadow map exists and the shadows are on.
+    bool ShadowsActive() const
+    {
+        return m_lighting.shadows && m_shadowDsv != nullptr;
+    }
+
+    /// Seconds on the clock of the water and the lamps (it always runs): what a flicker outside the renderer must
+    /// follow.
+    float Time() const
+    {
+        return m_time;
+    }
+
+    /// How many draw calls the shadow pass of the last Draw made.
+    int ShadowDrawCalls() const
+    {
+        return m_shadowDraws;
+    }
 
     void ToggleWireframe();
     /// The next level of detail: 8, 16, 32, 64 segments, then round again to 8.
@@ -184,6 +246,9 @@ class Models
     bool UploadBatch(const BatchMesh& baked, GpuMesh& target, const char* vertexName, const char* indexName);
     bool CreateGpuMesh(Shape shape, const MeshData& data);
     bool CreateStates();
+    bool CreateShadowMap(int size);
+    void ReleaseShadowMap();
+    void DrawObject(ID3D11DeviceContext* context, const scene::SceneObject& object, int& drawCounter);
     bool CreateRippleResources();
     bool EnsureLayerTargets(UINT width, UINT height);
     int TriangleTotal() const;
@@ -212,6 +277,21 @@ class Models
     Microsoft::WRL::ComPtr<ID3D11BlendState> m_waterBlend;        // water: blended over what is behind it
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_waterDepth; // water: tested against the depth, not written
     std::vector<const scene::SceneObject*> m_water;               // the water of a frame, far to near (reused)
+    std::vector<const scene::SceneObject*> m_halos;               // the halos of a frame (reused)
+    // ---- light
+    LightingSettings m_lighting;
+    std::vector<PointLight> m_fixedLamps;  // the lamps of the town
+    std::vector<PointLight> m_movingLamps; // the lantern and the other lamps that change (every frame)
+    int m_debugView = 0;
+    int m_shadowDraws = 0;
+    int m_shadowSize = 0;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_lampBuffer;
+    Microsoft::WRL::ComPtr<ID3D11BlendState> m_additiveBlend;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_shadowTexture;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_shadowDsv;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_shadowSrv;
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_shadowSampler;
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_shadowRaster;
     std::array<GpuMesh, kShapeCount> m_meshes;
     // ---- the static batch: one mesh per layer
     std::array<GpuMesh, 2> m_batch;

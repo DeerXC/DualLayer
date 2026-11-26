@@ -24,6 +24,7 @@ $tests = @(
     @{ Name = "guidance";  Sources = @("tests\test_guidance.cpp");                                                           Flags = @("/O2") },
     @{ Name = "firstminute"; Sources = @("tests\test_firstminute.cpp");                                                      Flags = @("/O2") },
     @{ Name = "map";       Sources = @("tests\test_map.cpp");                                                                Flags = @("/O2") },
+    @{ Name = "lighting"; Sources = @("tests\test_lighting.cpp", "src\core\Config.cpp");                                    Flags = @("/O2") },
     @{ Name = "town_player"; Sources = @("tests\test_town_player.cpp");                                                        Flags = @("/O2") },
     @{ Name = "overlay";   Sources = @("tests\test_overlay.cpp");                                                             Flags = @() },
     @{ Name = "town";      Sources = @("tests\test_town.cpp");                                                               Flags = @("/O2") },

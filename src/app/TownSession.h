@@ -13,8 +13,9 @@
 // the arrow
 //           keys turn as well, Shift sprints, Space jumps (held = the full jump, a tap = a small hop) and climbs a
 //           ledge, Tab switches the moment (A, the past <-> B, the present), E opens a thing of the past or sets the
-//           lantern down / takes it up, H asks the lantern for more help (docs/DESIGN.md 10.3), M opens the map
-//           (docs/DESIGN.md 10.4), R goes back to the last place the body stood still on, F5 reloads
+//           lantern down / takes it up, H asks the lantern for more help (docs/DESIGN.md 10.3), L looks at the light in
+//           parts (everything, no shadows, no lamps, only the shadow of the sun, only the lamps: docs/DESIGN.md 6.3), M
+//           opens the map (docs/DESIGN.md 10.4), R goes back to the last place the body stood still on, F5 reloads
 //           config/default.ini, F walking / flying, N collision on / off, Z wireframe, X the next level of detail, Q /
 //           E down / up (flying). F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds
 //           them again: the test of the recovery.
@@ -57,6 +58,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace dl
 {
@@ -138,10 +140,13 @@ class TownSession
     town::Traces m_traces;
     town::Guidance m_guidance;
     town::MapMemory m_memory;
+    std::vector<PointLight>
+        m_townLamps; ///< the lamps of the town file (for the halos: the renderer keeps its own copy)
+    std::vector<PointLight> m_movingLamps; ///< the lantern and the lit lamps of this frame
     LayerGuard m_guard;
 
     // ---- what is drawn
-    static constexpr int kDrawCapacity = 256;
+    static constexpr int kDrawCapacity = 400;
     std::array<scene::SceneObject, kDrawCapacity> m_drawTable{};
     std::unique_ptr<OverlayBatch> m_hud; ///< WHY on the heap: 1.4 MB, too large for the stack
     Respawn m_respawn;
@@ -159,7 +164,8 @@ class TownSession
     float m_boom = 0.0f; ///< UNITS: metres, how far the camera is behind the body now
 
     // ---- the first lesson and the clocks
-    int m_switches = 0; ///< how many times the player asked for a switch
+    int m_lightView = 0; ///< what the picture shows of the light: 0 everything .. 4 only the lamps (key L)
+    int m_switches = 0;  ///< how many times the player asked for a switch
     float m_walkSeconds =
         0.0f;             ///< UNITS: seconds the body has walked (the prompts of TAB and M are offered after a while)
     float m_clock = 0.0f; ///< UNITS: seconds since the start, without the time the map was open
@@ -190,6 +196,7 @@ class TownSession
     bool m_resetDown = false;
     bool m_useDown = false;
     bool m_hintDown = false;
+    bool m_lightDown = false;
     bool m_mapDown = false;
     bool m_deviceResetDown = false;
 };

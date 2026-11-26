@@ -1,6 +1,7 @@
 #include "app/Gpu.h"
 
 #include "render/StaticBatch.h"
+#include "scene/Lamps.h"
 
 namespace dl
 {
@@ -46,7 +47,10 @@ bool Gpu::Init(const Window& window, const Config& config, int adapter)
     {
         return false;
     }
-    models.LoadThemes(config); // the looks of the layers: built in, [layer_a] / [layer_b] in the config change them
+    models.LoadThemes(config);   // the looks of the layers: built in, [layer_a] / [layer_b] in the config change them
+    models.LoadLighting(config); // the shadows, the lamps, the exposure: [lighting] in the config
+    models.SetStaticLamps(
+        town::TownLamps(town)); // the street lamps of the town: the renderer chooses the nearest ones every frame
     // the town (scene/Town.h): its own looks, its polygons baked into the static batch of each layer, its still water
     // into the water pass
     ApplyTownThemes(models, town);

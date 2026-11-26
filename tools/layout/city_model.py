@@ -643,6 +643,7 @@ def build_rock():
     for k in range(9):                                                                          # the ring of the lights
         a = 2 * math.pi * k / 9
         prism(ngon(tx + 4.0 * math.cos(a), tz + 4.0 * math.sin(a), 0.45, 6), ROCK_Y + 25.2, ROCK_Y + 26.4, "memory", "both")
+        lamp(tx + 4.0 * math.cos(a), ROCK_Y + 25.8, tz + 4.0 * math.sin(a), "both", "memory")
     for k in range(8):                                                                          # B: broken teeth
         a = math.pi / 8 + 2 * math.pi * k / 8
         prism(rect(tx + 2.9 * math.cos(a), tz + 2.9 * math.sin(a), 1.5, 0.8, a + math.pi / 2), ROCK_Y + 26.0,
@@ -704,6 +705,7 @@ def build_rock():
     for x, z in ((-5.0, -11.5), (5.0, -11.5)):                                                  # lamp posts: lit in both
         prism(ngon(x, z, 0.12, 4), ROCK_Y, ROCK_Y + 3.4, "iron")
         prism(ngon(x, z, 0.3, 6), ROCK_Y + 3.4, ROCK_Y + 4.0, "lantern", "A" if x < 0 else "both")
+        lamp(x, ROCK_Y + 3.7, z, "A" if x < 0 else "both", "post")
 
 
 GATES = {}
@@ -789,6 +791,7 @@ def build_harbour():
     prism(ngon(lx, lz, 2.45, 12), SEA - 4.0, deck_y, "stone_dark", "both", True, "paving")
     prism(ngon(lx, lz, 1.4, 8), deck_y, QUAY_Y + 7.0, "stone", "A")
     prism(ngon(lx, lz, 1.6, 8), QUAY_Y + 7.0, QUAY_Y + 8.2, "lantern", "A")
+    lamp(lx, QUAY_Y + 7.6, lz, "A", "light")
     cone(lx, lz, 1.8, QUAY_Y + 8.2, QUAY_Y + 10.0, "copper", "A", 8)
     prism(ngon(lx, lz, 1.4, 8), deck_y, QUAY_Y + 3.0, "stone", "B")
     cx, cz = 22.0, z1 + 9.0                                                             # the customs house, its copper dome
@@ -816,6 +819,7 @@ def build_harbour():
     y = float(ground(hx, hz))
     prism(ngon(hx, hz, 2.2, 10), y, y + 18.0, "plaster3")
     prism(ngon(hx, hz, 2.6, 10), y + 18.0, y + 20.0, "lantern", "A")
+    lamp(hx, y + 19.0, hz, "A", "light")
     prism(ngon(hx, hz, 2.6, 10), y + 18.0, y + 20.0, "iron", "B")
     cone(hx, hz, 2.8, y + 20.0, y + 23.0, "roof", "both", 10)
 
@@ -1028,6 +1032,7 @@ def build_north():
     cone(nx_, nz_, 3.2, GRAVE_Y + 14.0, GRAVE_Y + 19.0, "roof", "both", 4)
     prism(ngon(nx_, nz_, 1.2, 10), GRAVE_Y + 10.5, GRAVE_Y + 12.6, "gold")
     prism(ngon(-12.0, GRAVE_Z0 + 4.0, 0.3, 6), GRAVE_Y + 0.4, GRAVE_Y + 1.2, "lantern", "B")       # a lantern on a new grave (B)
+    lamp(-12.0, GRAVE_Y + 0.8, GRAVE_Z0 + 4.0, "B", "grave")
 
 
 def build_arches():
@@ -1104,8 +1109,7 @@ def build_streets():
             on_path = name in ("sea stair", "lower street", "market stairs", "market street", "east stair", "upper street", "cliff stair")
             lit_b = (on_path and k2 % 2 == 0) or hash01(int(x * 10), int(z * 10)) < 0.08
             prism(ngon(x, z, 0.5 if lit_b else 0.25, 6), y + 3.2, y + 4.0, "lantern", "both" if lit_b else "A")
-            if lit_b:                                                                  # B: a pool of warm light under it
-                poly([(px_, y + 0.08, pz_) for px_, pz_ in ngon(x, z, 3.0, 12)], "glow", "B", "overlay")
+            lamp(x, y + 3.6, z, "both" if lit_b else "A", "street")                     # a real light now (the pool of light is the game's)
             if not lit_b:
                 prism(ngon(x, z, 0.25, 6), y + 3.2, y + 3.4, "iron", "B")
             s += 14.0
@@ -1516,6 +1520,21 @@ def build_signal_mast():
     EMBLEMS.extend([("well", "day bell", mx - LAMP_DX, LAMP_Y, LAMP_Z, LAMP_SIZE, 0),         # west: the well, a sphere
                     ("cliff", "night bell", mx, LAMP_Y, LAMP_Z, LAMP_SIZE, 1),                 # north: the cliff, a column
                     ("lock", "dawn bell", mx + LAMP_DX, LAMP_Y, LAMP_Z, LAMP_SIZE, 2)])        # east: the lock, a box
+# ---- the lamps (docs/DESIGN.md 6.3): every lantern of the model is also a light of the game -----------------------------------------
+# (x, y, z, range, colour (sRGB), intensity, flicker, world "A" / "B" / "both", kind). The game lights the town with the nearest ones.
+LAMPS = []
+LAMP_KIND = {"street": 0, "post": 1, "light": 2, "memory": 3, "grave": 4}
+LAMP_LOOK = {   # kind: (range m, colour, intensity, flicker). Intensity 18 lights the ground under a lamp 3.4 m up with 1.4.
+    "street": (14.0, (1.00, 0.80, 0.55), 18.0, 0.06),
+    "post": (15.0, (1.00, 0.82, 0.58), 20.0, 0.05),
+    "light": (38.0, (1.00, 0.88, 0.65), 140.0, 0.03),
+    "memory": (9.0, (0.62, 0.92, 1.00), 12.0, 0.08),
+    "grave": (11.0, (1.00, 0.78, 0.50), 16.0, 0.10),
+}
+def lamp(x, y, z, world, kind="street"):
+    """A light at (x, y, z) in the moments of `world`, of the look of its kind. Called where the model builds a lantern."""
+    rng, col, inten, flick = LAMP_LOOK[kind]
+    LAMPS.append((float(x), float(y), float(z), rng, col, inten, flick, world, kind))
 STEPS = []  # (name, kind "thing"/"lantern", (x, y, z)): the main path in the order it is played
 STEP_ORDER = ("sea gate", "canal crate", "day bell", "lantern", "lift", "dawn bell", "plank", "gatehouse crate", "night bell")
 STEP_KIND = {"thing": 0, "lantern": 1}
@@ -2059,7 +2078,7 @@ def build_plan():
             better = np.array([PLAN_PRIORITY[int(c)] for c in cur]) < PLAN_PRIORITY[cls]
             sheet[cj[better], ci[better]] = cls
     return sheets
-TOWN_VERSION = 5
+TOWN_VERSION = 6
 KIND_CODE = {"solid": 0, "terrain": 1, "overlay": 2, "water": 3}
 WORLD_CODE = {"A": 1, "B": 2, "both": 3}
 SPAWN = (14.0, QUAY_Y, -72.0, -0.55, 0.29)  # x, y (the feet), z, yaw (0 looks north, +z), pitch (+ up): on the quay, east of the
@@ -2089,6 +2108,8 @@ def export(path):
         emblems (u32 count): glyph (u8 length, bytes), bell (u8 length, bytes: the thing whose ringing lights it), x, y, z, size,
             shape (u8: 0 sphere, 1 cylinder, 2 cube): the lamps of the signal mast (scene/Emblems.h)
         overlooks (u32 count): name (u8 length, bytes), x, y, z, radius: where standing reveals the map (scene/MapMemory.h)
+        lamps (u32 count): x, y, z, range, colour (3, sRGB), intensity, flicker (float32), worlds (u8: 1 A, 2 B, 3 both), kind (u8: 0 street,
+            1 post, 2 light, 3 memory, 4 grave): the lights of the town (scene/Lamps.h)
         plan: cell size, x0, z0 (float32), nx, nz (u16), then nx * nz bytes for A and nx * nz for B, row by row from z0 (south) up,
             each x from x0: 0 nothing, 1 water, 2 cliff, 3 building, 4 street (scene/Town.h Plan)
     The sea is not written: the game draws its own. Returns the number of polygons written."""
@@ -2147,6 +2168,9 @@ def export(path):
     for name, x, y, z, r in OVERLOOKS:
         raw = name.encode("ascii")
         out += struct.pack("<B", len(raw)) + raw + struct.pack("<4f", x, y, z, r)
+    out += struct.pack("<I", len(LAMPS))
+    for x, y, z, rng, col, inten, flick, world, kind in LAMPS:
+        out += struct.pack("<8f", x, y, z, rng, *col, inten) + struct.pack("<fBB", flick, WORLD_CODE[world], LAMP_KIND[kind])
     sheets = build_plan()
     nz, nx = sheets["A"].shape
     out += struct.pack("<3fHH", PLAN_CELL, PLAN_BOX[0], PLAN_BOX[1], nx, nz)
@@ -2157,6 +2181,7 @@ def export(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
         f.write(out)
+    print("  lamps: %d (%s)" % (len(LAMPS), ", ".join("%s %d" % (k, sum(1 for l in LAMPS if l[8] == k)) for k in LAMP_KIND)))
     print("%s: %d polygons, %d things, %d materials, %.1f MB" % (os.path.relpath(path), count, len(THINGS), len(names), len(out) / 1e6))
     return count
 
@@ -2210,6 +2235,7 @@ def build_city_trim():
             tube((float(x), y, float(z)), (float(x), y + 2.75, float(z)), 0.052, 6, "iron")
             # A keeps the working lamp; B retains the same post without a floating/unmotivated light box.
             prism(rect(float(x), float(z), 0.36, 0.36, 0.0), y + 2.50, y + 2.80, "lantern", "A")
+            lamp(float(x), y + 2.65, float(z), "A", "street")
     for j in range(first, len(POLYS)):
         pts, mat, world, _ = POLYS[j]
         POLYS[j] = (pts, mat, world, "overlay")

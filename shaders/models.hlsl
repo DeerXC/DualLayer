@@ -1,5 +1,6 @@
 // models.hlsl - the cube, the sphere, the cylinder, the torus and the floor: one directional light, a little sky light.
-// Slots:   b0 Frame (the camera and the light, once per frame), b1 Object (once per draw call). No textures, no samplers.
+// Slots:   b0 Frame (the camera and the light, once per frame), b1 Object (once per draw call), b2 Lamps (the point lights of the
+//          moment, once per moment); t0 and s0 the shadow map and its comparison sampler.
 // Light:   everything is worked out in LINEAR space (common.hlsli): the colours that arrive are linear, this shader returns linear colour and the
 //          back buffer is written through an sRGB view. Do not apply a gamma curve here.
 //          Since M2 the light colour, the light direction and the sky colours come from the theme of the layer being drawn (themes are never mixed).
@@ -16,10 +17,19 @@
 //          moving flecks. The wet band shows on its sides only. `time` (in Frame) drives it all.
 // Lantern: the circle of the lantern set down in A (src/scene/Lantern.h) is a sphere in which B shows A. B is drawn without
 //          its inside (lanternMode 1), then the town of A only inside it (lanternMode 2), with a warm rim at its edge.
-// KEEP IN SYNC: struct FrameConstants and struct ObjectConstants in src/render/Models.cpp (field for field; 256 and 160 bytes),
-//          struct BatchVertex in src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
+// Light:   the sun of A and the moon of B light a surface with a shadow map (t0, render/ShadowMath.h: the same shaders, VSMain and
+//          VSBatched, draw into it with the matrix of the light and no pixel shader), the lamps of the moment light it too (cbuffer
+//          Lamps: up to MAX_LAMPS point lights chosen by render/Lights.h), and the sky and the glow of the surface are added; the
+//          sum is bent by a soft shoulder (lighting.hlsli SoftShoulder) so that no lamp turns a wall into a white patch. A haze is
+//          scattered toward the sun. Glowing soft spheres (kMatHalo) are added to the picture over the lit lamps.
+// KEEP IN SYNC: struct FrameConstants, struct ObjectConstants and struct LampConstants in src/render/Models.cpp (field for field;
+//          368, 160 and 1040 bytes), MAX_LAMPS with kMaxLamps in src/render/Lights.h, struct BatchVertex in
+//          src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
 
 #include "common.hlsli"
+#include "lighting.hlsli"
+
+#define MAX_LAMPS 32
 
 cbuffer Frame : register(b0)
 {
@@ -43,7 +53,81 @@ cbuffer Frame : register(b0)
     float4 skyUpRay;  // xyz: perspective-scaled camera up; w: low-mist base
     float4 skyForward; // xyz: camera forward; w: halo weight
     float4 skyZenith; // rgb: linear zenith; w: gradient enabled
+    float4x4 lightViewProj; // the world into the shadow map of the sun or the moon (render/ShadowMath.h)
+    float4 shadowParams;    // x: one texel of the map (uv), y: depth bias (0 .. 1 along the light), z: normal offset (metres), w: strength (0: no shadow)
+    float4 gradeParams;     // x: exposure, y: knee of the shoulder, z: debug view (0 normal, 1 no shadow, 2 no lamps, 3 the shadow, 4 the lamps), w: sun scatter
+    float4 gradeParams2;    // reserved
 };
+
+cbuffer Lamps : register(b2)
+{
+    float4 lampCount;           // x: how many of the lamps below are on
+    float4 lampPos[MAX_LAMPS];  // xyz: where (world), w: its range (metres)
+    float4 lampTint[MAX_LAMPS]; // rgb: its colour times its strength (linear)
+};
+
+Texture2D<float> shadowMap : register(t0);
+SamplerComparisonState shadowSampler : register(s0);
+
+// What the sun or the moon leaves of a surface: 1 lit, down to 1 - strength in a shadow. `ndl`: how squarely the light falls on it.
+float ShadowAt(float3 worldPos, float3 n, float ndl)
+{
+    if (shadowParams.w <= 0.0)
+    {
+        return 1.0;
+    }
+    // the surface is moved along its normal (more where the light grazes it) before it is compared with the map: no acne
+    const float3 p = worldPos + n * (shadowParams.z * (1.5 - ndl));
+    const float4 lp = mul(float4(p, 1.0), lightViewProj);
+    const float2 uv = lp.xy * float2(0.5, -0.5) + float2(0.5, 0.5);
+    const float fade = ShadowEdgeFade(uv.x, uv.y);
+    if (fade <= 0.0 || lp.z >= 1.0 || lp.z <= 0.0)
+    {
+        return 1.0;
+    }
+    const float z = lp.z - shadowParams.y;
+    float sum = 0.0;
+    [unroll]
+    for (int j = -1; j <= 1; ++j)
+    {
+        [unroll]
+        for (int i = -1; i <= 1; ++i)
+        {
+            sum += shadowMap.SampleCmpLevelZero(shadowSampler, uv + float2(i, j) * shadowParams.x, z);
+        }
+    }
+    const float lightAmount = lerp(1.0, sum / 9.0, fade);
+    return 1.0 - shadowParams.w * (1.0 - lightAmount);
+}
+
+struct LampSum
+{
+    float3 diffuse;
+    float3 specular;
+};
+
+// Every lamp of the moment on a surface (lighting.hlsli LampShade, added up). (Not called Lamps: that is the name of the buffer.)
+LampSum LampsAt(float3 p, float3 n, float3 v, float shine, float power)
+{
+    LampSum sum;
+    sum.diffuse = float3(0.0, 0.0, 0.0);
+    sum.specular = float3(0.0, 0.0, 0.0);
+    const int count = (gradeParams.z > 1.5 && gradeParams.z < 2.5) ? 0 : (int)lampCount.x;
+    [loop]
+    for (int i = 0; i < count; ++i)
+    {
+        const LampLight one = LampShade(p, n, v, lampPos[i].xyz, lampPos[i].w, lampTint[i].xyz, shine, power);
+        sum.diffuse += one.diffuse;
+        sum.specular += one.specular;
+    }
+    return sum;
+}
+
+// The last step of every colour: the exposure, then the soft shoulder.
+float3 Finish(float3 c)
+{
+    return SoftShoulder(c * gradeParams.x, gradeParams.y);
+}
 
 float3 SkyGradient(float altitude)
 {
@@ -66,7 +150,7 @@ float4 PSSky(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Target
     const float3 ray = normalize(skyForward.xyz + ndc.x * skyRight.xyz + ndc.y * skyUpRay.xyz);
     // Small ordered dither in linear light limits bands on the eight-bit target.
     const float dither = (frac(dot(floor(position.xy), float2(0.5, 0.25))) - 0.375) * 0.002;
-    return float4(saturate(AtmosphereColour(ray) + dither), 1.0);
+    return float4(saturate(Finish(AtmosphereColour(ray)) + dither), 1.0);
 }
 
 float LowMist(float y)
@@ -88,6 +172,8 @@ float SceneFog(float3 worldPos, out float3 colour)
         density += low * skyRight.w;
         colour = lerp(SkyGradient(offset.y / max(metres, 1.0e-4)), fogColor, low * 0.45);
     }
+    // the light of the sun scattered by the haze: the fog glows toward the sun
+    colour += SunScatter(lightColor, dot(offset / max(metres, 1.0e-4), toLight), gradeParams.w);
     return 1.0 - exp(-metres * density);
 }
 
@@ -251,7 +337,7 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     }
     float3 haze;
     const float fog = SceneFog(p, haze);
-    return float4(lerp(colour, haze, fog), alpha);
+    return float4(Finish(lerp(colour, haze, fog)), alpha);
 }
 
 // The part of the light of the rim of the circle of the lantern: 1 at its edge, 0 a hand's breadth inside it. Discards
@@ -272,6 +358,16 @@ float LanternClip(float3 p)
     return 1.0 - saturate(inside / 0.12);
 }
 
+// A soft glow round a lit lamp: a sphere seen from the outside or the inside whose strength falls to 0 at its rim, added to the picture
+// (no blending by alpha: the blend state adds) and lost in the fog like everything far away. Its glow (knobs.w) is its strength.
+float4 HaloPS(VSOut input, float3 n, float3 v)
+{
+    float3 haze;
+    const float fog = SceneFog(input.worldPosition, haze);
+    const float3 glow = input.tone.rgb * (input.knobs.w * HaloFalloff(dot(n, v)) * (1.0 - fog));
+    return float4(glow, 1.0);
+}
+
 float4 PSMain(VSOut input) : SV_Target
 {
     const float rim = LanternClip(input.worldPosition);
@@ -284,6 +380,10 @@ float4 PSMain(VSOut input) : SV_Target
     const float3 v = normalize(eye - input.worldPosition);
     const float3 h = normalize(l + v);
 
+    if (input.knobs.x > 6.5)
+    {
+        return HaloPS(input, n, v);
+    }
     if (input.knobs.x > 1.5)
     {
         return WaterPS(input, n, l, v);
@@ -317,10 +417,23 @@ float4 PSMain(VSOut input) : SV_Target
     const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
     const float diffuse = saturate(dot(n, l));
     const float shine = pow(saturate(dot(n, h)), max(input.knobs.z, 1.0)) * input.knobs.y * step(0.0001, diffuse);
+    // the shadow of the sun or the moon, and the lamps of the moment (the debug views of gradeParams.z leave one of them out)
+    const int view = (int)(gradeParams.z + 0.5);
+    const float sun = (view == 1) ? 1.0 : ShadowAt(input.worldPosition, n, diffuse);
+    if (view == 3)
+    {
+        return float4(sun, sun, sun, 1.0);
+    }
+    const LampSum lamps = LampsAt(input.worldPosition, n, v, input.knobs.y, input.knobs.z);
     // glow: light of its own (a lamp, a hint, an orb), the same in both layers and on every side
-    const float3 shaded = albedo * skyLight + albedo * lightColor * diffuse + lightColor * shine + albedo * input.knobs.w;
+    float3 shaded = albedo * skyLight + albedo * lightColor * (diffuse * sun) + lightColor * (shine * sun) +
+                    albedo * input.knobs.w + albedo * lamps.diffuse + lamps.specular;
+    if (view == 4)
+    {
+        shaded = albedo * lamps.diffuse + lamps.specular;
+    }
     // fog: what is far melts into the background; a thing that glows is seen through more of it (a lamp in the mist)
     float3 haze;
     const float fog = SceneFog(input.worldPosition, haze) * (1.0 - 0.75 * saturate(input.knobs.w));
-    return float4(lerp(shaded, haze, fog), 1.0);
+    return float4(Finish(lerp(shaded, haze, fog)), 1.0);
 }

@@ -112,10 +112,12 @@ inline bool TryTownMantle(Player& player, const Moments& moments, const TownData
 
 // A draw-only traveller. All parts, including the hand-held lantern, use the same local pose in A and B.
 // `flame`: the flame over the lantern in the hand (scene/Flame.h), when it is carried; `raise`: 0 .. 1, how high the
-// lantern is held (the arm goes up, forward: the first step of H); `seconds`: the clock of the sparks of the flame.
+// lantern is held (the arm goes up, forward: the first step of H); `seconds`: the clock of the sparks of the flame;
+// `lamp`: where the glass of the lantern is in the world when it is carried (the light of the lantern is put there:
+// scene/Lamps.h).
 inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const Player& player, float yaw, float phase,
                          float gait, bool carried, const Flame* flame = nullptr, float raise = 0.0f,
-                         float seconds = 0.0f)
+                         float seconds = 0.0f, Vec3* lamp = nullptr)
 {
     constexpr int bodyParts = 15;
     constexpr int lampParts = 4;
@@ -202,6 +204,11 @@ inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const
         part(ShapeKind::Cube, {x, lampY, z}, {0.055f, 0.13f, 0.05f}, leather);
         part(ShapeKind::Cylinder, {x, lampY - 0.12f, z}, {0.16f, 0.04f, 0.16f}, brass);
         part(ShapeKind::Cylinder, {x, lampY - 0.207f, z}, {0.13f, 0.14f, 0.13f}, {1.0f, 0.68f, 0.30f}, 0.0f, 0.85f);
+        if (lamp != nullptr)
+        {
+            const float glassY = lampY - 0.207f + 0.04f;
+            *lamp = {feet.x + cy * x + sy * z, feet.y + glassY + lift, feet.z - sy * x + cy * z};
+        }
         part(ShapeKind::Cylinder, {x, lampY - 0.29f, z}, {0.16f, 0.035f, 0.16f}, brass);
         if (flame != nullptr)
         {

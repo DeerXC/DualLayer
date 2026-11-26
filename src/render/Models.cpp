@@ -3,7 +3,9 @@
 #include "core/Assert.h"
 #include "core/Log.h"
 #include "render/GpuDebug.h"
+#include "render/Lights.h"
 #include "render/ShaderCompiler.h"
+#include "render/ShadowMath.h"
 #include "render/StaticBatch.h"
 #include "scene/SceneData.h"
 
@@ -32,6 +34,10 @@ namespace
 constexpr char kModelsShaderPath[] = "shaders/models.hlsl";
 constexpr char kRippleShaderPath[] = "shaders/ripple.hlsl";
 constexpr int kDetailLevels[] = {8, 16, 32, 64};
+constexpr float kShadowHalfDepth =
+    160.0f; // UNITS: metres: the shadow box reaches this far toward the light and away from it
+constexpr float kShadowAhead =
+    0.35f; // the box is centred this part of its radius ahead of the camera, on the ground plane
 
 // KEEP IN SYNC: cbuffer Frame and cbuffer Object in shaders/models.hlsl (field for field).
 struct FrameConstants
@@ -48,15 +54,19 @@ struct FrameConstants
     float pad2;
     XMFLOAT3 skyDown; // linear: the ground light on a surface that looks down
     float pad3;
-    XMFLOAT3 fogColor;   // linear: the colour of the fog (= the background)
-    float fogDensity;    // UNITS: 1 / metres
-    XMFLOAT3 tint;       // the stone of the city in this layer (multiplies the albedo of the city)
-    float weathering;    // 0 .. 1
-    XMFLOAT4 lantern;    // xyz: the centre of the circle of the lantern (world); w: its radius (metres)
-    XMFLOAT4 skyRight;   // xyz: camera right / projection x scale; w: additional near-ground fog density
-    XMFLOAT4 skyUpRay;   // xyz: camera up / projection y scale; w: near-ground fog base height
-    XMFLOAT4 skyForward; // xyz: camera forward; w: solar / lunar halo weight
-    XMFLOAT4 skyZenith;  // rgb: linear colour; w: gradient enabled
+    XMFLOAT3 fogColor;        // linear: the colour of the fog (= the background)
+    float fogDensity;         // UNITS: 1 / metres
+    XMFLOAT3 tint;            // the stone of the city in this layer (multiplies the albedo of the city)
+    float weathering;         // 0 .. 1
+    XMFLOAT4 lantern;         // xyz: the centre of the circle of the lantern (world); w: its radius (metres)
+    XMFLOAT4 skyRight;        // xyz: camera right / projection x scale; w: additional near-ground fog density
+    XMFLOAT4 skyUpRay;        // xyz: camera up / projection y scale; w: near-ground fog base height
+    XMFLOAT4 skyForward;      // xyz: camera forward; w: solar / lunar halo weight
+    XMFLOAT4 skyZenith;       // rgb: linear colour; w: gradient enabled
+    XMFLOAT4X4 lightViewProj; // the world into the shadow map of the sun or the moon (render/ShadowMath.h)
+    XMFLOAT4 shadow; // x: one texel of the map (uv), y: depth bias, z: normal offset (metres), w: strength (0: none)
+    XMFLOAT4 grade;  // x: exposure, y: knee of the shoulder, z: debug view, w: sun scatter
+    XMFLOAT4 grade2; // reserved
 };
 
 struct ObjectConstants
@@ -80,7 +90,16 @@ struct RippleConstants
     float pad1;
 };
 
-static_assert(sizeof(FrameConstants) == 256, "cbuffer Frame is 16 registers of 16 bytes");
+// KEEP IN SYNC: cbuffer Lamps in shaders/models.hlsl and kMaxLamps in render/Lights.h.
+struct LampConstants
+{
+    float count[4];           // x: how many lamps are on
+    float pos[kMaxLamps][4];  // xyz: where (world), w: range (metres)
+    float tint[kMaxLamps][4]; // rgb: colour times strength (linear)
+};
+
+static_assert(sizeof(FrameConstants) == 368, "cbuffer Frame is 23 registers of 16 bytes");
+static_assert(sizeof(LampConstants) == 1040, "cbuffer Lamps is 65 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
 
@@ -153,8 +172,8 @@ class StateGuard
         context->IAGetIndexBuffer(&m_indexBuffer, &m_indexFormat, &m_indexOffset);
         context->VSGetShader(&m_vertexShader, nullptr, nullptr);
         context->PSGetShader(&m_pixelShader, nullptr, nullptr);
-        context->VSGetConstantBuffers(0, 2, m_vsConstants);
-        context->PSGetConstantBuffers(0, 2, m_psConstants);
+        context->VSGetConstantBuffers(0, 3, m_vsConstants);
+        context->PSGetConstantBuffers(0, 3, m_psConstants);
         context->PSGetShaderResources(0, 2, m_resources);
         context->PSGetSamplers(0, 1, &m_sampler);
     }
@@ -178,8 +197,8 @@ class StateGuard
         m_context->IASetIndexBuffer(m_indexBuffer.Get(), m_indexFormat, m_indexOffset);
         m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
         m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-        m_context->VSSetConstantBuffers(0, 2, m_vsConstants);
-        m_context->PSSetConstantBuffers(0, 2, m_psConstants);
+        m_context->VSSetConstantBuffers(0, 3, m_vsConstants);
+        m_context->PSSetConstantBuffers(0, 3, m_psConstants);
         m_context->PSSetShaderResources(0, 2, m_resources);
         ID3D11SamplerState* sampler = m_sampler.Get();
         m_context->PSSetSamplers(0, 1, &sampler);
@@ -234,8 +253,8 @@ class StateGuard
     UINT m_indexOffset = 0;
     ComPtr<ID3D11VertexShader> m_vertexShader;
     ComPtr<ID3D11PixelShader> m_pixelShader;
-    ID3D11Buffer* m_vsConstants[2] = {};
-    ID3D11Buffer* m_psConstants[2] = {};
+    ID3D11Buffer* m_vsConstants[3] = {};
+    ID3D11Buffer* m_psConstants[3] = {};
     ID3D11ShaderResourceView* m_resources[2] = {};
     ComPtr<ID3D11SamplerState> m_sampler;
 };
@@ -256,7 +275,8 @@ bool Models::Init(ID3D11Device* device, int segments)
     }
     m_device = device;
     m_segments = std::clamp(segments, 6, 128);
-    m_themes = DefaultThemes(); // LoadThemes may change them from the config afterwards
+    m_themes = DefaultThemes();      // LoadThemes may change them from the config afterwards
+    m_lighting = LightingSettings{}; // LoadLighting may change them from the config afterwards
     m_ripple.SetSeconds(kDefaultRippleSeconds);
     m_rippleWidth = kDefaultRippleWidth;
     m_rippleDistortion = kDefaultRippleDistortion;
@@ -340,6 +360,11 @@ bool Models::Init(ID3D11Device* device, int segments)
         cb.ByteWidth = sizeof(ObjectConstants);
         hr = m_device->CreateBuffer(&cb, nullptr, &m_objectBuffer);
     }
+    if (SUCCEEDED(hr))
+    {
+        cb.ByteWidth = sizeof(LampConstants);
+        hr = m_device->CreateBuffer(&cb, nullptr, &m_lampBuffer);
+    }
     if (FAILED(hr))
     {
         DL_LOG_ERROR("Models", "constant buffers failed (0x%08X)", static_cast<unsigned>(hr));
@@ -353,12 +378,19 @@ bool Models::Init(ID3D11Device* device, int segments)
     SetDebugName(m_batchLayout.Get(), "Models.Batch.InputLayout");
     SetDebugName(m_frameBuffer.Get(), "Models.FrameCB");
     SetDebugName(m_objectBuffer.Get(), "Models.ObjectCB");
+    SetDebugName(m_lampBuffer.Get(), "Models.LampsCB");
     if (!CreateStates() || !CreateRippleResources() || !CreateMeshes(m_segments) || !CreateBatchBuffers())
     {
         Shutdown();
         return false;
     }
-    DL_LOG_INFO("Models", "ready: %d segments, %d triangles", m_segments, TriangleTotal());
+    // the shadow map: a map that cannot be made is not an error, the shadows are off and the log says so
+    if (m_lighting.shadows && !CreateShadowMap(m_lighting.shadowSize))
+    {
+        m_lighting.shadows = false;
+    }
+    DL_LOG_INFO("Models", "ready: %d segments, %d triangles, shadows %s", m_segments, TriangleTotal(),
+                m_lighting.shadows ? "on" : "off");
     return true;
 }
 
@@ -384,6 +416,11 @@ void Models::Shutdown()
     }
     m_targetWidth = 0;
     m_targetHeight = 0;
+    ReleaseShadowMap();
+    m_shadowSampler.Reset();
+    m_shadowRaster.Reset();
+    m_additiveBlend.Reset();
+    m_lampBuffer.Reset();
     m_noDepthState.Reset();
     m_noCullState.Reset();
     m_sampler.Reset();
@@ -482,11 +519,56 @@ bool Models::CreateStates()
     {
         hr = m_device->CreateSamplerState(&sampler, &m_sampler);
     }
+    // light: the shadow map is compared in the hardware (and smoothed by the bilinear filter); outside the map
+    // everything is lit
+    D3D11_SAMPLER_DESC shadowSampler{};
+    shadowSampler.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+    shadowSampler.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+    shadowSampler.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+    shadowSampler.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+    shadowSampler.BorderColor[0] = shadowSampler.BorderColor[1] = shadowSampler.BorderColor[2] =
+        shadowSampler.BorderColor[3] = 1.0f;
+    shadowSampler.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+    shadowSampler.MaxLOD = D3D11_FLOAT32_MAX;
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateSamplerState(&shadowSampler, &m_shadowSampler);
+    }
+    // the shadow pass draws both sides (the polygons of the town have no fixed winding), a little biased away from the
+    // light, and is not clipped by the near plane of the box: what stands between the light and the box still casts its
+    // shadow into it
+    D3D11_RASTERIZER_DESC shadowRaster{};
+    shadowRaster.FillMode = D3D11_FILL_SOLID;
+    shadowRaster.CullMode = D3D11_CULL_NONE;
+    shadowRaster.FrontCounterClockwise = FALSE;
+    shadowRaster.SlopeScaledDepthBias = 1.5f;
+    shadowRaster.DepthClipEnable = FALSE;
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateRasterizerState(&shadowRaster, &m_shadowRaster);
+    }
+    // halos: added to what is behind them
+    D3D11_BLEND_DESC additive{};
+    additive.RenderTarget[0].BlendEnable = TRUE;
+    additive.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    additive.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+    additive.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    additive.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+    additive.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+    additive.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    additive.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    if (SUCCEEDED(hr))
+    {
+        hr = m_device->CreateBlendState(&additive, &m_additiveBlend);
+    }
     if (FAILED(hr))
     {
         DL_LOG_ERROR("Models", "creating the render states failed (0x%08X)", static_cast<unsigned>(hr));
         return false;
     }
+    SetDebugName(m_shadowSampler.Get(), "Models.Shadow.Sampler");
+    SetDebugName(m_shadowRaster.Get(), "Models.Shadow.Rasterizer");
+    SetDebugName(m_additiveBlend.Get(), "Models.Halo.BlendState");
     SetDebugName(m_solidState.Get(), "Models.Rasterizer.Solid");
     SetDebugName(m_wireState.Get(), "Models.Rasterizer.Wire");
     SetDebugName(m_noCullState.Get(), "Models.Ripple.Rasterizer");
@@ -497,6 +579,61 @@ bool Models::CreateStates()
     SetDebugName(m_waterDepth.Get(), "Models.Water.DepthState");
     SetDebugName(m_sampler.Get(), "Models.Ripple.Sampler");
     return true;
+}
+
+// The shadow map: one 32-bit depth texture that is drawn into (as a depth buffer) and then read by the model shader (as
+// a texture): typeless, with a depth view and a shader view of its own.
+bool Models::CreateShadowMap(int size)
+{
+    ReleaseShadowMap();
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = static_cast<UINT>(size);
+    desc.Height = static_cast<UINT>(size);
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R32_TYPELESS;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+    HRESULT hr = m_device->CreateTexture2D(&desc, nullptr, &m_shadowTexture);
+    if (SUCCEEDED(hr))
+    {
+        D3D11_DEPTH_STENCIL_VIEW_DESC depthView{};
+        depthView.Format = DXGI_FORMAT_D32_FLOAT;
+        depthView.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        depthView.Texture2D.MipSlice = 0;
+        hr = m_device->CreateDepthStencilView(m_shadowTexture.Get(), &depthView, &m_shadowDsv);
+    }
+    if (SUCCEEDED(hr))
+    {
+        D3D11_SHADER_RESOURCE_VIEW_DESC shaderView{};
+        shaderView.Format = DXGI_FORMAT_R32_FLOAT;
+        shaderView.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        shaderView.Texture2D.MostDetailedMip = 0;
+        shaderView.Texture2D.MipLevels = 1;
+        hr = m_device->CreateShaderResourceView(m_shadowTexture.Get(), &shaderView, &m_shadowSrv);
+    }
+    if (FAILED(hr))
+    {
+        DL_LOG_WARN("Models", "the shadow map (%d x %d) could not be made (0x%08X): no shadows", size, size,
+                    static_cast<unsigned>(hr));
+        ReleaseShadowMap();
+        return false;
+    }
+    SetDebugName(m_shadowTexture.Get(), "Models.Shadow.Depth");
+    SetDebugName(m_shadowDsv.Get(), "Models.Shadow.DSV");
+    SetDebugName(m_shadowSrv.Get(), "Models.Shadow.SRV");
+    m_shadowSize = size;
+    DL_LOG_INFO("Models", "shadow map: %d x %d", size, size);
+    return true;
+}
+
+void Models::ReleaseShadowMap()
+{
+    m_shadowSrv.Reset();
+    m_shadowDsv.Reset();
+    m_shadowTexture.Reset();
+    m_shadowSize = 0;
 }
 
 bool Models::CreateRippleResources()
@@ -784,6 +921,35 @@ void Models::LoadThemes(const Config& config)
     DL_LOG_INFO("Models", "layer themes loaded, ripple %.2f s", m_ripple.Seconds());
 }
 
+void Models::LoadLighting(const Config& config)
+{
+    SetLighting(ReadLightingSettings(config));
+    DL_LOG_INFO("Models", "lighting: shadows %s %d (radius %.0f m), lamps %s, exposure %.2f, knee %.2f",
+                m_lighting.shadows ? "on" : "off", m_lighting.shadowSize, static_cast<double>(m_lighting.shadowRadius),
+                m_lighting.pointLights ? "on" : "off", static_cast<double>(m_lighting.exposure),
+                static_cast<double>(m_lighting.knee));
+}
+
+void Models::SetLighting(const LightingSettings& settings)
+{
+    m_lighting = Sanitize(settings);
+    if (!m_device)
+    {
+        return;
+    }
+    if (!m_lighting.shadows)
+    {
+        ReleaseShadowMap(); // no shadows: the memory goes back
+    }
+    else if (m_shadowSize != m_lighting.shadowSize || !m_shadowDsv)
+    {
+        if (!CreateShadowMap(m_lighting.shadowSize))
+        {
+            m_lighting.shadows = false;
+        }
+    }
+}
+
 void Models::ClearColor(float out[4]) const
 {
     const XMFLOAT3 clear = ThemeOf(m_ripple.Outer()).clear;
@@ -854,34 +1020,103 @@ void Models::BindScenePipeline(ID3D11DeviceContext* context)
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    ID3D11Buffer* constants[2] = {m_frameBuffer.Get(), m_objectBuffer.Get()};
-    context->VSSetConstantBuffers(0, 2, constants);
-    context->PSSetConstantBuffers(0, 2, constants);
+    ID3D11Buffer* constants[3] = {m_frameBuffer.Get(), m_objectBuffer.Get(), m_lampBuffer.Get()};
+    context->VSSetConstantBuffers(0, 3, constants);
+    context->PSSetConstantBuffers(0, 3, constants);
+    ID3D11SamplerState* compare =
+        m_shadowSampler.Get(); // the shader declares the shadow sampler even when there are no shadows
+    context->PSSetSamplers(0, 1, &compare);
+}
+
+// One object: its constants, then its shape. Used by the shadow pass (which only needs its place) and the normal pass
+// alike.
+void Models::DrawObject(ID3D11DeviceContext* context, const SceneObject& object, int& drawCounter)
+{
+    const GpuMesh& mesh = m_meshes[static_cast<std::size_t>(object.shape)];
+    if (!mesh.vertexBuffer || !mesh.indexBuffer)
+    {
+        return;
+    }
+    // World = Scale * Rotation * Translation: first the size, then the tilt and the turn, then the place (row vectors:
+    // read left to right)
+    const XMMATRIX world = XMMatrixScaling(object.scale[0], object.scale[1], object.scale[2]) *
+                           XMMatrixRotationX(object.tilt) * XMMatrixRotationY(object.yaw) *
+                           XMMatrixTranslation(object.position[0], object.position[1], object.position[2]);
+    ObjectConstants data{};
+    XMStoreFloat4x4(&data.world, world);
+    // A normal is not moved like a point: on a stretched object it must be turned the other way (the inverse
+    // transpose), or the light is wrong. For this affine matrix the 3x3 part of the result is the inverse transpose of
+    // the 3x3 of `world`.
+    XMStoreFloat4x4(&data.normalMatrix, XMMatrixTranspose(XMMatrixInverse(nullptr, world)));
+    // the city (an object of both layers that does not shine by itself) takes the stone of the layer; the key objects
+    // of one layer and everything that glows keep their own colours, so that red, blue and gold always mean the same
+    const float city = (object.layerMask == scene::kLayerBoth && object.glow <= 0.0f) ? 1.0f : 0.0f;
+    data.color = XMFLOAT4(SrgbToLinear(object.colorSrgb[0]), SrgbToLinear(object.colorSrgb[1]),
+                          SrgbToLinear(object.colorSrgb[2]), city);
+    data.params = XMFLOAT4(object.checker, object.shineStrength, object.shininess, object.glow);
+    D3D11_MAPPED_SUBRESOURCE objectMap{};
+    if (FAILED(context->Map(m_objectBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &objectMap)))
+    {
+        return;
+    }
+    std::memcpy(objectMap.pData, &data, sizeof(data));
+    context->Unmap(m_objectBuffer.Get(), 0);
+    ID3D11Buffer* vertexBuffer = mesh.vertexBuffer.Get();
+    const UINT stride = sizeof(MeshVertex);
+    const UINT offset = 0;
+    context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+    context->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->DrawIndexed(mesh.indexCount, 0, 0);
+    ++drawCounter;
 }
 
 void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMATRIX& projection,
                          const XMFLOAT3& eye, int layer)
 {
-    // ---- the frame: the camera and the light of a layer. View * Projection is worked out once
-    // (docs/CONVENTIONS.md: row vectors, no transpose). `mode`: the clip of the circle of the lantern (FrameConstants).
+    // ---- the camera axes (for the sky) and the light of this moment
     const XMMATRIX cameraAxes = XMMatrixTranspose(view);
     XMFLOAT3 right{}, up{}, forward{};
     XMStoreFloat3(&right, XMVectorScale(cameraAxes.r[0], 1.0f / XMVectorGetX(projection.r[0])));
     XMStoreFloat3(&up, XMVectorScale(cameraAxes.r[1], 1.0f / XMVectorGetY(projection.r[1])));
     XMStoreFloat3(&forward, cameraAxes.r[2]);
-    const auto setFrame = [&](int themeLayer, float mode)
+
+    // ---- the shadow box of the sun or the moon: round a point a little ahead of the camera, on the texel grid of the
+    // map
+    const Theme sunTheme = ThemeOf(layer);
+    XMFLOAT3 toLight{};
+    XMStoreFloat3(&toLight, XMVector3Normalize(XMLoadFloat3(&sunTheme.toLight)));
+    const bool wantShadow = m_lighting.shadows && m_shadowDsv && m_shadowSrv && toLight.y > 0.05f;
+    ShadowFit fit;
+    if (wantShadow)
+    {
+        const float flat = std::sqrt(forward.x * forward.x + forward.z * forward.z);
+        const float ahead = m_lighting.shadowRadius * kShadowAhead;
+        const float centre[3] = {eye.x + (flat > 1.0e-4f ? forward.x / flat : 0.0f) * ahead, eye.y - 2.0f,
+                                 eye.z + (flat > 1.0e-4f ? forward.z / flat : 1.0f) * ahead};
+        const float lightDir[3] = {toLight.x, toLight.y, toLight.z};
+        fit = FitSunShadow(lightDir, centre, m_lighting.shadowRadius, kShadowHalfDepth, m_shadowSize);
+    }
+    bool shadowOn = false; // true once the map of this moment is drawn: then the model shader looks it up
+
+    // ---- the frame constants of a theme (the layer drawn can borrow the theme of the other: the circle of the
+    // lantern)
+    const auto makeFrame = [&](int themeLayer, float mode)
     {
         const Theme theme = ThemeOf(themeLayer);
+        const float sunScale = themeLayer == 0 ? m_lighting.sunA : m_lighting.sunB;
+        const float skyScale = themeLayer == 0 ? m_lighting.ambientA : m_lighting.ambientB;
         FrameConstants frame{};
         XMStoreFloat4x4(&frame.viewProjection, view * projection);
         frame.eye = eye;
         frame.time = m_time;
         XMStoreFloat3(&frame.toLight, XMVector3Normalize(XMLoadFloat3(&theme.toLight)));
         frame.ambient = 1.0f;
-        frame.lightColor = theme.lightColor;
+        frame.lightColor =
+            XMFLOAT3(theme.lightColor.x * sunScale, theme.lightColor.y * sunScale, theme.lightColor.z * sunScale);
         frame.lanternMode = mode;
-        frame.skyUp = theme.sky;
-        frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale, theme.sky.y * kSkyDownScale, theme.sky.z * kSkyDownScale);
+        frame.skyUp = XMFLOAT3(theme.sky.x * skyScale, theme.sky.y * skyScale, theme.sky.z * skyScale);
+        frame.skyDown = XMFLOAT3(theme.sky.x * kSkyDownScale * skyScale, theme.sky.y * kSkyDownScale * skyScale,
+                                 theme.sky.z * kSkyDownScale * skyScale);
         frame.fogColor =
             theme.clear; // the fog is the colour of the sky behind it: what is far melts into the background
         frame.fogDensity = theme.fogDensity;
@@ -890,12 +1125,35 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         frame.lantern = m_lantern;
         if (m_townAtmosphere && theme.gradientSky)
         {
-            frame.skyDown = theme.groundFill;
+            frame.skyDown =
+                XMFLOAT3(theme.groundFill.x * skyScale, theme.groundFill.y * skyScale, theme.groundFill.z * skyScale);
             frame.skyRight = XMFLOAT4(right.x, right.y, right.z, theme.mistDensity);
             frame.skyUpRay = XMFLOAT4(up.x, up.y, up.z, theme.mistBase);
             frame.skyForward = XMFLOAT4(forward.x, forward.y, forward.z, themeLayer == 0 ? 1.0f : 0.42f);
             frame.skyZenith = XMFLOAT4(theme.zenith.x, theme.zenith.y, theme.zenith.z, 1.0f);
         }
+        // the shadow: only in the moment drawn on its own and in the part of B that is B (mode 2, the circle of the
+        // lantern, shows A)
+        const float texel = 1.0f / static_cast<float>(m_shadowSize > 0 ? m_shadowSize : 1);
+        if (wantShadow)
+        {
+            std::memcpy(&frame.lightViewProj, fit.viewProj, sizeof(fit.viewProj));
+        }
+        else
+        {
+            XMStoreFloat4x4(&frame.lightViewProj,
+                            XMMatrixTranslation(0.0f, 0.0f, 0.0f)); // (the shader does not look at it)
+        }
+        const float depthBias = wantShadow ? m_lighting.shadowBias * fit.texelWorld / fit.depthRange : 0.0f;
+        const float normalOffset = wantShadow ? m_lighting.shadowNormal * fit.texelWorld : 0.0f;
+        frame.shadow =
+            XMFLOAT4(texel, depthBias, normalOffset, shadowOn && mode < 1.5f ? m_lighting.shadowStrength : 0.0f);
+        frame.grade =
+            XMFLOAT4(m_lighting.exposure, m_lighting.knee, static_cast<float>(m_debugView), m_lighting.sunScatter);
+        return frame;
+    };
+    const auto writeFrame = [&](const FrameConstants& frame)
+    {
         D3D11_MAPPED_SUBRESOURCE mapped{};
         if (FAILED(context->Map(m_frameBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
         {
@@ -905,8 +1163,9 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->Unmap(m_frameBuffer.Get(), 0);
         return true;
     };
+    const auto setFrame = [&](int themeLayer, float mode) { return writeFrame(makeFrame(themeLayer, mode)); };
     // one baked mesh in one draw call (render/StaticBatch.h)
-    const auto drawBatch = [&](const GpuMesh& batch)
+    const auto drawBatch = [&](const GpuMesh& batch, int& counter)
     {
         if (batch.indexCount == 0)
         {
@@ -920,14 +1179,88 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->IASetVertexBuffers(0, 1, &batchBuffer, &batchStride, &batchOffset);
         context->IASetIndexBuffer(batch.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
         context->DrawIndexed(batch.indexCount, 0, 0);
-        ++m_drawCalls;
+        ++counter;
         context->IASetInputLayout(m_inputLayout.Get()); // back to the objects drawn one by one
         context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     };
+    const unsigned layerBit = 1u << layer;
+
+    // ---- the lamps of this moment: the nearest and strongest, into the constant buffer b2
+    {
+        LampBatch lamps;
+        if (m_lighting.pointLights)
+        {
+            const float eyeAt[3] = {eye.x, eye.y, eye.z};
+            SelectLamps(m_fixedLamps, m_movingLamps, layer, eyeAt, layer == 0 ? m_lighting.lampsA : m_lighting.lampsB,
+                        m_lighting.lantern, m_time, lamps);
+        }
+        LampConstants constants{};
+        constants.count[0] = static_cast<float>(lamps.count);
+        std::memcpy(constants.pos, lamps.pos, sizeof(constants.pos));
+        std::memcpy(constants.tint, lamps.color, sizeof(constants.tint));
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        if (SUCCEEDED(context->Map(m_lampBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        {
+            std::memcpy(mapped.pData, &constants, sizeof(constants));
+            context->Unmap(m_lampBuffer.Get(), 0);
+        }
+    }
+
+    // ---- the shadow pass: the casters of this moment seen from the light, into the shadow map (depth only)
+    if (wantShadow)
+    {
+        ComPtr<ID3D11RenderTargetView> savedView;
+        ComPtr<ID3D11DepthStencilView> savedDepth;
+        context->OMGetRenderTargets(1, savedView.GetAddressOf(), savedDepth.GetAddressOf());
+        D3D11_VIEWPORT savedViewport{};
+        UINT savedViewports = 1;
+        context->RSGetViewports(&savedViewports, &savedViewport);
+        ID3D11ShaderResourceView* noView[1] = {}; // the map cannot be read while it is drawn into
+        context->PSSetShaderResources(0, 1, noView);
+        context->OMSetRenderTargets(0, nullptr, m_shadowDsv.Get());
+        const D3D11_VIEWPORT mapViewport{0.0f, 0.0f, static_cast<float>(m_shadowSize), static_cast<float>(m_shadowSize),
+                                         0.0f, 1.0f};
+        context->RSSetViewports(1, &mapViewport);
+        context->ClearDepthStencilView(m_shadowDsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+        BindScenePipeline(context);
+        context->RSSetState(m_shadowRaster.Get());
+        context->PSSetShader(nullptr, nullptr, 0); // depth only
+        FrameConstants lightFrame = makeFrame(layer, 0.0f);
+        std::memcpy(&lightFrame.viewProjection, fit.viewProj,
+                    sizeof(fit.viewProj)); // the same shaders, seen from the light
+        if (writeFrame(lightFrame))
+        {
+            drawBatch(m_batch[static_cast<std::size_t>(layer)], m_shadowDraws);
+            for (const SceneObject& object : Objects())
+            {
+                // what casts: the objects of this moment that are solid things, not water, not glow, not a halo
+                if ((object.layerMask & layerBit) != 0 && !scene::IsWaterMaterial(object.checker) &&
+                    !scene::IsHalo(object.checker) && object.glow <= 0.05f)
+                {
+                    DrawObject(context, object, m_shadowDraws);
+                }
+            }
+            shadowOn = true;
+        }
+        ID3D11RenderTargetView* renderView = savedView.Get();
+        context->OMSetRenderTargets(1, &renderView, savedDepth.Get());
+        if (savedViewports > 0)
+        {
+            context->RSSetViewports(1, &savedViewport);
+        }
+        BindScenePipeline(context); // the shaders, the states and the buffers of the picture again
+        if (shadowOn)
+        {
+            ID3D11ShaderResourceView* map = m_shadowSrv.Get();
+            context->PSSetShaderResources(0, 1, &map);
+            ID3D11SamplerState* compare = m_shadowSampler.Get();
+            context->PSSetSamplers(0, 1, &compare);
+        }
+    }
+
     // the lantern set down in A keeps a circle of A standing in B (scene/Lantern.h): B is drawn without the inside of
     // the circle, then the fixed town of A, in the light of A, only inside it
     const bool circle = layer == 1 && m_lantern.w > 0.0f;
-
     // ---- the fixed city of this layer: one draw call
     if (!setFrame(layer, circle ? 1.0f : 0.0f))
     {
@@ -945,58 +1278,17 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         ++m_drawCalls;
         BindScenePipeline(context);
     }
-    drawBatch(m_batch[static_cast<std::size_t>(layer)]);
+    drawBatch(m_batch[static_cast<std::size_t>(layer)], m_drawCalls);
     if (circle)
     {
         setFrame(0, 2.0f);
-        drawBatch(m_batch[0]);
+        drawBatch(m_batch[0], m_drawCalls);
         setFrame(layer, 0.0f); // the objects drawn one by one are not clipped
     }
-
     // ---- one draw call per object: only the objects of this layer; the water (scene::IsWaterMaterial) waits for its
-    // own pass
-    const unsigned layerBit = 1u << layer;
+    // own pass, the halos for theirs
     m_water.clear();
-    const auto drawOne = [&](const SceneObject& object)
-    {
-        const GpuMesh& mesh = m_meshes[static_cast<std::size_t>(object.shape)];
-        if (!mesh.vertexBuffer || !mesh.indexBuffer)
-        {
-            return;
-        }
-        // World = Scale * Rotation * Translation: first the size, then the tilt and the turn, then the place (row
-        // vectors: read left to right)
-        const XMMATRIX world = XMMatrixScaling(object.scale[0], object.scale[1], object.scale[2]) *
-                               XMMatrixRotationX(object.tilt) * XMMatrixRotationY(object.yaw) *
-                               XMMatrixTranslation(object.position[0], object.position[1], object.position[2]);
-        ObjectConstants data{};
-        XMStoreFloat4x4(&data.world, world);
-        // A normal is not moved like a point: on a stretched object it must be turned the other way (the inverse
-        // transpose), or the light is wrong. For this affine matrix the 3x3 part of the result is the inverse transpose
-        // of the 3x3 of `world`.
-        XMStoreFloat4x4(&data.normalMatrix, XMMatrixTranspose(XMMatrixInverse(nullptr, world)));
-        // the city (an object of both layers that does not shine by itself) takes the stone of the layer; the key
-        // objects of one layer and everything that glows keep their own colours, so that red, blue and gold always mean
-        // the same
-        const float city = (object.layerMask == scene::kLayerBoth && object.glow <= 0.0f) ? 1.0f : 0.0f;
-        data.color = XMFLOAT4(SrgbToLinear(object.colorSrgb[0]), SrgbToLinear(object.colorSrgb[1]),
-                              SrgbToLinear(object.colorSrgb[2]), city);
-        data.params = XMFLOAT4(object.checker, object.shineStrength, object.shininess, object.glow);
-        D3D11_MAPPED_SUBRESOURCE objectMap{};
-        if (FAILED(context->Map(m_objectBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &objectMap)))
-        {
-            return;
-        }
-        std::memcpy(objectMap.pData, &data, sizeof(data));
-        context->Unmap(m_objectBuffer.Get(), 0);
-        ID3D11Buffer* vertexBuffer = mesh.vertexBuffer.Get();
-        const UINT stride = sizeof(MeshVertex);
-        const UINT offset = 0;
-        context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-        context->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-        context->DrawIndexed(mesh.indexCount, 0, 0);
-        ++m_drawCalls;
-    };
+    m_halos.clear();
     for (const SceneObject& object : Objects())
     {
         if ((object.layerMask & layerBit) == 0)
@@ -1008,9 +1300,13 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
             m_water.push_back(&object);
             continue;
         }
-        drawOne(object);
+        if (scene::IsHalo(object.checker))
+        {
+            m_halos.push_back(&object);
+            continue;
+        }
+        DrawObject(context, object, m_drawCalls);
     }
-
     // ---- the water: after everything opaque, blended; the still water of the static batch first, then the water
     // objects far to near (the sea first: it is under everything else)
     const GpuMesh& stillWater = m_waterBatch[static_cast<std::size_t>(layer)];
@@ -1022,12 +1318,12 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         if (stillWater.indexCount > 0)
         {
             setFrame(layer, circle ? 1.0f : 0.0f);
-            drawBatch(stillWater);
+            drawBatch(stillWater, m_drawCalls);
         }
         if (waterOfA)
         {
             setFrame(0, 2.0f);
-            drawBatch(m_waterBatch[0]);
+            drawBatch(m_waterBatch[0], m_drawCalls);
         }
         setFrame(layer, 0.0f);
         context->OMSetBlendState(m_blendState.Get(), nullptr, 0xffffffff);
@@ -1052,10 +1348,31 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->OMSetDepthStencilState(m_waterDepth.Get(), 0);
         for (const SceneObject* object : m_water)
         {
-            drawOne(*object);
+            DrawObject(context, *object, m_drawCalls);
         }
         context->OMSetBlendState(m_blendState.Get(), nullptr, 0xffffffff);
         context->OMSetDepthStencilState(m_depthState.Get(), 0);
+    }
+    // ---- the halos: added over everything, tested against the depth (a wall hides them) but not written, seen from
+    // inside as well
+    if (!m_halos.empty())
+    {
+        context->OMSetBlendState(m_additiveBlend.Get(), nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(m_waterDepth.Get(), 0);
+        context->RSSetState(m_noCullState.Get());
+        for (const SceneObject* object : m_halos)
+        {
+            DrawObject(context, *object, m_drawCalls);
+        }
+        context->OMSetBlendState(m_blendState.Get(), nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(m_depthState.Get(), 0);
+        context->RSSetState(m_wireframe ? m_wireState.Get() : m_solidState.Get());
+    }
+    if (shadowOn)
+    {
+        ID3D11ShaderResourceView* none[1] =
+            {}; // the map is drawn into again for the next moment: it must not stay bound
+        context->PSSetShaderResources(0, 1, none);
     }
 }
 
@@ -1156,6 +1473,7 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
     }
     const StateGuard guard(context);
     m_drawCalls = 0;
+    m_shadowDraws = 0;
 
     if (m_ripple.Active() && DrawRipple(context, view, projection, eye))
     {

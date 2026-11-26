@@ -4,8 +4,8 @@
 //            the lights of both moments, the materials (an sRGB colour in A and in B, and whether it shines), the
 //            stations of the main path, the streets (their middle lines), the polygons of the town (their moment, their
 //            kind and their material), the things that change, the steps of the main path, the three emblems of the
-//            signal mast, the overlooks and the plan of both moments for the map. The game and the model are one town:
-//            a change of the layout is made in the model and exported again.
+//            signal mast, the overlooks, the lamps of the streets and the plan of both moments for the map. The game
+//            and the model are one town: a change of the layout is made in the model and exported again.
 // Kinds:     solid (walls, roofs, bridges, trees...), terrain (the ground), overlay (paving and treads laid on the
 // ground:
 //            drawn, not solid: the ground under them already has their height), water (in A: drawn as water, a body
@@ -36,7 +36,7 @@ namespace dl::town
 {
 
 inline constexpr char kPath[] = "data/town.dlt";
-inline constexpr std::uint32_t kVersion = 5;
+inline constexpr std::uint32_t kVersion = 6;
 
 enum class Kind : std::uint8_t
 {
@@ -143,6 +143,29 @@ struct Overlook
     float radius = 0.0f; ///< UNITS: metres
 };
 
+/// What a lamp is (what the game does with it: scene/Lamps.h).
+enum class LampKind : std::uint8_t
+{
+    Street = 0, ///< a lamp on a post along a street
+    Post = 1,   ///< a lamp post of the plaza
+    Light = 2,  ///< a lighthouse or the light of the mole: far, strong
+    Memory = 3, ///< one of the ring of lights of the bell tower
+    Grave = 4,  ///< the lantern on a new grave
+};
+
+/// A light of the town that shines where the model has a lantern: where it is, how far it reaches, its colour (sRGB)
+/// and strength, how much it flickers, and the moments it shines in.
+struct Lamp
+{
+    Vec3 at{};
+    float range = 10.0f;                 ///< UNITS: metres
+    float color[3] = {1.0f, 0.7f, 0.4f}; ///< sRGB
+    float intensity = 1.0f;              ///< the strength: 1 lights a wall with the light of the sun
+    float flicker = 0.0f;                ///< 0 .. 0.4
+    std::uint8_t worlds = 3;             ///< bit 0: in A, bit 1: in B
+    LampKind kind = LampKind::Street;
+};
+
 /// What stands in a cell of the plan.
 enum PlanClass : std::uint8_t
 {
@@ -229,6 +252,7 @@ class TownData
     std::vector<Step> steps;           ///< the main path in the order it is played
     std::vector<Emblem> emblems;       ///< the lamps of the signal mast
     std::vector<Overlook> overlooks;   ///< where the map is revealed far round
+    std::vector<Lamp> lamps;           ///< the lamps of the streets and the lights of the harbour
     Plan plan;                         ///< the plan of both moments, for the map
 
     /// Reads the file. False (and `error` says why) when it is missing, of another version, or cut short.
@@ -370,6 +394,18 @@ class TownData
             ok =
                 r.Name(o.name) && r.F32(o.at.x) && r.F32(o.at.y) && r.F32(o.at.z) && r.F32(o.radius) && o.radius > 0.0f;
             overlooks.push_back(o);
+        }
+        ok = ok && r.U32(n) && n < 4096u;
+        for (std::uint32_t i = 0; ok && i < n; ++i)
+        {
+            Lamp lamp;
+            std::uint8_t kind = 0;
+            ok = r.F32(lamp.at.x) && r.F32(lamp.at.y) && r.F32(lamp.at.z) && r.F32(lamp.range) &&
+                 r.Floats(lamp.color, 3) && r.F32(lamp.intensity) && r.F32(lamp.flicker) && r.U8(lamp.worlds) &&
+                 r.U8(kind) && lamp.range > 0.0f && lamp.intensity >= 0.0f && lamp.worlds >= 1 && lamp.worlds <= 3 &&
+                 kind <= 4 && std::isfinite(lamp.at.x) && std::isfinite(lamp.at.y) && std::isfinite(lamp.at.z);
+            lamp.kind = static_cast<LampKind>(kind);
+            lamps.push_back(lamp);
         }
         std::uint16_t pnx = 0;
         std::uint16_t pnz = 0;
