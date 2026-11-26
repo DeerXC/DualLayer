@@ -75,6 +75,8 @@ class Window
 
     /// True once after Esc was pressed with the mouse free and SetEscapeQuits(false).
     bool ConsumeEscape();
+    /// True once after a left click while capture is disabled (the map UI).
+    bool ConsumeMapClick();
 
     /// True (the default): a click into the window captures the mouse. False: the pointer stays free (the map is open).
     void SetCaptureAllowed(bool allowed)
@@ -99,6 +101,7 @@ class Window
     bool m_captured = false;
     bool m_escapeQuits = true;
     bool m_escape = false;
+    bool m_mapClick = false;
     bool m_captureAllowed = true;
 };
 

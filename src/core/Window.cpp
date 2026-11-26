@@ -139,6 +139,13 @@ bool Window::ConsumeEscape()
     return r;
 }
 
+bool Window::ConsumeMapClick()
+{
+    const bool r = m_mapClick;
+    m_mapClick = false;
+    return r;
+}
+
 void Window::ClipToClient()
 {
     RECT client{};
@@ -233,7 +240,11 @@ LRESULT Window::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
                               lParam); // WHY: WM_INPUT must reach DefWindowProc so Windows can free its data
     }
     case WM_LBUTTONDOWN:
-        if (m_captureAllowed)
+        if (!m_captureAllowed)
+        {
+            m_mapClick = true;
+        }
+        else if (m_captureAllowed)
         {
             SetMouseCaptured(true);
         }

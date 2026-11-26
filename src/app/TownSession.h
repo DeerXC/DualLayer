@@ -107,6 +107,7 @@ class TownSession
     void LookWithMouse();
     void ReadKeys(Frame& frame);
     void MapKeys(const Frame& frame);
+    void ApplyMapOption(const Frame& frame, int option);
     void OpenMap();
     void CloseMap();
     void PlaceMarker(const Frame& frame);
@@ -148,7 +149,7 @@ class TownSession
     // ---- what is drawn
     static constexpr int kDrawCapacity = 512;
     std::array<scene::SceneObject, kDrawCapacity> m_drawTable{};
-    std::unique_ptr<OverlayBatch> m_hud; ///< WHY on the heap: 1.4 MB, too large for the stack
+    std::unique_ptr<OverlayBatch> m_hud; ///< WHY on the heap: 5.8 MB, too large for the stack
     Respawn m_respawn;
 
     // ---- the state of the body
@@ -172,9 +173,16 @@ class TownSession
 
     // ---- the map
     bool m_mapOpen = false;
-    bool m_mapOpened = false;      ///< the player has opened it at least once (the prompt of M goes)
-    bool m_mapWasCaptured = false; ///< the mouse was captured when the map opened: it is again when it closes
-    int m_mapTop = 0;              ///< the sheet on top: 0 = A, 1 = B
+    bool m_mapOpened = false;         ///< the player has opened it at least once (the prompt of M goes)
+    bool m_mapWasCaptured = false;    ///< the mouse was captured when the map opened: it is again when it closes
+    int m_mapTop = 0;                 ///< the sheet on top: 0 = A, 1 = B
+    int m_mapMode = 0;                ///< 0 = map, 1 = differences only
+    int m_markerType = 0;             ///< the shape of the next marker (0 .. MapMemory::kMarkerTypes - 1)
+    float m_mapZoom = 1.0f;           ///< 1 = the whole town
+    float m_mapPanX = 0.0f;           ///< UNITS: metres: the window's centre east of the plan's centre
+    float m_mapPanZ = 0.0f;           ///< UNITS: metres: the window's centre north of the plan's centre
+    MapCache m_mapCache;              ///< the ink and the fog of the map, made again only when they change
+    std::array<bool, 32> m_stepLit{}; ///< the steps whose district the map has lit (they were solved)
 
     // ---- the loop
     bool m_collide = true;
@@ -198,6 +206,10 @@ class TownSession
     bool m_hintDown = false;
     bool m_lightDown = false;
     bool m_mapDown = false;
+    bool m_markerTypeDown = false;
+    bool m_zoomInDown = false;
+    bool m_zoomOutDown = false;
+    bool m_centreDown = false;
     bool m_deviceResetDown = false;
 };
 

@@ -221,6 +221,12 @@ class Guidance
         return n;
     }
 
+    /// True when step `k` of town.steps is done (the map lights the district of a solved step).
+    bool IsDone(int k) const
+    {
+        return k >= 0 && k < static_cast<int>(m_done.size()) && m_done[static_cast<std::size_t>(k)];
+    }
+
     /// Seconds without progress on the goal.
     float IdleSeconds() const
     {

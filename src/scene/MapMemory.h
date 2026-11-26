@@ -4,9 +4,10 @@
 //            stood at an overlook of the model (a high point: the bastions, the plaza, the top row of the theatre, the
 //            graveyard) and so looked over the town from there. The rest of the map is blank paper: the map never shows
 //            the position of what the player has not seen.
-// Markers:   up to kMaxMarkers; each is a place on the ground. Marking a place that already has a marker takes it away;
-// a sixth
-//            marker takes the oldest one's place. No text, no types.
+// Markers:   up to kMaxMarkers; each is a place on the ground with one of kMarkerTypes shapes and the moment (A or B)
+// it
+//            was set in. Marking a place that already has a marker takes it away; an eleventh marker takes the
+//            oldest one's place. No text.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_map.cpp).
 // UNITS: metres. Space: left-handed, +Y up (the plan is seen from above: x east, z north).
 #pragma once
@@ -27,12 +28,15 @@ struct MapMarker
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
+    int type = 0;  ///< the shape: 0 .. kMarkerTypes - 1
+    int layer = 0; ///< the moment it was set in: 0 = A, 1 = B
 };
 
 class MapMemory
 {
   public:
-    static constexpr int kMaxMarkers = 5;
+    static constexpr int kMaxMarkers = 10;
+    static constexpr int kMarkerTypes = 6;
     static constexpr float kOverlookReach = 6.0f; ///< UNITS: metres: how near an overlook the body must stand
 
     /// Forgets everything and takes the size of `plan`. `revealRadius`: metres round the body that are seen.
@@ -147,7 +151,7 @@ class MapMemory
     }
 
     /// A marker where there is none within `takeAwayWithin` metres (of m on the ground plane); else the nearest one
-    /// there is taken away. True when one was placed. A sixth marker takes the place of the oldest.
+    /// there is taken away. True when one was placed. An eleventh marker takes the place of the oldest.
     bool ToggleMarker(const MapMarker& m, float takeAwayWithin)
     {
         if (!std::isfinite(m.x) || !std::isfinite(m.z))
@@ -175,7 +179,10 @@ class MapMemory
         {
             m_markers.erase(m_markers.begin());
         }
-        m_markers.push_back(m);
+        MapMarker mark = m;
+        mark.type = std::clamp(mark.type, 0, kMarkerTypes - 1);
+        mark.layer = mark.layer == 1 ? 1 : 0;
+        m_markers.push_back(mark);
         return true;
     }
 

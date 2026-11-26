@@ -165,6 +165,27 @@ void TestBatch()
     CHECK(full.Count() == OverlayBatch::kMaxVertices && full.Full());
     full.Clear();
     CHECK(full.Count() == 0 && !full.Full());
+    // a layer kept from an earlier frame is added whole; one that does not fit is dropped whole and the batch says so
+    static OverlayBatch kept;
+    static OverlayBatch target;
+    kept.Clear();
+    target.Clear();
+    kept.AddRect(0.0f, 0.0f, 10.0f, 10.0f, {1.0f, 0.0f, 0.0f, 1.0f});
+    kept.AddTriangle(0.0f, 0.0f, 5.0f, 0.0f, 0.0f, 5.0f, {0.0f, 1.0f, 0.0f, 1.0f});
+    target.AddRect(1.0f, 1.0f, 2.0f, 2.0f, {0.0f, 0.0f, 1.0f, 1.0f});
+    target.Append(kept);
+    CHECK(target.Count() == 6 + 9 && !target.Full());
+    CHECK(Near(target.Data()[6].r, 1.0f) && Near(target.Data()[12].g, 1.0f));
+    static OverlayBatch nothing; // (static: a batch is too large for the stack)
+    target.Append(nothing);
+    CHECK(target.Count() == 15);
+    while (!target.Full())
+    {
+        target.AddRect(0.0f, 0.0f, 1.0f, 1.0f, {1.0f, 1.0f, 1.0f, 1.0f});
+    }
+    const int before = target.Count();
+    target.Append(kept);
+    CHECK(target.Count() == before && target.Full());
 }
 
 void TestShapes()

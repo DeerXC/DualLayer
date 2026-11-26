@@ -45,7 +45,7 @@ class OverlayBatch
 {
   public:
     static constexpr int kMaxVertices =
-        90000; ///< 15000 rectangles: the HUD needs a few hundred, the map some tens of thousands of vertices
+        240000; ///< 40000 rectangles: the HUD needs a few hundred, the map (smooth ink and fog) up to ~100000 vertices
 
     void Clear()
     {
@@ -74,6 +74,24 @@ class OverlayBatch
         Put(x, y, c);
         Put(x1, y1, c);
         Put(x, y1, c);
+    }
+
+    /// Adds every vertex of `other` (a layer that was built earlier and kept). Dropped whole when it does not fit.
+    void Append(const OverlayBatch& other)
+    {
+        if (other.m_count <= 0)
+        {
+            return;
+        }
+        if (m_count + other.m_count > kMaxVertices)
+        {
+            m_full = true;
+            return;
+        }
+        for (int i = 0; i < other.m_count; ++i)
+        {
+            m_vertices[static_cast<std::size_t>(m_count++)] = other.m_vertices[static_cast<std::size_t>(i)];
+        }
     }
 
     /// A filled triangle (any order of the corners: the overlay is drawn without culling).

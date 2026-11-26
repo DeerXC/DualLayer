@@ -40,6 +40,9 @@ constexpr float kSwitchOfferSeconds =
 constexpr float kMapOfferSeconds =
     40.0f; // UNITS: seconds of walking before M is offered to a player who has not opened the map
 constexpr float kMarkerHeight = 16.0f; // UNITS: metres: a marker stands in the world as a column of light this tall
+constexpr float kMapPanSpeed = 50.0f;  // UNITS: metres per second at zoom 1 (slower when zoomed in)
+constexpr float kMapZoomStep = 1.25f;  // one press of + or - (or a click on its button)
+constexpr float kLitRadius = 22.0f;    // UNITS: metres: the district a solved puzzle lights on the map
 constexpr float kMarkerGrab = 10.0f; // UNITS: pixels: a marker this close to the pointer is the one that is taken away
 constexpr const char* kLightViewNames[Models::kDebugViewCount] = {"full",  "no shadow", "no lamps", "shadow",
                                                                   "lamps", "plain"}; // key L: what the picture shows
@@ -404,9 +407,102 @@ void TownSession::MapKeys(const Frame& frame)
     {
         m_mapTop = 1 - m_mapTop; // the other sheet on top
     }
+    // the keys that do what the buttons do: T the next shape, + and - (also the number pad and the page keys) zoom, C
+    // or R the view back on the body; the arrow keys move the window
+    int option = -1;
+    if (input::PressedOnce('T', m_markerTypeDown, frame.focused))
+    {
+        option = kOptMarker;
+    }
+    const bool zoomIn = input::IsDown(VK_OEM_PLUS) || input::IsDown(VK_ADD) || input::IsDown(VK_PRIOR);
+    const bool zoomOut = input::IsDown(VK_OEM_MINUS) || input::IsDown(VK_SUBTRACT) || input::IsDown(VK_NEXT);
+    bool zoomInDown = m_zoomInDown;
+    bool zoomOutDown = m_zoomOutDown;
+    if (frame.focused && zoomIn && !zoomInDown)
+    {
+        option = kOptZoomIn;
+    }
+    if (frame.focused && zoomOut && !zoomOutDown)
+    {
+        option = kOptZoomOut;
+    }
+    m_zoomInDown = frame.focused && zoomIn;
+    m_zoomOutDown = frame.focused && zoomOut;
+    if (input::PressedOnce('C', m_centreDown, frame.focused) || frame.resetPressed)
+    {
+        option = kOptCentre;
+    }
+    if (m_window.ConsumeMapClick())
+    {
+        int cx = 0, cy = 0;
+        if (m_window.CursorClient(cx, cy))
+        {
+            const MapScene scene = MakeMapScene(frame);
+            const MapFrame map = ComputeMapFrame(m_gpu.device->Width(), m_gpu.device->Height(), scene);
+            const int clicked = MapOptionAt(map, static_cast<float>(cx), static_cast<float>(cy));
+            if (clicked >= 0)
+            {
+                option = clicked;
+            }
+        }
+    }
+    if (option >= 0)
+    {
+        ApplyMapOption(frame, option);
+    }
+    if (frame.focused)
+    {
+        const float pan = kMapPanSpeed * frame.dt / m_mapZoom;
+        const float dx = (input::IsDown(VK_RIGHT) ? 1.0f : 0.0f) - (input::IsDown(VK_LEFT) ? 1.0f : 0.0f);
+        const float dz = (input::IsDown(VK_UP) ? 1.0f : 0.0f) - (input::IsDown(VK_DOWN) ? 1.0f : 0.0f);
+        m_mapPanX = std::clamp(m_mapPanX + dx * pan, -200.0f, 200.0f);
+        m_mapPanZ = std::clamp(m_mapPanZ + dz * pan, -200.0f, 200.0f);
+    }
     if (frame.usePressed)
     {
         PlaceMarker(frame);
+    }
+}
+
+void TownSession::ApplyMapOption(const Frame& frame, int option)
+{
+    switch (option)
+    {
+    case kOptMap:
+    case kOptDifference:
+        m_mapMode = option == kOptDifference ? 1 : 0;
+        break;
+    case kOptZoomIn:
+        m_mapZoom = std::min(4.0f, m_mapZoom * kMapZoomStep);
+        break;
+    case kOptZoomOut:
+        m_mapZoom = std::max(1.0f, m_mapZoom / kMapZoomStep);
+        if (m_mapZoom < 1.02f)
+        {
+            m_mapZoom = 1.0f;
+            m_mapPanX = 0.0f; // the whole town: nothing to move
+            m_mapPanZ = 0.0f;
+        }
+        break;
+    case kOptCentre:
+    {
+        // the window on the body (at zoom 1 the whole town is in it anyway)
+        const town::Plan& plan = m_town.plan;
+        const Vec3 at = frame.walking ? m_player.Feet() : m_camera.Position();
+        m_mapPanX = at.x - (plan.x0 + 0.5f * static_cast<float>(plan.nx) * plan.cell);
+        m_mapPanZ = at.z - (plan.z0 + 0.5f * static_cast<float>(plan.nz) * plan.cell);
+        if (m_mapZoom <= 1.0f)
+        {
+            m_mapZoom = 2.0f;
+        }
+        break;
+    }
+    case kOptMarker:
+        m_markerType = (m_markerType + 1) % town::MapMemory::kMarkerTypes;
+        DL_LOG_INFO("Map", "marker shape %d of %d", m_markerType + 1, town::MapMemory::kMarkerTypes);
+        break;
+    default:
+        break;
     }
 }
 
@@ -415,6 +511,9 @@ void TownSession::OpenMap()
     m_mapOpen = true;
     m_mapOpened = true;
     m_mapTop = m_gpu.models.CollisionLayer(); // the sheet of the moment the player is in is on top
+    m_mapZoom = 1.0f;                         // the whole town, under its fog
+    m_mapPanX = 0.0f;
+    m_mapPanZ = 0.0f;
     m_mapWasCaptured = m_window.MouseCaptured();
     m_window.SetMouseCaptured(false); // the pointer is free: it marks
     m_window.SetCaptureAllowed(false);
@@ -439,6 +538,20 @@ MapScene TownSession::MakeMapScene(const Frame& frame) const
     scene.town = &m_town;
     scene.memory = &m_memory;
     scene.top = m_mapTop;
+    scene.mode = m_mapMode;
+    scene.zoom = m_mapZoom;
+    scene.panX = m_mapPanX;
+    scene.panZ = m_mapPanZ;
+    scene.markerType = m_markerType;
+    scene.goal = m_guidance.Goal();
+    for (std::size_t k = 0; k < m_town.steps.size() && k < scene.done.size(); ++k)
+    {
+        scene.done[k] = m_guidance.IsDone(static_cast<int>(k));
+    }
+    for (std::size_t k = 0; k < m_town.things.size() && k < scene.thingOpen.size(); ++k)
+    {
+        scene.thingOpen[k] = m_things.Open(k);
+    }
     scene.player = frame.walking ? m_player.Feet() : m_camera.Position();
     scene.yaw = m_camera.Yaw();
     scene.hasLantern = !m_lantern.Carried();
@@ -472,9 +585,10 @@ void TownSession::PlaceMarker(const Frame& frame)
         y = floorY;
     }
     const float grab = paper.valid ? kMarkerGrab / paper.Scale() : 3.0f;
-    const bool placed = m_memory.ToggleMarker({x, y, z}, grab);
-    DL_LOG_INFO("Map", "marker %s at %.0f %.0f (%d of %d)", placed ? "placed" : "taken away", static_cast<double>(x),
-                static_cast<double>(z), m_memory.MarkerCount(), town::MapMemory::kMaxMarkers);
+    const bool placed = m_memory.ToggleMarker({x, y, z, m_markerType, m_mapTop}, grab);
+    DL_LOG_INFO("Map", "marker %s (shape %d, sheet %s) at %.0f %.0f (%d of %d)", placed ? "placed" : "taken away",
+                m_markerType + 1, m_mapTop == 0 ? "A" : "B", static_cast<double>(x), static_cast<double>(z),
+                m_memory.MarkerCount(), town::MapMemory::kMaxMarkers);
 }
 
 void TownSession::SwitchMoment(const Frame& frame)
@@ -670,6 +784,16 @@ void TownSession::UpdateGuidance(const Frame& frame)
     m_walkSeconds += active ? frame.dt : 0.0f;
     m_guidance.Update(frame.dt, m_player.Feet(), m_things, m_lantern, active);
     m_memory.Update(m_town, m_player.Feet());
+    // a solved puzzle lights its district on the map, once, whether or not the body is still there
+    for (std::size_t k = 0; k < m_town.steps.size() && k < m_stepLit.size(); ++k)
+    {
+        if (!m_stepLit[k] && m_guidance.IsDone(static_cast<int>(k)))
+        {
+            m_stepLit[k] = true;
+            m_memory.Reveal(m_town.steps[k].at.x, m_town.steps[k].at.z, kLitRadius);
+            DL_LOG_INFO("Map", "district of %s lit", m_town.steps[k].name.c_str());
+        }
+    }
 }
 
 void TownSession::BuildDrawTable(const Frame& frame)
@@ -780,7 +904,7 @@ void TownSession::Render(const Frame& frame)
             {
                 const MapScene scene = MakeMapScene(frame);
                 BuildMap(*m_hud, m_gpu.device->Width(), m_gpu.device->Height(), scene,
-                         ComputeMapFrame(m_gpu.device->Width(), m_gpu.device->Height(), scene));
+                         ComputeMapFrame(m_gpu.device->Width(), m_gpu.device->Height(), scene), &m_mapCache);
             }
             GpuEvent pass(m_gpu.device->GetAnnotation(), L"Overlay");
             m_gpu.overlay.Draw(m_gpu.device->GetContext(), *m_hud, m_gpu.device->Width(), m_gpu.device->Height());

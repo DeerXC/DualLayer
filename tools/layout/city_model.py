@@ -2016,9 +2016,11 @@ def plan_overlay(ax, eye, right, up, f, focal, W, H, ortho):
 # ---- the town as data for the game (src/scene/Town.h reads it) -------------------------------------------------------------
 TOWN_MAGIC = b"DLTOWN\0\0"
 # ---- the plan of both moments, for the map (docs/DESIGN.md 10.4): a raster of 1 m cells, one class per cell and moment ---------------
-PLAN_CELL = 1.0
+PLAN_CELL = 0.5
 PLAN_BOX = (-98.0, -100.0, 102.0, 102.0)  # x0, z0, x1, z1: the town, its harbour and its cliff
 PLAN_WATER, PLAN_CLIFF, PLAN_BUILDING, PLAN_STREET = 1, 2, 3, 4
+PLAN_CLIFF_NY = 0.55  # terrain steeper than this (the normal's y below it: about 57 degrees) is cliff on the plan; the risers of the terraces
+#   of the hillside (41 degrees and up) are not: they made long thin stripes across the town on the map
 PLAN_PRIORITY = {0: 0, PLAN_WATER: 1, PLAN_CLIFF: 2, PLAN_BUILDING: 3, PLAN_STREET: 4}  # a street is drawn over an arch
 PLAN_SKIP = {"window", "lantern", "memory", "glow", "door", "shutter", "tree", "cypress", "moss", "cloth", "cloth2", "iron"}
 def build_plan():
@@ -2047,7 +2049,7 @@ def build_plan():
         if kind == "water":
             cls = PLAN_WATER if ny > 0.5 else 0
         elif kind == "terrain":
-            cls = PLAN_CLIFF if ny < 0.75 else 0                          # a slope of more than about 41 degrees
+            cls = PLAN_CLIFF if ny < PLAN_CLIFF_NY else 0
         elif kind == "overlay":
             cls = PLAN_STREET if mat == "paving" else 0
         else:
@@ -2077,7 +2079,25 @@ def build_plan():
             cur = sheet[cj, ci]
             better = np.array([PLAN_PRIORITY[int(c)] for c in cur]) < PLAN_PRIORITY[cls]
             sheet[cj[better], ci[better]] = cls
+    for sheet in sheets.values():                                         # a cliff of one cell is a speck, not a cliff
+        cliff = sheet == PLAN_CLIFF
+        keep = _shrink_grow(cliff)
+        specks = cliff & ~keep
+        sheet[specks] = np.where(sea[specks], PLAN_WATER, 0).astype(np.uint8)
     return sheets
+def _shrink_grow(mask):
+    """The cells of `mask` that lie in a 3 x 3 block that is all in `mask` (an opening by one cell): thinner things go."""
+    def lanes(m, op):
+        out = m.copy()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                moved = np.zeros_like(m) if op == "or" else np.ones_like(m)
+                ys, yd = slice(max(0, dy), m.shape[0] + min(0, dy)), slice(max(0, -dy), m.shape[0] + min(0, -dy))
+                xs, xd = slice(max(0, dx), m.shape[1] + min(0, dx)), slice(max(0, -dx), m.shape[1] + min(0, -dx))
+                moved[yd, xd] = m[ys, xs]
+                out = (out | moved) if op == "or" else (out & moved)
+        return out
+    return lanes(lanes(mask, "and"), "or")
 TOWN_VERSION = 6
 KIND_CODE = {"solid": 0, "terrain": 1, "overlay": 2, "water": 3}
 WORLD_CODE = {"A": 1, "B": 2, "both": 3}

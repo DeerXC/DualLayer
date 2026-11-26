@@ -16,7 +16,7 @@ WinMain > RunApp
           3. F5                    > ReloadConfig: the config, the themes of the moments, the lighting, the settings of the body and of the guidance
           4. resize                > Device::Resize
           5. LookWithMouse, ReadKeys   > the mouse turns the camera (not while the map is open); Z X N F toggles; the edges of Space, E, R and H
-             MapKeys                > M opens and closes the map; inside it Tab turns the sheet, E marks; the game stands still
+             MapKeys                > M opens and closes the map; inside it Tab turns the sheet, E marks, T changes the shape of the next mark, + - zoom, the arrow keys move, C centres; the game stands still
           6. SwitchMoment          > Tab goes through the LayerGuard (a switch into something, or into the water of the other
                                      moment, is refused)
           7. UpdateCamera, Models::Update   > the camera keys; the ripple clock
@@ -191,11 +191,15 @@ bell of their district) is open, then warm and glowing in both moments. The firs
 
 ## The map
 
-The model writes the plan of both moments (`TownData::plan`, cells of 1 m, a class each: water, cliff, building, street) and the
-overlooks. `MapMemory` marks the cells the body has been near (15 m) or has looked over from an overlook, and holds the markers
-(five at most). `MapView` draws two sheets of tracing paper into the overlay batch (neutral ink for what is in both moments, warm for A
-only, cool for B only, the sheet on top over the other), the player, the lantern, the tower with its lamps and the markers; it needs
-no pass of its own. While it is open `TownSession` stands still, the pointer is free (`Window::CursorClient`, `SetCaptureAllowed`) and
+The model writes the plan of both moments (`TownData::plan`, cells of 0.5 m, a class each: water, cliff, building, street) and the
+overlooks. `MapMemory` marks the cells the body has been near (15 m), has looked over from an overlook or has lit by solving a puzzle,
+and holds the markers (ten at most, six shapes, the moment each was set in). `MapView` draws two sheets of tracing paper into the
+overlay batch (neutral ink for what is in both moments, warm for A only, cool for B only, the sheet on top over the other) as smooth
+shapes (`FillField`: 2 x 2 averages cut along a level, whole cells joined into rectangles), the fog over what is not seen, the rings of
+the puzzles to solve, the things that change in their present state (`MapScene::thingOpen`), the player, the lantern, the tower with its
+lamps and the markers; it needs no pass of its own. The ink and the
+fog are kept in a `MapCache` (a second `OverlayBatch`) and made again only when the cells seen, the sheet, the mode or the window change.
+The batch holds 240000 vertices; the largest map (the whole town seen, every zoom) uses about 150000. While it is open `TownSession` stands still, the pointer is free (`Window::CursorClient`, `SetCaptureAllowed`) and
 Esc closes it (`SetEscapeQuits`, `ConsumeEscape`).
 
 ## The overlay
