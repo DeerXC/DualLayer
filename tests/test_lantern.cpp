@@ -25,6 +25,7 @@
 #include "scene/Town.h"
 #include "scene/TriMesh.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -160,11 +161,73 @@ void TestRules()
     // at an edge (nothing of A ahead): at the feet
     CHECK(l.Use({0.0f, 0.0f, 15.6f}, true, north, 0, kR, w.moments) == R::Put && Near(l.At().z, 15.6f, 1e-4f));
     CHECK(l.Use({0.0f, 0.0f, 15.0f}, true, north, 1, kR, w.moments) == R::Taken); // taken up in B, on the floor of B
-    // drawn: a post and a lamp, in both moments, only while it is set down
-    dl::scene::SceneObject table[4] = {};
-    CHECK(l.AddDraw(table, 0, 4) == 0);
+    // drawn: the lantern on the arm of its post, in both moments, only while it is set down
+    dl::scene::SceneObject table[24] = {};
+    CHECK(l.AddDraw(table, 0, 24) == 0);
     l.Use({0.0f, 0.0f, 2.1f}, true, north, 0, kR, w.moments);
-    CHECK(l.AddDraw(table, 0, 4) == 2 && table[1].glow > 1.0f && table[0].layerMask == dl::scene::kLayerBoth);
+    CHECK(l.AddDraw(table, 0, 24) == town::kLanternPlacedObjects);
+    CHECK(l.AddDraw(table, 0, town::kLanternPlacedObjects - 1) == 0); // no room for all of it: none of it
+    CHECK(l.AddDraw(nullptr, 0, 24) == 0);
+    {
+        bool both = true;
+        float glow = 0.0f;
+        float low = 10.0f;
+        float glassY = 0.0f;
+        for (int i = 0; i < town::kLanternPlacedObjects; ++i)
+        {
+            both = both && table[i].layerMask == dl::scene::kLayerBoth;
+            low = std::min(low, table[i].position[1] - 0.5f * table[i].scale[1]);
+            if (table[i].glow > glow && table[i].shape == dl::scene::ShapeKind::Sphere)
+            {
+                glow = table[i].glow;
+            }
+            if (table[i].glow > 1.0f && table[i].glow < 1.5f)
+            {
+                glassY = table[i].position[1];
+            }
+        }
+        CHECK(both && glow > 2.0f);
+        // the glass is where the circle of the lantern is centred, and the post stands on the floor it was set on
+        CHECK(Near(glassY, l.At().y + town::kLanternUp, 0.01f));
+        CHECK(Near(low, l.At().y, 0.01f));
+        // the pole stands beside the lantern and is higher than the glass; the lantern hangs from its arm
+        float pole = 0.0f;
+        for (int i = 0; i < town::kLanternStandObjects; ++i)
+        {
+            pole = std::max(pole, table[i].position[1] + 0.5f * table[i].scale[1]);
+        }
+        CHECK(pole > l.At().y + town::kLanternUp + town::kLanternGlassBelowHook);
+    }
+    // the model alone: hung from a hook, swung by a tilt (+ puts its foot behind), its glass and the base of its flame
+    {
+        dl::scene::SceneObject m[16] = {};
+        dl::Vec3 base{};
+        dl::Vec3 glass{};
+        const dl::Vec3 hook{1.0f, 2.0f, 3.0f};
+        CHECK(town::AddLanternModel(m, 0, 16, hook, 0.0f, 0.0f, 0.0f, &base, &glass) == town::kLanternModelObjects);
+        CHECK(Near(glass.y, hook.y - town::kLanternGlassBelowHook, 1e-5f) && Near(glass.x, hook.x, 1e-5f));
+        CHECK(base.y < hook.y && base.y > glass.y);
+        CHECK(town::AddLanternModel(m, 0, town::kLanternModelObjects - 1, hook, 0.0f, 0.0f, 0.0f) == 0);
+        CHECK(town::AddLanternModel(m, 3, 16, hook, 0.0f, 0.0f, 0.0f) == 3 + town::kLanternModelObjects);
+        dl::Vec3 swung{};
+        town::AddLanternModel(m, 0, 16, hook, 0.0f, 0.5f, 0.0f, nullptr, &swung);
+        CHECK(swung.z < hook.z - 0.1f && swung.y > glass.y); // the foot behind, the glass a little higher
+        dl::Vec3 turned{};
+        town::AddLanternModel(m, 0, 16, hook, 1.5707963f, 0.5f, 0.0f, nullptr, &turned); // turned east: behind is west
+        CHECK(turned.x < hook.x - 0.1f && Near(turned.z, hook.z, 1e-3f));
+        // the flame inside moves with the clock; the rest does not
+        dl::scene::SceneObject m2[16] = {};
+        town::AddLanternModel(m2, 0, 16, hook, 0.0f, 0.0f, 0.37f);
+        bool still = true;
+        bool moved = false;
+        for (int i = 0; i < town::kLanternModelObjects; ++i)
+        {
+            const bool same = m[i].scale[1] == m2[i].scale[1] && m[i].glow == m2[i].glow;
+            moved = moved || !same;
+            still = still && (m[i].glow > 0.0f || same);
+        }
+        CHECK(moved && still);
+    }
     l.Reset(w.moments);
     CHECK(l.Carried() && !w.moments.GetCircle().On());
 }

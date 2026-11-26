@@ -21,6 +21,7 @@
 
 #include "scene/Camera.h" // Vec3
 #include "scene/Flame.h"
+#include "scene/LanternModel.h"
 #include "scene/Moments.h"
 #include "scene/SceneData.h"
 
@@ -35,8 +36,10 @@ inline constexpr float kRadius = 3.5f; ///< UNITS: metres: the radius of the cir
 inline constexpr float kLanternUp =
     0.45f;                            ///< UNITS: metres: the centre of the circle over the floor the lantern stands on
 inline constexpr float kReach = 1.8f; ///< UNITS: metres between the feet and the lantern, to take it up
-inline constexpr float kPutAhead = 0.9f;   ///< UNITS: metres ahead of the feet where it is set down
-inline constexpr float kRecallFrom = 8.0f; ///< UNITS: metres from the set-down lantern from which E calls it back
+inline constexpr float kPutAhead = 0.9f; ///< UNITS: metres ahead of the feet where it is set down
+inline constexpr int kLanternPlacedObjects =
+    kLanternModelObjects + kLanternStandObjects; ///< what a set-down lantern draws
+inline constexpr float kRecallFrom = 8.0f;       ///< UNITS: metres from the set-down lantern from which E calls it back
 
 /// The lantern: carried, or set down with its circle.
 class Lantern
@@ -180,39 +183,24 @@ class Lantern
         moments.SetCircle(Circle{});
     }
 
-    /// The lantern as drawn while it is set down (both moments): a post and a glowing lamp, and the flame over it when
-    /// there is one (scene/Flame.h). Returns the new count.
+    /// Draws the set-down lantern: the post, the lantern on its arm and, with `flame`, the flame of the guidance over
+    /// its chimney. Nothing while it is carried, or when there is no room for kLanternPlacedObjects.
     int AddDraw(scene::SceneObject* out, int count, int capacity, const Flame* flame = nullptr,
                 float seconds = 0.0f) const
     {
-        if (!m_placed || out == nullptr || capacity - count < 2)
+        if (!m_placed || out == nullptr || capacity - count < kLanternPlacedObjects)
         {
             return count;
         }
-        scene::SceneObject post{};
-        post.shape = scene::ShapeKind::Cube;
-        post.position[0] = m_at.x;
-        post.position[1] = m_at.y + 0.2f;
-        post.position[2] = m_at.z;
-        post.scale[0] = 0.12f;
-        post.scale[1] = 0.4f;
-        post.scale[2] = 0.12f;
-        post.colorSrgb[0] = 0.28f;
-        post.colorSrgb[1] = 0.24f;
-        post.colorSrgb[2] = 0.22f;
-        post.layerMask = scene::kLayerBoth;
-        out[count++] = post;
-        scene::SceneObject lamp = post;
-        lamp.position[1] = m_at.y + kLanternUp;
-        lamp.scale[0] = lamp.scale[1] = lamp.scale[2] = 0.26f;
-        lamp.colorSrgb[0] = 1.0f;
-        lamp.colorSrgb[1] = 0.78f;
-        lamp.colorSrgb[2] = 0.42f;
-        lamp.glow = 1.4f;
-        out[count++] = lamp;
+        count = AddLanternStand(out, count, capacity, m_at, kLanternUp + kLanternGlassBelowHook);
+        // It hangs and sways a little, as a lantern on a hook does.
+        const float sway = 0.035f * std::sin(seconds * 1.3f);
+        const Vec3 hook{m_at.x, m_at.y + kLanternUp + kLanternGlassBelowHook, m_at.z};
+        Vec3 flameBase{};
+        count = AddLanternModel(out, count, capacity, hook, 0.0f, sway, seconds, &flameBase);
         if (flame != nullptr)
         {
-            count = AddFlame(out, count, capacity, {m_at.x, m_at.y + kLanternUp + 0.14f, m_at.z}, *flame, seconds);
+            count = AddFlame(out, count, capacity, flameBase, *flame, seconds);
         }
         return count;
     }

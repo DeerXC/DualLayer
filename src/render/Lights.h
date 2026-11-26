@@ -67,12 +67,14 @@ inline float LampFade(float distance, float range)
     return 1.0f - lamp_detail::Smooth(start, start + 25.0f, distance);
 }
 
-/// The factor of a flame at `seconds`: between 1 - amount and 1 + amount, never still.
+/// The factor of a flame at `seconds`: between 1 - amount and 1 + amount, never still (a slow breath, a quicker
+/// waver and a fine tremble).
 inline float LampFlicker(float amount, float phase, float seconds)
 {
     const float a = std::clamp(amount, 0.0f, 0.4f);
     return 1.0f +
-           a * (0.6f * std::sin(seconds * 7.3f + phase) + 0.4f * std::sin(seconds * 12.1f + phase * 1.7f + 1.3f));
+           a * (0.5f * std::sin(seconds * 7.3f + phase) + 0.3f * std::sin(seconds * 12.1f + phase * 1.7f + 1.3f) +
+                0.2f * std::sin(seconds * 23.9f + phase * 2.3f + 0.7f));
 }
 
 /// Chooses at most kMaxLamps lamps of the moment `layer` (0 = A, 1 = B) from the fixed lamps of the town and the moving

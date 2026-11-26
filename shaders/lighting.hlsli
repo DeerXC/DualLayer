@@ -109,9 +109,14 @@ float ShadowEdgeFade(float u, float v)
 }
 
 // The glow round a lamp, from how squarely the soft sphere that carries it is seen (|n . v|, 0 .. 1): 1 in the middle, 0 at the rim.
+// A broad soft skirt (the cube of the facing) with a brighter heart (its eighth power): the glow has no visible edge and the
+// flame seems to be in the middle of it. Exactly 1 at 1 and 0 at 0, only rising.
 float HaloFalloff(float facing)
 {
-    return pow(saturate(abs(facing)), 2.5f);
+    const float a = saturate(abs(facing));
+    const float broad = a * a * a;
+    const float heart = pow(a, 8.0f);
+    return broad + (heart - broad) * 0.25f;
 }
 
 // The light of the sun scattered by the haze toward the sun: `cosine` is the cosine of the angle between the ray of sight and the

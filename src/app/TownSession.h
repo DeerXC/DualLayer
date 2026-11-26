@@ -146,7 +146,7 @@ class TownSession
     LayerGuard m_guard;
 
     // ---- what is drawn
-    static constexpr int kDrawCapacity = 400;
+    static constexpr int kDrawCapacity = 512;
     std::array<scene::SceneObject, kDrawCapacity> m_drawTable{};
     std::unique_ptr<OverlayBatch> m_hud; ///< WHY on the heap: 1.4 MB, too large for the stack
     Respawn m_respawn;

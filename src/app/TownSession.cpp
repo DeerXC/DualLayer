@@ -708,7 +708,7 @@ void TownSession::BuildDrawTable(const Frame& frame)
     const Vec3 feet = m_player.Feet();
     Vec3 lanternAt{feet.x, feet.y + 1.2f,
                    feet.z}; // where the light of the lantern is: in the hand, else over the feet (first person)
-    const Vec3 hand{feet.x + sy * 0.45f + cy * 0.31f, feet.y + 1.3f, feet.z + cy * 0.45f - sy * 0.31f};
+    const Vec3 hand{feet.x + sy * 0.40f + cy * 0.25f, feet.y + 1.3f, feet.z + cy * 0.40f - sy * 0.25f};
     drawn = m_guidance.AddDraw(table, drawn, kDrawCapacity, m_clock, hand);
     if (frame.orbit)
     {

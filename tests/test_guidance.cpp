@@ -367,20 +367,22 @@ void TestFlameObjects()
     // the set-down lantern carries it
     World w;
     w.lantern.Use({10.0f, 3.0f, 38.5f}, true, {0.0f, 0.0f, 1.0f}, 0, kR, w.moments);
-    SceneObject lamp[16] = {};
-    CHECK(w.lantern.AddDraw(lamp, 0, 16) == 2);
-    CHECK(w.lantern.AddDraw(lamp, 0, 16, &f, 0.0f) == 2 + tn::kFlameObjects);
-    CHECK(w.lantern.AddDraw(lamp, 0, 4, &f, 0.0f) == 2); // no room for the flame: the lantern alone
+    SceneObject lamp[40] = {};
+    CHECK(w.lantern.AddDraw(lamp, 0, 40) == tn::kLanternPlacedObjects);
+    CHECK(w.lantern.AddDraw(lamp, 0, 40, &f, 0.0f) == tn::kLanternPlacedObjects + tn::kFlameObjects);
+    CHECK(w.lantern.AddDraw(lamp, 0, tn::kLanternPlacedObjects, &f, 0.0f) ==
+          tn::kLanternPlacedObjects); // no room for the flame: the lantern alone
     // the avatar carries it, and the arm goes up with the lantern
     dl::Player player;
-    SceneObject avatar[40] = {};
-    const int plain = tn::AddTownAvatar(avatar, 0, 40, player, 0.0f, 0.0f, 0.0f, true);
-    CHECK(plain == 19);
-    const float lampLow = avatar[17].position[1];
-    const int with = tn::AddTownAvatar(avatar, 0, 40, player, 0.0f, 0.0f, 0.0f, true, &f, 1.0f, 0.0f);
-    CHECK(with == 19 + tn::kFlameObjects && avatar[17].position[1] > lampLow + 0.3f);
-    CHECK(tn::AddTownAvatar(avatar, 0, 40, player, 0.0f, 0.0f, 0.0f, false, &f, 1.0f, 0.0f) ==
-          15); // nothing in the hand: no flame
+    SceneObject avatar[80] = {};
+    dl::Vec3 lampLow{};
+    dl::Vec3 lampHigh{};
+    const int plain = tn::AddTownAvatar(avatar, 0, 80, player, 0.0f, 0.0f, 0.0f, true, nullptr, 0.0f, 0.0f, &lampLow);
+    CHECK(plain == tn::kAvatarBodyObjects + tn::kLanternModelObjects);
+    const int with = tn::AddTownAvatar(avatar, 0, 80, player, 0.0f, 0.0f, 0.0f, true, &f, 1.0f, 0.0f, &lampHigh);
+    CHECK(with == plain + tn::kFlameObjects && lampHigh.y > lampLow.y + 0.3f);
+    CHECK(tn::AddTownAvatar(avatar, 0, 80, player, 0.0f, 0.0f, 0.0f, false, &f, 1.0f, 0.0f) ==
+          tn::kAvatarBodyObjects); // nothing in the hand: no flame
 }
 
 } // namespace

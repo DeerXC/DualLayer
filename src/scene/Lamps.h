@@ -32,6 +32,11 @@ namespace dl::town
 inline constexpr float kLanternLightRange = 13.0f; ///< UNITS: metres the lantern of the traveller lights
 inline constexpr float kLanternLightStrength =
     10.0f; ///< its strength (a street lamp is 18, but 3.4 m up: the lantern is 1.2 m)
+inline constexpr float kLanternFlicker =
+    0.12f; ///< the part of its strength that the flame of the lantern gains and loses
+inline constexpr float kLanternHalo =
+    1.0f; ///< UNITS: metres across: the glow round the glass (smaller than a street lamp's:
+          ///< it is carried through narrow streets and must not cut into the walls)
 inline constexpr float kEmblemLightRange = 22.0f; ///< a lit lamp of the mast lights the tower under it
 inline constexpr float kEmblemLightStrength = 36.0f;
 inline constexpr float kBellLightRange = 12.0f; ///< the lamp over the rope of a bell that was rung (B)
@@ -117,8 +122,11 @@ inline void MovingLamps(const TownData& town, const Things& things, const Lanter
     out.clear();
     const float warm[3] = {1.0f, 0.84f, 0.58f};
     const Vec3 at =
-        lantern.Carried() ? hand : Vec3{lantern.At().x, lantern.At().y + kLanternUp + 0.12f, lantern.At().z};
-    out.push_back(lamps_detail::Make(at, kLanternLightRange, warm, kLanternLightStrength, 0.10f, 0.7f, 3u, 1.4f));
+        lantern.Carried() ? hand : Vec3{lantern.At().x, lantern.At().y + kLanternUp + 0.04f, lantern.At().z};
+    // the flame of a lantern is a deeper amber than the white-gold of a lit lamp of the mast
+    const float flame[3] = {1.0f, 0.76f, 0.44f};
+    out.push_back(lamps_detail::Make(at, kLanternLightRange, flame, kLanternLightStrength, kLanternFlicker, 0.7f, 3u,
+                                     kLanternHalo));
     for (const Emblem& e : town.emblems)
     {
         if (EmblemLit(town, things, e))

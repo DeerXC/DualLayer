@@ -45,7 +45,7 @@ main
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug,
              Overlay, OverlayBatch, Font5x7, StaticBatch, Hud, MapView, Lights, ShadowMath,
              LightingSettings                                                                       > core, scene (data only)
- +- scene    Camera, SceneData, TriMath, TriMesh, Moments, Player, TownPlayer, Town, Lantern,
+ +- scene    Camera, SceneData, TriMath, TriMesh, Moments, Player, TownPlayer, Town, Lantern, LanternModel,
              Things, Guidance, Flame, Emblems, Lamps, MapMemory, LayerGuard, Prompts, TownEffects     > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
@@ -61,12 +61,12 @@ that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `
 | `scene/Town.h` | reads `data/town.dlt`; bakes the drawn polygons; builds the solid of each moment; the steps of the main path |
 | `scene/TriMath.h`, `scene/TriMesh.h` | the closest point of a triangle; triangles filed in a grid of 4 m cells and the push-out of a ball |
 | `scene/Moments.h` | the solid of both moments with the circle of the lantern; the push-out and the wall push |
-| `scene/Lantern.h` | the lantern: set down in A, a circle of A in B; the traces of things changed in A |
+| `scene/Lantern.h`, `scene/LanternModel.h` | the lantern: set down in A, a circle of A in B; the traces of things changed in A; the model of the lantern and of the post it hangs from when it is set down (also what the traveller carries) |
 | `scene/Things.h` | the things that change: opened in A, a trace in B (the causal rule) |
 | `scene/Guidance.h`, `scene/Flame.h` | the goal (the first step of the main path not done), the progress of the player, the flame of the lantern that leans toward the goal, the two steps of H |
 | `scene/Emblems.h` | the three lamps of the signal mast, dark until the bell of their district is rung |
 | `scene/MapMemory.h`, `render/MapView.h` | what the player has seen and the markers they left; the map drawn on two sheets of tracing paper |
-| `scene/Player.h`, `scene/TownPlayer.h` | the walking body; the town's climb, camera clearance and avatar |
+| `scene/Player.h`, `scene/TownPlayer.h` | the walking body; the town's climb, camera clearance and the avatar (a stylised figure of 45 parts, two-bone legs and arms, the lantern in the right hand) |
 | `scene/LayerGuard.h` | refuses a switch that would put the body inside something |
 | `scene/Prompts.h` | the one key prompt, chosen from the state of the game |
 | `scene/TownEffects.h` | the sea round the eye and the ring of a return |

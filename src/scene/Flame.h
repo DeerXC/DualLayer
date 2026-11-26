@@ -3,7 +3,7 @@
 // over the
 //           lantern, in the hand and set down, and leans toward the next thing to do; the longer the player goes
 //           without progress, the further it leans and the more it throws sparks.
-// Drawn:    a thin glowing plume (a cylinder turned by `tilt` round X and then by `yaw` round Y, so that it leans
+// Drawn:    a thin glowing plume (an ellipsoid turned by `tilt` round X and then by `yaw` round Y, so that it leans
 // toward
 //           (sin yaw, cos yaw): the same bearing as the avatar turns) and, when it is restless, three sparks that fly
 //           off its tip.
@@ -19,7 +19,7 @@
 namespace dl::town
 {
 
-inline constexpr float kFlameLength = 0.42f; ///< UNITS: metres: the height of the plume
+inline constexpr float kFlameLength = 0.34f; ///< UNITS: metres: the height of the plume
 inline constexpr int kFlameObjects = 4;      ///< the plume and three sparks
 
 struct Flame
@@ -47,11 +47,11 @@ inline int AddFlame(scene::SceneObject* out, int count, int capacity, const Vec3
     }
     const Vec3 axis = FlameAxis(f);
     scene::SceneObject plume{};
-    plume.shape = scene::ShapeKind::Cylinder;
+    plume.shape = scene::ShapeKind::Sphere; // a spindle: pointed at both ends, like a flame
     plume.position[0] = base.x + axis.x * 0.5f * kFlameLength;
     plume.position[1] = base.y + axis.y * 0.5f * kFlameLength;
     plume.position[2] = base.z + axis.z * 0.5f * kFlameLength;
-    plume.scale[0] = plume.scale[2] = 0.11f;
+    plume.scale[0] = plume.scale[2] = 0.085f;
     plume.scale[1] = kFlameLength;
     plume.tilt = f.tilt;
     plume.yaw = f.yaw;

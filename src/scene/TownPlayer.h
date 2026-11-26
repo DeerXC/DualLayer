@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scene/Flame.h"
+#include "scene/LanternModel.h"
 #include "scene/Player.h"
 #include "scene/Town.h"
 #include <algorithm>
@@ -110,111 +111,243 @@ inline bool TryTownMantle(Player& player, const Moments& moments, const TownData
     return true;
 }
 
-// A draw-only traveller. All parts, including the hand-held lantern, use the same local pose in A and B.
+inline constexpr int kAvatarBodyObjects = 45;  ///< the parts of the traveller without the lantern
+inline constexpr float kAvatarStature = 1.72f; ///< UNITS: metres from the feet to the top of the hood (visual only)
+inline constexpr int kAvatarHood = 19;         ///< the index of the hood (a sphere) among the parts of the body
+inline constexpr int kAvatarFirstLeg = 23;  ///< the index of the first part of the legs (the left leg, then the right)
+inline constexpr int kAvatarLegObjects = 6; ///< the parts of a leg: thigh, knee, shin, boot shaft, boot, toe cap
+
+// A draw-only traveller (docs/DESIGN.md 6.7): a stylised figure of rounded forms (a bell of a coat, a round hood with a
+// peak, a scarf that streams behind when he runs, big boots, a small pack with a bedroll) that stands kAvatarStature
+// high. All parts, including the hand-held lantern, use the same local pose in A and B.
+// Space: local x right, y up, z ahead; the lantern is in the right hand. The legs and the arms have two bones each (a
+// hip and a knee, a shoulder and an elbow); the body is lowered as the legs spread, so that a foot is on the floor.
 // `flame`: the flame over the lantern in the hand (scene/Flame.h), when it is carried; `raise`: 0 .. 1, how high the
-// lantern is held (the arm goes up, forward: the first step of H); `seconds`: the clock of the sparks of the flame;
-// `lamp`: where the glass of the lantern is in the world when it is carried (the light of the lantern is put there:
-// scene/Lamps.h).
+// lantern is held (the arm goes up, forward: the first step of H); `seconds`: the clock of the sparks of the flame,
+// the sway of the scarf and the flame inside the lantern; `lamp`: where the glass of the lantern is in the world when
+// it is carried (the light of the lantern is put there: scene/Lamps.h).
 inline int AddTownAvatar(scene::SceneObject* out, int count, int capacity, const Player& player, float yaw, float phase,
                          float gait, bool carried, const Flame* flame = nullptr, float raise = 0.0f,
                          float seconds = 0.0f, Vec3* lamp = nullptr)
 {
-    constexpr int bodyParts = 15;
-    constexpr int lampParts = 4;
     const int flameParts = carried && flame != nullptr ? kFlameObjects : 0;
     if (out == nullptr || count < 0 || count > capacity ||
-        capacity - count < bodyParts + (carried ? lampParts : 0) + flameParts)
+        capacity - count < kAvatarBodyObjects + (carried ? kLanternModelObjects : 0) + flameParts)
     {
         return count;
     }
     using scene::ShapeKind;
+    struct Mat
+    {
+        float r, g, b, shine, power;
+    };
+    // Cloth is matte, leather a little smoother, brass a controlled highlight (docs/DESIGN.md 6.7).
+    constexpr Mat coat{0.17f, 0.40f, 0.44f, 0.05f, 10.0f};
+    constexpr Mat wool{0.12f, 0.28f, 0.33f, 0.03f, 8.0f};
+    constexpr Mat leather{0.30f, 0.20f, 0.14f, 0.12f, 20.0f};
+    constexpr Mat boot{0.21f, 0.14f, 0.11f, 0.14f, 22.0f};
+    constexpr Mat brass{0.62f, 0.40f, 0.20f, 0.35f, 40.0f};
+    constexpr Mat skin{0.72f, 0.55f, 0.40f, 0.04f, 10.0f};
+    constexpr Mat trousers{0.19f, 0.21f, 0.23f, 0.04f, 10.0f};
+    constexpr Mat scarf{0.58f, 0.28f, 0.20f, 0.03f, 8.0f};
+    constexpr Mat roll{0.52f, 0.44f, 0.32f, 0.03f, 8.0f};
+    constexpr Mat dark{0.07f, 0.06f, 0.07f, 0.0f, 1.0f};
+    constexpr float halfPi = 1.5707963f;
+
     const Vec3 feet = player.Feet();
     const float sy = std::sin(yaw);
     const float cy = std::cos(yaw);
     const float run = std::clamp((gait - 1.0f) / 0.6f, 0.0f, 1.0f);
-    const float swing = std::sin(phase) * (0.46f + 0.28f * run) * (std::min)(gait, 1.0f);
+    const float g = (std::min)(gait, 1.0f);
+    const float swing = std::sin(phase) * (0.44f + 0.16f * run) * g;
     const float airborne = player.Grounded() ? 0.0f : 1.0f;
-    const float lift = 0.021f * std::fabs(std::sin(phase)) * (std::min)(gait, 1.0f);
     const float lean = 0.16f * run + 0.08f * airborne;
-    const auto part = [&](ShapeKind shape, Vec3 p, Vec3 size, Vec3 tint, float tilt = 0.0f, float glow = 0.0f)
+    const float raised = std::clamp(raise, 0.0f, 1.0f);
+    const float lc = std::cos(lean);
+    const float ls = std::sin(lean);
+
+    // ---- the legs first: the body stands on whichever foot is lowest
+    constexpr float thighLen = 0.36f;
+    constexpr float shinLen = 0.36f;
+    constexpr float hipRest = 0.82f;
+    constexpr float ankleRest = 0.10f;
+    struct Leg
+    {
+        float side, thigh, shin, hipX;
+        float kneeY, kneeZ, ankleY, ankleZ; // relative to the hip
+    };
+    const auto legOf = [&](float side)
+    {
+        Leg l{};
+        l.side = side;
+        l.hipX = side * 0.115f;
+        // + is a foot behind. A leg that swings forward bends its knee; in the air both are tucked.
+        l.thigh = side * (swing + 0.30f * airborne);
+        const float forward = (std::max)(0.0f, -side * std::cos(phase)) * g;
+        l.shin = l.thigh + 0.95f * forward * (1.0f - airborne) + 0.80f * airborne;
+        l.kneeY = -thighLen * std::cos(l.thigh);
+        l.kneeZ = -thighLen * std::sin(l.thigh);
+        l.ankleY = l.kneeY - shinLen * std::cos(l.shin);
+        l.ankleZ = l.kneeZ - shinLen * std::sin(l.shin);
+        return l;
+    };
+    const Leg legs[2] = {legOf(-1.0f), legOf(1.0f)};
+    // The lowest ankle is on the floor; the hips come down as the legs spread (a little less than that, so that a
+    // stride is a stride and not a squat).
+    const float hipsLow = ankleRest - (std::min)(legs[0].ankleY, legs[1].ankleY);
+    const float up = airborne > 0.5f ? 0.0f : (std::min)(0.0f, 0.75f * (hipsLow - hipRest));
+
+    const auto world = [&](const Vec3& p) -> Vec3
+    { return {feet.x + cy * p.x + sy * p.z, feet.y + p.y, feet.z - sy * p.x + cy * p.z}; };
+    const auto part =
+        [&](ShapeKind shape, const Vec3& p, const Vec3& size, const Mat& m, float tilt = 0.0f, float yawOffset = 0.0f)
     {
         scene::SceneObject o{};
+        const Vec3 w = world(p);
         o.shape = shape;
-        o.position[0] = feet.x + cy * p.x + sy * p.z;
-        o.position[1] = feet.y + p.y + lift;
-        o.position[2] = feet.z - sy * p.x + cy * p.z;
+        o.position[0] = w.x;
+        o.position[1] = w.y;
+        o.position[2] = w.z;
         o.scale[0] = size.x;
         o.scale[1] = size.y;
         o.scale[2] = size.z;
-        o.colorSrgb[0] = tint.x;
-        o.colorSrgb[1] = tint.y;
-        o.colorSrgb[2] = tint.z;
-        o.yaw = yaw;
+        o.colorSrgb[0] = m.r;
+        o.colorSrgb[1] = m.g;
+        o.colorSrgb[2] = m.b;
+        o.yaw = yaw + yawOffset;
         o.tilt = tilt;
-        o.shineStrength = 0.06f;
-        o.shininess = 12.0f;
-        o.glow = glow;
+        o.shineStrength = m.shine;
+        o.shininess = m.power;
         o.layerMask = scene::kLayerBoth;
         out[count++] = o;
     };
-    const Vec3 coat{0.16f, 0.34f, 0.38f};
-    const Vec3 wool{0.10f, 0.22f, 0.26f};
-    const Vec3 leather{0.26f, 0.18f, 0.13f};
-    const Vec3 brass{0.65f, 0.42f, 0.22f};
-    part(ShapeKind::Cube, {0, 1.18f, 0.04f * run}, {0.47f, 0.49f, 0.29f}, coat, lean);
-    part(ShapeKind::Cube, {0, 0.91f, -0.04f}, {0.48f, 0.27f, 0.31f}, wool, -lean * 0.7f);
-    part(ShapeKind::Cube, {0, 1.02f, 0.01f}, {0.49f, 0.065f, 0.32f}, leather);
-    // Visual stature only. Eye height, body clearance and mantle reach are unchanged.
-    constexpr float stature = 1.72f;
-    constexpr float hoodHeight = 0.30f;
-    part(ShapeKind::Sphere, {0, stature - hoodHeight * 0.5f, 0.08f * run}, {0.30f, hoodHeight, 0.30f}, wool);
-    part(ShapeKind::Sphere, {0, 1.57f, 0.11f + 0.08f * run}, {0.20f, 0.21f, 0.13f}, {0.63f, 0.48f, 0.34f});
-    part(ShapeKind::Cylinder, {0, 1.43f, 0.035f}, {0.31f, 0.09f, 0.30f}, {0.63f, 0.37f, 0.20f});
-    part(ShapeKind::Cube, {-0.03f, 1.21f, -0.205f}, {0.30f, 0.32f, 0.15f}, leather, lean);
-    part(ShapeKind::Cylinder, {-0.03f, 1.36f, -0.22f}, {0.26f, 0.095f, 0.17f}, brass);
-    float lampY = 0.0f;
-    float lampZ = 0.0f;
+    // The upper body leans about the waist (forward when he runs).
+    constexpr float waistY = 0.98f;
+    const auto onTorso = [&](float x, float y, float z) -> Vec3
+    {
+        const float dy = y - waistY;
+        return {x, waistY + up + dy * lc - z * ls, dy * ls + z * lc};
+    };
+    // A cylinder between two points of the plane of the body (a limb): a is the upper end.
+    const auto limb = [&](const Vec3& a, const Vec3& b, float diameter, const Mat& m)
+    {
+        const float dy = b.y - a.y;
+        const float dz = b.z - a.z;
+        part(ShapeKind::Cylinder, {a.x, 0.5f * (a.y + b.y), 0.5f * (a.z + b.z)},
+             {diameter, std::hypot(dy, dz), diameter}, m, std::atan2(-dz, -dy));
+    };
+    // The centre of a strip of cloth that hangs from `hinge` and swings back by `angle`.
+    const auto hung = [](const Vec3& hinge, float length, float angle) -> Vec3
+    { return {hinge.x, hinge.y - 0.5f * length * std::cos(angle), hinge.z - 0.5f * length * std::sin(angle)}; };
+
+    // ---- the body
+    const float breath = 0.004f * std::sin(seconds * 1.7f) * (1.0f - g);
+    part(ShapeKind::Sphere, onTorso(0.0f, 1.20f + breath, 0.005f), {0.43f, 0.44f, 0.29f}, coat, lean);
+    part(ShapeKind::Cylinder, onTorso(0.0f, 1.02f, 0.0f), {0.33f, 0.20f, 0.25f}, coat, lean);
+    part(ShapeKind::Cylinder, onTorso(0.0f, 0.985f, 0.0f), {0.345f, 0.045f, 0.265f}, leather, lean);
+    part(ShapeKind::Cube, onTorso(0.0f, 0.985f, 0.132f), {0.065f, 0.05f, 0.02f}, brass, lean);
+    part(ShapeKind::Cube, onTorso(-0.17f, 0.93f, -0.13f), {0.075f, 0.10f, 0.07f}, leather, lean);
+    // the coat: a bell that hangs from the waist, and a vent behind that the stride and the wind lift
+    part(ShapeKind::Sphere, {0.0f, 0.735f + up, -0.025f}, {0.44f, 0.44f, 0.32f}, coat);
+    const float flap = 0.08f + 0.32f * run + 0.06f * std::sin(phase) * g;
+    part(ShapeKind::Sphere, hung({0.0f, 0.86f + up, -0.12f}, 0.28f, flap), {0.22f, 0.27f, 0.075f}, coat, flap);
+    // the pack, with its bedroll across the top, and the straps over the chest
+    part(ShapeKind::Cube, onTorso(0.0f, 1.16f, -0.215f), {0.26f, 0.27f, 0.13f}, leather, lean);
+    part(ShapeKind::Cylinder, onTorso(0.0f, 1.33f, -0.235f), {0.12f, 0.34f, 0.12f}, roll, halfPi + lean, halfPi);
+    part(ShapeKind::Cube, onTorso(-0.115f, 1.21f, 0.13f), {0.045f, 0.30f, 0.02f}, leather, lean);
+    part(ShapeKind::Cube, onTorso(0.115f, 1.21f, 0.13f), {0.045f, 0.30f, 0.02f}, leather, lean);
+    for (int k = 0; k < 3; ++k)
+    {
+        const float y = 1.30f - 0.10f * static_cast<float>(k);
+        const float depth = 0.15f * std::sqrt((std::max)(0.0f, 1.0f - ((y - 1.20f) / 0.22f) * ((y - 1.20f) / 0.22f)));
+        part(ShapeKind::Sphere, onTorso(0.0f, y, depth + 0.006f), {0.026f, 0.026f, 0.026f}, brass);
+    }
+    // the scarf: a collar over the chin, a knot on the left shoulder and two tails that stream behind
+    part(ShapeKind::Cylinder, onTorso(0.0f, 1.43f, 0.0f), {0.235f, 0.10f, 0.225f}, scarf, lean);
+    part(ShapeKind::Sphere, onTorso(-0.13f, 1.40f, -0.06f), {0.10f, 0.10f, 0.10f}, scarf);
+    for (int k = 0; k < 2; ++k)
+    {
+        const float length = k == 0 ? 0.30f : 0.23f;
+        const float angle = 0.25f + 0.85f * run + 0.10f * std::sin(seconds * 3.2f + 1.7f * static_cast<float>(k)) +
+                            0.12f * std::sin(phase) * g;
+        const Vec3 hinge = onTorso(-0.15f - 0.05f * static_cast<float>(k), 1.395f, -0.09f);
+        part(ShapeKind::Cube, hung(hinge, length, angle), {0.065f - 0.008f * static_cast<float>(k), length, 0.022f},
+             scarf, angle);
+    }
+    // the head: a face in a round hood with a peak; the eyes are two dark marks
+    part(ShapeKind::Sphere, onTorso(0.0f, 1.535f, 0.095f), {0.20f, 0.215f, 0.20f}, skin, lean * 0.4f);
+    part(ShapeKind::Sphere, onTorso(0.0f, kAvatarStature - 0.17f, -0.015f), {0.36f, 0.34f, 0.37f}, wool, lean * 0.4f);
+    part(ShapeKind::Sphere, onTorso(0.0f, 1.585f, -0.20f), {0.15f, 0.22f, 0.15f}, wool, -1.0f + lean * 0.4f);
+    part(ShapeKind::Cube, onTorso(-0.042f, 1.55f, 0.187f), {0.026f, 0.040f, 0.016f}, dark, lean * 0.4f);
+    part(ShapeKind::Cube, onTorso(0.042f, 1.55f, 0.187f), {0.026f, 0.040f, 0.016f}, dark, lean * 0.4f);
+
+    // ---- the legs: a thigh, a knee, a shin, the shaft of a boot and the boot
+    for (const Leg& l : legs)
+    {
+        const Vec3 hip{l.hipX, hipRest + up, 0.0f};
+        const Vec3 knee{l.hipX, hip.y + l.kneeY, l.kneeZ};
+        const Vec3 ankle{l.hipX, hip.y + l.ankleY, l.ankleZ};
+        limb(hip, knee, 0.135f, trousers);
+        part(ShapeKind::Sphere, knee, {0.125f, 0.125f, 0.125f}, trousers);
+        limb(knee, ankle, 0.11f, trousers);
+        const float up2 = 0.075f; // the shaft stands on the shin
+        part(ShapeKind::Cylinder, {ankle.x, ankle.y + up2 * std::cos(l.shin), ankle.z + up2 * std::sin(l.shin)},
+             {0.145f, 0.20f, 0.145f}, boot, l.shin);
+        const float toe = 0.4f * l.shin; // a foot behind lifts its heel, a foot ahead its toe
+        part(ShapeKind::Cube, {ankle.x, ankle.y - 0.045f, ankle.z + 0.03f}, {0.145f, 0.10f, 0.20f}, boot, toe);
+        part(ShapeKind::Sphere, {ankle.x, ankle.y - 0.05f, ankle.z + 0.15f}, {0.145f, 0.095f, 0.13f}, boot, toe);
+    }
+
+    // ---- the arms: a shoulder, an upper arm, a forearm, a cuff and a glove; the right hand holds the lantern
+    Vec3 hand{};
     for (int i = -1; i <= 1; i += 2)
     {
         const float side = static_cast<float>(i);
-        const float leg = side * (swing + 0.25f * airborne);
-        const float held = -0.46f - swing * 0.18f;
-        const float raised = std::clamp(raise, 0.0f, 1.0f);
-        const float angle = (i == 1 && carried) ? held + (-2.2f - held) * raised : -leg * 0.85f;
-        const float ankleY = 0.77f - 0.67f * std::cos(leg);
-        const float ankleZ = -0.67f * std::sin(leg);
-        part(ShapeKind::Cube, {side * 0.13f, (0.77f + ankleY) * 0.5f, ankleZ * 0.5f}, {0.16f, 0.68f, 0.17f},
-             {0.19f, 0.21f, 0.22f}, leg);
-        part(ShapeKind::Cube, {side * 0.13f, ankleY - 0.025f, ankleZ + 0.045f}, {0.18f, 0.15f, 0.29f}, leather);
-        const float handY = 1.36f - 0.45f * std::cos(angle);
-        const float handZ = -0.45f * std::sin(angle);
-        part(ShapeKind::Cylinder, {side * 0.275f, (1.36f + handY) * 0.5f, handZ * 0.5f}, {0.15f, 0.46f, 0.15f}, coat,
-             angle);
-        if (i == 1)
+        const bool holds = i == 1 && carried;
+        float shoulderAngle = -0.8f * side * swing - 0.35f * airborne;
+        float flex = 0.20f + 0.45f * run + 0.15f * airborne;
+        if (holds)
         {
-            lampY = handY;
-            lampZ = handZ;
+            shoulderAngle = -0.42f - 0.20f * swing;
+            flex = 1.0f;
+            shoulderAngle += (-1.75f - shoulderAngle) * raised;
+            flex += (0.85f - flex) * raised;
+        }
+        const float x = side * 0.25f;
+        const Vec3 shoulder = onTorso(x, 1.34f, 0.0f);
+        const float lowerAngle = shoulderAngle - flex;
+        const Vec3 elbow{x, shoulder.y - 0.27f * std::cos(shoulderAngle), shoulder.z - 0.27f * std::sin(shoulderAngle)};
+        const Vec3 wrist{x, elbow.y - 0.25f * std::cos(lowerAngle), elbow.z - 0.25f * std::sin(lowerAngle)};
+        const Vec3 along{0.0f, -std::cos(lowerAngle), -std::sin(lowerAngle)};
+        part(ShapeKind::Sphere, shoulder, {0.15f, 0.15f, 0.15f}, coat);
+        limb(shoulder, elbow, 0.105f, coat);
+        limb(elbow, wrist, 0.095f, coat);
+        part(ShapeKind::Cylinder, {x, wrist.y - 0.03f * along.y, wrist.z - 0.03f * along.z}, {0.115f, 0.06f, 0.115f},
+             leather, lowerAngle);
+        const Vec3 palm{x, wrist.y + 0.045f * along.y, wrist.z + 0.045f * along.z};
+        part(ShapeKind::Sphere, palm, {0.095f, 0.095f, 0.095f}, leather);
+        if (holds)
+        {
+            hand = palm;
         }
     }
-    part(ShapeKind::Cube, {0, 1.02f, 0.18f}, {0.105f, 0.084f, 0.035f}, brass);
+
+    // ---- the lantern, on the right hand; it swings a little as a lantern on a ring does
     if (carried)
     {
-        const float x = 0.31f;
-        const float z = lampZ + 0.075f;
-        part(ShapeKind::Cube, {x, lampY, z}, {0.055f, 0.13f, 0.05f}, leather);
-        part(ShapeKind::Cylinder, {x, lampY - 0.12f, z}, {0.16f, 0.04f, 0.16f}, brass);
-        part(ShapeKind::Cylinder, {x, lampY - 0.207f, z}, {0.13f, 0.14f, 0.13f}, {1.0f, 0.68f, 0.30f}, 0.0f, 0.85f);
+        const float swingBack =
+            0.28f * std::cos(phase) * g * (1.0f - raised) + 0.10f * run + 0.03f * std::sin(seconds * 1.7f);
+        const Vec3 hook = world({hand.x + 0.04f, hand.y - 0.02f, hand.z}); // the ring hangs a little outside the hand
+        Vec3 flameBase{};
+        Vec3 glass{};
+        count = AddLanternModel(out, count, capacity, hook, yaw, swingBack, seconds, &flameBase, &glass);
         if (lamp != nullptr)
         {
-            const float glassY = lampY - 0.207f + 0.04f;
-            *lamp = {feet.x + cy * x + sy * z, feet.y + glassY + lift, feet.z - sy * x + cy * z};
+            *lamp = glass;
         }
-        part(ShapeKind::Cylinder, {x, lampY - 0.29f, z}, {0.16f, 0.035f, 0.16f}, brass);
         if (flame != nullptr)
         {
-            const float ly = lampY + 0.04f;
-            const Vec3 base{feet.x + cy * x + sy * z, feet.y + ly + lift, feet.z - sy * x + cy * z};
-            count = AddFlame(out, count, capacity, base, *flame, seconds);
+            count = AddFlame(out, count, capacity, flameBase, *flame, seconds);
         }
     }
     return count;
