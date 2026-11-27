@@ -1,13 +1,11 @@
 // Emblems.h - the three lamps of the signal mast over the bell tower: the far goal, the whole quest log of the game
 //             (docs/DESIGN.md 10.1 and 10.5).
 // Rule:      a lamp is dark until the bell of its district is rung (a thing of scene/Things.h, named in the town file);
-// then it
-//            is lit, in both moments. Three lamps, three shapes (a sphere for the well of the west, a column for the
-//            cliff of the north, a box for the lock of the east): no words, no counter.
-// Why a mast: the sea wall in front of the quay hides the bell tower itself in both moments (tests/test_firstminute.cpp
-// casts
-//            the rays), so the lamps hang on a mast that stands over the tower and clears the wall: the player sees
-//            them from the first frame.
+//            then it is lit, in both moments. Three lamps, three shapes (a sphere for the well of the west, a column
+//            for the cliff of the north, a box for the lock of the east): no words, no counter.
+// Why a mast: the sea wall in front of the quay hides the bell tower itself in both moments
+//            (tests/test_firstminute.cpp casts the rays), so the lamps hang on a mast that stands over the tower and
+//            clears the wall: the player sees them from the first frame.
 // Drawn:     each lamp and a pale collar round it, so that a dark lamp reads against the sky of B as well as that of A.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_firstminute.cpp).
 // UNITS: metres, seconds. Space: left-handed, +Y up.

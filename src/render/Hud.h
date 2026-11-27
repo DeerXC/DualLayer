@@ -1,7 +1,6 @@
 // Hud.h - the overlay of one frame: the dot in the middle, the prompt at the bottom, the status line at the top left,
-// and a
-//         tint when the body is under water. Sizes follow the height of the window, so the text is as big on a laptop
-//         as on a desktop screen.
+// and a tint when the body is under water. Sizes follow the height of the window, so the text is as big on a laptop as
+// on a desktop screen.
 // Owns:   nothing (it fills an OverlayBatch that the caller owns).
 // UNITS:  pixels.
 #pragma once

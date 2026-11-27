@@ -1,19 +1,17 @@
 // Things.h - the things that change in the town (docs/DESIGN.md 3.3, 3.5 and 8): a gate raised by its winch, and the
-// like. Data:      each thing comes from the model (data/town.dlt, scene/Town.h ThingDef): a handle and boxes, each box
-// in one or
-//            both moments and in one state (shut or open).
+// like.
+// Data:      each thing comes from the model (data/town.dlt, scene/Town.h ThingDef): a handle and boxes, each box in
+//            one or both moments and in one state (shut or open).
 // Verbs:     what the prompt says: OPEN (a gate), PUSH (a crate), LAY ACROSS (a plank), RING (a bell: its only box is a
 //            lamp lit in B over its rope), LOWER (the lift of the rock).
 // Rule:      the causal rule. E at the handle, in A, standing, opens the thing; it opens in A and in B at once (what is
-// done
-//            in A leaves its trace in B). Nothing in B opens anything: at the handle in B, E does nothing. An opening
-//            that would put a box of A where the body is, is refused.
+//            done in A leaves its trace in B). Nothing in B opens anything: at the handle in B, E does nothing. An
+//            opening that would put a box of A where the body is, is refused.
 // Solid:     the boxes of the state now are solids of their moments (Moments::SetExtra through ApplyTo), so the circle
-// of the
-//            lantern treats them as the town's own triangles.
+//            of the lantern treats them as the town's own triangles.
 // Drawn:     AddDraw gives each box of the state now as a turned cube of its material's colour in that moment; the
-// handle of
-//            a shut thing glows gold in A (gold means use). The boxes of B of an opened thing carry its trace (Traces).
+//            handle of a shut thing glows gold in A (gold means use). The boxes of B of an opened thing carry its trace
+//            (Traces).
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_things.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
 #pragma once

@@ -1,13 +1,11 @@
 // LanternModel.h - the lantern as an object: the model that hangs from the hand of the traveller and, set down, from
-// the
-//                  arm of a small iron post (docs/DESIGN.md 6.7).
+// the arm of a small iron post (docs/DESIGN.md 6.7).
 // Why:             one model for both states, so that the thing the player sets down is plainly the thing the player
 //                  carried. It is made of the shapes of scene/SceneData.h and is drawn like any other object of the
 //                  town.
 // Parts:           a bail ring, a chimney, a brass cap and its rim, four iron posts, a glass globe that glows, the
-// flame
-//                  inside it, a rim and a foot. The post of a set-down lantern adds a foot plate, a pole, an arm and a
-//                  finial.
+//                  flame inside it, a rim and a foot. The post of a set-down lantern adds a foot plate, a pole, an arm
+//                  and a finial.
 // Hung:            every part is placed from one point, the hook (the top of the ring), and swings about it with `tilt`
 //                  (radians, round X, before the turn: + puts the foot of the lantern behind). The glass is
 //                  kLanternGlassBelowHook under the hook, which is where the light of the lantern is put.

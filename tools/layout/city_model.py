@@ -44,46 +44,17 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "docs
 SEA = -8.0
 
 # ---- the art style: materials in both worlds (sRGB albedo), and the light of each world ------------------------------------
-MAT = {
-    #  name           A                      B
-    "stone": ((0.93, 0.80, 0.64), (0.62, 0.68, 0.76)),
-    "stone_dark": ((0.74, 0.55, 0.44), (0.36, 0.42, 0.50)),
-    "rock": ((0.74, 0.58, 0.47), (0.36, 0.40, 0.47)),
-    "paving": ((0.88, 0.78, 0.63), (0.50, 0.55, 0.60)),
-    "roof": ((0.78, 0.32, 0.20), (0.30, 0.35, 0.43)),
-    "roof2": ((0.86, 0.48, 0.30), (0.34, 0.38, 0.46)),
-    "copper": ((0.24, 0.56, 0.50), (0.37, 0.63, 0.58)),
-    "gold": ((0.96, 0.70, 0.26), (0.62, 0.50, 0.30)),
-    "wood": ((0.56, 0.36, 0.22), (0.27, 0.27, 0.29)),
-    "cloth": ((0.82, 0.30, 0.24), (0.30, 0.30, 0.34)),
-    "cloth2": ((0.92, 0.72, 0.32), (0.30, 0.30, 0.34)),
-    "grass": ((0.52, 0.62, 0.34), (0.24, 0.40, 0.30)),
-    "field": ((0.84, 0.66, 0.34), (0.30, 0.38, 0.32)),
-    "tree": ((0.40, 0.48, 0.26), (0.18, 0.28, 0.26)),
-    "cypress": ((0.26, 0.36, 0.22), (0.14, 0.22, 0.22)),
-    "moss": ((0.50, 0.52, 0.30), (0.26, 0.46, 0.33)),
-    "sand": ((0.92, 0.80, 0.60), (0.48, 0.52, 0.54)),
-    "debris": ((0.60, 0.50, 0.44), (0.32, 0.35, 0.40)),
-    "water": ((0.20, 0.56, 0.68), (0.22, 0.34, 0.42)),
-    "sea": ((0.22, 0.44, 0.66), (0.12, 0.20, 0.31)),
-    "iron": ((0.30, 0.28, 0.30), (0.20, 0.22, 0.26)),
-    "plaster0": ((0.95, 0.84, 0.68), (0.56, 0.62, 0.69)),
-    "plaster1": ((0.92, 0.72, 0.54), (0.52, 0.58, 0.66)),
-    "plaster2": ((0.86, 0.58, 0.44), (0.48, 0.54, 0.62)),
-    "plaster3": ((0.96, 0.90, 0.78), (0.60, 0.66, 0.72)),
-    "window": ((1.00, 0.82, 0.46), (0.10, 0.12, 0.16)),   # lit in A, dark in B
-    "lantern": ((1.00, 0.82, 0.46), (1.00, 0.70, 0.36)),  # the one warm light of B
-    "memory": ((0.80, 0.95, 1.00), (0.62, 0.92, 1.00)),
-    "glow": ((1.00, 0.80, 0.46), (0.78, 0.58, 0.36)),     # the warm light a lantern throws on the ground
-    "door": ((0.42, 0.24, 0.16), (0.16, 0.18, 0.22)),
-    "shutter": ((0.30, 0.48, 0.44), (0.24, 0.30, 0.34)),
-    "chimney": ((0.82, 0.62, 0.50), (0.42, 0.47, 0.55)),
-}
+import architecture as ar    # the buildings: houses, landmarks (docs/DESIGN.md 7.10)
+import town_style as _style    # the palette of the whole town, one table for A and B, B derived from A (docs/DESIGN.md 6.9)
+MAT = _style.build_mat()
 EMISSIVE = {"window": (True, False), "lantern": (True, True), "memory": (True, True), "glow": (True, True)}
 LIGHT = {
     #     to the light (sun / moon)      its colour            the shade (ambient)    sky top            horizon (fog)    fog
     "A": ((-0.70, 0.40, -0.58), (1.06, 0.86, 0.64), (0.36, 0.27, 0.52), (0.74, 0.48, 0.52), (0.99, 0.80, 0.62), 0.0020),
-    "B": ((-0.30, 0.80, -0.52), (0.86, 0.96, 1.15), (0.24, 0.30, 0.45), (0.14, 0.19, 0.33), (0.40, 0.48, 0.60), 0.0040),
+    # B: the moon is silver (pale, only a little blue), the sky light is a lavender-grey, the haze a pale grey-blue: the town is weathered
+    # stone in the moonlight, not a town under ice (passes 1 to 5 had (0.86, 0.96, 1.15), (0.24, 0.30, 0.45), (0.14, 0.19, 0.33),
+    # (0.40, 0.48, 0.60) and a fog of 0.0040)
+    "B": ((-0.30, 0.80, -0.52), (0.92, 0.98, 1.10), (0.30, 0.33, 0.43), (0.16, 0.19, 0.29), (0.45, 0.49, 0.56), 0.0036),
 }
 
 
@@ -186,6 +157,12 @@ HARBOUR = (-22.0, -96.0, 34.0, -70.0)  # the basin: x0, z0, x1, z1
 QUAY_Y = -6.2
 LOCK_HEAD_RUN = 8.0      # the stair beside each lock head climbs 4.5 m over this
 SLOPE = {"street": 0.445, "lane": 0.445, "stair": 0.625}  # tan 24 and 32 degrees (docs/DESIGN.md 11)
+FOLLOW = {"garden lane": 0.9, "mill lane": 0.9, "vine lane": 0.9, "tanner loop": 0.9, "wall lane": 0.9,
+          "cooper lane": 1.0, "net passage": 1.0, "fish passage": 1.0, "cask passage": 1.0, "rope passage": 1.0, "weaver lane": 1.0}
+HILL_LANES = ("garden lane", "mill lane", "vine lane", "tanner loop", "wall lane")   # lanes on the slope: houses are cut into it (up to 8.5 m)  # how much of the heights of a street come from the ground (the rest is an even climb); 0.5 when not listed
+BLEND = {"garden lane": 7.0, "vine lane": 6.0, "tanner loop": 5.0, "wall lane": 5.0, "cooper lane": 1.6, "net passage": 1.6,
+         "fish passage": 1.6, "cask passage": 1.6, "rope passage": 1.6, "weaver lane": 1.8}  # how far from a street's edge the ground goes over to the natural ground (3 m when not listed): a lane up
+#                               the terraces needs a long, gentle bank, or the terrain beside it is a wall the body cannot cross
 JUMP_UP = 1.2            # the step up on the main path
 LANTERN_DEMO = (-19.0, ROCK_Y + 0.05, 0.0, 3.0)  # x, y, z, radius: a circle drawn on the west bridge (the picture street_b)
 LIFT_X = -5.5             # the lift of the rock (docs/DESIGN.md 7.4): its shaft, south face, x
@@ -200,10 +177,30 @@ STREETS = [
     ("sea stair", [(8, -72), (4, -67), (0, -62), (-1, -56)], 3.0, "stair"),          # through the middle of the sea gate
     ("lower street", [(-1, -56), (-14, -51), (-28, -47), (-40, -42), (-50, -35)], 4.0, "street"),
     ("lower east lane", [(-1, -56), (14, -53), (26, -46), (31, -33)], 3.0, "lane"),
+    # the street network of the lower town (docs/DESIGN.md 7.8): a lane between the lower street and the gorge, and four passages
+    # that join them, so that the hub is made of blocks of houses with a square in the middle
+    ("cooper lane", [(-26, -36), (-14, -35.5), (0, -36), (14, -35.5), (29.8, -37.3)], 3.0, "lane"),
+    ("net passage", [(-18, -49.8), (-18, -43), (-17.5, -36)], 2.4, "lane"),
+    ("fish passage", [(-4, -54.8), (-4, -45), (-4, -36)], 2.4, "lane"),
+    ("cask passage", [(11, -53.9), (11.5, -45), (12, -35.7)], 2.4, "lane"),
+    ("rope passage", [(22, -49.3), (22, -42), (22, -35.4)], 2.4, "lane"),
     ("market stairs", [(-50, -35), (-58, -24), (-61, -11), (-62, 2), (-59, 11)], 4.0, "stair"),  # clear of the well
     ("market street", [(-61, -11), (-46, -7), (-35, -3), (-27, 0)], 4.6, "street"),
+    # the weaver lane (docs/DESIGN.md 7.8): west from the foot of the market street along the terrace of the market to a green by the wall
+    ("weaver lane", [(-60.8, -12.0), (-67, -14), (-74, -14.5), (-79, -12.5)], 2.6, "lane"),
+    # the garden lane (docs/DESIGN.md 7.7): from the market up the terraces of the north-west, to the cistern and the terrace
+    ("garden lane", [(-44, 15), (-40, 21), (-33, 25), (-34, 32), (-42, 36), (-51, 32)], 2.6, "lane"),
+    # the vine lane (docs/DESIGN.md 7.8): from the top of the market stairs round the market hall and up the terraces of the west to the
+    # terrace of the garden lane: the garden lane up and the vine lane down are a loop, with the cistern and the chapel on it
+    ("vine lane", [(-59, 11), (-65, 8.5), (-71, 11.5), (-73, 18), (-72, 25), (-69, 31), (-63, 34), (-57, 33.5), (-51, 32)], 2.6, "lane"),
     ("east stair", [(27, 0), (33, -3), (38, -8), (42, -11)], 3.6, "stair"),
+    # the mill lane (docs/DESIGN.md 7.7): a branch of the east stair along the slope above the locks, to the terrace of the mills
+    ("mill lane", [(33, -3), (41, 3), (49, 7), (56, 11), (59, 17)], 2.6, "lane"),
     ("upper street", [(78, 28), (66, 36), (52, 46), (34, 52), (16, 56), (2, 57)], 4.0, "street"),
+    # the tanner loop (docs/DESIGN.md 7.8): a loop below the upper street, between the plank and the gatehouse, with a block of houses inside it
+    ("tanner loop", [(39.1, 50.6), (36, 44), (32, 38), (30, 32), (36, 28.5), (43, 29.5), (46.5, 35.5), (47.0, 42), (47.3, 48.0)], 2.6, "lane"),
+    # the wall lane: from the end of the upper street along the north wall to a terrace over the town (after the gatehouse)
+    ("wall lane", [(2, 57), (-8, 59), (-20, 58), (-32, 55), (-44, 51.5), (-53, 48)], 2.6, "lane"),
     ("cliff stair", [(10, 57), (8, 68), (6, 78.6)], 2.6, "stair"),                     # straight through its gate
 ]
 STREET = {n: (spline(p), w, k) for n, p, w, k in STREETS}
@@ -281,12 +278,15 @@ def street_heights(name, curve, kind, h0, h1, ground_before):
     """The heights along a street: the ground, smoothed, between its two ends (pinned), never steeper than its kind allows.
     An end that cannot be reached within the slope is a problem of the layout and is reported."""
     k = SLOPE[kind]
+    if name in FLAT_STREETS:                                                      # a court: the floor is level, at the height of its start
+        return np.full(len(curve), float(h0))
     h = ground_before(curve[:, 0], curve[:, 1])
     kern = np.ones(9) / 9.0
     h = np.convolve(np.r_[np.full(4, h[0]), h, np.full(4, h[-1])], kern, mode="valid")
     d = lengths(curve)
     total = d[-1]
-    h = 0.5 * h + 0.5 * (h0 + (h1 - h0) * d / total)    # half the ground, half an even climb: no wall of steps at one end
+    f = FOLLOW.get(name, 0.5)
+    h = f * h + (1.0 - f) * (h0 + (h1 - h0) * d / total)  # half the ground, half an even climb: no wall of steps at one end
     if abs(h1 - h0) > k * total + 1e-6:
         PROBLEMS.append((name, "its ends differ by %.1f m over %.0f m: steeper than %s allows" % (h1 - h0, total, kind)))
     lo = np.maximum(h0 - k * d, h1 - k * (total - d))
@@ -349,6 +349,32 @@ def _build_heights():
     return out
 
 
+# ---- the memory courts (docs/DESIGN.md 7.11): a gate in the wall of a corridor, a short mouth and a court, walled all round: a place to go
+# that is not the way on. Two lanes (the mouth and the court, flat at the height of the street), so that the ground, the lamps, the map
+# and the walker of tests/test_town.cpp know them like any lane.
+POCKETS = [("lower court", "lower street", 45.0, 1)]    # name, the street it opens on, where (metres from its start), which side
+POCKET_MOUTH, POCKET_COURT, POCKET_CW, POCKET_MW = 3.4, 7.0, 6.4, 3.0
+FLAT_STREETS = set()
+
+
+def pocket_frame(street, s_, side):
+    """(point on the middle line, its direction, the way out, the distance from the middle line to the inner face of the wall)."""
+    c, w, _ = STREET[street]
+    d = lengths(c)
+    pt, v = at(c, s_ / d[-1])
+    return pt, v, np.array([-v[1], v[0]]) * side, w / 2 + 0.5
+
+
+for _name, _street, _s, _side in POCKETS:
+    _pt, _v, _n, _d0 = pocket_frame(_street, _s, _side)
+    _a1 = _d0 + POCKET_MOUTH
+    STREET[_name + " mouth"] = (spline([tuple(_pt), tuple(_pt + _n * (_d0 + 1.2)), tuple(_pt + _n * _a1)], 1.0), POCKET_MW, "lane")
+    STREET[_name] = (spline([tuple(_pt + _n * _a1), tuple(_pt + _n * (_a1 + POCKET_COURT / 2)), tuple(_pt + _n * (_a1 + POCKET_COURT - 0.6))], 1.0),
+                     POCKET_CW, "lane")
+    FLAT_STREETS.update((_name + " mouth", _name))
+BLEND.update({"lower court": 4.0, "lower court mouth": 3.0})
+FOLLOW.update({"lower court": 0.0, "lower court mouth": 0.0})
+
 _HEIGHTS = _build_heights()
 
 
@@ -360,7 +386,7 @@ def ground(x, z):
     for name, (c, w, k) in STREET.items():
         d, i = distance_to(c, x, z)
         hs = _HEIGHTS[name][i]
-        wgt = (1.0 - ss(w / 2 + 0.4, w / 2 + 3.0, d)) * (r > GORGE_R + 1.0)
+        wgt = (1.0 - ss(w / 2 + 0.4, w / 2 + BLEND.get(name, 3.0), d)) * (r > GORGE_R + 1.0)
         y = y + (hs - y) * wgt
     return y
 
@@ -372,6 +398,7 @@ def damage(x, z):
 
 # ---- polygons ---------------------------------------------------------------------------------------------------------------
 POLYS = []  # (points (n, 3), material, world "both"/"A"/"B", kind "solid"/"terrain"/"water"/"overlay")
+ar.set_emitter(lambda pts, mat, world="both", kind="solid": POLYS.append((np.asarray(pts, float), mat, world, kind)))
 
 
 def poly(points, mat, world="both", kind="solid"):
@@ -409,7 +436,7 @@ def gable(cx, cz, w, d, a, y0, rise, mat, world="both"):
     poly([p(-hw, hd, y0), p(hw, hd, y0), p(0, hd, y0 + rise)], mat, world)
 
 
-FOLIAGE = ("tree", "cypress", "moss")  # crowns and scrub: drawn, not solid (the body goes through leaves, not over them)
+FOLIAGE = ("tree", "cypress", "moss", "bloom")  # crowns and scrub: drawn, not solid (the body goes through leaves, not over them)
 
 
 def cone(cx, cz, r, y0, y1, mat, world="both", n=8):
@@ -479,39 +506,90 @@ def tube(a, b, r, n, mat, world="both"):
 
 # ---- the terrain ------------------------------------------------------------------------------------------------------------
 
+def _clip_by(poly, k, thr):
+    """Cuts a convex polygon whose vertices are tuples (x, y, z, f0, f1, ...) by the line where the field k equals thr, the fields
+    being linear over it: returns (the part with f >= thr, the part with f < thr), either of them None. Convex stays convex."""
+    hi, lo = [], []
+    n = len(poly)
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        ina, inb = a[k] >= thr, b[k] >= thr
+        (hi if ina else lo).append(a)
+        if ina != inb:
+            t = (thr - a[k]) / (b[k] - a[k])
+            q = tuple(a[j] + (b[j] - a[j]) * t for j in range(len(a)))
+            hi.append(q)
+            lo.append(q)
+    return (hi if len(hi) >= 3 else None), (lo if len(lo) >= 3 else None)
+
+
+TERRAIN_SLOPE = 0.85   # the gradient above which the ground is a bare face (stone inside the wall, rock outside)
+TERRAIN_FIELD = 0.12   # where the noise of the fields is above this the ground is tilled earth, else grass
+
+
 def build_terrain():
+    """The ground, in cells; the material of a cell is chosen by fields (steepness, height, the noise of the fields) that are cut where
+    they cross a limit, so that the edge between rock, sand, grass and field is a smooth line and not a staircase of cells. The cut is
+    along the triangles of the fan of the cell, so the surface (and so the solid) is the same as with a single material."""
     def cells(x0, x1, z0, z1, step, skip):
         gx = np.arange(x0, x1 + 0.1, step)
         gz = np.arange(z0, z1 + 0.1, step)
         mx, mz = np.meshgrid(gx, gz)
         h = ground(mx, mz) if step < 5 else natural(mx, mz)
+        gzz, gxx = np.gradient(h, gz, gx)
+        grad = np.hypot(gxx, gzz)
+        noise = fbm(mx / 30.0, mz / 30.0, 2, 21)
         for j in range(len(gz) - 1):
             for i in range(len(gx) - 1):
                 cx, cz = gx[i] + step / 2, gz[j] + step / 2
                 if skip(cx, cz):
                     continue
-                ys = (h[j, i], h[j, i + 1], h[j + 1, i + 1], h[j + 1, i])
+                corners = [(j, i), (j, i + 1), (j + 1, i + 1), (j + 1, i)]
+                ys = [h[c] for c in corners]
                 if max(ys) < SEA - 0.3:
                     continue
-                pts = [(gx[i], ys[0], gz[j]), (gx[i + 1], ys[1], gz[j]), (gx[i + 1], ys[2], gz[j + 1]), (gx[i], ys[3], gz[j + 1])]
-                slope = (max(ys) - min(ys)) / step
-                inside = inside_wall(cx, cz)
-                if slope > 0.9:
-                    mat = "stone_dark" if inside or math.hypot(cx, cz) < GORGE_R + 2 else "rock"
-                elif min(ys) < SEA + 0.8:
-                    mat = "sand"
-                elif inside or math.hypot(cx, cz) < GORGE_R + 2:
-                    mat = "paving"
-                elif max(ys) > 46:
-                    mat = "rock"
-                else:
-                    mat = "field" if fbm(cx / 30.0, cz / 30.0, 2, 21) > 0.12 else "grass"
-                POLYS.append((np.array(pts), mat, "both", "terrain"))
+                inside = inside_wall(cx, cz) or math.hypot(cx, cz) < GORGE_R + 2
+                quad = [(gx[c[1]], h[c], gz[c[0]], grad[c], h[c], noise[c]) for c in corners]       # x, y, z, slope, height, noise
+                lows = (min(v[3] for v in quad), max(v[3] for v in quad))
+                straddle = (lows[0] < TERRAIN_SLOPE <= lows[1] or min(ys) < SEA + 0.8 <= max(ys) or
+                            (not inside and (min(ys) < 46 <= max(ys) or min(v[5] for v in quad) < TERRAIN_FIELD <= max(v[5] for v in quad))))
+                pieces = [quad] if not straddle else None
+                if pieces is None:
+                    pieces = []
+                    for tri in (quad[:3], [quad[0], quad[2], quad[3]]):                            # the fan of the cell
+                        pieces.append(tri)
+                for piece in pieces:
+                    # steep: a bare face
+                    steep, rest = _clip_by(piece, 3, TERRAIN_SLOPE)
+                    if steep is not None:
+                        POLYS.append((np.array([v[:3] for v in steep]), "stone_dark" if inside else "rock", "both", "terrain"))
+                    if rest is None:
+                        continue
+                    above, below = _clip_by(rest, 4, SEA + 0.8)                                       # the shore: sand under the limit
+                    if below is not None:
+                        POLYS.append((np.array([v[:3] for v in below]), "sand", "both", "terrain"))
+                    if above is None:
+                        continue
+                    if inside:
+                        POLYS.append((np.array([v[:3] for v in above]), "paving", "both", "terrain"))
+                        continue
+                    high, low = _clip_by(above, 4, 46.0)
+                    if high is not None:
+                        POLYS.append((np.array([v[:3] for v in high]), "rock", "both", "terrain"))
+                    if low is None:
+                        continue
+                    tilled, grass = _clip_by(low, 5, TERRAIN_FIELD)
+                    if tilled is not None:
+                        POLYS.append((np.array([v[:3] for v in tilled]), "field", "both", "terrain"))
+                    if grass is not None:
+                        POLYS.append((np.array([v[:3] for v in grass]), "grass", "both", "terrain"))
 
     fine = (-140.0, 150.0, -130.0, 120.0)
+    mid = (-420.0, 440.0, -300.0, 420.0)
     well = lambda x, z: math.hypot(x - WELL[0], z - WELL[1]) < WELL_R  # noqa: E731
     cells(*fine, 2.5, well)
-    cells(-640.0, 660.0, -400.0, 600.0, 20.0, lambda x, z: fine[0] < x < fine[1] and fine[2] < z < fine[3])
+    cells(*mid, 10.0, lambda x, z: fine[0] < x < fine[1] and fine[2] < z < fine[3])
+    cells(-640.0, 660.0, -400.0, 600.0, 40.0, lambda x, z: mid[0] < x < mid[1] and mid[2] < z < mid[3])
     for x in np.arange(-900.0, 900.0, 30.0):                                                       # the sea, in tiles (drawn first)
         for z in np.arange(-900.0, 0.0, 30.0):
             if z > float(coast_z(x + 15.0)) + 4.0:
@@ -891,6 +969,19 @@ def build_quay_works(edge):
     prism(rect(x, z, 0.26, 0.26, 0.0), deck + 0.15, deck + 0.48, "wood", "B")
 
 
+def landmark_frame(cx, cz, ang, w, d):
+    """The frame of a landmark whose middle is (cx, cz), turned by `ang` (its a along (cos, sin)), width w and depth d: the origin is
+    the middle of its front, at the height of the ground there. Returns the frame and how deep its foundation must go (to the lowest
+    ground under it, and a little more)."""
+    a = np.array([math.cos(ang), math.sin(ang)])
+    b = np.array([-math.sin(ang), math.cos(ang)])
+    fx, fz = cx - b[0] * d / 2, cz - b[1] * d / 2
+    y0 = float(ground(fx, fz))
+    pts = [(fx + a[0] * u + b[0] * v, fz + a[1] * u + b[1] * v) for u in (-w / 2, 0.0, w / 2) for v in (0.0, d / 2, d)]
+    gmin = min(float(ground(x, z)) for x, z in pts)
+    return ar.Frame(fx, fz, a, b, y0), min(-0.6, gmin - y0 - 0.8)
+
+
 def build_west():
     cx, cz = WELL
     for k in range(24):                                                                 # the parapet of the well
@@ -912,17 +1003,14 @@ def build_west():
     poly([(x, -10.0, z) for x, z in ngon(cx, cz, WELL_R, 24)], "paving")
     poly([(x, -6.0, z) for x, z in ngon(cx, cz, WELL_R - 0.05, 24)], "water", "A", "water")
     prism(ngon(cx + 1.0, cz - 1.0, 1.6, 10), -10.0, -8.0, "gold", "B")                   # the day bell, fallen
-    hx, hz = -62.0, 18.0                                                                # the market hall and its copper dome
-    y = float(ground(hx, hz))
-    prism(rect(hx, hz, 12.0, 9.0, 0.2), y, y + 8.0, "plaster1", "both", True, "stone_dark")
-    dome(hx, hz, 4.0, y + 8.0, "copper", "A")
-    tx, tz = -38.0, 14.0                                                                # the clock tower and the day bell (A)
-    y = float(ground(tx, tz))
-    prism(rect(tx, tz, 4.5, 4.5, 0.2), y, y + 20.0, "stone")
-    prism(ngon(tx, tz, 1.4, 10), y + 16.5, y + 18.5, "gold", "A")
-    gable(tx, tz, 4.5, 4.5, 0.2, y + 20.0, 3.0, "roof", "A")
-    poly([(tx - 1.0, y + 13.0, tz - 2.27), (tx + 1.0, y + 13.0, tz - 2.27), (tx + 1.0, y + 15.0, tz - 2.27), (tx - 1.0, y + 15.0, tz - 2.27)],
-         "gold", "A")                                                                   # the clock face
+    hx, hz = -62.0, 18.0                                                                # the market hall (docs/DESIGN.md 7.10)
+    F_hall, low = landmark_frame(hx, hz, 0.2, 15.0, 9.4)
+    ar.market_hall(F_hall, 15.0, 9.4, "whole", low, enterable=False)
+    KEEP_CLEAR.append((hx, hz, 10.5))
+    tx, tz = -38.0, 14.0                                                                # the clock tower and the day bell (A): the same face to the street
+    F_tower, low = landmark_frame(tx, tz + 0.45, 0.2, 5.6, 5.6)
+    ar.clock_tower(F_tower, 5.6, "whole", low, passage=False)
+    KEEP_CLEAR.append((tx, tz + 0.45, 4.6))
     curve, width, _ = STREET["market street"]                                           # awnings (A), bare frames (B)
     for k, t in enumerate(np.linspace(0.1, 0.8, 6)):
         p, v = at(curve, t)
@@ -984,10 +1072,9 @@ def build_east():
         prism(rect(80.0 + sx * math.cos(0.25), 19.6 + sx * math.sin(0.25), 0.3, 0.3, 0.25), lv - 4.0, lv - 0.4, "wood")
     tx, tz = 84.0, 26.0                                                                 # the water tower and the dawn bell
     y = float(ground(tx, tz))
-    prism(ngon(tx, tz, 3.0, 10), y, y + 18.0, "stone")
-    prism(ngon(tx, tz, 4.0, 10), y + 18.0, y + 22.0, "plaster2", "A")
-    cone(tx, tz, 4.4, y + 22.0, y + 25.0, "roof", "A", 10)
-    prism(ngon(tx, tz, 1.4, 10), y + 15.0, y + 17.4, "gold", "A")
+    gmin = min(float(ground(tx + 4.0 * math.cos(t_), tz + 4.0 * math.sin(t_))) for t_ in np.linspace(0, 2 * math.pi, 9)[:-1])
+    ar.water_tower(ar.Frame(tx, tz, (1.0, 0.0), (0.0, 1.0), y), 3.0, "whole", min(-0.6, gmin - y - 0.8))
+    KEEP_CLEAR.append((tx, tz, 5.2))
     aq = spline([(150, 34), (126, 32), (104, 30), (88, 30)], 2.0)                       # the aqueduct, from the hills
     hs = np.linspace(26.0, y + 18.0, len(aq))
     dd = lengths(aq)
@@ -1060,6 +1147,7 @@ def build_arches():
             for side in (-1, 1):
                 px_, pz_ = p[0] + nx * side * (w / 2 + 0.4), p[1] + nz * side * (w / 2 + 0.4)
                 prism(rect(px_, pz_, 1.2, 0.8, math.atan2(v[1], v[0])), y - 0.5, y + 3.4, "stone_dark")
+                KEEP_CLEAR.append((float(px_), float(pz_), 3.4))                                  # no house and no door at a pier (a room was put at one)
             span = [(p[0] + nx * (w / 2 + 0.8), p[1] + nz * (w / 2 + 0.8)), (p[0] - nx * (w / 2 + 0.8), p[1] - nz * (w / 2 + 0.8))]
             a, b = span
             body = [(a[0] - v[0] * 1.6, a[1] - v[1] * 1.6), (a[0] + v[0] * 1.6, a[1] + v[1] * 1.6), (b[0] + v[0] * 1.6, b[1] + v[1] * 1.6),
@@ -1274,11 +1362,50 @@ class Piece:
 
     def cross(self, u0, u1, top, mat, world="both", bottom=None, top_mat=None):
         self.box(u0, u1, -self.span / 2, self.span / 2, top, mat, world, bottom, top_mat)
+        if mat in ("plaster1", "plaster2") and top >= 4.5:                                  # a house across the street: its two faces
+            self.dress_across(u0, -1, -self.span / 2, self.span / 2, top)
+            self.dress_across(u1, 1, -self.span / 2, self.span / 2, top)
 
     def sides(self, u0, u1, top, mat="stone"):
-        """Walls along both sides of the piece: no way round it through the houses."""
+        """Walls along both sides of the piece: no way round it through the houses. Dressed as the fronts of houses (windows in rows, a
+        cornice and eaves): flat on the wall, nothing to stand on."""
         for x in (-self.span / 2 - 0.4, self.span / 2 + 0.4):
             self.box(u0, u1, x - 0.4, x + 0.4, top, mat)
+        for sg in (-1, 1):
+            self.dress_along(u0, u1, sg * self.span / 2, -sg, top)                       # the face toward the street
+            self.dress_along(u0, u1, sg * (self.span / 2 + 0.8), sg, top)                # the face away from it
+            a = self.xz(u0, sg * (self.span / 2 + 0.4))
+            b = self.xz(u1, sg * (self.span / 2 + 0.4))
+            beam((a[0], self.base + top + 0.2, a[1]), (b[0], self.base + top + 0.2, b[1]), 1.7, 0.2, "roof2")
+
+    def dress_along(self, u0, u1, x_face, toward, top, k0=0):
+        """Windows in rows on a wall that runs along the street (the face at lateral x_face looks toward `toward`, +1 or -1): the
+        windows of the library (architecture.py) as decals, in the shutter of the stretch."""
+        n_u = int((u1 - u0 - 2.0) // 3.0) + 1
+        shutter = ar.pick(ar.SHUTTERS, int(self.s) + k0, 4)
+        for i in range(max(n_u, 0)):
+            u = u0 + 1.4 + 3.0 * i
+            if u > u1 - 0.9:
+                break
+            px_, pz_ = self.xz(u, x_face + toward * 0.03)
+            Ff = ar.Frame(px_, pz_, self.v, -toward * np.asarray(self.n, float), self.base)
+            for j, yy in enumerate((3.1, 6.2, 9.3)):
+                if yy + 1.3 < top and hash01(i, int(yy * 10), k0 + int(self.s * 3) + (1 if toward > 0 else 0)) < 0.88:
+                    ar.window(Ff, 0.0, yy, 0.85, 1.4, j == 1, shutter, "window" if hash01(i, j, k0 + int(self.s)) < 0.4 else "stone_dark", "both", False)
+
+    def dress_across(self, u_face, toward, x0, x1, top, k0=0):
+        """Windows in rows on a wall that crosses the street (the face at u_face looks toward `toward`, +1 or -1 along the street)."""
+        n_x = int((x1 - x0 - 2.0) // 2.9) + 1
+        shutter = ar.pick(ar.SHUTTERS, int(self.s) + k0 + 5, 4)
+        for i in range(max(n_x, 0)):
+            x = x0 + 1.4 + 2.9 * i
+            if x > x1 - 0.9:
+                break
+            px_, pz_ = self.xz(u_face + toward * 0.03, x)
+            Ff = ar.Frame(px_, pz_, self.n, -toward * np.asarray(self.v, float), self.base)
+            for j, yy in enumerate((2.9, 5.9, 8.9)):
+                if yy + 1.3 < top and hash01(i, int(yy * 10), k0 + int(self.s * 5)) < 0.85:
+                    ar.window(Ff, 0.0, yy, 0.85, 1.4, j == 1, shutter, "window" if hash01(i, j, k0 + int(self.s) + 3) < 0.4 else "stone_dark", "both", False)
 
     def thing_box(self, state, world, mat, u0, u1, x0, x1, b0, b1):
         cx, cz = self.xz((u0 + u1) / 2, (x0 + x1) / 2)
@@ -1296,6 +1423,22 @@ def street_y_at(name, s):
     i = int(np.clip(np.searchsorted(d, s) - 1, 0, len(c) - 2))
     f = (s - d[i]) / max(d[i + 1] - d[i], 1e-9)
     return float(_HEIGHTS[name][i] + f * (_HEIGHTS[name][i + 1] - _HEIGHTS[name][i]))
+
+
+CORRIDOR_BAY = 6.0   # metres: one house front of a corridor (one colour, one shutter, one eave)
+
+
+def bay_colours(street, side, bay):
+    """The lime wash, the tile and the shutter of one bay of a corridor: from the weights of a hub (architecture.py), never the wash of the
+    bay before it (docs/DESIGN.md 6.9, 7.10)."""
+    k = 1000 * (1 + len(street)) + 2 * bay + (1 if side > 0 else 0)
+    weights = ar.WALL_WEIGHTS["hub"]
+    wall = ar.weighted(weights, k, 81)
+    if bay > 0:
+        prev = ar.weighted(weights, k - 2, 81)
+        if wall == prev:
+            wall = ar.weighted(weights, k, 81, (prev,))
+    return wall, ar.weighted(ar.ROOF_WEIGHTS["hub"], k, 82), ar.pick(ar.SHUTTERS, k, 4), hash01(k, 5) < 0.5
 
 
 def corridor(street, s0, s1, h=9.5, gaps=()):
@@ -1318,8 +1461,218 @@ def corridor(street, s0, s1, h=9.5, gaps=()):
             o0, o1 = w / 2 + 0.5, w / 2 + 1.1
             pts = [pa + na * o0, pb + nb * o0, pb + nb * o1, pa + na * o1]
             ys = [street_y_at(street, s), street_y_at(street, e)] + [float(ground(q[0], q[1])) for q in pts]
-            prism([(q[0], q[1]) for q in pts], min(ys) - 2.0, max(ys) + h, "plaster1" if int(s / 6) % 2 else "stone", "both", True, "stone")
+            wall_mat = bay_colours(street, side, int((s - s0 + 1e-6) // CORRIDOR_BAY))[0]
+            prism([(q[0], q[1]) for q in pts], min(ys) - 2.0, max(ys) + h, wall_mat, "both", True, "stone")
         s = e
+    dress_corridor(street, s0, s1, h, gaps)
+
+
+def corridor_top(street, s_a, s_b, side, h):
+    """The top of the wall of a corridor between s_a and s_b on one side (as corridor() builds it)."""
+    c, w, _ = STREET[street]
+    d = lengths(c)
+    pa, va = at(c, s_a / d[-1])
+    pb, vb = at(c, s_b / d[-1])
+    na = np.array([-va[1], va[0]]) * side
+    nb = np.array([-vb[1], vb[0]]) * side
+    o0, o1 = w / 2 + 0.5, w / 2 + 1.1
+    pts = [pa + na * o0, pb + nb * o0, pb + nb * o1, pa + na * o1]
+    ys = [street_y_at(street, s_a), street_y_at(street, s_b)] + [float(ground(q[0], q[1])) for q in pts]
+    return max(ys) + h
+
+
+def facade_window(px, pz, y, tx, tz, k, j):
+    """One window of a facade (a lit pane in A, a dark one in B), a sill and two shutters: all flat on the wall, nothing that
+    stands out more than a few centimetres, so nothing to climb."""
+    poly([(px - tx * 0.4, y, pz - tz * 0.4), (px + tx * 0.4, y, pz + tz * 0.4), (px + tx * 0.4, y + 0.81, pz + tz * 0.4),
+          (px - tx * 0.4, y + 0.81, pz - tz * 0.4)], "window" if hash01(k, 71 + j) < 0.40 else "stone_dark", "A")
+    poly([(px - tx * 0.4, y, pz - tz * 0.4), (px + tx * 0.4, y, pz + tz * 0.4), (px + tx * 0.4, y + 0.81, pz + tz * 0.4),
+          (px - tx * 0.4, y + 0.81, pz - tz * 0.4)], "stone_dark", "B", "overlay")
+    poly([(px + tx * u, v, pz + tz * u) for u, v in ((-0.48, y - 0.09), (0.48, y - 0.09), (0.48, y), (-0.48, y))], "stone", "both", "overlay")
+    for sg in (-1, 1):
+        q0 = (px + sg * tx * 0.45, pz + sg * tz * 0.45)
+        q1 = (px + sg * tx * 0.85, pz + sg * tz * 0.85)
+        poly([(q0[0], y, q0[1]), (q1[0], y, q1[1]), (q1[0], y + 0.81, q1[1]), (q0[0], y + 0.81, q0[1])], "shutter", "both", "overlay")
+
+
+def build_pockets():
+    """The memory courts: the gate, the garden walls (4.5 m over the highest ground round them: as the walls between the districts), the
+    house at the end, and the things in the court that are different in A and in B (the fountain: water in A, a basin that is dry in
+    B with a lamp of the memory in it; an olive that is in leaf in A and bare in B). Walled all round, so that it is no way round a
+    puzzle; the route solver says so (tests/test_route.cpp)."""
+    for name, street, s_, side in POCKETS:
+        pt, v, n, d0 = pocket_frame(street, s_, side)
+        a1 = d0 + POCKET_MOUTH
+        a2 = a1 + POCKET_COURT
+        y0 = street_y_at(street, s_)
+        loc = lambda a_, b_: (float(pt[0] + v[0] * a_ + n[0] * b_), float(pt[1] + v[1] * a_ + n[1] * b_))   # noqa: E731
+        F = ar.Frame(loc(0.0, d0)[0], loc(0.0, d0)[1], v, n, y0)
+        # the gate: a wall with a round arch, over the mouth, in the plane of the wall of the corridor
+        top_g = max(float(ground(*loc(a_, d0 + 0.3))) for a_ in (-3.0, 0.0, 3.0)) + 6.2 - y0
+        ar.wall_with_openings(F, -2.7, 2.7, 0.0, 0.7, -0.8, top_g, [{"a": 0.0, "w": 4.0, "y_spring": 3.0, "rise": 2.0}], "stone", "both", "stone")
+        ar.fbox(F, -3.0, 3.0, -0.25, 0.0, top_g - 0.35, top_g, "stone", "both", "stone")
+        ar.fbox(F, -3.0, 3.0, 0.7, 0.95, top_g - 0.35, top_g, "stone", "both", "stone")
+        # the garden walls of the mouth and the court: 2-point lines, so that the corners are corners
+        walls = [((-2.6, d0 + 0.7), (-2.6, a1)), ((2.6, d0 + 0.7), (2.6, a1)), ((-3.8, a1), (-2.6, a1)), ((2.6, a1), (3.8, a1)),
+                 ((-3.8, a1), (-3.8, a2 + 0.6)), ((3.8, a1), (3.8, a2 + 0.6)), ((-3.8, a2 + 0.6), (3.8, a2 + 0.6))]
+        for (a_, b_), (c_, d_) in walls:
+            district_wall([loc(a_, b_), loc(c_, d_)], 4.5, "plaster1")
+        KEEP_CLEAR.append((*loc(0.0, a1 + POCKET_COURT / 2), POCKET_COURT / 2 + 4.5))
+        KEEP_CLEAR.append((*loc(0.0, d0 + 1.7), 3.2))
+        HOUSES.append([loc(-4.2, d0), loc(4.2, d0), loc(4.2, a2 + 1.2), loc(-4.2, a2 + 1.2)])
+        # the court
+        gy = float(ground(*loc(0.0, a1 + 3.0)))
+        Fc = ar.Frame(loc(0.0, a1 + 3.0)[0], loc(0.0, a1 + 3.0)[1], v, n, gy)
+        poly([(x_, gy + 0.05, z_) for x_, z_ in (loc(-3.2, a1), loc(3.2, a1), loc(3.2, a2), loc(-3.2, a2))], "paving", "both", "overlay")
+        fa, fb = 1.95, 0.4                                                                                 # the fountain stands to one side: the middle line is the way
+        ar.fdrum(Fc, fa, fb, 1.05, -0.2, 0.62, "stone", "both", 12, "stone_dark")                          # the basin
+        ring = [loc(fa + 0.88 * math.cos(t_), a1 + 3.0 + fb + 0.88 * math.sin(t_)) for t_ in np.linspace(0, 2 * math.pi, 13)[:-1]]
+        poly([(x_, gy + 0.55, z_) for x_, z_ in ring], "water", "A", "water")                               # the water (A)
+        ar.fdrum(Fc, fa, fb, 0.22, 0.6, 2.2, "stone", "both", 8, "stone")                                  # the column of the spout
+        ar.fdrum(Fc, fa, fb, 0.42, 2.2, 2.4, "stone", "both", 8, "stone_dark")
+        ar.fdrum(Fc, fa, fb, 0.3, 0.15, 0.58, "memory", "B", 8, "memory")                                  # B: dry; what was left in the basin
+        lamp(loc(fa, a1 + 3.0 + fb)[0], gy + 1.0, loc(fa, a1 + 3.0 + fb)[1], "B", "memory")
+        ar.fcone(Fc, -2.3, 0.9, 1.4, 1.4, 3.7, "tree", "A", 7)                                             # an olive: in leaf in A, bare in B
+        ar.fdrum(Fc, -2.3, 0.9, 0.2, 0.0, 1.5, "wood", "both", 5, "wood")
+        ar.fcone(Fc, -2.3, 0.9, 1.0, 1.4, 2.5, "moss", "B", 5)
+        for sg, bb in ((-1, -1.9), (1, -2.2)):                                                              # benches under the walls
+            ar.fbox(Fc, sg * 2.75 - 0.22, sg * 2.75 + 0.22, bb - 0.9, bb + 0.9, 0.0, 0.45, "wood", "both", "wood")
+        for a_, b_ in ((-2.7, 2.6), (2.7, -2.7), (-2.7, -2.9)):                                           # pots
+            ar.fdrum(Fc, a_, b_, 0.26, 0.0, 0.5, "roof", "both", 7, "roof")
+            ar.fcone(Fc, a_, b_, 0.3, 0.5, 0.95, "bloom", "A", 5)
+        # the house at the end of the court: windows and a door (closed), a shed roof of tile over the wall
+        Fe = ar.Frame(loc(0.0, a2)[0], loc(0.0, a2)[1], v, n, gy)
+        ar.door(Fe, 0.0, 1.1, 2.25, True, "door", "both", True, 0.0, True)
+        for a_ in (-2.2, 2.2):
+            ar.window(Fe, a_, 1.4, 0.8, 1.5, True, "shutter2", "window", "both", True)
+        ar.band(Fe, -3.2, 3.2, -0.1, 0.6, "stone_dark")
+        # laundry over the court, 5 m up: out of reach, drawn only
+        a_pt, b_pt = loc(-3.2, a1 + 2.0), loc(3.2, a1 + 2.0)
+        rope((a_pt[0], gy + 5.2, a_pt[1]), (b_pt[0], gy + 5.0, b_pt[1]), 0.05, "iron", "A")
+        for i_, m_ in enumerate(("cloth", "cloth4", "cloth3")):
+            q_ = loc(-1.8 + 1.8 * i_, a1 + 2.0)
+            tt = np.array(v)
+            poly([(q_[0] - tt[0] * 0.4, gy + 5.05, q_[1] - tt[1] * 0.4), (q_[0] + tt[0] * 0.4, gy + 5.05, q_[1] + tt[1] * 0.4),
+                  (q_[0] + tt[0] * 0.4, gy + 4.1, q_[1] + tt[1] * 0.4), (q_[0] - tt[0] * 0.4, gy + 4.1, q_[1] - tt[1] * 0.4)], m_, "A", "overlay")
+        OVERLOOKS.append(("the memory court of the " + street, float(loc(0.0, a1 + 3.0)[0]), float(gy + 1.0), float(loc(0.0, a1 + 3.0)[1]), 22.0))
+        POCKET_DONE.append((name, street, float(s_), side))
+
+
+POCKET_DONE = []
+
+
+def piece_s(street):
+    """Where the puzzle pieces stand along a street that has a corridor (metres from its start)."""
+    return {"lower street": (AIR_STEP_S,), "market stairs": (CANAL_S,), "market street": (SCAFFOLD_S,), "upper street": (PLANK_S, GATEHOUSE_S)}.get(street, ())
+
+
+CROWN_BALCONY_Y = 7.4   # metres over the street: the floor of the third storey. Out of reach of everything a puzzle gives (a stack of
+#                         two crates and a jump: 4.05 m; the roof of the plank: 4.8 + 1.65 = 6.45 m), and the only level of balconies on
+#                         a wall, so that they never chain up the wall.
+
+
+def crown_bay(street, side, s, e, h, o0, wall_mat, roof_mat, shutter, k, balcony):
+    """What stands over the wall of one bay of a corridor (docs/DESIGN.md 7.11): the house behind it. The wall is a prism up to its top;
+    over it, out of reach, the bay has a level top of its own (some are a storey higher than the next: the skyline steps from house
+    to house, as it does on a hill), a gabled roof with eaves over the street, a chimney, a dormer. Three metres of solid behind the wall
+    are the house (nothing walks there: the ground is 9 m below). Only above the wall: nothing that could be stood on is added below it
+    except a balcony at CROWN_BALCONY_Y (the one level of balconies), and none within 11 m of a puzzle piece."""
+    c, w, _ = STREET[street]
+    d = lengths(c)
+    mid = 0.5 * (s + e)
+    pm, vm = at(c, mid / d[-1])
+    nrm = np.array([-vm[1], vm[0]]) * side
+    ctr = pm + nrm * o0
+    y0 = street_y_at(street, mid)
+    F = ar.Frame(float(ctr[0]), float(ctr[1]), vm, nrm, y0)
+    cuts = [(t, min(t + 1.0, e)) for t in np.arange(s, e - 1e-6, 1.0)]
+    tops = [corridor_top(street, a_, b_, side, h) for a_, b_ in cuts]
+    top = max(tops)
+    extra = (0.0, 1.3, 2.6)[min(int(hash01(k, 31) * 3), 2)]
+    half = 0.5 * (e - s)
+    lvl = top + extra - y0
+    for (a_, b_), t_top in zip(cuts, tops):                                              # the wall up to the level top of the bay
+        if lvl + y0 - t_top > 0.02:
+            ar.fbox(F, a_ - mid, b_ - mid, -0.04, 0.6, t_top - y0, lvl, wall_mat, "both", None, (1, 0, 0, 0), False)
+    gm = [float(ground(*F.P(a_, b_)[::2])) for a_ in (-half, 0.0, half) for b_ in (0.6, 2.0, 3.6)]
+    ar.fbox(F, -half, half, 0.6, 3.6, min(gm) - 1.0 - y0, lvl, wall_mat, "both", None, (0, 1, 1, 1), False)   # the house behind
+    rise = 1.5 + 0.9 * hash01(k, 32)
+    ar.roof_gable(F, -half, half, 0.0, 4.2, lvl, rise, "a", 0.55, 0.12, roof_mat, "both", wall_mat, "stone")
+    slope = rise / 2.1
+    if hash01(k, 33) < 0.40 and extra < 2.0:
+        ar.dormer(F, (hash01(k, 34) - 0.5) * 2.0, 0.9, lvl + slope * 0.9, 1.2, 0.9, 1.25, wall_mat, roof_mat, "both", shutter)
+    if hash01(k, 19) < 0.45:
+        ar.chimney(F, (hash01(k, 21) - 0.5) * 3.6, 3.0, lvl + slope * 2.6 - 0.1, 1.3, "chimney", "both")
+    if balcony:
+        ar.balcony(F, 0.0, CROWN_BALCONY_Y, 2.2, 0.95, "stone", "both", hash01(k, 35) < 0.7, k)
+
+
+def dress_corridor(street, s0, s1, h=9.5, gaps=()):
+    """The walls of a corridor are the fronts of the houses along the street, so they are dressed as such (docs/DESIGN.md 7.8, 7.10): each
+    bay of 6 m has its own lime wash, a plinth, three floors of windows with shutters (round-arched or square), a door at the foot
+    of some bays, a string course, a cornice and tiled eaves in its own tile, a chimney now and then. Everything is flat on the wall (a
+    decal) or above its top: a blank wall of 9.5 m looked like a fortress, not a street, and nothing may be added that could be stood
+    on (the puzzles of the corridors rely on the walls being sheer): no sill, no step. Over the wall, out of reach, each bay has a roof
+    of its own (crown_bay), and some a balcony at 7.4 m."""
+    c, w, _ = STREET[street]
+    d = lengths(c)
+    o0 = w / 2 + 0.5
+    s = s0
+    bay = 0
+    while s < s1 - 2.4:
+        e = min(s + CORRIDOR_BAY, s1)
+        for side in (-1, 1):
+            if any(abs((s + e) / 2 - gs) < gw / 2 + 1.0 and gside in (0, side) for gs, gside, gw in gaps):
+                continue
+            wall_mat, roof_mat, shutter, arched = bay_colours(street, side, bay)
+            k = int(s * 3) * 2 + (1 if side > 0 else 0) + 101 * len(street)
+            door_here = bay % 2 == (0 if side > 0 else 1) or hash01(k, 17) < 0.25
+            mid_s = 0.5 * (s + e)
+            tops_here = [corridor_top(street, t_, min(t_ + 1.0, e), side, h) - street_y_at(street, mid_s) for t_ in np.arange(s, e - 1e-6, 1.0)]
+            has_balc = (min(tops_here) >= CROWN_BALCONY_Y + 2.1 and (e - s) >= CORRIDOR_BAY - 1e-6 and hash01(k, 36) < 0.45 and
+                        all(abs(mid_s - ps) >= 11.0 for ps in piece_s(street)))
+
+            def frame_at(su):
+                pm, vm = at(c, su / d[-1])
+                nrm = np.array([-vm[1], vm[0]]) * side
+                px_, pz_ = pm + nrm * o0
+                return ar.Frame(float(px_), float(pz_), vm, nrm, street_y_at(street, su))
+            for u in (1.6, 4.4):
+                su = s + u
+                if su > e - 0.6:
+                    continue
+                Ff = frame_at(su)
+                top = corridor_top(street, su - 0.5, su + 0.5, side, h) - Ff.y0
+                for fl, yy in enumerate((1.15, 4.5, 7.6)):
+                    if fl == 0 and door_here:
+                        continue
+                    if fl == 2 and has_balc:
+                        continue
+                    if yy + 1.4 < top - 0.45 and hash01(k, 3 + fl + int(u)) < 0.92:
+                        ar.window(Ff, 0.0, yy, 0.85, 1.45, arched and fl > 0, shutter, "window" if hash01(k, 20 + fl + int(u)) < 0.4 else "stone_dark", "both", False)
+            Fb = frame_at(s + CORRIDOR_BAY / 2)
+            ar.band(Fb, -CORRIDOR_BAY / 2, CORRIDOR_BAY / 2, -0.1, 0.8, "stone_dark")                    # the plinth
+            ar.band(Fb, -CORRIDOR_BAY / 2, CORRIDOR_BAY / 2, 3.35, 3.55, "stone")                        # the string course
+            if door_here:
+                ar.door(frame_at(s + 3.0), 0.0, 1.1, 2.25, arched, "door", "both", False, 0.0, hash01(k, 11) < 0.5)
+            if has_balc:                                                                       # a French window on the balcony
+                ar.window(frame_at(s + CORRIDOR_BAY / 2), 0.0, CROWN_BALCONY_Y + 0.15, 0.95, 1.9, True, shutter, "window", "both", False)
+            t = s
+            while t < e - 1e-6:                                                                # cornice and eaves, along the stepped top
+                t2 = min(t + 1.0, e)
+                pa, va = at(c, t / d[-1])
+                pb, vb = at(c, t2 / d[-1])
+                na = np.array([-va[1], va[0]]) * side
+                nb = np.array([-vb[1], vb[0]]) * side
+                top = corridor_top(street, t, t2, side, h)
+                a = pa + na * (o0 - 0.3)
+                b = pb + nb * (o0 - 0.3)
+                beam((a[0], top - 0.05, a[1]), (b[0], top - 0.05, b[1]), 0.62, 0.3, "stone")
+                t = t2
+            if (e - s) >= CORRIDOR_BAY - 1e-6:
+                crown_bay(street, side, s, e, h, o0, wall_mat, roof_mat, shutter, k, has_balc)
+        s = e
+        bay += 1
 
 
 def district_wall(points, h=4.5, mat="stone"):
@@ -1337,6 +1690,11 @@ def district_wall(points, h=4.5, mat="stone"):
         pts = [(a[0] + nx, a[1] + nz), (b[0] + nx, b[1] + nz), (b[0] - nx, b[1] - nz), (a[0] - nx, a[1] - nz)]
         near = [float(ground(q[0] + o * nx / 0.6, q[1] + o * nz / 0.6)) for q in (a, b) for o in (-3.0, 0.0, 3.0)]
         prism(pts, min(near) - 3.0, max(near) + h, mat, "both", True, "stone")
+        top_ = max(near) + h
+        beam((a[0], top_ + 0.12, a[1]), (b[0], top_ + 0.12, b[1]), 1.5, 0.24, "stone")                                       # the coping
+        if (i % 4) == 1 and hash01(int(a[0] * 7), int(a[1] * 7)) < 0.6:                                                       # a creeper over the top
+            cone(float(a[0]), float(a[1]), 0.8, top_ - 0.2, top_ + 0.9, "tree", "A", 5)
+            cone(float(a[0]), float(a[1]), 0.7, top_ - 0.2, top_ + 0.6, "moss", "B", 5)
         KEEP_CLEAR.append((float(a[0]), float(a[1]), 1.5))
 
 
@@ -1464,6 +1822,8 @@ def build_district_walls():
     k = Piece("upper street", GATEHOUSE_S)
     district_wall([k.xz(0.0, -k.span / 2 - 0.8), (20.8, 66.0)])                          # the gatehouse: north
     district_wall([k.xz(0.0, k.span / 2 + 0.8), (20.0, 36.0), rim(72.0)])                # and south, east of the theatre
+    district_wall([(-74.0, 38.0), (-60.0, 41.0), (-46.0, 42.0), (-34.0, 40.0), rim(125.0)])  # the garden quarter (docs/DESIGN.md 7.7):
+    # north of it is the upper town, which is reached through the gatehouse; the lane's gentle bank must not be a ramp to it
 
 
 BELL_ROPES = {  # the bells (docs/DESIGN.md 4): rung in A at the foot of their towers
@@ -1582,185 +1942,1338 @@ def overlaps(p, q):
 KEEP_CLEAR = []  # (x, z, r): the places of the puzzles; no house stands in them (build_houses comes after them)
 
 
-def site_free(out):
+def site_free(out, max_range=3.0, lock_min=9.0, well_clear=WELL_R + 6.0):
     if any(math.hypot(px_ - kx, pz_ - kz) < kr for px_, pz_ in out for kx, kz, kr in KEEP_CLEAR):
         return False
     if any(math.hypot(sum(q[0] for q in out) / 4 - kx, sum(q[1] for q in out) / 4 - kz) < kr for kx, kz, kr in KEEP_CLEAR):
         return False
-    xs = np.array([p[0] for p in out] + [sum(p[0] for p in out) / 4])
-    zs = np.array([p[1] for p in out] + [sum(p[1] for p in out) / 4])
+    edge = [(out[i][0] + (out[(i + 1) % 4][0] - out[i][0]) * f, out[i][1] + (out[(i + 1) % 4][1] - out[i][1]) * f)
+            for i in range(4) for f in (0.2, 0.4, 0.6, 0.8)]                                    # the walls too, not only the corners
+    xs = np.array([p[0] for p in out] + [q[0] for q in edge] + [sum(p[0] for p in out) / 4])
+    zs = np.array([p[1] for p in out] + [q[1] for q in edge] + [sum(p[1] for p in out) / 4])
     for x, z in zip(xs, zs):
         if not inside_wall(x, z) or math.hypot(x, z) < GORGE_R + 2.5:
             return False
-        if math.hypot(x - WELL[0], z - WELL[1]) < WELL_R + 6.0 or math.hypot(x - THEATRE[0], z - THEATRE[1]) < 18.5:
+        if math.hypot(x - WELL[0], z - WELL[1]) < well_clear or math.hypot(x - THEATRE[0], z - THEATRE[1]) < 18.5:
             return False
-        if math.hypot(x + 62.0, z - 18.0) < 8.5 or math.hypot(x + 38.0, z - 14.0) < 4.0 or math.hypot(x - 84.0, z - 26.0) < 5.5:
+        if math.hypot(x + 62.0, z - 18.0) < 11.0 or math.hypot(x + 38.0, z - 14.0) < 5.2 or math.hypot(x - 84.0, z - 26.0) < 7.0:
             return False
         if any(math.hypot(x - bx, z - bz) < 6.0 for bx, bz in BRIDGEHEADS.values()):
             return False
         if any(math.hypot(x - gx, z - gz) < 6.0 for gx, gz in GATES.values()):
             return False
-    if distance_to(LOCK_LINE, xs, zs)[0].min() < 9.0 or distance_to(WALL, xs, zs)[0].min() < 2.4:
+    if distance_to(LOCK_LINE, xs, zs)[0].min() < lock_min or distance_to(WALL, xs, zs)[0].min() < 2.4:
         return False
     for name, (c, w, k) in STREET.items():
         if distance_to(c, xs, zs)[0].min() < w / 2 + 0.25:
             return False
     g = ground(xs, zs)
-    if g.max() - g.min() > 3.0:
+    if g.max() - g.min() > max_range:
         return False
     return not any(overlaps(out, h) for h in HOUSES)
 
 
-def house(cx, cz, w, dd, ang, k, height, front=None):
-    out = rect(cx, cz, w, dd, ang)
-    if not site_free(out):
-        return False
-    HOUSES.append(out)
-    base = float(np.min(ground(np.array([p[0] for p in out]), np.array([p[1] for p in out]))))
-    top = base + height
-    mat = "plaster%d" % (k % 4)
-    dmg = damage(cx, cz)
-    roll = hash01(k, 7)
-    ruin = roll < 0.05 + 0.7 * dmg
-    unroofed = not ruin and roll < 0.2 + 0.55 * dmg
-    roofmat = "roof" if k % 3 else "roof2"
-    # Street-facing eaves give the dense blocks a readable roofline without changing collision.
-    if front is not None and not ruin:
-        fv = np.array(front, float); fv /= max(np.linalg.norm(fv), 1e-9)
-        rv = np.array([fv[1], -fv[0]])
-        face_extent = w if abs(np.dot(rv, np.array([math.cos(ang), math.sin(ang)]))) > 0.7 else dd
-        depth_extent = dd if face_extent == w else w
-        ec = np.array([cx, cz]) + fv * (depth_extent / 2 + 0.26)
-        a = ec - rv * (face_extent / 2 + 0.28); b = ec + rv * (face_extent / 2 + 0.28)
-        beam((float(a[0]), top - 0.12, float(a[1])), (float(b[0]), top - 0.12, float(b[1])), 0.24, 0.11, roofmat,
-             "A" if unroofed else "both")
-    if ruin:
-        prism(out, base - 1.0, top, mat, "A")
-        prism(out, base - 1.0, base + height * (0.35 + 0.3 * hash01(k, 9)), mat, "B", True, "debris")
-        cone(cx, cz, 1.2, base + 1.0, base + 4.0, "moss", "B", 5)
-    else:
-        prism(out, base - 1.0, top, mat)
-    kind = hash01(k, 31)
-    if kind < 0.07 and not ruin and w < 4.8:                                          # a tall narrow tower house
-        tw = rect(cx, cz, min(w, dd) * 0.7, min(w, dd) * 0.7, ang)
-        prism(tw, top, top + 5.0, mat, "A" if unroofed else "both")
-        cone(cx, cz, min(w, dd) * 0.55, top + 5.0, top + 7.5, roofmat, "A" if unroofed else "both", 4)
-        return True
-    if 0.07 <= kind < 0.20 and not ruin:                                              # a loggia on the top floor
-        c, s = math.cos(ang), math.sin(ang)
-        for ux, uz in ((-w / 2 + 0.3, -dd / 2 + 0.3), (w / 2 - 0.3, -dd / 2 + 0.3), (w / 2 - 0.3, dd / 2 - 0.3), (-w / 2 + 0.3, dd / 2 - 0.3)):
-            px_, pz_ = cx + ux * c - uz * s, cz + ux * s + uz * c
-            prism(ngon(px_, pz_, 0.2, 4), top, top + 2.2, "stone", "A" if unroofed else "both")
-        gable(cx, cz, w, dd, ang, top + 2.2, 0.35 * min(w, dd) + 0.4, roofmat, "A" if unroofed else "both")
-        if unroofed:
-            prism(out, top, top + 0.6, mat, "B")
-        return True
-    c, s = math.cos(ang), math.sin(ang)
-    if not ruin and height > 7.5 and 0.20 <= kind < 0.45:                              # the top storey set back: a stepped mass
-        upper = rect(cx, cz, w * 0.72, dd * 0.72, ang)
-        prism(upper, top, top + 2.6, mat, "A" if unroofed else "both")
-        poly([(x, top + 0.02, z) for x, z in out], "paving", "A" if unroofed else "both")                     # its terrace
-        gable(cx, cz, w * 0.72, dd * 0.72, ang, top + 2.6, 0.30 * min(w, dd) + 0.3, roofmat, "A" if unroofed else "both")
-        top = top + 2.6
-    flat = k % 5 == 0
-    pitch = 0.22 + 0.33 * hash01(k, 41)
-    if flat:                                                                           # a roof terrace with a parapet
-        poly([(x, top + 0.02, z) for x, z in out], "paving", "A" if (ruin or unroofed) else "both")
-        for i in range(4):
-            a, b = out[i], out[(i + 1) % 4]
-            beam((a[0], top + 0.8, a[1]), (b[0], top + 0.8, b[1]), 0.25, 0.8, mat, "A" if ruin else "both")
-    elif not (height > 7.5 and 0.20 <= kind < 0.45 and not ruin):
-        gable(cx, cz, w, dd, ang, top, pitch * min(w, dd) + 0.4, roofmat, "A" if (ruin or unroofed) else "both")
-        if hash01(k, 43) < 0.5:                                                         # a chimney
-            ux, uz = w * 0.28, dd * 0.15
-            px_, pz_ = cx + ux * c - uz * s, cz + ux * s + uz * c
-            prism(rect(px_, pz_, 0.5, 0.5, ang), top, top + pitch * min(w, dd) + 1.4, "chimney", "A" if (ruin or unroofed) else "both")
-    if front is not None:                                                              # the street side: door, shutters, balcony
-        fx, fz = front
-        c, s = math.cos(ang), math.sin(ang)
-        grade = max(base, float(ground(cx + fx * dd / 2, cz + fz * dd / 2)))
-        out_n = dd / 2 + 0.04
-        dx_, dz_ = cx + fx * out_n, cz + fz * out_n
-        # Facade sizes are in metres for a 1.72 m traveller.
-        if grade + 2.08 < base + height:
-            poly([(dx_ - c * 0.46, grade, dz_ - s * 0.46), (dx_ + c * 0.46, grade, dz_ + s * 0.46), (dx_ + c * 0.46, grade + 2.08, dz_ + s * 0.46),
-                  (dx_ - c * 0.46, grade + 2.08, dz_ - s * 0.46)], "door", "A" if ruin else "both")
-            # Stone jambs frame a closed door; trim must never add a ledge.
-            def trim(u0, u1, y0, y1, mat):
-                x, z = dx_ + fx * 0.012, dz_ + fz * 0.012
-                poly([(x + c * u, y, z + s * u) for u, y in
-                      ((u0, y0), (u1, y0), (u1, y1), (u0, y1))],
-                     mat, "A" if ruin else "both", "overlay")
+def site_why(out, max_range=3.0, lock_min=9.0, well_clear=WELL_R + 6.0):
+    """Why site_free() refuses a footprint: the first reason, as a word (for the reports)."""
+    cxm = sum(q[0] for q in out) / 4
+    czm = sum(q[1] for q in out) / 4
+    if any(math.hypot(px_ - kx, pz_ - kz) < kr for px_, pz_ in out for kx, kz, kr in KEEP_CLEAR) or \
+            any(math.hypot(cxm - kx, czm - kz) < kr for kx, kz, kr in KEEP_CLEAR):
+        return "keep clear"
+    edge = [(out[i][0] + (out[(i + 1) % 4][0] - out[i][0]) * f, out[i][1] + (out[(i + 1) % 4][1] - out[i][1]) * f)
+            for i in range(4) for f in (0.2, 0.4, 0.6, 0.8)]
+    xs = np.array([p[0] for p in out] + [q[0] for q in edge] + [cxm])
+    zs = np.array([p[1] for p in out] + [q[1] for q in edge] + [czm])
+    for x, z in zip(xs, zs):
+        if not inside_wall(x, z):
+            return "outside the wall"
+        if math.hypot(x, z) < GORGE_R + 2.5:
+            return "gorge"
+        if math.hypot(x - WELL[0], z - WELL[1]) < well_clear:
+            return "well"
+        if math.hypot(x - THEATRE[0], z - THEATRE[1]) < 18.5:
+            return "theatre"
+        if math.hypot(x + 62.0, z - 18.0) < 11.0 or math.hypot(x + 38.0, z - 14.0) < 5.2 or math.hypot(x - 84.0, z - 26.0) < 7.0:
+            return "landmark"
+        if any(math.hypot(x - bx, z - bz) < 6.0 for bx, bz in BRIDGEHEADS.values()):
+            return "bridgehead"
+    if distance_to(LOCK_LINE, xs, zs)[0].min() < lock_min:
+        return "lock"
+    if distance_to(WALL, xs, zs)[0].min() < 2.4:
+        return "wall"
+    for name, (c, w, k) in STREET.items():
+        if distance_to(c, xs, zs)[0].min() < w / 2 + 0.25:
+            return "street " + name
+    g = ground(xs, zs)
+    if g.max() - g.min() > max_range:
+        return "slope"
+    if any(overlaps(out, h) for h in HOUSES):
+        return "house"
+    return "ok"
 
-            for lo, hi in ((-0.56, -0.46), (0.46, 0.56)):
-                trim(lo, hi, grade + 0.02, grade + 2.08, "stone_dark")
-            trim(-0.56, 0.56, grade + 2.08, min(grade + 2.20, top), "stone")
-        if height > 6.0 and hash01(k, 45) < 0.35 and not ruin:                         # a balcony on the first floor
-            by = base + 3.1
-            bx0, bz0 = cx + fx * (dd / 2 + 0.7), cz + fz * (dd / 2 + 0.7)
-            prism(rect(bx0, bz0, w * 0.55, 1.4, ang), by - 0.15, by, "wood", "A" if unroofed else "both")
-            beam((bx0 - c * w * 0.27 + fx * 0.65, by + 0.9, bz0 - s * w * 0.27 + fz * 0.65),
-                 (bx0 + c * w * 0.27 + fx * 0.65, by + 0.9, bz0 + s * w * 0.27 + fz * 0.65), 0.08, 0.9, "iron", "A" if unroofed else "both")
-            if not unroofed and hash01(k, 47) < 0.6:
-                cone(bx0 + c * w * 0.18, bz0 + s * w * 0.18, 0.4, by, by + 0.7, "tree", "A", 5)        # flowers in pots (A)
-    if front is not None:                                                              # lit windows on the street side (A)
-        fx, fz = front
-        c, s = math.cos(ang), math.sin(ang)
-        for j in range(2):
-            if hash01(k, 20 + j) < 0.45:
-                u = (j - 0.5) * w * 0.45
-                px, pz = cx + u * c + fx * (dd / 2 + 0.03), cz + u * s + fz * (dd / 2 + 0.03)
-                y = grade + (3.10 if height > 6.0 else 1.15)
-                if y + 0.81 >= base + height:
-                    continue
-                poly([(px - c * 0.4, y, pz - s * 0.4), (px + c * 0.4, y, pz + s * 0.4), (px + c * 0.4, y + 0.81, pz + s * 0.4),
-                      (px - c * 0.4, y + 0.81, pz - s * 0.4)], "window" if hash01(k, 71 + j) < 0.40 else "stone_dark", "A")
-                sill_x, sill_z = px + fx * 0.016, pz + fz * 0.016
-                poly([(sill_x + c * u, v, sill_z + s * u) for u, v in
-                      ((-0.48, y - 0.09), (0.48, y - 0.09), (0.48, y), (-0.48, y))],
-                     "stone", "A" if ruin else "both", "overlay")
-                for sg in (-1, 1):                                                     # shutters
-                    q0 = (px + sg * c * 0.45, pz + sg * s * 0.45)
-                    q1 = (px + sg * c * 0.85, pz + sg * s * 0.85)
-                    poly([(q0[0], y, q0[1]), (q1[0], y, q1[1]), (q1[0], y + 0.81, q1[1]), (q0[0], y + 0.81, q0[1])], "shutter",
-                         "A" if ruin else "both")
-    return True
+
+def sight_cap(out):
+    """The highest point a house on this footprint may have (roof and chimney included), or None: the three lamps of the signal mast
+    must be seen from the first frame (docs/DESIGN.md 10.1; tests/test_firstminute.cpp casts the rays), so nothing stands in the
+    sight lines from the quay to them. The camera of the first frame stands behind the body and lower than its eye."""
+    sx, sy, sz = SPAWN[0] + 2.0, QUAY_Y + 0.2, SPAWN[2] - 3.2
+    cx = sum(q[0] for q in out) / 4
+    cz = sum(q[1] for q in out) / 4
+    cap = None
+    for dx in (-LAMP_DX, 0.0, LAMP_DX):
+        tx, ty, tz = MAST_XZ[0] + dx, LAMP_Y - 0.6 * LAMP_SIZE - 0.3, LAMP_Z
+        v = np.array([tx - sx, tz - sz])
+        length = float(np.linalg.norm(v))
+        u = v / length
+        for px_, pz_ in list(out) + [(cx, cz)]:
+            rel = np.array([px_ - sx, pz_ - sz])
+            t = float(np.dot(rel, u)) / length
+            lateral = abs(float(rel[0] * u[1] - rel[1] * u[0]))
+            if 0.0 < t < 1.0 and lateral < 3.5:
+                y = sy + (ty - sy) * t - 0.8
+                cap = y if cap is None else min(cap, y)
+    return cap
+
+
+HOUSE_DOORS = []   # (x, z, the front it faces, half width of that front): where the door of each house is (the check reads it)
+FRONT_SKIP = ("headland path", "harbour road", "lower court", "lower court mouth")   # the streets of the harbour: its houses are the warehouses of the quay (build_harbour)
+FISH = (-4.0, -36.2)   # the fish market: the square where the cooper lane and the fish passage cross
+FISH_R = 7.5
+PLAZAS = [("market plaza", WELL, WELL_R + 5.0), ("fish market", FISH, FISH_R)]   # name, centre, radius: houses stand round them
+
+
+def plaza_ring(centre, r):
+    return spline([(centre[0] + r * math.cos(a), centre[1] + r * math.sin(a)) for a in np.linspace(0.0, 2 * math.pi, 25)], 1.0)
+
+
+def fronts():
+    """The walkable edges a house may face: every street and lane that is not a stair, the quays of the locks and the edge of the
+    squares. A house stands on a front or not at all (docs/DESIGN.md 7.7): no house is placed where no one can walk to its
+    door. (name, middle line, half width, kind of front): kind 0 street, 1 quay, 2 square."""
+    out = [(n, c, w / 2.0, 0) for n, (c, w, kind) in STREET.items() if kind != "stair" and n not in FRONT_SKIP]
+    out.append(("lock quay", LOCK_LINE, 8.2, 1))
+    for name, centre, r in PLAZAS:
+        out.append((name, plaza_ring(centre, r), 0.0, 2))
+    return out
+
+
+DENSITY_OF = {   # what the front of a street is made of (architecture.py DENSITY): the hub is colourful, the rim is quiet
+    "lower street": "hub", "lower east lane": "hub", "cooper lane": "hub", "net passage": "hub", "fish passage": "hub", "cask passage": "hub",
+    "rope passage": "hub", "fish market": "hub", "market plaza": "hub", "market street": "hub",
+    "lock quay": "terrace", "upper street": "terrace", "tanner loop": "terrace", "garden lane": "terrace", "vine lane": "terrace",
+    "mill lane": "terrace", "weaver lane": "terrace", "wall lane": "rim",
+}
+HOUSE_KINDS = {}   # kind of house -> how many (the check prints it)
+
+
+def house_state(x, z):
+    """How much the storm did to a house at (x, z): whole, unroofed (no roof in B) or ruin (a low wall in B)."""
+    dmg = damage(x, z)
+    roll = hash01(int(x * 10), int(z * 10), 7)
+    if roll < 0.05 + 0.7 * dmg:
+        return "ruin"
+    return "unroofed" if roll < 0.2 + 0.55 * dmg else "whole"
 
 
 def build_houses():
-    k = 0
-    for name, (c, w, kind) in STREET.items():
-        if kind == "stair" or name in ("headland path", "harbour road"):
-            continue
-        d = lengths(c)
+    """Rows of houses along the fronts, built by the library of buildings (architecture.py plan_row; docs/DESIGN.md 7.10): six kinds,
+    two to three storeys, as wide as they are high, the lime-wash colour of each chosen from its district and never that of its
+    neighbour, the door on the front, side walls shared. No house stands in the middle of a block. A row climbs a slope as steps; a lot
+    that does not fit is tried narrower and shallower, or left out."""
+    for n, (name, c, half, kind) in enumerate(fronts()):
+        density = DENSITY_OF.get(name, "terrace")
+        slope = 8.5 if name in HILL_LANES else 6.0
+        lock_min = half + 0.2 if kind == 1 else 9.0
+        well = WELL_R + 5.0 if kind == 2 else WELL_R + 6.0
         for side in (-1, 1):
-            for row, offset in enumerate((0.0, 7.0)):
-                s = 2.0
-                while s < d[-1] - 2.0:
-                    k += 1
-                    ww = 3.6 + (k * 7 % 5) * 0.5
-                    dd = 5.0 + (k * 11 % 3) * 0.6
-                    p, v = at(c, min(1.0, (s + ww / 2) / d[-1]))
-                    n = np.array([-v[1], v[0]]) * side
+            if kind == 2 and side == 1:
+                continue                                                               # the plaza: houses outside the ring only
+            lots = ar.plan_row(c, side, half, 7 * n + (3 if side > 0 else 1), density,
+                               lambda out, sl=slope, lm=lock_min, wc=well: site_free(out, sl, lm, wc), lambda x, z: float(ground(x, z)),
+                               house_state, 2.0, lengths(c)[-1] - 2.0, 0.12, 0.0, slope, 400, sight_cap, None, 6.0 if kind in (1, 2) else None)
+            for lot in lots:
+                HOUSES.append(lot["outline"])
+                HOUSE_DOORS.append((float(lot["door"][0]), float(lot["door"][2]), name, half))
+                HOUSE_KINDS[lot["kind"]] = HOUSE_KINDS.get(lot["kind"], 0) + 1
+
+
+def free_ground(x, z, r, rng=1.2, house_gap=4.5):
+    """True when a disc of radius r at (x, z) is inside the wall, on gentle ground, clear of every house, street, wall, puzzle
+    and landmark: where something may be put without being in anyone's way."""
+    xs = np.array([x + r * math.cos(a) for a in np.linspace(0, 2 * math.pi, 7)[:-1]] + [x])
+    zs = np.array([z + r * math.sin(a) for a in np.linspace(0, 2 * math.pi, 7)[:-1]] + [z])
+    if not all(inside_wall(a, b) for a, b in zip(xs, zs)) or math.hypot(x, z) < GORGE_R + 4.0:
+        return False
+    if any(math.hypot(x - kx, z - kz) < kr + r for kx, kz, kr in KEEP_CLEAR):
+        return False
+    if math.hypot(x - WELL[0], z - WELL[1]) < WELL_R + 7.0 or math.hypot(x - THEATRE[0], z - THEATRE[1]) < 20.0:
+        return False
+    if math.hypot(x + 62.0, z - 18.0) < 13.0 or math.hypot(x + 38.0, z - 14.0) < 7.0 or math.hypot(x - 84.0, z - 26.0) < 9.0:
+        return False
+    if any(math.hypot(x - bx, z - bz) < 8.0 for bx, bz in BRIDGEHEADS.values()):
+        return False
+    if distance_to(LOCK_LINE, xs, zs)[0].min() < 10.0 or distance_to(WALL, xs, zs)[0].min() < 3.0:
+        return False
+    for name, (c, w, k) in STREET.items():
+        if distance_to(c, xs, zs)[0].min() < w / 2 + 1.2:
+            return False
+    for h in HOUSES:
+        hx, hz = sum(q[0] for q in h) / 4, sum(q[1] for q in h) / 4
+        if math.hypot(x - hx, z - hz) < r + house_gap:
+            return False
+    g = ground(xs, zs)
+    return float(g.max() - g.min()) <= rng
+
+
+CISTERN = []   # (x, y, z) of the cisterns (the gallery of the west starts at one, docs/DESIGN.md 7.7)
+
+
+def build_garden_quarter():
+    """The terraces of the north-west (docs/DESIGN.md 7.7): the garden lane climbs from the market past a cistern to a terrace
+    that looks over the town to the tower. The cistern is a stone drum with a hatch: in A the hatch is closed with a wooden lid,
+    in B the lid has fallen in (the gallery under the market is not built yet; the hatch is its door)."""
+    c, w, _ = STREET["garden lane"]
+    hs = _HEIGHTS["garden lane"]
+    d = lengths(c)
+    best = None
+    for s in np.arange(8.0, d[-1] - 6.0, 1.0):
+        p, v = at(c, s / d[-1])
+        y = float(np.interp(s, d, hs))
+        for side in (-1, 1):
+            n = np.array([-v[1], v[0]]) * side
+            cx, cz = p + n * (w / 2 + 5.0)
+            if free_ground(cx, cz, 3.0, 1.8) and abs(float(ground(cx, cz)) - y) < 2.0:
+                if best is None or abs(float(ground(cx, cz)) - y) < best[0]:
+                    best = (abs(float(ground(cx, cz)) - y), cx, cz)
+    if best is not None:
+        _, cx, cz = best
+        gy = float(ground(cx, cz))
+        poly([(x, gy + 0.05, z) for x, z in ngon(cx, cz, 3.6, 12)], "paving", "both", "overlay")
+        prism(ngon(cx, cz, 2.0, 12), gy - 1.0, gy + 1.0, "stone", "both", True, "stone_dark")
+        poly([(x, gy + 1.03, z) for x, z in ngon(cx, cz, 1.25, 8)], "wood", "A", "overlay")             # the lid, A
+        prism(ngon(cx + 0.5, cz - 0.3, 0.8, 5), gy + 1.0, gy + 1.5, "debris", "B")                     # the lid fallen in, B
+        OVERLOOKS.append(("the cistern of the garden lane", cx, gy + 1.0, cz, 28.0))
+        CISTERN.append((cx, gy, cz))
+        KEEP_CLEAR.append((float(cx), float(cz), 4.6))                                                  # no house on it
+    # the terrace at the end of the lane: paving, a parapet on the side that looks to the tower, a bench
+    pe, ve = c[-1], (c[-1] - c[-3]) / max(np.linalg.norm(c[-1] - c[-3]), 1e-9)
+    ye = float(hs[-1])
+    ang = math.atan2(ve[1], ve[0])
+    tx, tz = pe + ve * 3.2
+    poly([(x, ye + 0.05, z) for x, z in rect(tx, tz, 6.4, 5.6, ang)], "paving", "both", "overlay")
+    to_tower = np.array([-tx, -tz]) / max(math.hypot(tx, tz), 1e-9)
+    side = np.array([-ve[1], ve[0]])
+    sgn = 1.0 if float(np.dot(side, to_tower)) > 0 else -1.0
+    a0 = np.array([tx, tz]) + side * sgn * 2.8 - ve * 3.2
+    b0 = np.array([tx, tz]) + side * sgn * 2.8 + ve * 3.2
+    beam((a0[0], ye + 1.0, a0[1]), (b0[0], ye + 1.0, b0[1]), 0.5, 1.0, "stone")                        # the parapet
+    OVERLOOKS.append(("the terrace of the garden lane", float(tx), ye, float(tz), 62.0))
+    KEEP_CLEAR.append((float(tx), float(tz), 4.2))
+
+
+def build_mill_quarter():
+    """The terrace of the mills (docs/DESIGN.md 7.7): the mill lane leaves the east stair, climbs the slope above the locks and ends
+    on a terrace that looks down on the five basins, the water tower and the upper town."""
+    c, w, _ = STREET["mill lane"]
+    hs = _HEIGHTS["mill lane"]
+    pe, ve = c[-1], (c[-1] - c[-3]) / max(np.linalg.norm(c[-1] - c[-3]), 1e-9)
+    ye = float(hs[-1])
+    ang = math.atan2(ve[1], ve[0])
+    tx, tz = pe + ve * 3.0
+    poly([(x, ye + 0.05, z) for x, z in rect(tx, tz, 6.0, 5.6, ang)], "paving", "both", "overlay")
+    toward = np.array([LOCK_LINE[len(LOCK_LINE) // 2][0] - tx, LOCK_LINE[len(LOCK_LINE) // 2][1] - tz])
+    toward = toward / max(float(np.linalg.norm(toward)), 1e-9)
+    side = np.array([-ve[1], ve[0]])
+    sgn = 1.0 if float(np.dot(side, toward)) > 0 else -1.0
+    a0 = np.array([tx, tz]) + side * sgn * 2.7 - ve * 3.0
+    b0 = np.array([tx, tz]) + side * sgn * 2.7 + ve * 3.0
+    beam((a0[0], ye + 1.0, a0[1]), (b0[0], ye + 1.0, b0[1]), 0.5, 1.0, "stone")
+    OVERLOOKS.append(("the terrace of the mills", float(tx), ye, float(tz), 60.0))
+    KEEP_CLEAR.append((float(tx), float(tz), 4.2))
+
+
+ORCHARD_TREES = []   # (x, z) of the olives of the orchards (the check and the pictures read it)
+NET_RACKS = []       # (x, z) of the net racks
+
+
+def build_fish_market():
+    """The square of the lower town (docs/DESIGN.md 7.8): paving, a fountain (water in A, a dry basin and a broken column in B) and
+    three stalls (awnings in A, bare frames in B). The cooper lane and the fish passage cross it, so nothing stands on their lines."""
+    cx, cz = FISH
+    y = float(ground(cx, cz))
+    poly([(x, y + 0.07, z) for x, z in ngon(cx, cz, FISH_R - 0.6, 20)], "paving", "both", "overlay")
+    fx, fz = cx + 3.9, cz + 3.4
+    prism(ngon(fx, fz, 1.7, 12), y, y + 0.7, "stone", "both", True, "stone_dark")
+    poly([(x, y + 0.62, z) for x, z in ngon(fx, fz, 1.4, 12)], "water", "A", "water")
+    prism(ngon(fx, fz, 0.3, 8), y + 0.6, y + 2.7, "stone", "A", True, "stone_dark")
+    prism(ngon(fx, fz, 0.3, 8), y + 0.6, y + 1.2, "stone_dark", "B")
+    prism(ngon(fx + 0.9, fz - 0.5, 0.5, 5), y + 0.7, y + 1.0, "debris", "B")
+    for k, deg in enumerate((135, 225, 315)):
+        a = math.radians(deg)
+        sx, sz = cx + 4.6 * math.cos(a), cz + 4.6 * math.sin(a)
+        ang = a + math.pi / 2
+        prism(rect(sx, sz, 2.4, 1.2, ang), y, y + 0.95, "wood")
+        for dx_, dz_ in ((-1.2, -0.7), (1.2, -0.7), (-1.2, 0.7), (1.2, 0.7)):
+            px_ = sx + dx_ * math.cos(ang) - dz_ * math.sin(ang)
+            pz_ = sz + dx_ * math.sin(ang) + dz_ * math.cos(ang)
+            prism(rect(px_, pz_, 0.12, 0.12, ang), y, y + 2.5, "wood")
+        gable(sx, sz, 2.6, 2.2, ang + math.pi / 2, y + 2.5, 0.45, "cloth" if k % 2 else "cloth2", "A")
+        for j in range(3):                                                                  # fish on the slab, crates under it
+            prism(rect(sx + (j - 1) * 0.6 * math.cos(ang), sz + (j - 1) * 0.6 * math.sin(ang), 0.4, 0.25, ang), y + 0.95, y + 1.05, "cloth2", "A")
+    KEEP_CLEAR.append((float(cx), float(cz), FISH_R - 0.4))
+
+
+CHAPEL = []   # (x, y, z, ang) of the chapel of the vine lane
+CHAPEL_W, CHAPEL_D = 5.4, 8.2
+
+
+def build_chapel():
+    """The chapel of the terraces (docs/DESIGN.md 7.8, 7.10): a stone chapel on the vine lane that can be entered (a ramp of 13 degrees
+    to a door, a nave, an apse, an altar, benches), with a bell gable that is seen from the whole west. A is whole; in B its roof is
+    gone. The way in is walked by tests/test_town.cpp like the way into a room (`room: chapel`)."""
+    c, w, _ = STREET["vine lane"]
+    d = lengths(c)
+    best = None
+    for s_ in np.arange(10.0, d[-1] - 10.0, 1.0):
+        pt, v = at(c, s_ / d[-1])
+        for side in (-1, 1):
+            n = np.array([-v[1], v[0]]) * side
+            fx, fz = pt + n * (w / 2 + 2.6)
+            F0 = ar.Frame(fx, fz, v, n, 0.0)
+            out = [(F0.P(a_, b_)[0], F0.P(a_, b_)[2]) for a_, b_ in ((-CHAPEL_W / 2 - 0.7, -0.4), (CHAPEL_W / 2 + 0.7, -0.4),
+                                                                (CHAPEL_W / 2 + 0.7, CHAPEL_D + CHAPEL_W / 2 + 0.7), (-CHAPEL_W / 2 - 0.7, CHAPEL_D + CHAPEL_W / 2 + 0.7))]
+            if not site_free(out, 4.0):
+                continue
+            gs = [float(ground(*F0.P(a_, b_)[::2])) for a_ in (-2.2, 0.0, 2.2) for b_ in (0.5, 3.0, 5.5, 8.0)]
+            y0 = max(gs) + 0.03
+            foot = float(ground(*F0.P(0.0, -2.2)[::2]))
+            if not (-0.05 <= y0 - foot <= 0.6):                                        # the ramp must be gentle
+                continue
+            score = (y0 - min(gs)) + 0.3 * abs(y0 - foot - 0.45) - 0.01 * s_
+            if best is None or score < best[0]:
+                best = (score, fx, fz, v, n, y0, min(gs))
+    if best is None:
+        PROBLEMS.append(("chapel", "no flat place for the chapel on the vine lane"))
+        return
+    _, fx, fz, v, n, y0, gmin = best
+    F = ar.Frame(fx, fz, v, n, y0)
+    ar.chapel(F, CHAPEL_W, CHAPEL_D, "unroofed", min(-0.5, gmin - y0 - 0.6))
+    cx, cz = F.P(0.0, CHAPEL_D / 2)[0], F.P(0.0, CHAPEL_D / 2)[2]
+    CHAPEL.append((float(cx), float(y0), float(cz), float(math.atan2(v[1], v[0]))))
+    KEEP_CLEAR.append((float(cx), float(cz), 7.4))
+    KEEP_CLEAR.append((float(F.P(0.0, 1.0)[0]), float(F.P(0.0, 1.0)[2]), 3.4))
+    ROOM_PATHS.append(("room: chapel", [(F.P(0.0, -2.4)[0], foot + 0.0, F.P(0.0, -2.4)[2]), (F.P(0.0, 0.4)[0], y0 + 0.03, F.P(0.0, 0.4)[2]),
+                                       (F.P(0.0, 3.2)[0], y0 + 0.03, F.P(0.0, 3.2)[2])], 1.5))
+    OVERLOOKS.append(("the chapel of the vine lane", float(F.P(0.0, -3.0)[0]), float(y0 + 1.0), float(F.P(0.0, -3.0)[2]), 26.0))
+
+
+def end_terrace(name, reach, w, d, look, label, radius):
+    """A terrace at the end of a lane: paving, a parapet on the side that looks to `look` (x, z), a bench, an overlook of the map."""
+    c, wd, _ = STREET[name]
+    hs = _HEIGHTS[name]
+    pe, ve = c[-1], (c[-1] - c[-3]) / max(np.linalg.norm(c[-1] - c[-3]), 1e-9)
+    ye = float(hs[-1])
+    ang = math.atan2(ve[1], ve[0])
+    tx, tz = pe + ve * reach
+    poly([(x, ye + 0.05, z) for x, z in rect(tx, tz, w, d, ang)], "paving", "both", "overlay")
+    toward = np.array([look[0] - tx, look[1] - tz])
+    toward = toward / max(float(np.linalg.norm(toward)), 1e-9)
+    side = np.array([-ve[1], ve[0]])
+    sgn = 1.0 if float(np.dot(side, toward)) > 0 else -1.0
+    a0 = np.array([tx, tz]) + side * sgn * (d / 2 - 0.2) - ve * w / 2
+    b0 = np.array([tx, tz]) + side * sgn * (d / 2 - 0.2) + ve * w / 2
+    beam((a0[0], ye + 1.0, a0[1]), (b0[0], ye + 1.0, b0[1]), 0.5, 1.0, "stone")
+    bx, bz = np.array([tx, tz]) - side * sgn * (d / 2 - 0.9)
+    prism(rect(float(bx), float(bz), 1.8, 0.5, ang), ye + 0.05, ye + 0.5, "wood")                       # a bench
+    cone(float(bx) - float(ve[0]) * 1.6, float(bz) - float(ve[1]) * 1.6, 0.7, ye, ye + 4.2, "cypress", "A", 5)
+    OVERLOOKS.append((label, float(tx), ye, float(tz), radius))
+    KEEP_CLEAR.append((float(tx), float(tz), max(w, d) / 2 + 1.6))
+    return float(tx), float(tz), ye
+
+
+def build_lane_ends():
+    """Where the new dead-end lanes end there is a reason to walk to it (docs/DESIGN.md 7.8): a green by the west wall with a view
+    over the harbour and the lower town, a terrace over the town on the north wall."""
+    end_terrace("weaver lane", 2.6, 5.2, 4.6, (-30.0, -50.0), "the green of the weaver lane", 46.0)
+    end_terrace("wall lane", 3.0, 6.0, 5.0, (0.0, 20.0), "the north terrace", 58.0)
+
+
+PROP_COUNT = [0, 0]
+
+
+# ---- the rooms: houses that can be entered (docs/DESIGN.md 7.7, 7.9) -------------------------------------------------------------
+# A room is a house with a door in its street front, one room of about 4.8 x 5.6 m inside and a ceiling at 3.4 m. It is built in
+# two steps: `reserve_rooms()` takes the site before the houses are placed (the houses then stand round it), `build_rooms()` builds
+# it when the rest of the town is there (a window is only cut where, in both moments, the ray to what it frames is clear).
+ROOMS = []         # one dict per room: the site and what stands in it
+ROOM_PATHS = []    # (name, [(x, y, z), ...]): from the street through the door to the middle of the room (tests/test_town.cpp walks it)
+ROOM_REPORT = []   # lines for check(): what each window looks at
+ROOM_SIZE = (5.6, 6.4)   # footprint: width along the front, depth
+ROOM_T = 0.4             # thickness of a wall
+ROOM_CEIL = 3.4          # clear height under the ceiling
+ROOM_TOP = 4.6           # the walls end here; the gable of A rises over them
+ROOM_DOOR = 1.3          # width of the door
+ROOM_SPECS = [
+    # name, fronts it may stand on, where it should be, what is in it, [what its window may frame: (label, x, y, z)]
+    ("fishmonger", ("fish market",), (-4.0, -36.2), "dinner", ()),
+    ("cooper", ("cooper lane",), (14.0, -33.0), "cooper", ()),
+    ("weaver", ("garden lane", "vine lane", "market plaza", "weaver lane"), (-42.0, 25.0), "weaver", (
+        ("the west bridge", -21.0, 14.6, 0.0), ("the bell tower", 0.0, 24.0, 6.0), ("the west bastion", -27.0, 15.0, 0.0),
+        ("the clock tower", -38.0, 22.0, 14.0))),
+    ("miller", ("mill lane", "lock quay"), (54.0, 6.0), "mill", tuple(
+        ("the locks", float(LOCK_LINE[i][0]), float(ground(LOCK_LINE[i][0], LOCK_LINE[i][1])) + 3.2, float(LOCK_LINE[i][1]))
+        for i in (int(len(LOCK_LINE) * f_) for f_ in (0.3, 0.45, 0.6, 0.75))) + (("the water tower", 84.0, 27.0, 26.0),)),
+    ("watch", ("tanner loop", "wall lane"), (31.0, 38.0), "watch", (
+        ("the stage of the theatre", 0.0, 26.0, 32.0), ("the seats of the theatre", 0.0, 27.0, 44.0), ("the theatre", 0.0, 30.0, 38.0),
+        ("the stumps and columns of the theatre", 8.0, 25.0, 29.0))),
+    ("child", ("tanner loop", "wall lane", "mill lane"), (36.0, 34.0), "child", ()),
+    # pass 6 (docs/DESIGN.md 7.11): four more, each with a different thing to find
+    ("baker", ("lower east lane", "cooper lane"), (22.0, -48.0), "baker", ()),
+    ("scribe", ("cooper lane", "fish market"), (-18.0, -38.0), "scribe", ()),
+    ("lamplighter", ("lower east lane", "cooper lane", "lock quay"), (30.0, -36.0), "lamplighter", ()),
+    ("sailmaker", ("lock quay", "mill lane", "tanner loop"), (52.0, -26.0), "sailmaker", ()),   # the barges of the locks have sails and ropes
+]
+
+
+class RoomFrame:
+    """The frame of a room: a = along the front, b = from the street into the room, y over the floor."""
+
+    def __init__(self, ctr, v, nn, floor, w, d):
+        self.c, self.v, self.nn, self.f, self.w, self.d = np.asarray(ctr, float), np.asarray(v, float), np.asarray(nn, float), floor, w, d
+
+    def P(self, a, b):
+        q = self.c + self.v * a + self.nn * b
+        return float(q[0]), float(q[1])
+
+    def box(self, a0, a1, b0, b1, y0, y1, mat, world="both", top_mat=None, kind=None):
+        pts = [self.P(a0, b0), self.P(a1, b0), self.P(a1, b1), self.P(a0, b1)]
+        if kind == "overlay":
+            poly([(x, self.f + y1, z) for x, z in pts], top_mat or mat, world, "overlay")
+        else:
+            prism(pts, self.f + y0, self.f + y1, mat, world, True, top_mat)
+
+    def vert(self, axis, fixed, c, wd, y0, y1, mat, world="both"):
+        """A flat vertical panel on a wall: axis 'a' = the wall runs along a (at b = fixed), 'b' = along b (at a = fixed)."""
+        h = wd / 2
+        if axis == "a":
+            p0, p1 = self.P(c - h, fixed), self.P(c + h, fixed)
+        else:
+            p0, p1 = self.P(fixed, c - h), self.P(fixed, c + h)
+        poly([(p0[0], self.f + y0, p0[1]), (p1[0], self.f + y0, p1[1]), (p1[0], self.f + y1, p1[1]), (p0[0], self.f + y1, p0[1])], mat, world, "overlay")
+
+    def ground_y(self, a, b):
+        x, z = self.P(a, b)
+        return float(ground(x, z))
+
+
+def reserve_rooms():
+    """Takes a site for each room, on a front near where the room should be (docs/DESIGN.md 7.9): on one of the fronts it names, and
+    when none has a free flat place on any front."""
+    fr = fronts()
+    w, dd = ROOM_SIZE
+
+    def search(fnames, target):
+        best, why = None, {}
+        for fname, c, half, fkind in fr:
+            if fnames is not None and fname not in fnames:
+                continue
+            if fname in ("harbour road", "headland path", "lock quay") and fnames is None:
+                continue
+            d = lengths(c)
+            for side in (-1, 1):
+                if fkind == 2 and side == 1:
+                    continue
+                s_ = 2.0
+                while s_ < d[-1] - 2.0:
+                    p, v = at(c, min(1.0, (s_ + w / 2) / d[-1]))
+                    nn = np.array([-v[1], v[0]]) * side
                     ang = math.atan2(v[1], v[0])
-                    ctr = p + n * (w / 2 + 0.3 + offset + dd / 2)
-                    by_gorge = math.hypot(ctr[0], ctr[1]) < 34                         # low by the gorge: the rock stands out
-                    h = (4.0 if by_gorge else 5.0) + (k * 17 % 5) * 1.4 + (1.5 if row == 1 else 0.0)
-                    placed = house(ctr[0], ctr[1], ww, dd, ang, k, h, front=(-n[0], -n[1]) if row == 0 else None)
-                    s += ww if placed else 1.2
-    for gx in np.arange(-80.0, 92.0, 6.2):                                              # the blocks between the streets
-        for gz in np.arange(-60.0, 64.0, 6.2):
+                    ctr = p + nn * (half + 0.4 + dd / 2)
+                    dist = math.hypot(ctr[0] - target[0], ctr[1] - target[1])
+                    out = rect(ctr[0], ctr[1], w, dd, ang)
+                    lm, wc = half + 0.2 if fkind == 1 else 9.0, WELL_R + 5.0 if fkind == 2 else WELL_R + 6.0
+                    if best is None or dist < best[0]:
+                        if site_free(out, 4.0, lm, wc):                     # on a slope the floor is at the highest ground and the low side is filled
+                            xs = np.array([q[0] for q in out] + [ctr[0]])
+                            zs = np.array([q[1] for q in out] + [ctr[1]])
+                            g = ground(xs, zs)
+                            door = ctr - nn * dd / 2
+                            if any(math.hypot(door[0] - kx - 0.0, door[1] - kz) < kr + 0.4 or math.hypot(door[0] + nn[0] * -1.6 - kx, door[1] + nn[1] * -1.6 - kz) < kr
+                                   for kx, kz, kr in KEEP_CLEAR if 1.6 < kr < 5.0):                  # (the piers of the arches, small places; not a square a door faces)
+                                why["door at a place that is kept clear"] = why.get("door at a place that is kept clear", 0) + 1
+                                s_ += 0.8
+                                continue
+                            base = street_y_at(fname, s_ + w / 2) if fname in STREET else float(ground(door[0], door[1]))
+                            door_out = door - nn * 0.7
+                            base = min(base, float(ground(door_out[0], door_out[1])), float(ground(door[0], door[1])))   # what the body stands on at the door
+                            floor = max(base + 0.04, float(g.max()) + 0.03)
+                            cap = sight_cap(out)
+                            lamp_near = any(math.hypot(l_[0] - door[0], l_[2] - door[1]) < 1.7 for l_ in LAMPS if l_[8] == "street")
+                            if floor - base <= 0.35 and not lamp_near and (cap is None or cap > floor + ROOM_TOP + 2.4):
+                                best = (dist, fname, half, ctr, v, nn, out, door, floor, base, s_)
+                        elif fnames is not None:
+                            r_ = site_why(out, 4.0, lm, wc)
+                            why[r_] = why.get(r_, 0) + 1
+                    s_ += 0.8
+        return best, why
+
+    for name, fnames, target, kind, views in ROOM_SPECS:
+        best, why = search(fnames, target)
+        note = ""
+        if best is None:
+            best, why2 = search(None, target)
+            note = " (none on %s: %s)" % (", ".join(fnames), ", ".join("%s %d" % kv for kv in sorted(why.items(), key=lambda kv: -kv[1])[:4]))
+        if best is None:
+            PROBLEMS.append(("room " + name, "no site anywhere"))
+            continue
+        dist, fname, half, ctr, v, nn, out, door, floor, base, s_ = best
+        HOUSES.append(out)
+        HOUSE_DOORS.append((float(door[0]), float(door[1]), fname, half))
+        ROOMS.append(dict(name=name, front=fname, half=half, ctr=ctr, v=v, nn=nn, door=door, floor=floor, kind=kind, views=views,
+                          out=out, dist=dist))
+        if note:
+            ROOM_REPORT.append("  room %-10s moved to %s%s" % (name, fname, note))
+
+
+_TRI = {}
+
+
+def _tris(world):
+    """Every solid and terrain polygon of a moment as triangles (numpy), for the rays of the windows."""
+    if world in _TRI and _TRI[world][0] == len(POLYS):
+        return _TRI[world][1]
+    a, b, c = [], [], []
+    for pts, mat, w, kind in POLYS:
+        if kind not in ("solid", "terrain") or w not in (world, "both") or len(pts) < 3:
+            continue
+        for i in range(1, len(pts) - 1):
+            a.append(pts[0]); b.append(pts[i]); c.append(pts[i + 1])
+    arr = (np.array(a), np.array(b), np.array(c))
+    _TRI[world] = (len(POLYS), arr)
+    return arr
+
+
+def ray_first_hit(world, o, t):
+    """Distance along o -> t to the first solid triangle of the moment (Moeller-Trumbore), or None when the way is clear."""
+    a, b, c = _tris(world)
+    o = np.asarray(o, float)
+    d = np.asarray(t, float) - o
+    length = float(np.linalg.norm(d))
+    d = d / length
+    e1, e2 = b - a, c - a
+    h = np.cross(d, e2)
+    det = (e1 * h).sum(1)
+    ok = np.abs(det) > 1e-9
+    inv = np.where(ok, 1.0 / np.where(ok, det, 1.0), 0.0)
+    sv = o - a
+    u = inv * (sv * h).sum(1)
+    q = np.cross(sv, e1)
+    v = inv * (q * d).sum(1)
+    tt = inv * (e2 * q).sum(1)
+    hit = ok & (u >= 0) & (v >= 0) & (u + v <= 1) & (tt > 0.02) & (tt < length - 0.4)
+    return float(tt[hit].min()) if hit.any() else None
+
+
+def room_window(R, fr):
+    """Chooses the wall and the thing that a room's window frames: from the middle of a wall (the back, the sides, or the front beside
+    the door), the view whose five rays (the middle and four round it, over the width and height of the window) are clear in both
+    moments (a lamp post may stand in one); of those the one most nearly in front of the wall. Returns (wall, label, target, distance)
+    or None."""
+    best = None
+    w, d = ROOM_SIZE
+    walls = {"back": (0.0, d / 2 + ROOM_T + 0.2, R["nn"]), "left": (-w / 2 - ROOM_T - 0.2, 0.0, -R["v"]), "right": (w / 2 + ROOM_T + 0.2, 0.0, R["v"]),
+             "front": (1.9, -d / 2 - ROOM_T - 0.2, -R["nn"])}                              # (beside the door: it looks across the street)
+    for label, tx, ty, tz in R["views"]:
+        for wall, (a, b, nrm) in walls.items():
+            o = fr.c + fr.v * a + fr.nn * b
+            dv = np.array([tx - float(o[0]), tz - float(o[1])])
+            dist = float(np.linalg.norm(dv))
+            cosang = float(np.dot(dv / max(dist, 1e-9), nrm))
+            if cosang < math.cos(math.radians(60.0)) or dist < 6.0:
+                continue
+            along = np.array([-nrm[1], nrm[0]])
+            clear = 0
+            for da, dh in ((0.0, 0.0), (0.35, 0.0), (-0.35, 0.0), (0.0, 0.3), (0.0, -0.3)):
+                eye = (float(o[0] + along[0] * da), R["floor"] + 1.5 + dh, float(o[1] + along[1] * da))
+                for world in ("A", "B"):
+                    clear += 1 if ray_first_hit(world, eye, (tx, ty, tz)) is None else 0
+            if clear >= 9 and (best is None or cosang > best[0]):
+                best = (cosang, wall, label, (tx, ty, tz), dist)
+    return best
+
+
+def build_room(R):
+    w, dd = ROOM_SIZE
+    t = ROOM_T
+    hw, hd = w / 2, dd / 2
+    fr = RoomFrame(R["ctr"], R["v"], R["nn"], R["floor"], w, dd)
+    f = R["floor"]
+    out = R["out"]
+    xs = np.array([q[0] for q in out]); zs = np.array([q[1] for q in out])
+    low = float(np.min(ground(xs, zs))) - 1.2 - f
+    win = room_window(R, fr) if R["views"] else None
+    R["window"] = win
+    if R["views"]:
+        ROOM_REPORT.append("  room %-10s window: %s" % (R["name"], ("%s from the %s wall (%.0f m)" % (win[2], win[1], win[4])) if win else "none in sight (a flat window)"))
+    # floor, in both moments
+    fr.box(-hw, hw, -hd, hd, low, 0.0, "plaster0", "both", "wood")
+    # walls: pieces round the openings
+    def pieces(alo, ahi, openings):
+        segs, cur = [], alo
+        for c, wd_, y0, y1 in sorted(openings):
+            o0, o1 = c - wd_ / 2, c + wd_ / 2
+            if o0 > cur:
+                segs.append((cur, o0, low, ROOM_TOP))
+            if y0 > 0:
+                segs.append((o0, o1, low, y0))
+            if y1 < ROOM_TOP:
+                segs.append((o0, o1, y1, ROOM_TOP))
+            cur = o1
+        if cur < ahi:
+            segs.append((cur, ahi, low, ROOM_TOP))
+        return segs
+    sill, wtop, ww = 0.95, 2.15, 0.95
+    ops = {"front": [(0.0, ROOM_DOOR, 0.0, 2.3)], "back": [], "left": [], "right": []}
+    wc = 1.9 if (win and win[1] == "front") else 0.0                                         # the window of the front is beside the door
+    if win:
+        ops[win[1]].append((wc, ww, sill, wtop))
+    mat = "plaster2"
+    for a0, a1, y0, y1 in pieces(-hw, hw, ops["front"]):
+        fr.box(a0, a1, -hd, -hd + t, y0, y1, mat)
+    for a0, a1, y0, y1 in pieces(-hw, hw, ops["back"]):
+        fr.box(a0, a1, hd - t, hd, y0, y1, mat)
+    for sg, key in ((-1, "left"), (1, "right")):
+        for b0, b1, y0, y1 in pieces(-hd + t, hd - t, ops[key]):
+            fr.box(-hw if sg < 0 else hw - t, -hw + t if sg < 0 else hw, b0, b1, y0, y1, mat)
+    # the window: bars (gaps of 0.14 m: nobody passes), a ledge outside, the light of the moment inside
+    if win:
+        wall = win[1]
+        for k in range(4):
+            c = -ww / 2 + ww * (k + 1) / 5
+            if wall == "front":
+                fr.box(wc + c - 0.025, wc + c + 0.025, -hd, -hd + t, sill, wtop, "iron")
+            elif wall in ("back",):
+                fr.box(c - 0.025, c + 0.025, hd - t, hd, sill, wtop, "iron")
+            else:
+                sg = -1 if wall == "left" else 1
+                fr.box(-hw if sg < 0 else hw - t, -hw + t if sg < 0 else hw, c - 0.025, c + 0.025, sill, wtop, "iron")
+        if wall == "front":
+            fr.box(wc - ww / 2 - 0.1, wc + ww / 2 + 0.1, -hd - 0.16, -hd, sill - 0.12, sill, "stone")
+        elif wall == "back":
+            fr.box(-ww / 2 - 0.1, ww / 2 + 0.1, hd, hd + 0.16, sill - 0.12, sill, "stone")
+        else:
+            sg = -1 if wall == "left" else 1
+            fr.box(sg * hw if sg > 0 else -hw - 0.16, sg * hw + 0.16 if sg > 0 else -hw, -ww / 2 - 0.1, ww / 2 + 0.1, sill - 0.12, sill, "stone")
+    # a ramp in front of every door, from 0.45 m under the floor up to it over 1.6 m (16 degrees): the solid terrain is a coarse mesh and
+    # its surface between the sample points of ground() can lie 0.2 m lower or higher, so the ramp is not sized to ground(). Where the
+    # terrain is higher than the ramp the terrain governs, and the body stands on the highest surface, so the last 0.35 m before the door
+    # is never a step of more than 0.1 m.
+    pts_ = [fr.P(-0.75, -hd - 1.6), fr.P(0.75, -hd - 1.6), fr.P(0.75, -hd), fr.P(-0.75, -hd)]
+    poly([(pts_[0][0], f - 0.45, pts_[0][1]), (pts_[1][0], f - 0.45, pts_[1][1]), (pts_[2][0], f, pts_[2][1]), (pts_[3][0], f, pts_[3][1])], "paving", "both", "solid")
+    y_in = float(ground(*fr.P(0.0, -hd - 1.6)))
+    R["ramp"] = round(max(f - y_in, 0.0), 2)
+    # the door: threshold, the leaf open against the wall in A, gone in B; a lantern over it
+    fr.box(-ROOM_DOOR / 2, ROOM_DOOR / 2, -hd - 0.35, -hd + t, 0.0, 0.03, "stone", "both", None, "overlay")
+    fr.vert("b", ROOM_DOOR / 2 - 0.02, -hd + t + 0.45, 0.9, 0.0, 2.1, "door", "A")
+    # windows that do not open: lit panes in A on the front and on the walls inside
+    for a_ in (-1.9, 1.9):
+        if win and win[1] == "front" and a_ > 0:
+            continue
+        x_, z_ = fr.P(a_, -hd - 0.03)
+        facade_window(x_, z_, f + 1.15, float(R["v"][0]), float(R["v"][1]), 500 + int(a_ * 3), 0)
+    for key in ("left", "right"):
+        if win and win[1] == key:
+            continue
+        sg = -1 if key == "left" else 1
+        for b_ in (-1.3, 1.3):
+            fr.vert("b", sg * (hw - t) - sg * 0.02, b_, 0.8, 1.15, 1.96, "window", "A")
+            fr.vert("b", sg * (hw - t) - sg * 0.02, b_, 0.8, 1.15, 1.96, "stone_dark", "B")
+    if not (win and win[1] == "back"):
+        fr.vert("a", hd - t - 0.02, -1.5, 0.8, 1.15, 1.96, "window", "A")
+        fr.vert("a", hd - t - 0.02, -1.5, 0.8, 1.15, 1.96, "stone_dark", "B")
+    # ceiling, beams and the roof (A); open to the sky in B, with a fallen heap and a beam
+    roof0 = len(POLYS)
+    fr.box(-hw + t, hw - t, -hd + t, hd - t, ROOM_CEIL, ROOM_CEIL + 0.3, "plaster3", "A")
+    for b_ in (-1.8, 0.0, 1.8):
+        fr.box(-hw + t, hw - t, b_ - 0.12, b_ + 0.12, ROOM_CEIL - 0.28, ROOM_CEIL, "wood", "A")
+    gable(float(fr.c[0]), float(fr.c[1]), w, dd, math.atan2(R["v"][1], R["v"][0]), f + ROOM_TOP, 1.7, "roof2" if hash01(len(ROOMS), 5) < 0.5 else "roof", "A")
+    R["roof"] = (roof0, len(POLYS))                                                    # (the pictures of the rooms leave these out)
+    fr.box(-hw + t + 0.1, -hw + 1.5, hd - 1.8, hd - t, 0.0, 0.8, "debris", "B")
+    fr.box(-0.6, 1.4, hd - 0.9, hd - 0.5, 0.0, 0.3, "wood", "B")
+    lx, lz = fr.P(0.0, 0.4)
+    lamp(lx, f + 2.9, lz, "A", "street")
+    # what stands in it
+    FURNISH[R["kind"]](R, fr)
+    # the way in, for the tests: from the street, through the door, to the middle of the room
+    o = fr.P(0.0, -hd - 1.6)
+    m = fr.P(0.0, 0.0)
+    ROOM_PATHS.append(("room: " + R["name"], [(o[0], f, o[1]), (fr.P(0.0, -hd + 0.2)[0], f + 0.03, fr.P(0.0, -hd + 0.2)[1]), (m[0], f + 0.03, m[1])], ROOM_DOOR))
+    R["done"] = True
+
+
+def _barrel(fr, a, b, r, h, mat="wood", world="both"):
+    x, z = fr.P(a, b)
+    prism(ngon(x, z, r, 8), fr.f, fr.f + h, mat, world)
+
+
+def furnish_dinner(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    fr.box(0.95, 2.35, -0.5, 0.9, 0.0, 0.78, "wood", "A")                                 # the table of an interrupted dinner
+    for a_, b_ in ((0.6, -0.1), (2.2, -0.9), (2.2, 1.3), (0.6, 0.9)):
+        fr.box(a_ - 0.2, a_ + 0.2, b_ - 0.2, b_ + 0.2, 0.0, 0.45, "wood", "A")
+    for a_, b_ in ((1.3, -0.2), (1.9, 0.1), (1.6, 0.5)):
+        fr.box(a_ - 0.12, a_ + 0.12, b_ - 0.12, b_ + 0.12, 0.78, 0.8, "cloth2", "A")      # plates, a loaf
+    fr.box(-1.1, 1.1, hd - 0.8, hd, 0.0, 1.1, "stone", "both", "stone_dark")                 # the hearth
+    x, z = fr.P(0.0, hd - 0.45)
+    prism(rect(x, z, 1.4, 0.7, math.atan2(R["v"][1], R["v"][0])), fr.f + 1.1, fr.f + ROOM_TOP + 2.4, "chimney")
+    fr.box(-0.5, 0.5, hd - 0.75, hd - 0.1, 0.04, 0.5, "glow", "A", None, "overlay")        # the fire (A)
+    fr.box(0.95, 2.35, -0.5, 0.9, 0.0, 0.4, "debris", "B")                                  # B: the table, broken
+    fr.box(0.4, 0.8, -0.4, 0.0, 0.0, 0.2, "wood", "B")
+    fr.box(-hw + 0.1, -hw + 0.9, -0.5, 1.3, 0.0, 0.55, "wood", "A")                          # a bench along the wall
+    fr.vert("b", -hw + 0.02, 0.4, 1.4, 1.4, 1.5, "wood", "A")                                # a shelf with jars
+    for k in range(4):
+        fr.box(-hw + 0.04, -hw + 0.26, -0.1 + 0.3 * k, 0.1 + 0.3 * k, 1.5, 1.8, "cloth2" if k % 2 else "cloth", "A")
+
+
+def furnish_cooper(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    for k, b_ in enumerate((-1.8, -0.9, 0.0, 0.9, 1.8)):
+        _barrel(fr, hw - 0.5, b_, 0.4, 0.95, "wood", "A")                                   # barrels, whole (A)
+        _barrel(fr, hw - 0.5, b_, 0.4, 0.45 if k % 2 else 0.25, "wood", "B")               # staves (B)
+        x, z = fr.P(hw - 0.5, b_)
+        poly([(x + 0.55 * math.cos(a) * (1 if k % 2 else 0.8), f_, z + 0.55 * math.sin(a)) for a, f_ in ((j * math.pi / 3, fr.f + 0.05) for j in range(6))],
+             "iron", "B", "overlay")                                                       # a hoop on the floor (B)
+    fr.box(-hw + 0.1, -hw + 0.75, -1.4, 1.4, 0.0, 0.9, "wood")                               # the bench
+    fr.box(-hw + 0.1, -hw + 0.4, -0.2, 0.2, 0.9, 1.6, "wood", "A")                          # a post with a saw hung on it
+    fr.box(-hw + 0.04, -hw + 0.2, 0.3, 1.2, 1.4, 1.7, "iron", "A")
+    for a_, b_ in ((-1.0, 2.0), (-0.3, 2.2), (0.4, 1.9)):                                    # shavings
+        fr.box(a_ - 0.4, a_ + 0.4, b_ - 0.3, b_ + 0.3, 0.0, 0.02, "sand", "A", None, "overlay")
+    fr.box(-1.0, 1.0, hd - 0.7, hd - 0.05, 0.0, 0.5, "wood", "A")                            # staves stacked against the back wall
+
+
+def furnish_weaver(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    for a_ in (-hw + 0.25, -hw + 1.55):                                                      # a loom: two frames with a beam between
+        fr.box(a_ - 0.06, a_ + 0.06, -1.5, -1.38, 0.0, 1.7, "wood", "A")
+        fr.box(a_ - 0.06, a_ + 0.06, 1.38, 1.5, 0.0, 1.7, "wood", "A")
+    fr.box(-hw + 0.19, -hw + 1.61, -1.5, 1.5, 1.6, 1.72, "wood", "A")
+    fr.box(-hw + 0.19, -hw + 1.61, -1.5, 1.5, 0.5, 0.62, "wood", "A")
+    fr.box(-hw + 0.3, -hw + 1.5, -1.3, 1.3, 0.62, 1.6, "cloth", "A", None, "overlay")        # the warp: a flat sheet of red threads
+    fr.box(-hw + 0.1, -hw + 1.7, -1.5, 1.5, 0.0, 0.4, "debris", "B")                          # B: the loom fallen
+    fr.box(hw - 0.9, hw - 0.1, -0.4, 0.4, 0.0, 0.5, "wood", "A")                              # a stool and baskets
+    for k in range(3):
+        x, z = fr.P(hw - 0.5, 1.2 + 0.5 * k)
+        prism(ngon(x, z, 0.28, 7), fr.f, fr.f + 0.4, "cloth2", "A")
+    fr.box(-0.5, 0.5, hd - 0.9, hd - 0.1, 0.0, 0.6, "wood", "A")                              # a chest under the window
+    fr.box(-hw + 0.1, -hw + 0.8, hd - 1.2, hd - 0.1, 0.0, 0.5, "cloth2", "A")                # a bolt of cloth
+
+
+def furnish_mill(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    x, z = fr.P(-1.3, 0.9)
+    prism(ngon(x, z, 0.8, 12), fr.f, fr.f + 0.32, "stone")                                    # a hand mill: a stone
+    prism(ngon(x, z, 0.5, 10), fr.f + 0.32, fr.f + 0.55, "stone_dark")
+    for k in range(3):                                                                         # sacks along the right wall
+        for j in range(2):
+            fr.box(hw - 0.55, hw - 0.1, -1.9 + 0.8 * k, -1.2 + 0.8 * k, 0.4 * j, 0.4 * (j + 1), "cloth2" if (k + j) % 2 else "plaster3", "A")
+    fr.box(hw - 0.55, hw - 0.1, -1.9, 1.0, 0.0, 0.3, "debris", "B")                          # B: spilled and rotted
+    fr.box(-0.8, 0.8, hd - 0.7, hd - 0.1, 0.0, 0.7, "wood", "A")                              # a counter with scales
+    fr.box(-0.4, -0.2, hd - 0.5, hd - 0.3, 0.7, 1.3, "iron", "A")
+    fr.box(-0.7, 0.1, hd - 0.52, hd - 0.28, 1.28, 1.32, "iron", "A")
+    fr.box(-hw + 0.1, -hw + 0.6, -2.2, -1.0, 0.0, 1.0, "wood", "A")                          # a hopper
+    fr.box(-1.9, 0.0, -2.4, -2.2, 0.0, 0.02, "field", "A", None, "overlay")                  # flour on the floor
+
+
+def furnish_watch(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    fr.box(-hw + 0.1, -hw + 1.0, -2.2, -0.2, 0.0, 0.5, "wood", "A")                          # a bed
+    fr.box(-hw + 0.15, -hw + 0.95, -2.15, -1.2, 0.5, 0.62, "cloth", "A")
+    fr.box(-hw + 0.1, -hw + 0.8, 0.3, 1.3, 0.0, 0.6, "wood", "A")                             # a chest
+    fr.box(-hw + 0.1, -hw + 1.0, -2.2, -0.2, 0.0, 0.25, "debris", "B")
+    w_ = R.get("window")
+    if w_:                                                                                      # a telescope on a tripod, aimed out of the window
+        wall = w_[1]
+        if wall == "back":
+            a_, b_ = 0.0, hd - 1.2
+            tip = fr.P(0.0, hd + 0.4)
+        elif wall == "left":
+            a_, b_ = -hw + 1.2, 0.0
+            tip = fr.P(-hw - 0.4, 0.0)
+        else:
+            a_, b_ = hw - 1.2, 0.0
+            tip = fr.P(hw + 0.4, 0.0)
+        x, z = fr.P(a_, b_)
+        for dx_, dz_ in ((0.25, 0.0), (-0.12, 0.2), (-0.12, -0.2)):
+            prism(ngon(x + dx_, z + dz_, 0.03, 4), fr.f, fr.f + 1.2, "wood", "A")
+        tube((x, fr.f + 1.25, z), (tip[0], fr.f + 1.45, tip[1]), 0.07, 6, "iron", "A")
+        prism(ngon(tip[0], tip[1], 0.1, 6), fr.f + 1.35, fr.f + 1.55, "gold", "A")
+        prism(ngon(x + 0.15, z + 0.15, 0.05, 5), fr.f, fr.f + 0.5, "wood", "B")             # B: it has fallen over
+    fr.box(0.5, 2.3, hd - 0.8, hd - 0.1, 0.0, 0.8, "wood", "A")                               # a table with a chart
+    fr.box(0.7, 2.1, hd - 0.7, hd - 0.2, 0.8, 0.82, "plaster3", "A")
+
+
+def furnish_child(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    fr.box(hw - 0.9, hw - 0.1, -0.6, 0.9, 0.0, 0.4, "wood")                                    # a small bed
+    fr.box(hw - 0.85, hw - 0.15, -0.55, 0.85, 0.4, 0.5, "cloth2", "A")
+    fr.box(hw - 0.85, hw - 0.15, -0.55, 0.85, 0.4, 0.45, "stone_dark", "B")
+    fr.box(-hw + 0.1, -hw + 0.6, -1.0, -0.4, 0.0, 0.5, "wood", "A")                            # a chair and a little table
+    fr.box(-hw + 0.1, -hw + 0.9, 0.6, 1.4, 0.0, 0.55, "wood", "A")
+    fr.box(-hw + 0.3, -hw + 0.6, 0.8, 1.1, 0.55, 0.62, "cloth", "A")                            # a toy
+    fr.box(hw - 0.55, hw - 0.3, 0.0, 0.25, 0.5, 0.75, "memory", "B")                            # B: a small glow on the bed: what was left
+    fr.box(-hw + 0.1, -hw + 0.9, 0.6, 1.4, 0.0, 0.3, "debris", "B")
+    for k in range(5):                                                                          # drawings on the wall: flat patches
+        fr.vert("a", hd - ROOM_T - 0.02, -1.7 + 0.7 * k, 0.45, 1.3 + 0.12 * (k % 2), 1.7 + 0.12 * (k % 2), ("cloth", "cloth2", "grass", "water", "cloth2")[k], "A")
+
+
+def furnish_baker(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    fr.box(-1.2, 1.2, hd - 1.5, hd, 0.0, 1.25, "stone", "both", "stone_dark")                          # the oven: a dome of stone against the back wall
+    fr.box(-0.55, 0.55, hd - 1.52, hd - 1.0, 0.25, 0.95, "iron", "both")                              # its mouth
+    fr.box(-0.45, 0.45, hd - 1.55, hd - 1.2, 0.3, 0.8, "glow", "A", None, "overlay")                  # the fire (A)
+    x, z = fr.P(0.0, hd - 0.9)
+    prism(ngon(x, z, 0.8, 9), fr.f + 1.25, fr.f + 1.65, "stone", "both")
+    prism(rect(*fr.P(0.0, hd - 0.4), 0.6, 0.6, math.atan2(R["v"][1], R["v"][0])), fr.f + 1.65, fr.f + ROOM_TOP + 2.6, "chimney")
+    fr.box(0.8, 2.3, -0.8, 0.5, 0.0, 0.85, "wood", "A")                                                # the table, floured; loaves
+    fr.box(0.9, 2.2, -0.7, 0.4, 0.85, 0.87, "plaster3", "A", None, "overlay")
+    for k in range(5):
+        fr.box(0.95 + 0.27 * k, 1.12 + 0.27 * k, -0.25 + 0.1 * (k % 2), -0.05 + 0.1 * (k % 2), 0.87, 1.0, "cloth2", "A")
+    fr.box(0.8, 2.3, -0.8, 0.5, 0.0, 0.3, "debris", "B")                                               # B: the table fallen in; one loaf
+    fr.box(1.2, 1.4, -0.2, 0.0, 0.3, 0.38, "cloth2", "B")
+    for k in range(3):                                                                                  # sacks of flour
+        fr.box(-hw + 0.1, -hw + 0.7, -2.0 + 0.8 * k, -1.3 + 0.8 * k, 0.0, 0.45, "plaster3" if k % 2 else "cloth4", "A")
+    fr.box(-hw + 0.1, -hw + 0.7, -2.0, 0.4, 0.0, 0.25, "debris", "B")
+    fr.vert("b", hw - 0.02, 0.6, 1.8, 1.4, 1.5, "wood", "A")                                           # a shelf of loaves on the right wall
+    for k in range(6):
+        fr.box(hw - 0.3, hw - 0.04, 0.0 + 0.28 * k, 0.2 + 0.28 * k, 1.5, 1.72, "cloth2", "A")
+
+
+def furnish_scribe(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    ang = math.atan2(R["v"][1], R["v"][0])
+    fr.box(0.75, 2.3, -0.7, 0.8, 0.0, 0.8, "wood", "both", "wood")                                    # the table that holds the model of the town
+    cx, cz = fr.P(1.52, 0.05)
+    y = fr.f + 0.8
+    prism(ngon(cx, cz, 0.62, 16), y, y + 0.05, "paving", "both")                                       # the ground of the model
+    prism(ngon(cx, cz, 0.55, 16), y + 0.05, y + 0.2, "stone", "A", False)                              # the wall (whole in A, a ring of stumps in B)
+    prism(ngon(cx, cz, 0.5, 16), y + 0.05, y + 0.2, "stone_dark", "A", False)
+    for k in range(8):
+        t = 2 * math.pi * k / 8
+        prism(ngon(cx + 0.53 * math.cos(t), cz + 0.53 * math.sin(t), 0.04, 5), y + 0.05, y + 0.13 + 0.05 * (k % 2), "stone", "B")
+    cone(cx, cz, 0.2, y + 0.05, y + 0.17, "rock", "both", 8)                                           # the rock in the middle
+    prism(ngon(cx, cz, 0.022, 6), y + 0.17, y + 0.46, "stone", "A")                                    # the tower (a pin in B)
+    prism(ngon(cx, cz, 0.012, 5), y + 0.17, y + 0.3, "stone", "B")
+    for dx, dz in ((0.32, 0.1), (-0.3, 0.2), (0.1, -0.35), (-0.15, -0.3)):                             # houses of the model
+        prism(rect(cx + dx, cz + dz, 0.07, 0.06, ang), y + 0.05, y + 0.11, "plaster2", "A")
+    prism(rect(cx - 0.45, cz - 0.1, 0.12, 0.05, ang), y + 0.05, y + 0.07, "water", "A", True, "water")   # the harbour
+    fr.box(-1.2, 0.4, hd - 0.75, hd, 0.0, 0.8, "wood", "both", "wood")                                  # a desk under the back wall, a chair
+    fr.box(-0.5, 0.0, hd - 1.35, hd - 0.9, 0.0, 0.5, "wood", "A")
+    for k in range(9):                                                                                  # books on the left wall
+        fr.box(-hw + 0.05, -hw + 0.35, -1.9 + 0.38 * k, -1.6 + 0.38 * k, 1.1, 1.9 + 0.12 * (k % 3), ("cloth", "cloth3", "shutter", "cloth2")[k % 4], "A")
+        fr.box(-hw + 0.05, -hw + 0.35, -1.9 + 0.38 * k, -1.6 + 0.38 * k, 0.4, 0.9, ("cloth3", "cloth2", "cloth")[k % 3], "A")
+    fr.box(-hw + 0.05, -hw + 0.4, -2.0, 1.6, 0.9, 0.95, "wood", "A")
+    fr.box(-hw + 0.05, -hw + 0.4, -2.0, 1.6, 1.9, 1.95, "wood", "A")
+    fr.box(-hw + 0.1, -hw + 1.2, -1.6, 0.4, 0.0, 0.2, "debris", "B")                                    # B: the books on the floor
+    fr.vert("a", hd - 0.02, 1.6, 1.0, 1.3, 2.2, "plaster3", "A")                                       # a map pinned to the back wall
+
+
+def furnish_lamplighter(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    for sg in (-1, 1):                                                                                  # a ladder against the back wall
+        fr.box(1.0 + sg * 0.22 - 0.04, 1.0 + sg * 0.22 + 0.04, hd - 0.2, hd - 0.1, 0.0, 2.8, "wood", "A")
+    for k in range(7):
+        fr.box(0.78, 1.22, hd - 0.2, hd - 0.1, 0.35 + 0.36 * k, 0.4 + 0.36 * k, "wood", "A")
+    fr.box(0.78, 1.22, hd - 0.7, hd - 0.1, 0.0, 0.15, "wood", "B")                                       # B: lying on the floor
+    fr.box(-hw + 0.1, -hw + 0.8, -2.2, 0.2, 0.0, 0.85, "wood", "both", "wood")                          # the bench, with lamps on it
+    for k in range(5):
+        x, z = fr.P(-hw + 0.45, -1.9 + 0.5 * k)
+        prism(ngon(x, z, 0.1, 6), fr.f + 0.85, fr.f + 1.12, "lantern", "A")
+        prism(ngon(x, z, 0.1, 6), fr.f + 0.85, fr.f + 1.12, "iron", "B")
+    for k in range(5):                                                                                  # lanterns hanging on chains from the beams
+        x, z = fr.P(-1.4 + 0.7 * k, 1.0 + 0.5 * (k % 2))
+        prism(ngon(x, z, 0.12, 6), fr.f + 2.55, fr.f + 2.85, "lantern", "A")
+        prism(ngon(x, z, 0.12, 6), fr.f + 2.55, fr.f + 2.85, "iron", "B")
+        rope((x, fr.f + 2.85, z), (x, fr.f + ROOM_CEIL - 0.28, z), 0.04, "iron", "both")
+    x, z = fr.P(0.7, 1.5)
+    prism(ngon(x, z, 0.12, 6), fr.f + 2.55, fr.f + 2.85, "lantern", "B")                                # B: one of them is lit
+    lamp(x, fr.f + 2.2, z, "B", "street")
+    for k in range(3):                                                                                  # oil jars
+        x, z = fr.P(hw - 0.5, -1.8 + 0.8 * k)
+        prism(ngon(x, z, 0.3, 8), fr.f, fr.f + 0.7, "roof", "both")
+
+
+def furnish_sailmaker(R, fr):
+    hw, hd = ROOM_SIZE[0] / 2 - ROOM_T, ROOM_SIZE[1] / 2 - ROOM_T
+    fr.box(-hw + 0.1, hw - 0.1, hd - 0.35, hd - 0.2, ROOM_CEIL - 0.7, ROOM_CEIL - 0.55, "wood", "A")    # a pole under the ceiling, sails hung over it
+    for k, m in enumerate(("cloth4", "cloth4", "cloth2", "cloth4")):
+        a0 = -hw + 0.3 + 1.15 * k
+        fr.box(a0, a0 + 0.95, hd - 0.31, hd - 0.28, 0.5 + 0.2 * (k % 2), ROOM_CEIL - 0.7, m, "A", None, "overlay")
+    fr.box(-hw + 0.2, hw - 0.2, hd - 0.9, hd - 0.2, 0.0, 0.2, "cloth4", "B")                           # B: the sails are down in a heap
+    fr.box(-hw + 0.1, -hw + 1.4, -1.4, 0.6, 0.0, 0.9, "wood", "both", "wood")                           # the table, a cloth on it, needles and a spool
+    fr.box(-hw + 0.15, -hw + 1.35, -1.3, 0.5, 0.9, 0.93, "cloth4", "A")
+    for k in range(3):
+        x, z = fr.P(hw - 0.55, -1.7 + 0.9 * k)
+        prism(ngon(x, z, 0.34, 8), fr.f, fr.f + 0.5, "cloth2", "A")                                    # coils of rope
+        prism(ngon(x, z, 0.34, 8), fr.f, fr.f + 0.15, "debris", "B")
+    fr.box(0.9, 2.0, 0.6, 1.5, 0.0, 0.35, "cloth4", "A")                                                # a pile of cloth
+    fr.vert("b", -hw + 0.02, 1.4, 2.0, 1.2, 2.4, "cloth", "A")                                          # a red flag on the left wall
+
+
+FURNISH = {"dinner": furnish_dinner, "cooper": furnish_cooper, "weaver": furnish_weaver, "mill": furnish_mill, "watch": furnish_watch,
+           "child": furnish_child, "baker": furnish_baker, "scribe": furnish_scribe, "lamplighter": furnish_lamplighter,
+           "sailmaker": furnish_sailmaker}
+
+
+def build_rooms():
+    """Builds the rooms that reserve_rooms() found a site for."""
+    for R in ROOMS:
+        build_room(R)
+
+
+
+# ---- the puzzles in the world (docs/DESIGN.md 7.9): why each thing is where it is -------------------------------------------------
+# A thing that can be used in A has one look wherever it is: a gold cap on a post, a ring, a rope grip (gold in A, dull iron in B).
+# Round it stand the things that explain it: a crate is part of a cargo, a plank belongs to roofers, a gate to a customs house. All
+# of it is flat on the walls, overhead (over the reach of a jump: 3.5 m) or at the sides: nothing stands on a way that a puzzle uses.
+
+def rope(a, b, wd, mat, world="both"):
+    """A rope or a chain from a to b (x, y, z): two crossing ribbons, drawn but not solid."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    d = b - a
+    h = np.array([-d[2], 0.0, d[0]])
+    nh = float(np.linalg.norm(h))
+    h = h / nh * wd / 2 if nh > 1e-6 else np.array([wd / 2, 0.0, 0.0])
+    v = np.array([0.0, wd / 2, 0.0])
+    poly([a - h, b - h, b + h, a + h], mat, world, "overlay")
+    poly([a - v, b - v, b + v, a + v], mat, world, "overlay")
+
+
+def handle_post(x, y, z):
+    """The look of what can be used: a post with a gold cap (A), a dull one (B)."""
+    prism(ngon(x, z, 0.14, 6), y, y + 0.95, "wood")
+    prism(ngon(x, z, 0.19, 6), y + 0.95, y + 1.1, "gold", "A")
+    prism(ngon(x, z, 0.19, 6), y + 0.95, y + 1.1, "iron", "B")
+
+
+def dress_puzzles():
+    for name, (hx, hy, hz), boxes, verb in THINGS:
+        if verb == "ring":                                                              # a bell: the rope of the bell-ringer, with a gold grip
+            ex, ez = hx, hz
+            rope((ex, hy - 0.2, ez), (ex, hy + 2.6, ez), 0.1, "cloth2", "A")
+            rope((ex, hy - 0.25, ez), (ex, hy + 0.1, ez), 0.24, "gold", "A")
+        elif name == "sea gate":                                                        # the winch of the customs: a drum with a gold cap
+            prism(ngon(hx, hz, 0.37, 8), hy - 0.1, hy + 0.04, "gold", "A")
+            prism(ngon(hx, hz, 0.37, 8), hy - 0.1, hy + 0.04, "iron", "B")
+            gx, gz = WALL_POINTS[0]
+            yq = street_y("sea stair", gx, gz - 1.6)
+            rope((hx, hy + 0.04, hz), (gx + 2.3, yq + 6.3, gz - 1.6), 0.1, "iron")          # the chain up to the head of the portcullis
+            lamp(hx, hy + 1.7, hz, "A", "street")
+        else:
+            handle_post(hx, hy - 1.1, hz)
+    # the customs quay: a cargo along the walls, a crane over the canal, the marks of the sledge
+    k = Piece("market stairs", CANAL_S)
+    for side in (-1, 1):
+        k.box(2.7, 3.7, side * 3.4 - 0.5, side * 3.4 + 0.5, 3.4, "wood", "both", bottom=2.4)
+        k.box(2.9, 3.5, side * 3.4 - 0.3, side * 3.4 + 0.3, 4.2, "wood", "A", bottom=3.4)
+        for j, u in enumerate((3.0, 3.9)):
+            cx, cz = k.xz(u, side * 5.4)
+            prism(ngon(cx, cz, 0.4, 8), k.base + 2.4, k.base + 3.35, "wood", "both")
+        cx, cz = k.xz(2.7, side * 5.6)
+        prism(rect(cx, cz, 0.9, 0.6, k.ang), k.base + 2.4, k.base + 2.85, "cloth2", "A")
+    k.box(3.0, 3.3, -6.5, -2.4, 6.4, "wood", "A", bottom=6.1)                         # the crane: an arm from the wall, 3.7 m over the quay
+    k.box(3.0, 3.3, -6.5, -5.0, 6.4, "wood", "B", bottom=6.1)                         # (B: a stump)
+    ax, az = k.xz(3.15, -2.5)
+    rope((ax, k.base + 6.1, az), (ax, k.base + 4.4, az), 0.08, "cloth2", "A")
+    rope((ax, k.base + 4.4, az), (ax, k.base + 4.1, az), 0.3, "gold", "A")
+    for xo in (-0.35, 0.0, 0.35):                                                       # the marks of the sledge: where the crate goes
+        pts = [k.xz(2.4, xo - 0.06), k.xz(4.4, xo - 0.06), k.xz(4.4, xo + 0.06), k.xz(2.4, xo + 0.06)]
+        poly([(x_, k.base + 2.43, z_) for x_, z_ in pts], "stone_dark", "A", "overlay")
+    # the roofers: tiles, trestles and a bucket on the first roof, battens on the neighbour's, a door in its parapet
+    k = Piece("upper street", PLANK_S)
+    hi = 4.8
+    top2 = k.y(10.4) - k.base + hi
+    k.box(4.2, 4.9, 0.9, 1.7, hi + 0.4, "roof", "both", bottom=hi)
+    for u in (3.8, 5.0):
+        k.box(u, u + 0.2, -2.2, -1.9, hi + 0.7, "wood", "both", bottom=hi)
+    cx, cz = k.xz(5.15, 1.5)
+    prism(ngon(cx, cz, 0.2, 7), k.base + hi, k.base + hi + 0.35, "wood")
+    for i in range(6):                                                                  # the neighbour's roof: bare battens, then new tiles
+        u0 = 10.55 + 0.17 * i
+        pts = [k.xz(u0, -k.span / 2 + 0.5), k.xz(u0 + 0.08, -k.span / 2 + 0.5), k.xz(u0 + 0.08, k.span / 2 - 0.5), k.xz(u0, k.span / 2 - 0.5)]
+        poly([(x_, k.base + top2 + 0.03, z_) for x_, z_ in pts], "wood", "both", "overlay")
+    pts = [k.xz(11.75, -k.span / 2 + 0.5), k.xz(12.9, -k.span / 2 + 0.5), k.xz(12.9, k.span / 2 - 0.5), k.xz(11.75, k.span / 2 - 0.5)]
+    poly([(x_, k.base + top2 + 0.04, z_) for x_, z_ in pts], "roof2", "A", "overlay")
+    pts = [k.xz(11.38, -0.7), k.xz(11.38, 0.7)]
+    poly([(pts[0][0], k.base + top2, pts[0][1]), (pts[1][0], k.base + top2, pts[1][1]), (pts[1][0], k.base + top2 + 2.2, pts[1][1]),
+          (pts[0][0], k.base + top2 + 2.2, pts[0][1])], "door", "A", "overlay")
+    # the gatehouse: a loading door over the balcony, a hoist at the roof edge, the cart that brought the crate
+    k = Piece("upper street", GATEHOUSE_S)
+    pts = [k.xz(-0.03, -0.75), k.xz(-0.03, 0.75)]
+    poly([(pts[0][0], k.base + 2.45, pts[0][1]), (pts[1][0], k.base + 2.45, pts[1][1]), (pts[1][0], k.base + 4.7, pts[1][1]),
+          (pts[0][0], k.base + 4.7, pts[0][1])], "door", "A", "overlay")
+    for sg in (-1, 1):
+        pts = [k.xz(-0.04, sg * 0.75), k.xz(-0.04, sg * 0.88)]
+        poly([(pts[0][0], k.base + 2.45, pts[0][1]), (pts[1][0], k.base + 2.45, pts[1][1]), (pts[1][0], k.base + 4.8, pts[1][1]),
+              (pts[0][0], k.base + 4.8, pts[0][1])], "stone_dark", "A", "overlay")
+    k.box(-1.8, 0.0, -0.12, 0.12, 6.6, "wood", "A", bottom=6.4)                         # the hoist: a beam from the roof edge, 4 m over the balcony
+    ax, az = k.xz(-1.7, 0.0)
+    rope((ax, k.base + 6.4, az), (ax, k.base + 3.9, az), 0.08, "cloth2", "A")
+    rope((ax, k.base + 3.9, az), (ax, k.base + 3.6, az), 0.3, "gold", "A")
+    yc = k.y(-9.0) - k.base
+    k.box(-9.6, -7.9, 1.1, 2.2, yc + 0.6, "wood", "A", bottom=yc + 0.3)                 # the cart (A): a bed on two wheels
+    for sx in (-8.9, -8.5):
+        for sg in (1.1, 2.2):
+            cx, cz = k.xz(sx, sg)
+            prism(ngon(cx, cz, 0.45, 8), k.base + yc, k.base + yc + 0.9, "wood", "A")
+    k.box(-9.6, -7.9, 1.1, 2.2, yc + 0.4, "debris", "B", bottom=yc)                      # (B: lying on its side)
+    for j in range(3):
+        cx, cz = k.xz(-10.2, 1.0 + 0.5 * j)
+        prism(ngon(cx, cz, 0.28, 6), k.base + yc, k.base + yc + 0.55, "cloth2" if j % 2 else "plaster3", "A")
+
+
+def build_laundry():
+    """Washing on a line over the passages of the lower town (docs/DESIGN.md 7.9): where a house stands on each side of a lane, a rope
+    from the one to the other at 4.6 m, cloth on it in A. Over the reach of a jump, drawn only (it is not solid)."""
+    def inside(pt, poly_):
+        x, z = pt
+        c = False
+        n = len(poly_)
+        for i in range(n):
+            (x0, z0), (x1, z1) = poly_[i], poly_[(i + 1) % n]
+            if (z0 > z) != (z1 > z) and x < (x1 - x0) * (z - z0) / (z1 - z0) + x0:
+                c = not c
+        return c
+    n_lines = 0
+    for name in ("net passage", "fish passage", "cask passage", "rope passage", "cooper lane", "weaver lane", "vine lane", "garden lane", "mill lane"):
+        c, w, _ = STREET[name]
+        d = lengths(c)
+        s_ = 7.0
+        while s_ < d[-1] - 4.0:
+            p, v = at(c, s_ / d[-1])
+            nrm = np.array([-v[1], v[0]])
+            ends = []
+            for sg in (-1, 1):
+                probe = p + nrm * sg * (w / 2 + 2.2)
+                if any(inside((float(probe[0]), float(probe[1])), h) for h in HOUSES):
+                    ends.append(p + nrm * sg * (w / 2 + 0.4))
+            if len(ends) == 1:                                                           # a house on one side: a pole at the edge of the lane on the other
+                sg_ = 1 if float(np.dot(ends[0] - p, nrm)) < 0 else -1
+                post = p + nrm * sg_ * (w / 2 + 0.28)
+                yp = street_y_at(name, s_)
+                prism(rect(float(post[0]), float(post[1]), 0.14, 0.14, 0.0), yp - 0.3, yp + 4.9, "wood")
+                ends.append(post)
+            if len(ends) == 2:
+                y = street_y_at(name, s_) + 4.6
+                a_, b_ = ends
+                pts = [a_ + (b_ - a_) * t_ for t_ in np.linspace(0.0, 1.0, 9)]
+                for i in range(8):
+                    sag0 = 0.22 * math.sin(math.pi * i / 8)
+                    sag1 = 0.22 * math.sin(math.pi * (i + 1) / 8)
+                    rope((pts[i][0], y - sag0, pts[i][1]), (pts[i + 1][0], y - sag1, pts[i + 1][1]), 0.05, "iron", "A")
+                for i in range(3):
+                    t_ = (i + 1) / 4.0
+                    q = a_ + (b_ - a_) * t_
+                    sag = 0.22 * math.sin(math.pi * t_)
+                    tt = (b_ - a_) / max(float(np.linalg.norm(b_ - a_)), 1e-9)
+                    wd = 0.45
+                    poly([(q[0] - tt[0] * wd, y - sag, q[1] - tt[1] * wd), (q[0] + tt[0] * wd, y - sag, q[1] + tt[1] * wd),
+                          (q[0] + tt[0] * wd, y - sag - 1.0, q[1] + tt[1] * wd), (q[0] - tt[0] * wd, y - sag - 1.0, q[1] - tt[1] * wd)],
+                         ("cloth", "cloth2", "plaster3", "shutter")[(n_lines + i) % 4], "A", "overlay")
+                n_lines += 1
+            s_ += 8.0
+    LAUNDRY.append(n_lines)
+
+
+LAUNDRY = []
+
+
+def find_place(r, rng, xr, zr, prefer, step=2.0, gap=3.0):
+    """The free ground nearest to `prefer` within the box xr x zr that holds a disc of radius r (see free_ground)."""
+    best = None
+    for x in np.arange(xr[0], xr[1], step):
+        for z in np.arange(zr[0], zr[1], step):
+            dist = math.hypot(x - prefer[0], z - prefer[1])
+            if (best is None or dist < best[0]) and free_ground(float(x), float(z), r, rng, gap):
+                best = (dist, float(x), float(z))
+    return best
+
+
+YARD_SITES = []   # (name, x, z)
+
+
+def build_boatyard():
+    """The south-west of the town (docs/DESIGN.md 7.9): the yard of the fishermen. A boat on its stocks, a rope walk (a long shed
+    open at its sides, in which rope is twisted: posts, a roof in A, the rope lying along it) and the net racks. A is whole, B has the
+    ribs of the boat and the posts of the shed."""
+    site = find_place(4.4, 0.9, (-90.0, -20.0), (-68.0, -34.0), (-60.0, -52.0), 2.0, 2.0)
+    if site is not None:
+        _, cx, cz = site
+        y = float(ground(cx, cz))
+        ang = 0.25
+        L, B = 7.0, 2.4
+        def lens(rl, rb, n=14):
+            return [(cx + rl * math.cos(a) * math.cos(ang) - rb * math.sin(a) * math.sin(ang), cz + rl * math.cos(a) * math.sin(ang) + rb * math.sin(a) * math.cos(ang))
+                    for a in np.linspace(0.0, 2 * math.pi, n, endpoint=False)]
+        for sg in (-0.7, 0.7):                                                           # the stocks: two rails and a cradle
+            x_, z_ = cx - sg * math.sin(ang), cz + sg * math.cos(ang)
+            prism(rect(x_, z_, 5.4, 0.28, ang), y, y + 0.5, "wood")
+        for u in (-2.2, 0.0, 2.2):
+            for sg in (-1.35, 1.35):
+                x_ = cx + u * math.cos(ang) - sg * math.sin(ang)
+                z_ = cz + u * math.sin(ang) + sg * math.cos(ang)
+                prism(rect(x_, z_, 0.2, 0.2, ang), y, y + 1.7, "wood")
+        prism(lens(L * 0.40, B * 0.25), y + 0.5, y + 0.9, "wood", "A")
+        prism(lens(L * 0.47, B * 0.42), y + 0.9, y + 1.4, "wood", "A")
+        prism(lens(L * 0.50, B * 0.50), y + 1.4, y + 1.8, "plaster2", "A")
+        for u in np.linspace(-2.6, 2.6, 6):                                              # B: the ribs
+            x_ = cx + u * math.cos(ang)
+            z_ = cz + u * math.sin(ang)
+            prism(rect(x_, z_, 0.12, 1.5, ang + math.pi / 2), y + 0.5, y + 0.62, "wood", "B")
+            for sg in (-0.75, 0.75):
+                xx = x_ - sg * math.sin(ang)
+                zz = z_ + sg * math.cos(ang)
+                prism(rect(xx, zz, 0.12, 0.12, ang), y + 0.5, y + 1.5 - 0.25 * abs(u) / 2.6, "wood", "B")
+        tube((cx - 3.6 * math.cos(ang) + 2.2 * -math.sin(ang), y + 0.2, cz - 3.6 * math.sin(ang) + 2.2 * math.cos(ang)),
+             (cx + 3.4 * math.cos(ang) + 2.2 * -math.sin(ang), y + 0.2, cz + 3.4 * math.sin(ang) + 2.2 * math.cos(ang)), 0.12, 6, "wood")   # the mast, lying
+        KEEP_CLEAR.append((cx, cz, 5.2))
+        YARD_SITES.append(("boat", cx, cz))
+    rw = None
+    for ax_, az_ in ((-0.0, 0.0), (0.2, 0.0)):
+        best = None
+        for x in np.arange(-78.0, 50.0, 2.0):
+            for z in np.arange(-62.0, -36.0, 2.0):
+                ok = all(free_ground(float(x + 4.0 * k_), float(z), 1.9, 1.4, 2.4) for k_ in range(5))
+                if ok and (best is None or math.hypot(x + 55.0, z + 48.0) < best[0]) and not any(math.hypot(x + 8.0 - kx, z - kz) < 7.0 for kx, kz in [(s_[1], s_[2]) for s_ in YARD_SITES]):
+                    best = (math.hypot(x + 55.0, z + 48.0), float(x), float(z))
+        rw = best
+        break
+    if rw is not None:
+        _, x0, z0 = rw
+        y = float(np.min(ground(np.array([x0 + 4.0 * k_ for k_ in range(5)]), np.full(5, z0))))
+        for k_ in range(5):
+            for sg in (-1.2, 1.2):
+                prism(rect(x0 + 4.0 * k_, z0 + sg, 0.16, 0.16, 0.0), y - 0.5, y + 3.0, "wood")
+        prism(rect(x0 + 8.0, z0, 16.4, 3.2, 0.0), y + 3.0, y + 3.2, "wood", "A")
+        for lz in (-0.6, 0.0, 0.6):
+            poly([(x0 - 0.2, y + 0.06, z0 + lz - 0.04), (x0 + 15.5, y + 0.06, z0 + lz - 0.04), (x0 + 15.5, y + 0.06, z0 + lz + 0.04), (x0 - 0.2, y + 0.06, z0 + lz + 0.04)], "cloth2", "A", "overlay")
+        for sg in (-0.7, 0.7):
+            prism(ngon(x0 - 0.9, z0 + sg, 0.45, 8), y, y + 0.6, "cloth2", "A")
+        KEEP_CLEAR.append((x0 + 8.0, z0, 9.5))
+        YARD_SITES.append(("ropewalk", x0 + 8.0, z0))
+
+
+def build_quiet_garden():
+    """The north-centre of the town (docs/DESIGN.md 7.9): a garden to rest in, between the garden lane and the theatre: a pergola
+    with a vine, a basin with water in A, two benches and cypresses. No way leads through it and none starts there."""
+    site = find_place(4.6, 0.9, (-36.0, -14.0), (30.0, 52.0), (-24.0, 40.0), 2.0, 2.0)
+    if site is None:
+        PROBLEMS.append(("quiet garden", "no free ground"))
+        return
+    _, cx, cz = site
+    y = float(ground(cx, cz))
+    for sx in (-2.0, 2.0):
+        for sz in (-1.5, 1.5):
+            prism(rect(cx + sx, cz + sz, 0.2, 0.2, 0.0), y, y + 2.8, "wood")
+    for k_ in range(7):
+        prism(rect(cx - 2.1 + 0.7 * k_, cz, 0.12, 3.6, 0.0), y + 2.8, y + 2.92, "wood", "A")
+    prism(rect(cx, cz - 1.5, 4.4, 0.16, 0.0), y + 2.8, y + 2.95, "wood")
+    prism(rect(cx, cz + 1.5, 4.4, 0.16, 0.0), y + 2.8, y + 2.95, "wood")
+    cone(cx, cz, 2.4, y + 2.9, y + 3.5, "tree", "A", 8)
+    prism(ngon(cx, cz, 1.0, 12), y, y + 0.45, "stone", "both", True, "stone_dark")
+    poly([(a_, y + 0.4, b_) for a_, b_ in ngon(cx, cz, 0.85, 12)], "water", "A", "water")
+    prism(ngon(cx, cz, 0.12, 6), y + 0.4, y + 1.2, "stone", "A")
+    for sz in (-2.6, 2.6):
+        prism(rect(cx, cz + sz, 1.8, 0.4, 0.0), y + 0.3, y + 0.45, "wood")
+        for sx in (-0.7, 0.7):
+            prism(rect(cx + sx, cz + sz, 0.12, 0.34, 0.0), y, y + 0.3, "wood")
+    for k_, (ox, oz) in enumerate(((-3.6, -2.4), (3.6, -2.4), (-3.6, 2.4), (3.6, 2.4))):
+        cone(cx + ox, cz + oz, 0.65, y, y + 5.2, "cypress", "A", 5)
+        cone(cx + ox, cz + oz, 0.55, y, y + 2.4, "moss", "B", 5)
+    KEEP_CLEAR.append((cx, cz, 5.4))
+    YARD_SITES.append(("garden", cx, cz))
+
+
+
+def build_door_props():
+    """Barrels, crates and benches at the doors (docs/DESIGN.md 9): where people live the street is used. Each stands in the gap of 0.4 m
+    between the wall and the edge of the lane, never on the lane."""
+    fr = {n: c for n, c, half, _ in fronts()}
+    room_doors = [(float(R["door"][0]), float(R["door"][1])) for R in ROOMS]
+    for k, (x, z, name, half) in enumerate(HOUSE_DOORS):
+        roll = hash01(k, 91)
+        if roll > 0.55:
+            continue
+        if any(math.hypot(x - rx, z - rz) < 0.5 for rx, rz in room_doors):               # a door that is entered has nothing in front of it
+            continue
+        c = fr[name]
+        _, i = distance_to(c, x, z)
+        u = np.array([c[i][0] - x, c[i][1] - z])
+        n = float(np.linalg.norm(u))
+        if n < 1e-6:
+            continue
+        u = u / n
+        t = np.array([-u[1], u[0]])
+        sgn = 1.0 if hash01(k, 92) < 0.5 else -1.0
+        px_, pz_ = x + u[0] * 0.28 + t[0] * sgn * 1.0, z + u[1] * 0.28 + t[1] * sgn * 1.0
+        y = float(ground(px_, pz_))
+        if roll < 0.22:
+            prism(ngon(px_, pz_, 0.26, 7), y, y + 0.85, "wood")                                  # a barrel
+            PROP_COUNT[0] += 1
+        elif roll < 0.38:
+            prism(rect(px_, pz_, 0.5, 0.5, math.atan2(u[1], u[0])), y, y + 0.5, "wood")        # a crate
+            prism(rect(px_ + t[0] * 0.1, pz_ + t[1] * 0.1, 0.34, 0.34, 0.4), y + 0.5, y + 0.85, "wood")
+            PROP_COUNT[0] += 1
+        else:
+            prism(rect(px_, pz_, 0.18, 1.3, math.atan2(t[1], t[0]) + math.pi / 2), y + 0.38, y + 0.46, "wood")   # a bench
+            prism(rect(px_ + t[0] * 0.5, pz_ + t[1] * 0.5, 0.12, 0.12, 0.0), y, y + 0.38, "wood")
+            prism(rect(px_ - t[0] * 0.5, pz_ - t[1] * 0.5, 0.12, 0.12, 0.0), y, y + 0.38, "wood")
+            PROP_COUNT[1] += 1
+
+
+def build_passage_arches():
+    """A stone gate over the mouth of each passage of the lower town (docs/DESIGN.md 7.8): two piers and a lintel with a small roof, a
+    lantern under it. It is what makes a passage read as a way through the block, and a frame for the view along it. The piers stand
+    outside the 2.4 m of the lane."""
+    for name in ("net passage", "fish passage", "cask passage", "rope passage"):
+        c, w, _ = STREET[name]
+        d = lengths(c)
+        s_ = 3.2
+        pt, v = at(c, s_ / d[-1])
+        y = street_y_at(name, s_)
+        n = np.array([-v[1], v[0]])
+        ang = math.atan2(v[1], v[0])
+        half = w / 2 + 0.55
+        for sg in (-1, 1):
+            q = pt + n * sg * half
+            prism(rect(float(q[0]), float(q[1]), 0.8, 0.8, ang), y - 1.0, y + 3.7, "stone", "both", True, "stone_dark")
+        prism(rect(float(pt[0]), float(pt[1]), 0.8, 2 * half + 0.8, ang), y + 3.7, y + 4.4, "stone", "both", True, "stone_dark")
+        gable(float(pt[0]), float(pt[1]), 0.8, 2 * half + 0.8, ang, y + 4.4, 0.7, "roof2", "A")
+        poly([(pt[0] - v[0] * 0.42, y + 2.9, pt[1] - v[1] * 0.42), (pt[0] + v[0] * 0.42, y + 2.9, pt[1] + v[1] * 0.42),
+              (pt[0] + v[0] * 0.42, y + 3.6, pt[1] + v[1] * 0.42), (pt[0] - v[0] * 0.42, y + 3.6, pt[1] - v[1] * 0.42)], "lantern", "A")
+        lamp(float(pt[0]), y + 3.2, float(pt[1]), "A", "street")
+
+
+YARD_PIECES = []   # (kind, x, z): what stands in the yards behind the rows
+
+
+def build_yards():
+    """What stands behind the rows of houses (docs/DESIGN.md 7.7, rule 2): a yard has a shed, a woodpile, a well-head, a cart or an
+    arbour, so that the ground between the rows is a place and not a gap. Only where a house is near (a yard belongs to a house), and
+    never within a metre of a lane."""
+    k = 0
+    for gx in np.arange(-84.0, 96.0, 3.2):
+        for gz in np.arange(-62.0, 64.0, 3.2):
             k += 1
-            x = gx + hash01(k, 1) * 1.5
-            z = gz + hash01(k, 2) * 1.5
-            best, ang = 1e9, 0.0
-            for name, (c, w, kind) in STREET.items():
-                dist, i = distance_to(c, x, z)
-                if dist < best:
-                    i = int(min(i, len(c) - 2))
-                    v = c[i + 1] - c[i]
-                    best, ang = dist, math.atan2(v[1], v[0])
-            house(x, z, 4.0 + hash01(k, 3) * 1.6, 4.8 + hash01(k, 4) * 1.2, ang, k, 5.0 + hash01(k, 5) * 4.0)
+            x = gx + hash01(k, 11) * 2.0
+            z = gz + hash01(k, 12) * 2.0
+            if hash01(k, 13) > 0.30:
+                continue
+            if not any(math.hypot(sum(q[0] for q in h) / 4 - x, sum(q[1] for q in h) / 4 - z) < 10.0 for h in HOUSES):
+                continue
+            kind = hash01(k, 14)
+            ang = hash01(k, 15) * math.pi
+            fw, fd = (2.8, 3.2) if kind < 0.4 else (2.2, 1.4) if kind < 0.6 else (1.8, 1.8)
+            out = rect(x, z, fw, fd, ang)
+            if not site_free(out, 1.4, 9.0, WELL_R + 4.0):
+                continue
+            xs = np.array([q[0] for q in out] + [x])
+            zs = np.array([q[1] for q in out] + [z])
+            if any(float(distance_to(c_, xs, zs)[0].min()) < w_ / 2 + 1.0 for c_, w_, _ in STREET.values()):
+                continue
+            if any(math.hypot(x - kx, z - kz) < kr + 1.0 for kx, kz, kr in KEEP_CLEAR if kr > 2.0):
+                continue
+            y = float(np.min(ground(xs, zs)))
+            if kind < 0.4:                                                                      # a shed with a lean-to roof
+                prism(out, y - 0.5, y + 2.3, "plaster%d" % (k % 4))
+                c_, s_ = math.cos(ang), math.sin(ang)
+                hw, hd = fw / 2 + 0.25, fd / 2 + 0.25
+                pts = [(x + ux * c_ - uz * s_, z + ux * s_ + uz * c_) for ux, uz in ((-hw, -hd), (hw, -hd), (hw, hd), (-hw, hd))]
+                poly([(pts[0][0], y + 2.5, pts[0][1]), (pts[1][0], y + 2.5, pts[1][1]), (pts[2][0], y + 2.9, pts[2][1]), (pts[3][0], y + 2.9, pts[3][1])],
+                     "roof2" if k % 2 else "roof")
+                poly([(pts[0][0], y + 2.3, pts[0][1]), (pts[1][0], y + 2.3, pts[1][1]), (pts[1][0], y + 2.5, pts[1][1]), (pts[0][0], y + 2.5, pts[0][1])], "roof")
+            elif kind < 0.6:                                                                    # a woodpile
+                for j in range(3):
+                    prism(rect(x, z, fw - 0.2 * j, fd, ang), y + 0.4 * j, y + 0.4 * (j + 1), "wood")
+            elif kind < 0.72:                                                                   # a well-head
+                prism(ngon(x, z, 0.75, 8), y, y + 0.95, "stone", "both", True, "stone_dark")
+                for sg in (-1, 1):
+                    prism(rect(x + sg * 0.7 * math.cos(ang), z + sg * 0.7 * math.sin(ang), 0.12, 0.12, ang), y + 0.9, y + 2.3, "wood")
+                beam((x - 0.7 * math.cos(ang), y + 2.3, z - 0.7 * math.sin(ang)), (x + 0.7 * math.cos(ang), y + 2.3, z + 0.7 * math.sin(ang)), 0.14, 0.14, "wood")
+            elif kind < 0.86:                                                                   # a cart
+                prism(rect(x, z, 2.0, 1.1, ang), y + 0.55, y + 0.8, "wood")
+                for sg in (-1, 1):
+                    prism(ngon(x + sg * 0.5 * -math.sin(ang), z + sg * 0.5 * math.cos(ang), 0.5, 8), y, y + 0.1, "wood")
+                beam((x + math.cos(ang), y + 0.7, z + math.sin(ang)), (x + 2.2 * math.cos(ang), y + 0.35, z + 2.2 * math.sin(ang)), 0.1, 0.1, "wood")
+            else:                                                                               # an arbour with a vine
+                for sx, sz in ((-0.8, -0.8), (0.8, -0.8), (0.8, 0.8), (-0.8, 0.8)):
+                    prism(rect(x + sx * math.cos(ang) - sz * math.sin(ang), z + sx * math.sin(ang) + sz * math.cos(ang), 0.12, 0.12, ang), y, y + 2.2, "wood")
+                prism(rect(x, z, 2.0, 2.0, ang), y + 2.2, y + 2.35, "wood")
+                cone(x, z, 1.3, y + 2.3, y + 3.0, "tree", "A", 6)
+                cone(x, z, 1.1, y + 2.3, y + 2.7, "moss", "B", 5)
+            YARD_PIECES.append((int(kind * 10), x, z))
+
+
+ORCHARD_TREES = []   # (x, z) of the trees of the gardens (the check and the pictures read it)
+PLOTS = []           # (x, z) of the vegetable and vine plots
+
+
+def build_orchards():
+    """The ground inside the wall that no house, street or puzzle uses is gardens (docs/DESIGN.md 7.7, 7.8): plots of vegetables and
+    vines on the flat terraces (rows of two colours), olives, figs and cypresses between them, scrub in B. No bare lot is left
+    unexplained, and the open ground reads from the air as fields, not as a grid of trees."""
+    k = 0
+    for gx in np.arange(-84.0, 96.0, 6.0):
+        for gz in np.arange(-62.0, 64.0, 5.0):
+            k += 1
+            x = gx + hash01(k, 1) * 2.4
+            z = gz + hash01(k, 2) * 2.0
+            if hash01(k, 3) < 0.5 and free_ground(x, z, 2.7, 0.9, 2.6):                       # a plot: two rows on a ground of earth
+                y = float(ground(x, z))
+                ang = 0.0 if hash01(k, 4) < 0.5 else math.pi / 2
+                poly([(px, y + 0.06, pz) for px, pz in rect(x, z, 5.0, 3.6, ang)], "field", "both", "overlay")
+                for j in (-1, 1):
+                    poly([(px, y + 0.09, pz) for px, pz in rect(x + j * 0.9 * -math.sin(ang), z + j * 0.9 * math.cos(ang), 4.6, 0.7, ang)],
+                         "grass", "both", "overlay")
+                PLOTS.append((x, z))
+                continue
+            if hash01(k, 5) > 0.55 or not free_ground(x, z, 1.8, 1.9, 3.4):
+                continue
+            y = float(ground(x, z))
+            kind = hash01(k, 6)
+            if kind < 0.5:                                                                     # an olive
+                prism(ngon(x, z, 0.15, 4), y, y + 1.1, "wood", "A")
+                cone(x, z, 1.5, y + 0.8, y + 2.5, "tree", "A", 7)
+                cone(x, z, 1.3, y - 0.1, y + 1.2, "moss", "B", 5)
+            elif kind < 0.8:                                                                   # a cypress
+                cone(x, z, 0.65, y, y + 5.6, "cypress", "A", 5)
+                cone(x, z, 0.6, y, y + 2.6, "moss", "B", 5)
+            else:                                                                              # a fig: wide and low
+                prism(ngon(x, z, 0.2, 4), y, y + 1.4, "wood", "A")
+                cone(x, z, 2.3, y + 1.0, y + 3.0, "tree", "A", 8)
+                cone(x, z, 1.6, y - 0.1, y + 1.4, "moss", "B", 5)
+            ORCHARD_TREES.append((x, z))
+
+
+def build_nets():
+    """Net racks (docs/DESIGN.md 9): two posts and a rail with a net hung over it, in A; in B the net is gone and the rail is
+    bare. The fishermen of the lower town dry them on the open ground west of the harbour road."""
+    n = 0
+    for k in range(60):
+        x = -72.0 + 4.5 * (k % 8) + hash01(k, 1) * 1.0
+        z = -58.0 + 3.0 * (k // 8) + hash01(k, 2) * 1.0
+        if n >= 6 or not free_ground(x, z, 2.2, 1.5):
+            continue
+        y = float(ground(x, z))
+        ang = 0.25 + 0.3 * hash01(k, 3)
+        c_, s_ = math.cos(ang), math.sin(ang)
+        a = (x - 1.6 * c_, z - 1.6 * s_)
+        b = (x + 1.6 * c_, z + 1.6 * s_)
+        for q in (a, b):
+            prism(ngon(q[0], q[1], 0.09, 4), y, y + 2.3, "wood")
+        beam((a[0], y + 2.3, a[1]), (b[0], y + 2.3, b[1]), 0.12, 0.12, "wood")
+        poly([(a[0], y + 2.28, a[1]), (b[0], y + 2.28, b[1]), (b[0], y + 1.0, b[1]), (a[0], y + 1.0, a[1])], "cloth2", "A", "overlay")
+        n += 1
+        NET_RACKS.append((x, z))
 
 
 def build_country():
@@ -1810,6 +3323,35 @@ MAIN_PATH = [  # (label, x, z, how the next leg goes: "walk", "under" (in the ci
 def check():
     """The numbers of the layout against the limits of the game (docs/DESIGN.md 11). Returns the list of problems."""
     rows = []
+    fr = {n: (c, half) for n, c, half, _ in fronts()}
+    off = [(x, z, n) for x, z, n, half in HOUSE_DOORS if float(distance_to(fr[n][0], x, z)[0]) - half > 0.9]
+    per = {}
+    for _, _, n, _ in HOUSE_DOORS:
+        per[n] = per.get(n, 0) + 1
+    rows.append("  house kinds: %s" % ", ".join("%s %d" % kv for kv in sorted(HOUSE_KINDS.items())))
+    rows.append("  houses: %d, every door within 0.9 m of the front it faces (%s)" % (
+        len(HOUSES), ", ".join("%s %d" % kv for kv in per.items())))
+    for R in ROOMS:
+        rows.append("  room %-10s on %-12s floor %6.1f, %.0f m from where it should be, window: %s" % (
+            R["name"], R["front"], R["floor"], R["dist"], (R["window"][2] if R.get("window") else "none")))
+    if len(ROOMS) < len(ROOM_SPECS):
+        PROBLEMS.append(("rooms", "%d of %d rooms have a site" % (len(ROOMS), len(ROOM_SPECS))))
+    rows.extend("  room %-10s ramp at the door: %s m" % (R["name"], R.get("ramp", 0)) for R in ROOMS if R.get("ramp"))
+    pct, mean, _per, style_fails = _style.audit_town(POLYS, False)
+    rows.append("  style: built area %.0f%% warm, %.0f%% cool, %.1f%% accent; A walls L* %.0f, roofs L* %.0f, ground L* %.0f; B walls L* %.0f, roofs L* %.0f, ground L* %.0f" % (
+        pct["warm"], pct["cool"], pct["accent"], mean["wall"][0], mean["roof"][0], mean["ground"][0], mean["wall"][1], mean["roof"][1], mean["ground"][1]))
+    for what in style_fails:
+        PROBLEMS.append(("style", what))
+    rows.extend(ROOM_REPORT)
+    rows.append("  yard: %s; %d lines of washing" % (", ".join("%s (%.0f, %.0f)" % t for t in YARD_SITES), LAUNDRY[0] if LAUNDRY else 0))
+    rows.append("  gardens: %d plots, %d trees; %d barrels and crates, %d benches, %d yard pieces; chapel %s" % (
+        len(PLOTS), len(ORCHARD_TREES), PROP_COUNT[0], PROP_COUNT[1], len(YARD_PIECES), "yes" if CHAPEL else "NO"))
+    if not CHAPEL:
+        PROBLEMS.append(("chapel", "no free place for the chapel of the vine lane"))
+    n_houses = len(HOUSES) - len(POCKET_DONE)                                          # (a memory court is a footprint in HOUSES, not a house)
+    if off or len(HOUSE_DOORS) != n_houses:
+        PROBLEMS.append(("houses", "%d houses with a door that is not on a front (%d doors for %d houses)" % (
+            len(off), len(HOUSE_DOORS), n_houses)))
     for name, (c, w, kind) in STREET.items():
         h = _HEIGHTS[name]
         ds = np.maximum(np.linalg.norm(np.diff(c, axis=0), axis=1), 1e-6)
@@ -1856,6 +3398,40 @@ def check():
 def colour(mat, world):
     a, b = MAT[mat]
     return np.array(a if world == "A" else b, float)
+
+
+PAINT = 0.9   # the "wash" of [lighting] in config/default.ini: how much the pictures paint what the game paints (0: flat colours)
+
+
+def _hash21(x, z):
+    v = math.sin(x * 127.1 + z * 311.7) * 43758.5453
+    return v - math.floor(v)
+
+
+def _cloud_noise(x, z):
+    ix, iz = math.floor(x), math.floor(z)
+    fx, fz = x - ix, z - iz
+    ux, uz = fx * fx * (3 - 2 * fx), fz * fz * (3 - 2 * fz)
+    a, b, c, d = _hash21(ix, iz), _hash21(ix + 1, iz), _hash21(ix, iz + 1), _hash21(ix + 1, iz + 1)
+    return (a + (b - a) * ux) + ((c + (d - c) * ux) - (a + (b - a) * ux)) * uz
+
+
+def _smooth(e0, e1, v):
+    t = min(max((v - e0) / (e1 - e0), 0.0), 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def paint_albedo(alb, centre, nrm, wash):
+    """What shaders/lighting.hlsli PaintAlbedo does to the albedo of a painted material (src/scene/Town.h Painted): large soft blotches in
+    value and hue (tall stains on a wall), here at the middle of a polygon. The damp of the foot of the town is left out."""
+    floor_like = abs(nrm[1]) > 0.6
+    u = centre[0] if floor_like else centre[0] + centre[2]
+    w = centre[2] if floor_like else centre[1] * 0.5
+    raw = _cloud_noise(u * 0.09, w * 0.09) * 0.65 + _cloud_noise(u * 0.31 + 11.3, w * 0.31 + 5.1) * 0.35
+    big = _smooth(0.30, 0.70, raw)
+    hue = _smooth(0.25, 0.75, _cloud_noise(u * 0.06 + 3.7, w * 0.06 + 9.2)) - 0.5
+    value = 1.0 + (0.80 + (1.14 - 0.80) * big - 1.0) * wash
+    return alb * np.array([1.0 + 0.22 * hue * wash, 1.0, 1.0 - 0.22 * hue * wash]) * value
 
 
 def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None, lantern=None, *, vertical_fov=False):
@@ -1924,6 +3500,8 @@ def render(world, path, eye, target, fov, size, title, overlay=None, ortho=None,
         if nrm @ view < 0:
             nrm = -nrm
         alb = colour(mat, shown)
+        if PAINT > 0.0 and kind not in ("water", "sea") and _style.is_painted(mat):
+            alb = paint_albedo(alb, centre, nrm, PAINT)
         emissive = mat in EMISSIVE and EMISSIVE[mat][0 if shown == "A" else 1]
         if emissive:
             c = alb * 1.15
@@ -2153,7 +3731,11 @@ def export(path):
         key = name.split(" ")[0] if name[0].isdigit() else name
         raw = name.encode("ascii")[:255]
         out += struct.pack("<B", len(raw)) + raw + struct.pack("<3f", x, HEIGHT_OF.get(key, float(ground(x, z))), z)
-    out += struct.pack("<I", len(STREET))
+    out += struct.pack("<I", len(STREET) + len(ROOM_PATHS))
+    for name, pts, wd in ROOM_PATHS:                                                    # from the street through the door to the middle of the room
+        raw = name.encode("ascii")
+        out += struct.pack("<B", len(raw)) + raw + struct.pack("<BfH", 2, wd, len(pts))
+        out += np.array(pts, dtype="<f4").tobytes()
     for name, (c, w, kind) in STREET.items():
         raw = name.encode("ascii")
         hs = _HEIGHTS[name]
@@ -2261,7 +3843,7 @@ def build_city_trim():
         POLYS[j] = (pts, mat, world, "overlay")
 
 
-def build_all():
+def build_prefix():
     """Every part of the town, in the order they depend on each other (the puzzles keep the houses off their places)."""
     build_terrain()
     build_streets()
@@ -2275,7 +3857,7 @@ def build_all():
     build_harbour_beats()
     build_harbour_wayfinding()
     build_air_step()
-    corridor("lower street", 30.0, 53.7)
+    corridor("lower street", 30.0, 53.7, gaps=tuple((st_, sd_, 4.0) for _n, c_, st_, sd_ in POCKETS if c_ == "lower street"))
     corridor("market stairs", 0.0, 22.0)
     corridor("market street", 4.0, 24.0)
     corridor("upper street", 4.0, 24.0)
@@ -2287,14 +3869,41 @@ def build_all():
     build_lift()
     build_gorge_parapet()
     build_district_walls()
+    build_pockets()
     build_arches()
+    build_garden_quarter()                                                              # the places the lanes are for come first:
+    build_mill_quarter()                                                                # the houses then stand round them
+    build_fish_market()
+    build_chapel()
+    build_lane_ends()
+
+
+def build_suffix():
+    """The rest: the rooms take their sites, the houses stand round them, then everything that stands on or between them."""
+    reserve_rooms()                                                                     # the rooms take their sites, the houses stand round them
     build_houses()
+    build_door_props()
+    build_passage_arches()
+    build_yards()
+    build_boatyard()
+    build_quiet_garden()
+    build_orchards()
+    build_nets()
     build_bells()
     build_signal_mast()
+    dress_puzzles()
+    build_laundry()
+    build_rooms()                                                                       # when the town is there: a window is cut where it sees something
     build_steps()
     build_country()
     build_arrival_trim()
     build_city_trim()
+
+
+def build_all():
+    """Every part of the town, in the order they depend on each other (the puzzles keep the houses off their places)."""
+    build_prefix()
+    build_suffix()
 
 
 def main():

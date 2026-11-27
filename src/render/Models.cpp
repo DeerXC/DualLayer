@@ -126,9 +126,9 @@ constexpr float kRippleGlow = 0.5f;                // the ring adds this much of
 constexpr float kRippleOvershoot =
     1.5f; // the circle grows this many ring widths past the corner, so the ring leaves the screen
 
-/// The built-in looks of the two moments, used until the town gives its own (ApplyTownThemes in main.cpp). A, the whole
-/// city: a low evening sun, warm sandstone, a light haze, a bright sky behind it. B, the city after the storm: a cold
-/// light from above, wet dark stone with moss on what looks up, a thick fog that hides what is far. They differ in
+/// The built-in looks of the two moments, used until the town gives its own (ApplyTownThemes in app/Gpu.cpp). A, the
+/// whole city: a low evening sun, warm sandstone, a light haze, a bright sky behind it. B, the city after the storm: a
+/// cold light from above, wet dark stone with moss on what looks up, a thick fog that hides what is far. They differ in
 /// every channel at once, so that a single glance tells them apart.
 std::array<Models::Theme, 2> DefaultThemes()
 {

@@ -1,30 +1,16 @@
 // test_camera.cpp - tests of the camera maths (no window, no GPU).
 //   g++ -std=c++20 -Wall -Wextra -I src tests/test_camera.cpp src/scene/Camera.cpp -o test_camera
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1
+#include "check.h"
 #include "scene/Camera.h"
 
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include <limits>
 
 namespace
 {
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 bool Near(float a, float b, float eps = 1e-3f)
 {
@@ -73,6 +59,32 @@ void TestMove()
     in.moveUp = -1.0f;
     Run(c, in, 1.0f);
     CHECK(Near(c.Position().y, -3.0f));
+
+    // Space and E both lift (the same input, +1), Shift asks for a boost: 4 times the speed, never more than kMaxBoost, never less than 1,
+    // and a bad number is no boost
+    c.Reset();
+    in = dl::CameraInput{};
+    in.moveUp = 1.0f;
+    in.boost = 4.0f;
+    Run(c, in, 1.0f);
+    CHECK(Near(c.Position().y, 12.0f));
+    for (const float b : {0.2f, 0.0f, -3.0f, std::nanf(""), 1.0e9f})
+    {
+        c.Reset();
+        in = dl::CameraInput{};
+        in.moveForward = 1.0f;
+        in.boost = b;
+        Run(c, in, 1.0f);
+        const float expect = std::isfinite(b) ? std::fmax(1.0f, std::fmin(b, dl::Camera::kMaxBoost)) : 1.0f;
+        CHECK(Near(c.Position().z, -3.0f + 3.0f * expect));
+    }
+    in = dl::CameraInput{};
+    in.moveForward = 1.0f;
+    in.moveUp = 1.0f;
+    in.boost = 4.0f;
+    c.Reset();
+    Run(c, in, 1.0f); // diagonal and boosted: normalised first, then boosted
+    CHECK(Near(std::sqrt(c.Position().y * c.Position().y + (c.Position().z + 3.0f) * (c.Position().z + 3.0f)), 12.0f));
 
     // two keys at once are not faster than one
     c.Reset();

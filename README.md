@@ -1,41 +1,26 @@
 # DualLayer
 
-日本語：同じ港町の「過去」と「現在」を切り替え、過去に置いたランタンで現在に道を残す、戦闘のない 3D 探索パズル。C++20 / Direct3D 11 で制作中。現行版は三人称の移動（走り、よじ登り、ランタンの持ち運び）を試作済み。
+日本語：同じ港町の「過去」（高潮の前夜）と「現在」（高潮から約12年後）を切り替えて探索する、戦闘のない 3D 探索パズル。過去（A）で行ったことは現在（B）に痕跡として残り、その逆は起きません。過去に置いたランタンは、現在の廃墟に小さな「過去の一角」を残します。C++20 と Direct3D 11 で、ゲームエンジンを使わずに制作しています。
 
-DualLayer is a 3D exploration puzzle without combat, set in two versions of one harbour town. Actions in the past leave traces in the present. A lantern placed in the past keeps a small piece of it standing in the present. The project uses C++20 and Direct3D 11 without a game engine.
+DualLayer is a 3D exploration puzzle without combat, set in two versions of one harbour town: A, a calm evening before a storm surge, and B, the same town about twelve years later. Actions in the past (A) leave traces in the present (B); nothing done in the present changes the past. A lantern set down in A keeps a small piece of A standing in B. It is written in C++20 and Direct3D 11 without a game engine.
 
-**M2 prototype:** the current build loads the model-based town and supports world switching, causal objects, the lantern patch, a first pass of third-person movement (sprint, ledge climb, a visible lantern) and help that is part of the world: three dark lamps on a signal mast over the bell tower (the goal, lit by the bells), a lantern whose flame leans toward the next thing to do (H asks for more), and a map on two sheets of tracing paper, the past over the present (M). The next version is specified in [Design](docs/DESIGN.md); its compact town and bell-tower finale are not presented as implemented.
+**Status:** playable prototype (milestone `m2-layers`, in progress). The story, the three-district structure and the finale at the tower are specified in [docs/DESIGN.md](docs/DESIGN.md) and are not built yet. Known issues are listed in [CHANGELOG.md](CHANGELOG.md).
+
+**Demo video:** not yet published.
 
 ## Highlights
 
-- **One-way cause and effect.** Opening a gate or moving a crate in A changes what is found in B. The lantern provides a local exception to the appearance of the ruined town, not a reverse change to the past.
-- **One town, two surfaces.** Town data drives both view and collision, including the lantern patch and the water check. The ripple draws the two layers separately before compositing them.
-- **Route testing.** The main path is data (`steps` in the town file, written by the layout model). A reachability solver (`tests/test_route.cpp`) plays those steps in order and reports any way round a puzzle; the game guides along the same steps (`scene/Guidance.h`: the flame of the lantern leans toward the next one). Further logic tests cover the lantern, causal objects, the walking body, the guidance, the map, and the first minute: rays cast from the first frame prove that the goal is in sight for every lens and screen. All of them run without a window or a GPU.
-- **A town lit by sun, moon and lamps.** A shadow map of the sun of A and the moon of B that follows the camera on its texel grid; every lit lantern of the model is a point light (the 32 nearest and strongest are chosen every frame); the lantern of the traveller and the lamps that the bells light answer what the player did; a soft shoulder keeps a bright lamp from cutting a wall to white. The light is hand-painted rather than photographic: soft bands of sun, cool shadows against warm light, drifting shadows of clouds, lamps in rings, rays of light through the shadow map and a graded picture, all of it switched off by one key to compare. The maths of the lights runs as C++ in the tests without a GPU.
-- **Custom rendering and movement.** Static batching, procedural meshes, water shading, collision, variable-height jumping and device recovery are implemented without a game engine.
-
-## Demo
-
-Demo video: not yet published.
-
-## Role
-
-Single developer: game design, level design, code, tests and documentation.
+- **One rule, two worlds.** The only mechanic is switching between A and B. Opening a gate or pushing a crate in A changes what is found in B; the reverse never happens. Every puzzle is built on this single rule.
+- **Own engine code.** Rendering, collision, the walking body, shadows, point lights, the map and device-loss recovery are written for this project on Direct3D 11 and DirectXMath. No game engine and no other third-party library.
+- **Hand-painted light.** The sun of A and the moon of B cast shadows. Lamps are point lights. Sun in soft bands, cool shadows, drifting cloud shadows and light shafts give a painted look instead of a photographic one. One key shows the plain light for comparison.
+- **Tests without a GPU.** Twenty logic tests run without a window. The shader maths is plain C++-compatible HLSL, so the tests run it on the CPU. A route solver plays the main path step by step and reports any way round a puzzle. One command (`tools/check.ps1`) runs the tests, a full Debug and Release build, a short play of the game and a repository check.
 
 ## Build and run
 
-Open `DualLayer.slnx` in Visual Studio 2026, choose `Debug | x64` and press F5. Click into the window for mouse look.
-Requirements, keys, the check command and the configuration: [docs/BUILD.md](docs/BUILD.md).
+1. Open `DualLayer.slnx` in Visual Studio 2026 (workload: Desktop development with C++, toolset v145, Windows SDK 10.0.26100.0).
+2. Choose `Debug | x64` and press F5. Click into the window for mouse look.
 
-## Documents
-
-| Document | Contents |
-|---|---|
-| [docs/DESIGN.md](docs/DESIGN.md) | The game: principles, the switch, the lantern and the causal rule, art, the map, puzzles, limits and proof, order of work |
-| [docs/BUILD.md](docs/BUILD.md) | Requirements, build, keys, configuration, the one-command check, what is checked by eye |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The code as built: one frame, the modules, the town, layers and the ripple, collision and the walking body, water, the overlay |
-| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, layers, naming |
-| [CHANGELOG.md](CHANGELOG.md) | Milestone records and known issues |
+Requirements, keys, configuration and the check command are in [docs/BUILD.md](docs/BUILD.md).
 
 ## Tested on
 
@@ -48,7 +33,30 @@ Requirements, keys, the check command and the configuration: [docs/BUILD.md](doc
 | OS | Windows 11 Home |
 | Toolchain | Visual Studio Community 2026 (18.10), toolset v145, Windows SDK 10.0.26100.0 |
 
+## Where to start reading
+
+| Topic | Files |
+|---|---|
+| The causal rule | `src/scene/Things.h`, `src/scene/Lantern.h` |
+| Collision and the walking body | `src/scene/TriMesh.h`, `src/scene/Moments.h`, `src/scene/Player.h` |
+| Light and shadows | `shaders/lighting.hlsli`, `src/render/ShadowMath.h`, `src/render/Lights.h` |
+| Route proof | `tests/test_route.cpp` |
+| Town generator (Python) | `tools/layout/city_model.py` |
+
+## Documents
+
+| Document | Contents |
+|---|---|
+| [docs/DESIGN.md](docs/DESIGN.md) | The game: principles, the switch, the causal rule, art, the map, puzzles, limits and proof |
+| [docs/BUILD.md](docs/BUILD.md) | Requirements, build, keys, configuration, the one-command check |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The code as built: one frame, modules, the town, layers, collision, light |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, layers, naming |
+| [CHANGELOG.md](CHANGELOG.md) | Milestone records and known issues |
+
+## Role
+
+Single developer: game design, level design, code, tests and documentation.
+
 ## License
 
-Not decided yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but
-not reused.
+No license has been chosen yet. Until then the repository has no LICENSE file, which means all rights reserved: the code may be read but not reused.

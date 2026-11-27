@@ -1,7 +1,6 @@
 // TriMath.h - the maths of a ball against a triangle: the vector operations and the point of a triangle closest to a
-// point.
-//             The solid of the town (scene/TriMesh.h, scene/Moments.h) is made of triangles and pushes a ball out of
-//             them with the closest point.
+// point. The solid of the town (scene/TriMesh.h, scene/Moments.h) is made of triangles and pushes a ball out of them
+// with the closest point.
 // Plain maths, no Windows, no Direct3D: tested without a window (tests/test_trimath.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
 #pragma once

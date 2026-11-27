@@ -1,0 +1,1196 @@
+"""architecture.py - the buildings of the town (docs/DESIGN.md 7.10).
+
+The houses and landmarks of tools/layout/city_model.py, as a library of building types with proportions, a vocabulary of
+facade parts and a row planner. It writes polygons through an emitter (set_emitter(poly)), so it has no other dependency than
+numpy and can be tested and drawn without the rest of the model.
+
+Rules that every part keeps (the tests of the game rely on them):
+  * every polygon is convex (the game cuts a polygon into a fan of triangles);
+  * what stands out of a wall below 3.5 m is at most 0.35 m deep: no foothold (a jump reaches 1.65 m, a crate 1.2 m more);
+    balconies, bay windows and eaves are above 3.5 m;
+  * windows, shutters, trims and signs are "overlay" polygons (drawn, not solid): nothing to collide with or to climb;
+  * the faces look outward. The engine's convention is that the cross product of the first two edges points into the solid, so
+    face() reverses a polygon whose cross product points out. A mirrored frame (the street on the left of the house) is
+    therefore as good as any other.
+Local axes: a along the front (the street), b from the front into the building, y up from the floor at the door.
+"""
+import math
+
+import numpy as np
+
+_emit_fn = None
+FOLIAGE = ("tree", "cypress", "moss", "bloom")      # crowns, scrub and flowers: drawn, not solid (the body goes through leaves, not over them)
+FLOOR_H = 3.0        # a storey
+GROUND_H = 3.5       # the ground floor: a little taller, the door is 2.2 m; the first floor is out of reach of a jump from a crate (2.85 m)
+PLASTERS = tuple("plaster%d" % i for i in range(8))        # the lime wash of the coast (docs/DESIGN.md 6.9)
+SHUTTERS = ("shutter", "shutter2", "shutter3")             # sage, sea blue, oxblood: one colour for a house
+ROOFS = ("roof", "roof2", "roof3", "roof4")                # four ages of the same clay tile
+AWNINGS = ("cloth", "cloth3", "cloth2")                    # red, blue, mustard
+# what the front of a street is made of: the weights of the colours (a hub is colourful, the rim is quiet)
+WALL_WEIGHTS = {
+    "hub": {"plaster0": 2, "plaster1": 2, "plaster2": 2, "plaster3": 1, "plaster4": 2, "plaster5": 2, "plaster6": 1, "plaster7": 1},
+    "terrace": {"plaster0": 3, "plaster1": 2, "plaster2": 2, "plaster3": 2, "plaster4": 1, "plaster5": 1, "plaster6": 1, "plaster7": 0.6},
+    "rim": {"plaster3": 4, "plaster0": 3, "plaster1": 2, "plaster6": 1},
+}
+ROOF_WEIGHTS = {
+    "hub": {"roof": 3, "roof2": 3, "roof3": 1, "roof4": 1},
+    "terrace": {"roof": 3, "roof2": 1, "roof3": 2, "roof4": 2},
+    "rim": {"roof3": 3, "roof4": 3, "roof": 2},
+}
+
+
+def weighted(weights, k, salt, avoid=()):
+    """A name from {name: weight}, by the hash of (k, salt); never one of `avoid` when another is left."""
+    items = [(n, w) for n, w in weights.items() if n not in avoid] or list(weights.items())
+    tot = sum(w for _, w in items)
+    r = hash01(k, salt) * tot
+    for n, w in items:
+        r -= w
+        if r <= 0:
+            return n
+    return items[-1][0]
+
+
+def set_emitter(fn):
+    """fn(points (n, 3), material, world 'both'/'A'/'B', kind 'solid'/'overlay'/'water')"""
+    global _emit_fn
+    _emit_fn = fn
+
+
+def hash01(*k):
+    h = 2166136261
+    for v in k:
+        h = ((h ^ (int(v) & 0xFFFFFFFF)) * 16777619) & 0xFFFFFFFF
+    h = ((h ^ (h >> 15)) * 2246822519) & 0xFFFFFFFF
+    return (h & 0xFFFF) / 65535.0
+
+
+def pick(seq, *k):
+    return seq[int(hash01(*k) * len(seq)) % len(seq)]
+
+
+class Frame:
+    """A place and a direction: P(a, b, y) is a point of the world."""
+
+    def __init__(self, cx, cz, a, b, y0=0.0):
+        a = np.asarray(a, float)
+        b = np.asarray(b, float)
+        self.cx, self.cz, self.y0 = float(cx), float(cz), float(y0)
+        self.a = a / max(float(np.linalg.norm(a)), 1e-12)
+        self.b = b / max(float(np.linalg.norm(b)), 1e-12)
+
+    def P(self, a, b, y=0.0):
+        return (self.cx + self.a[0] * a + self.b[0] * b, self.y0 + y, self.cz + self.a[1] * a + self.b[1] * b)
+
+    def V(self, da, db, dy=0.0):
+        return np.array([self.a[0] * da + self.b[0] * db, dy, self.a[1] * da + self.b[1] * db])
+
+    def at(self, a, b, y=0.0):
+        """A frame of the same direction, moved."""
+        x, yy, z = self.P(a, b, y)
+        return Frame(x, z, self.a, self.b, yy)
+
+    def turned(self, quarter):
+        """The frame turned by a quarter turn (1: b becomes a), same origin."""
+        if quarter % 4 == 0:
+            return self
+        a, b = self.a, self.b
+        for _ in range(quarter % 4):
+            a, b = b, -a
+        return Frame(self.cx, self.cz, a, b, self.y0)
+
+
+def face(pts, outward, mat, world="both", kind="solid"):
+    """One polygon whose front is turned to `outward` (a vector)."""
+    P = np.asarray(pts, float)
+    n = np.cross(P[1] - P[0], P[2] - P[0])
+    if len(P) > 3 and float(np.linalg.norm(n)) < 1e-9:
+        n = np.cross(P[2] - P[0], P[3] - P[0])
+    if float(np.linalg.norm(n)) < 1e-9:
+        return
+    if float(np.dot(n, np.asarray(outward, float))) > 0.0:
+        P = P[::-1]
+    _emit_fn(P, mat, world, kind)
+
+
+# ---- boxes, panels, drums ----------------------------------------------------------------------------------------------------
+
+def fbox(F, a0, a1, b0, b1, y0, y1, mat, world="both", top_mat=None, sides=(1, 1, 1, 1), top=True, kind="solid", bottom_mat=None):
+    """A box. sides: front (-b), right (+a), back (+b), left (-a). bottom_mat: also the underside (for what hangs over a street)."""
+    if a1 <= a0 or b1 <= b0 or y1 <= y0:
+        return
+    corners = [(a0, b0), (a1, b0), (a1, b1), (a0, b1)]
+    outs = [(0.0, -1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0)]
+    for i in range(4):
+        if not sides[i]:
+            continue
+        (ua, ub), (va, vb) = corners[i], corners[(i + 1) % 4]
+        face([F.P(ua, ub, y0), F.P(va, vb, y0), F.P(va, vb, y1), F.P(ua, ub, y1)], F.V(*outs[i]), mat, world, kind)
+    if top:
+        face([F.P(a, b, y1) for a, b in corners], (0, 1, 0), top_mat or mat, world, kind)
+    if bottom_mat:
+        face([F.P(a, b, y0) for a, b in corners], (0, -1, 0), bottom_mat, world, kind)
+
+
+def fpanel(F, a0, a1, b, y0, y1, mat, world="both", out=-1.0, kind="overlay"):
+    """A flat rectangle on the plane b, facing out (-1: toward -b, +1: toward +b)."""
+    face([F.P(a0, b, y0), F.P(a1, b, y0), F.P(a1, b, y1), F.P(a0, b, y1)], F.V(0.0, out), mat, world, kind)
+
+
+def fpoly(F, pts_aby, mat, world="both", out=(0.0, -1.0), kind="overlay"):
+    """A polygon given as (a, b, y) points, facing the direction out = (da, db)."""
+    face([F.P(a, b, y) for a, b, y in pts_aby], F.V(*out), mat, world, kind)
+
+
+def fprism(F, outline, y0, y1, mat, world="both", top_mat=None, top=True):
+    """A prism over an outline of (a, b) points (convex, in any order)."""
+    pts = [np.array(F.P(a, b, 0.0))[[0, 2]] for a, b in outline]
+    cen = np.mean(pts, axis=0)
+    n = len(outline)
+    for i in range(n):
+        p, q = pts[i], pts[(i + 1) % n]
+        mid = 0.5 * (p + q)
+        outv = np.array([mid[0] - cen[0], 0.0, mid[1] - cen[1]])
+        face([(p[0], F.y0 + y0, p[1]), (q[0], F.y0 + y0, q[1]), (q[0], F.y0 + y1, q[1]), (p[0], F.y0 + y1, p[1])], outv, mat, world)
+    if top:
+        face([(p[0], F.y0 + y1, p[1]) for p in pts], (0, 1, 0), top_mat or mat, world)
+
+
+def ring_pts(ca, cb, r, n, phase=0.0):
+    return [(ca + r * math.cos(phase + 2 * math.pi * k / n), cb + r * math.sin(phase + 2 * math.pi * k / n)) for k in range(n)]
+
+
+def fdrum(F, ca, cb, r, y0, y1, mat, world="both", n=12, top_mat=None, phase=0.0, top=True):
+    fprism(F, ring_pts(ca, cb, r, n, phase), y0, y1, mat, world, top_mat, top)
+
+
+def fcone(F, ca, cb, r, y0, y1, mat, world="both", n=12, phase=0.0):
+    kind = "overlay" if mat in FOLIAGE else "solid"
+    ring = ring_pts(ca, cb, r, n, phase)
+    for i in range(n):
+        (a0, b0), (a1, b1) = ring[i], ring[(i + 1) % n]
+        mid = ((a0 + a1) / 2 - ca, (b0 + b1) / 2 - cb)
+        face([F.P(a0, b0, y0), F.P(a1, b1, y0), F.P(ca, cb, y1)], F.V(mid[0], mid[1], 0.4), mat, world, kind)
+
+
+def fdome(F, ca, cb, r, y0, mat, world="both", n=12, bands=3, squash=1.0):
+    """A dome: bands of convex quads up to a cap."""
+    rings = []
+    for j in range(bands + 1):
+        t = (math.pi / 2) * j / (bands + 1)
+        rings.append((r * math.cos(t), y0 + squash * r * math.sin(t)))
+    for j in range(bands):
+        (r0, h0), (r1, h1) = rings[j], rings[j + 1]
+        for i in range(n):
+            t0, t1 = 2 * math.pi * i / n, 2 * math.pi * (i + 1) / n
+            p0 = F.P(ca + r0 * math.cos(t0), cb + r0 * math.sin(t0), h0)
+            p1 = F.P(ca + r0 * math.cos(t1), cb + r0 * math.sin(t1), h0)
+            p2 = F.P(ca + r1 * math.cos(t1), cb + r1 * math.sin(t1), h1)
+            p3 = F.P(ca + r1 * math.cos(t0), cb + r1 * math.sin(t0), h1)
+            face([p0, p1, p2, p3], F.V(math.cos((t0 + t1) / 2), math.sin((t0 + t1) / 2), 0.5), mat, world)
+    rt, ht = rings[-1]
+    top_y = y0 + squash * r
+    for i in range(n):
+        t0, t1 = 2 * math.pi * i / n, 2 * math.pi * (i + 1) / n
+        face([F.P(ca + rt * math.cos(t0), cb + rt * math.sin(t0), ht), F.P(ca + rt * math.cos(t1), cb + rt * math.sin(t1), ht),
+              F.P(ca, cb, top_y)], F.V(math.cos((t0 + t1) / 2), math.sin((t0 + t1) / 2), 1.5), mat, world)
+
+
+# ---- roofs --------------------------------------------------------------------------------------------------------------------
+
+def roof_gable(F, a0, a1, b0, b1, y, rise, ridge="a", ove=0.55, gove=0.2, mat="roof", world="both", wall_mat=None,
+               fascia="stone", wall_world=None):
+    """A gable roof over the box a0..a1 x b0..b1 whose walls end at height y. ridge 'a': the ridge runs along a (the eaves are on
+    the b sides, the gables on the a sides); 'b': the other way. The gable walls are closed in `wall_mat`."""
+    if ridge == "b":
+        # the same with the axes swapped: build in a frame where a and b are exchanged
+        G = Frame(F.cx, F.cz, F.b, F.a, F.y0)
+        roof_gable(G, b0, b1, a0, a1, y, rise, "a", ove, gove, mat, world, wall_mat, fascia, wall_world)
+        return
+    bm = 0.5 * (b0 + b1)
+    hs = 0.5 * (b1 - b0)
+    slope = rise / hs
+    ye = y - slope * ove
+    for sg, bb, ob in ((-1, b0, b0 - ove), (1, b1, b1 + ove)):
+        face([F.P(a0 - gove, ob, ye), F.P(a1 + gove, ob, ye), F.P(a1 + gove, bm, y + rise), F.P(a0 - gove, bm, y + rise)],
+             F.V(0.0, sg, 1.0 / max(slope, 0.2)), mat, world)
+        fbox(F, a0 - gove, a1 + gove, min(ob, ob + 0.12 * sg), max(ob, ob + 0.12 * sg), ye - 0.22, ye, fascia, world, sides=(1, 0, 1, 0))
+    if wall_mat:
+        for sg, aa in ((-1, a0), (1, a1)):
+            face([F.P(aa, b0, y), F.P(aa, b1, y), F.P(aa, bm, y + rise)], F.V(sg, 0.0), wall_mat, wall_world or world)
+    # the ends: a verge board on each slope
+    for sg, aa in ((-1, a0 - gove), (1, a1 + gove)):
+        for bb, sgb in ((b0 - ove, -1), (b1 + ove, 1)):
+            face([F.P(aa, bb, ye), F.P(aa, bm, y + rise), F.P(aa + sg * 0.01, bm, y + rise - 0.2), F.P(aa + sg * 0.01, bb, ye - 0.2)],
+                 F.V(sg, 0.0, 0.2), fascia, world)
+
+
+def roof_hip(F, a0, a1, b0, b1, y, rise, ove=0.55, mat="roof", world="both", fascia="stone"):
+    A, B = a1 - a0, b1 - b0
+    ea0, ea1, eb0, eb1 = a0 - ove, a1 + ove, b0 - ove, b1 + ove
+    slope = rise / (0.5 * min(A, B))
+    ye = y - slope * ove
+    am, bm = 0.5 * (a0 + a1), 0.5 * (b0 + b1)
+    if A >= B:
+        r0, r1 = (a0 + 0.5 * B, bm), (a1 - 0.5 * B, bm)
+    else:
+        r0, r1 = (am, b0 + 0.5 * A), (am, b1 - 0.5 * A)
+    top = y + rise
+    # four planes: two trapezoids and two triangles (or trapezoids when the ridge is a point)
+    corners = [(ea0, eb0), (ea1, eb0), (ea1, eb1), (ea0, eb1)]
+    ridge_pts = [r0, r0, r1, r1] if A >= B else [r0, r1, r1, r0]
+    # side planes, in order: front (-b), right (+a), back (+b), left (-a)
+    plane_ridge = {0: (r0, r1) if A >= B else (r0, r0), 1: (r1, r1) if A >= B else (r0, r1),
+                   2: (r1, r0) if A >= B else (r1, r1), 3: (r0, r0) if A >= B else (r1, r0)}
+    for i in range(4):
+        c0, c1 = corners[i], corners[(i + 1) % 4]
+        q0, q1 = plane_ridge[i]
+        pts = [F.P(c0[0], c0[1], ye), F.P(c1[0], c1[1], ye)]
+        pts.append(F.P(q1[0], q1[1], top))
+        if abs(q0[0] - q1[0]) > 1e-6 or abs(q0[1] - q1[1]) > 1e-6:
+            pts.append(F.P(q0[0], q0[1], top))
+        mid = ((c0[0] + c1[0]) / 2 - am, (c0[1] + c1[1]) / 2 - bm)
+        face(pts, F.V(mid[0], mid[1], 1.0 / max(slope, 0.2) * max(abs(mid[0]), abs(mid[1]), 1.0)), mat, world)
+    fbox(F, ea0, ea1, eb0, eb0 + 0.12, ye - 0.22, ye, fascia, world, sides=(1, 0, 1, 0))
+    fbox(F, ea0, ea1, eb1 - 0.12, eb1, ye - 0.22, ye, fascia, world, sides=(1, 0, 1, 0))
+    fbox(F, ea0, ea0 + 0.12, eb0, eb1, ye - 0.22, ye, fascia, world, sides=(0, 1, 0, 1))
+    fbox(F, ea1 - 0.12, ea1, eb0, eb1, ye - 0.22, ye, fascia, world, sides=(0, 1, 0, 1))
+
+
+def roof_pyramid(F, a0, a1, b0, b1, y, rise, ove=0.3, mat="roof", world="both", fascia=None):
+    am, bm = 0.5 * (a0 + a1), 0.5 * (b0 + b1)
+    ea0, ea1, eb0, eb1 = a0 - ove, a1 + ove, b0 - ove, b1 + ove
+    slope = rise / (0.5 * max(a1 - a0, b1 - b0))
+    ye = y - slope * ove
+    corners = [(ea0, eb0), (ea1, eb0), (ea1, eb1), (ea0, eb1)]
+    for i in range(4):
+        c0, c1 = corners[i], corners[(i + 1) % 4]
+        mid = ((c0[0] + c1[0]) / 2 - am, (c0[1] + c1[1]) / 2 - bm)
+        face([F.P(c0[0], c0[1], ye), F.P(c1[0], c1[1], ye), F.P(am, bm, y + rise)], F.V(mid[0], mid[1], 0.9), mat, world)
+    if fascia:
+        for i in range(4):
+            c0, c1 = corners[i], corners[(i + 1) % 4]
+            mid = ((c0[0] + c1[0]) / 2 - am, (c0[1] + c1[1]) / 2 - bm)
+            face([F.P(c0[0], c0[1], ye - 0.2), F.P(c1[0], c1[1], ye - 0.2), F.P(c1[0], c1[1], ye), F.P(c0[0], c0[1], ye)],
+                 F.V(mid[0], mid[1]), fascia, world)
+
+
+def roof_shed(F, a0, a1, b0, b1, y_low, y_high, ove=0.4, mat="roof", world="both"):
+    """A mono-pitch roof falling toward -b."""
+    face([F.P(a0 - 0.15, b0 - ove, y_low), F.P(a1 + 0.15, b0 - ove, y_low), F.P(a1 + 0.15, b1, y_high), F.P(a0 - 0.15, b1, y_high)],
+         F.V(0.0, -0.4, 1.0), mat, world)
+
+
+# ---- arches and walls with openings --------------------------------------------------------------------------------------------
+
+def arch_curve(ac, half, y_spring, rise, n=6):
+    """Points (a, y) of an arch from its left spring to its right spring: round when rise = half, segmental when less."""
+    pts = []
+    if rise >= half - 1e-6:
+        for i in range(n + 1):
+            t = math.pi * (1.0 - i / n)
+            pts.append((ac + half * math.cos(t), y_spring + rise * math.sin(t)))
+        return pts
+    R = (half * half + rise * rise) / (2.0 * rise)
+    cy = y_spring + rise - R
+    t0 = math.asin(half / R)
+    for i in range(n + 1):
+        t = -t0 + 2 * t0 * i / n
+        pts.append((ac + R * math.sin(t), cy + R * math.cos(t)))
+    return pts
+
+
+def opening_pane(F, ac, half, y_bot, y_spring, rise, b, mat, world="both", out=-1.0, n=6, kind="overlay"):
+    """The convex polygon of a window or a door with an arched head, flat on the plane b."""
+    pts = [(ac - half, b, y_bot), (ac + half, b, y_bot)]
+    if rise > 1e-6:
+        for a, y in reversed(arch_curve(ac, half, y_spring, rise, n)):
+            pts.append((a, b, y))
+    else:
+        pts += [(ac + half, b, y_spring), (ac - half, b, y_spring)]
+    fpoly(F, pts, mat, world, (0.0, out), kind)
+
+
+def wall_with_openings(F, a0, a1, b0, thick, y0, y1, openings, mat, world="both", top_mat=None, n_arch=6, cap=True,
+                       back_mat=None):
+    """A wall along a, from a0 to a1, between b0 and b0 + thick, from y0 to y1, with real openings (a passage, an arcade).
+    openings: dicts with a (the centre), w, y_bot (0 for a door), y_spring (the top of the jambs) and rise (0: a flat head).
+    Everything is convex: a trapezoid for each segment of an arch."""
+    b1 = b0 + thick
+    ops = sorted(openings, key=lambda o: o["a"])
+    cur = a0
+    spans = []
+    for o in ops:
+        spans.append((cur, o["a"] - o["w"] / 2, o))
+        cur = o["a"] + o["w"] / 2
+    spans.append((cur, a1, None))
+    for left, right, o in spans:
+        if right > left + 1e-6:
+            for bb, out, m in ((b0, -1.0, mat), (b1, 1.0, back_mat or mat)):
+                fpanel(F, left, right, bb, y0, y1, m, world, out, "solid")
+    for _, _, o in spans:
+        if o is None:
+            continue
+        al, ar = o["a"] - o["w"] / 2, o["a"] + o["w"] / 2
+        yb, ys, rise = o.get("y_bot", 0.0), o["y_spring"], o.get("rise", 0.0)
+        if yb > y0 + 1e-6:                                                  # under a window
+            for bb, out, m in ((b0, -1.0, mat), (b1, 1.0, back_mat or mat)):
+                fpanel(F, al, ar, bb, y0, yb, m, world, out, "solid")
+        curve = arch_curve(o["a"], o["w"] / 2, ys, rise, n_arch) if rise > 1e-6 else [(al, ys), (ar, ys)]
+        for (c0, h0), (c1, h1) in zip(curve[:-1], curve[1:]):             # above the opening: one trapezoid for each segment
+            for bb, out, m in ((b0, -1.0, mat), (b1, 1.0, back_mat or mat)):
+                fpoly(F, [(c0, bb, h0), (c1, bb, h1), (c1, bb, y1), (c0, bb, y1)], m, world, (0.0, out), "solid")
+            face([F.P(c0, b0, h0), F.P(c1, b0, h1), F.P(c1, b1, h1), F.P(c0, b1, h0)], F.V(0.0, 0.0, -1.0), mat, world)   # the soffit
+        for aa, out in ((al, 1.0), (ar, -1.0)):                              # the jambs
+            face([F.P(aa, b0, yb), F.P(aa, b1, yb), F.P(aa, b1, ys), F.P(aa, b0, ys)], F.V(out, 0.0), mat, world)
+        if yb > y0 + 1e-6:
+            face([F.P(al, b0, yb), F.P(ar, b0, yb), F.P(ar, b1, yb), F.P(al, b1, yb)], (0, 1, 0), mat, world)
+    if cap:
+        face([F.P(a0, b0, y1), F.P(a1, b0, y1), F.P(a1, b1, y1), F.P(a0, b1, y1)], (0, 1, 0), top_mat or mat, world)
+    for aa, out in ((a0, -1.0), (a1, 1.0)):                                  # the ends of the wall
+        face([F.P(aa, b0, y0), F.P(aa, b1, y0), F.P(aa, b1, y1), F.P(aa, b0, y1)], F.V(out, 0.0), mat, world)
+
+
+# ---- faces of a building -------------------------------------------------------------------------------------------------------
+
+def side_frames(F, W, D):
+    """Frames whose b = 0 is a face of the box a in [-W/2, W/2], b in [0, D] and whose b points into the building, so that every
+    facade part can be drawn on any face."""
+    x, _, z = F.P(0, 0, 0)
+    fr = {"front": F}
+    bx, by, bz = F.P(0, D, 0)
+    fr["back"] = Frame(bx, bz, -F.a, -F.b, F.y0)
+    lx, _, lz = F.P(-W / 2, D / 2, 0)
+    fr["left"] = Frame(lx, lz, -F.b, F.a, F.y0)
+    rx, _, rz = F.P(W / 2, D / 2, 0)
+    fr["right"] = Frame(rx, rz, F.b, -F.a, F.y0)
+    return fr
+
+
+# ---- the parts of a facade: all drawn on the plane b = 0 of a face frame, facing -b ------------------------------------------
+
+def window(Ff, a, y, w=0.85, h=1.4, arch=False, shutter=None, pane="window", world="both", sill=True, b=0.0, lit_b=False):
+    hw = 0.5 * w
+    rise = 0.85 * hw if arch else 0.0
+    ys = y + h - rise
+    opening_pane(Ff, a, hw + 0.1, y - 0.1, ys, 0.85 * (hw + 0.1) if arch else 0.0, b - 0.02, "stone", world)
+    opening_pane(Ff, a, hw, y, ys, rise, b - 0.045, pane, world)
+    if shutter:
+        for sg in (-1, 1):
+            a0, a1 = (a + sg * (hw + 0.04), a + sg * (hw + 0.04 + 0.42))
+            fpanel(Ff, min(a0, a1), max(a0, a1), b - 0.07, y, ys + 0.5 * rise, shutter, world)
+    if sill:
+        fbox(Ff, a - hw - 0.12, a + hw + 0.12, b - 0.14, b, y - 0.14, y - 0.02, "stone", world, sides=(1, 1, 0, 1), top=True)
+
+
+def door(Ff, a, w=1.1, h=2.25, arch=False, mat="door", world="both", step=True, b=0.0, lamp=False):
+    hw = 0.5 * w
+    rise = 0.9 * hw if arch else 0.0
+    ys = h - rise
+    opening_pane(Ff, a, hw + 0.14, -0.05, ys, 0.9 * (hw + 0.14) if arch else 0.0, b - 0.02, "stone_dark" if not arch else "stone", world)
+    opening_pane(Ff, a, hw, 0.0, ys, rise, b - 0.045, mat, world)
+    fpanel(Ff, a - 0.04, a + 0.04, b - 0.065, 0.0, ys, "stone_dark", world)           # the line between the leaves
+    if step:
+        fbox(Ff, a - hw - 0.2, a + hw + 0.2, b - 0.42, b, -0.14, 0.0, "stone", world, top=True)
+    if lamp:
+        fbox(Ff, a + hw + 0.35, a + hw + 0.5, b - 0.2, b, h - 0.5, h - 0.1, "lantern", world)
+
+
+def balcony(Ff, a, y, w, depth=0.95, mat="stone", world="both", flowers=False, seed=0):
+    """A balcony with its floor at y (3.5 m or more: out of reach). A slab, two corbels, a rail of balusters."""
+    fbox(Ff, a - w / 2, a + w / 2, -depth, 0.0, y - 0.2, y, mat, world, top_mat="paving")
+    for sg in (-1, 1):
+        fbox(Ff, a + sg * (w / 2 - 0.3) - 0.1, a + sg * (w / 2 - 0.3) + 0.1, -depth + 0.1, -0.02, y - 0.45, y - 0.2, mat, world)
+    n = max(3, int(w / 0.3))
+    for i in range(n + 1):
+        x = a - w / 2 + 0.08 + (w - 0.16) * i / n
+        fpanel(Ff, x - 0.025, x + 0.025, -depth + 0.06, y, y + 0.85, "iron", world)
+    for sg in (-1, 1):
+        for j in range(1, 3):
+            bb = -depth + (depth - 0.06) * j / 3.0
+            fpanel(Ff, a + sg * (w / 2 - 0.07) - 0.025, a + sg * (w / 2 - 0.07) + 0.025, bb, y, y + 0.85, "iron", world)
+    fbox(Ff, a - w / 2, a + w / 2, -depth + 0.03, -depth + 0.09, y + 0.85, y + 0.93, "iron", world)
+    if flowers:
+        for i in range(2):
+            x = a - w / 2 + w * (i + 0.5) / 2
+            fcone(Ff, x, -depth + 0.22, 0.2, y, y + 0.4, "bloom" if hash01(seed, i + 3) < 0.55 else "tree", "A", 5)
+
+
+def band(Ff, a0, a1, y0, y1, mat="stone", world="both", b=0.0):
+    fpanel(Ff, a0, a1, b - 0.03, y0, y1, mat, world)
+
+
+def quoins(Ff, W, E, world="both", seed=0):
+    """Corner stones: alternating long and short blocks up the two corners of a face."""
+    n = int(E / 0.55)
+    for sg in (-1, 1):
+        for i in range(n):
+            wd = 0.62 if (i + (1 if sg > 0 else 0)) % 2 == 0 else 0.36
+            a0, a1 = (sg * W / 2 - wd, sg * W / 2) if sg > 0 else (-W / 2, -W / 2 + wd)
+            fpanel(Ff, a0 + 0.02, a1 - 0.02, -0.035, 0.55 * i + 0.02, 0.55 * (i + 1) - 0.02, "stone", world)
+
+
+def chimney(F, a, b, y, h=1.5, mat="chimney", world="both"):
+    fbox(F, a - 0.3, a + 0.3, b - 0.3, b + 0.3, y, y + h, mat, world)
+    fbox(F, a - 0.4, a + 0.4, b - 0.4, b + 0.4, y + h, y + h + 0.16, "stone", world)
+
+
+def dormer(F, a, b, y_roof, w=1.3, d=1.0, h=1.4, wall="plaster3", roofmat="roof2", world="both", shutter=None):
+    """A small gabled window in a roof that slopes toward -b: its front is flush with the slope above y_roof."""
+    fbox(F, a - w / 2, a + w / 2, b, b + d, y_roof, y_roof + h, wall, world, sides=(1, 1, 0, 1), top=False)
+    roof_gable(F, a - w / 2, a + w / 2, b, b + d, y_roof + h, 0.5, "b", 0.2, 0.12, roofmat, world, wall)
+    Ff = Frame(*F.P(0, b, 0)[::2], F.a, F.b, F.y0 + y_roof)
+    window(Ff, a, 0.25, 0.6, 0.9, False, shutter, "window", world, False, 0.0)
+
+
+def altana(F, a, b, y, w=2.5, d=2.5, world="both", mat="roof2"):
+    """A wooden loggia on the roof: a floor, four posts, a hip roof, a rail."""
+    fbox(F, a - w / 2, a + w / 2, b - d / 2, b + d / 2, y, y + 0.18, "wood", world)
+    for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        fbox(F, a + sa * (w / 2 - 0.1) - 0.07, a + sa * (w / 2 - 0.1) + 0.07, b + sb * (d / 2 - 0.1) - 0.07, b + sb * (d / 2 - 0.1) + 0.07, y + 0.18, y + 2.4, "wood", world)
+    for sg in (-1, 1):
+        fbox(F, a - w / 2, a + w / 2, b + sg * (d / 2 - 0.1) - 0.03, b + sg * (d / 2 - 0.1) + 0.03, y + 0.18, y + 0.95, "wood", world, sides=(1, 0, 1, 0))
+    roof_hip(F, a - w / 2, a + w / 2, b - d / 2, b + d / 2, y + 2.4, 0.9, 0.35, mat, world)
+
+
+def awning(F, a, y, w, out=1.3, mat="cloth", world="A", posts=True):
+    """An awning, drawn flat (not solid): a slope from the wall at y + 0.5 down to y. posts: two poles at its edge (solid, thin)."""
+    face([F.P(a - w / 2, 0.0, y + 0.55), F.P(a + w / 2, 0.0, y + 0.55), F.P(a + w / 2, -out, y), F.P(a - w / 2, -out, y)],
+         F.V(0.0, -0.6, 1.0), mat, world, "overlay")
+    for sg in (-1, 1):
+        face([F.P(a + sg * w / 2, 0.0, y + 0.55), F.P(a + sg * w / 2, -out, y), F.P(a + sg * w / 2, 0.0, y)], F.V(sg, 0.0), mat, world, "overlay")
+    if posts:
+        for sg in (-1, 1):
+            fbox(F, a + sg * (w / 2 - 0.05) - 0.04, a + sg * (w / 2 - 0.05) + 0.04, -out + 0.04, -out + 0.12, 0.0, y, "wood", "both")
+
+
+def bay_window(F, a, y, w=1.6, out=0.6, h=2.4, wall="plaster3", roofmat="roof2", world="both", shutter=None):
+    """A bay window (an erker) hanging out of the first floor at y (3.5 m or more): a box with a window in each face and a small hip roof."""
+    fbox(F, a - w / 2, a + w / 2, -out, 0.0, y, y + h, wall, world, sides=(1, 1, 0, 1), top=False, bottom_mat="wood")
+    for sg in (-1, 1):
+        fbox(F, a + sg * (w / 2 - 0.25) - 0.1, a + sg * (w / 2 - 0.25) + 0.1, -out + 0.08, -0.05, y - 0.35, y, "stone", world)
+    Fb = F.at(a, -out)
+    window(Fb, 0.0, y + 0.5, w - 0.5, 1.4, False, shutter, "window", world, False, 0.0)
+    fr = side_frames(Fb, w, out)
+    for key in ("left", "right"):
+        window(fr[key], 0.0, y + 0.5, 0.5, 1.2, False, None, "window", world, False, 0.0)
+    roof_hip(F, a - w / 2, a + w / 2, -out, 0.0, y + h, 0.7, 0.25, roofmat, world)
+
+
+# ---- the houses ----------------------------------------------------------------------------------------------------------------
+# kind: (width range, depth range, floors, what it is)
+KINDS = {
+    "row": ((5.4, 7.4), (6.8, 8.6), (2, 2)),
+    "altana": ((5.8, 7.4), (7.0, 8.8), (2, 3)),
+    "shop": ((6.2, 8.4), (7.0, 9.0), (2, 2)),
+    "portico": ((7.0, 9.0), (8.0, 9.6), (2, 2)),
+    "cottage": ((5.0, 6.6), (5.2, 6.6), (1, 1)),
+    "palazzetto": ((8.6, 11.4), (8.4, 10.0), (3, 3)),
+}
+
+
+def house(F, kind, W, D, seed, floors=None, state="whole", wall=None, sides=(0, 0), ground_low=None, back_free=False, roofmat=None, shutter=None,
+          street_half=2.5):
+    """One house on the frame F: the middle of its front wall at the door, a along the street, b into the building, y = 0 the floor.
+    W x D: the footprint. state: 'whole', 'unroofed' (no roof in B) or 'ruin' (a low wall in B). sides: which of the two side walls
+    can be seen (left, right). ground_low: the lowest ground under the footprint, relative to y = 0 (a podium of stone shows).
+    Returns the height of the eaves and of the ridge."""
+    lo_f, hi_f = KINDS[kind][2]
+    n = floors if floors is not None else lo_f + (1 if hi_f > lo_f and hash01(seed, 3) < 0.45 else 0)
+    gh = GROUND_H if kind != "cottage" else 3.4
+    while n > 1 and W < 0.8 * (gh + (n - 1) * FLOOR_H):                      # never taller than 1.25 times its width: a floor less
+        n -= 1
+    E = gh + (n - 1) * FLOOR_H
+    wall = wall or pick(PLASTERS, seed, 1)
+    roofmat = roofmat or pick(ROOFS, seed, 2)
+    shut = shutter or pick(SHUTTERS, seed, 4)
+    roof_w = "A" if state in ("unroofed", "ruin") else "both"
+    wall_w = "A" if state == "ruin" else "both"
+    low = (ground_low if ground_low is not None else -0.2) - 0.5
+    # the podium (what the hill shows on its low side) and the body
+    fbox(F, -W / 2, W / 2, 0.0, D, low, 0.0, "stone_dark", top=False)
+    jet = 0.45 if (n >= 2 and kind in ("row", "altana", "shop") and state == "whole" and street_half >= 2.0 and hash01(seed, 70) < 0.35) else 0.0
+    fbox(F, -W / 2, W / 2, 0.0, D, 0.0, E, wall, "both" if state != "ruin" else "A", top_mat=wall)
+    if jet:                                                                  # the upper floors hang over the street (from 3.2 m up)
+        fbox(F, -W / 2, W / 2, -jet, 0.0, gh - 0.3, E, wall, "both", top_mat=wall, sides=(1, 1, 0, 1), bottom_mat="wood")
+        for i in range(3):
+            ca = -W / 2 + W * (i + 0.5) / 3
+            fbox(F, ca - 0.12, ca + 0.12, -jet + 0.04, 0.0, gh - 0.75, gh - 0.3, "wood")
+    Fu = F.at(0.0, -jet) if jet else F
+    if state == "ruin":                                                      # B: a low wall, a heap and moss
+        fbox(F, -W / 2, W / 2, 0.0, D, 0.0, E * (0.35 + 0.3 * hash01(seed, 9)), wall, "B", top_mat="debris")
+        fcone(F, W * 0.2, D * 0.55, 0.9, E * 0.3, E * 0.3 + 1.4, "moss", "B", 5)
+    if state == "unroofed":                                                  # B: the rafters of a roof that is gone
+        for i in range(4):
+            fbox(F, -W / 2 + 0.2, W / 2 - 0.2, D * (i + 0.5) / 4 - 0.05, D * (i + 0.5) / 4 + 0.05, E, E + 0.14, "wood", "B")
+        fbox(F, -W * 0.3, W * 0.1, D * 0.4, D * 0.8, E, E + 0.35, "debris", "B")
+    # the roof
+    rise = 0.0
+    ridge = "a" if W >= 0.8 * D else "b"
+    span = D if ridge == "a" else W
+    pitch = 0.28 if kind != "cottage" else 0.42
+    if kind == "palazzetto":
+        rise = 0.2 * min(W, D)
+        roof_hip(F, 0.0 - W / 2, W / 2, 0.0, D, E, rise, 0.5, roofmat, roof_w)
+        fbox(F, -W / 2 - 0.12, W / 2 + 0.12, -0.34, 0.0, E - 0.35, E, "stone", "both", top=True)      # the cornice
+    else:
+        rise = pitch * span
+        roof_gable(F, -W / 2, W / 2, -jet, D, E, rise, ridge, 0.35 if kind == "cottage" else 0.6, 0.22, roofmat, roof_w, wall, wall_world="both" if state != "ruin" else "A")
+    # the front
+    Ff = F
+    ba = -W / 2 + 0.55
+    nb = max(2, int(round((W - 1.1) / 2.15)))
+    bw = (W - 1.1) / nb
+    bays = [-W / 2 + 0.55 + bw * (i + 0.5) for i in range(nb)]
+    dbay = {"palazzetto": nb // 2, "portico": nb // 2}.get(kind, int(hash01(seed, 5) * nb) % nb)
+    if kind == "shop":
+        dbay = 0 if hash01(seed, 6) < 0.5 else nb - 1
+    fw = wall_w
+    band(Ff, -W / 2, W / 2, -0.1, 0.65, "stone_dark", fw)                            # the plinth
+    arch_up = hash01(seed, 8) < 0.45
+    for i, a in enumerate(bays):
+        if kind == "shop" and i != dbay:
+            continue
+        if i == dbay:
+            door(Ff, a, 1.15 if kind != "cottage" else 1.0, 2.25, arch=(kind in ("palazzetto", "portico") or hash01(seed, 10) < 0.35), world=fw,
+                 lamp=hash01(seed, 11) < 0.5)
+        else:
+            window(Ff, a, 1.15, 0.8, 1.15 if kind != "palazzetto" else 1.5, False, shut if hash01(seed, 12 + i) < 0.7 else None,
+                   "window" if hash01(seed, 20 + i) < 0.4 else "stone_dark", fw)
+    for fl in range(1, n):
+        y = gh + (fl - 1) * FLOOR_H
+        if n > 1 and not jet:
+            band(Ff, -W / 2, W / 2, y - 0.12, y + 0.1, "stone", fw)               # the string course
+        for i, a in enumerate(bays):
+            tall = kind == "palazzetto" and fl == 1
+            window(Fu, a, y + 0.7, 0.88, 1.75 if tall else 1.45, arch_up or tall, shut if hash01(seed, 30 + i + 7 * fl) < 0.75 else None,
+                   "window" if hash01(seed, 40 + i + 5 * fl) < 0.4 else "stone_dark", fw)
+    if kind == "shop":                                                       # a wide arch opening, an awning (A) and a sign
+        sa = bays[nb - 1 - dbay] if nb > 1 else 0.0
+        sa = (W / 2 - 0.55 - (W - 1.1 - bw) / 2) if dbay == 0 else (-W / 2 + 0.55 + (W - 1.1 - bw) / 2)
+        sw = min(2.6, W - 2.4)
+        opening_pane(Ff, sa, sw / 2 + 0.14, -0.05, 2.2, 0.55, -0.02, "stone", fw)
+        opening_pane(Ff, sa, sw / 2, 0.0, 2.2, 0.5, -0.045, "stone_dark", fw)
+        fbox(Ff, sa - sw / 2, sa + sw / 2, -0.5, -0.1, 0.0, 0.9, "wood", fw, sides=(1, 1, 0, 1))            # the counter
+        wide = street_half >= 2.0                                           # a lane of 3 m has no posts in it and a short awning
+        awning(Ff, sa, 2.55, sw + 0.5, 1.3 if wide else 0.7, pick(AWNINGS, seed, 14), "A", wide)
+        fpanel(Ff, sa + sw / 2 - 0.4, sa + sw / 2 + 0.3, -0.1, 2.75, 3.25, "gold", fw)
+    if n >= 2 and kind in ("row", "altana", "shop", "portico", "palazzetto"):
+        if kind == "palazzetto":
+            balcony(Ff, bays[dbay], gh, 2.8, 1.0, "stone", wall_w, True, seed)
+        elif not jet and hash01(seed, 16) < 0.4:
+            ia = bays[(dbay + 1) % nb] if nb > 1 else 0.0
+            balcony(Ff, ia, gh, 1.9, 0.9, "stone", wall_w, hash01(seed, 17) < 0.6, seed)
+        elif not jet and kind in ("altana", "row") and state == "whole" and hash01(seed, 19) < 0.35 and nb > 1:
+            bay_window(Ff, bays[(dbay + 1) % nb], gh + 0.1, 1.5, 0.6, 2.4, wall, roofmat, wall_w, shut)
+    if kind in ("palazzetto",) or (kind == "shop" and hash01(seed, 18) < 0.4):
+        quoins(Ff, W, E, fw, seed)
+    if kind == "portico":                                                    # two round arches in front of the door: a covered porch
+        pw = W * 0.64
+        fbox(F, -pw / 2, pw / 2, -1.9, -1.7, 0.0, 3.4, "stone", wall_w, sides=(0, 0, 0, 0), top=False)
+        wall_with_openings(F, -pw / 2, pw / 2, -2.0, 0.45, 0.0, 3.5, [
+            {"a": -pw / 4, "w": pw / 2 - 0.9, "y_spring": 2.2, "rise": (pw / 2 - 0.9) / 2},
+            {"a": pw / 4, "w": pw / 2 - 0.9, "y_spring": 2.2, "rise": (pw / 2 - 0.9) / 2}], "stone", wall_w)
+        fbox(F, -pw / 2, pw / 2, -2.0, 0.0, 3.5, 3.72, "stone", wall_w, top_mat="paving")                  # the floor of the room above
+    # the sides and the back: a few windows, so that a stepped row does not show blank walls
+    fr = side_frames(F, W, D)
+    for key, wid, vis in (("left", D, sides[0]), ("right", D, sides[1]), ("back", W, 1 if back_free else 0)):
+        if not vis:
+            continue
+        for fl in range(n):
+            y = 1.15 if fl == 0 else gh + (fl - 1) * FLOOR_H + 0.7
+            for a in (-wid * 0.25, wid * 0.25):
+                if hash01(seed, 60 + fl + (3 if key == "left" else 5 if key == "right" else 7), int(a * 10)) < 0.88:
+                    window(fr[key], a, y, 0.8, 1.3, False, None, "stone_dark" if hash01(seed, 62 + fl) < 0.7 else "window", fw)
+    # the roof: a chimney, a dormer, an altana
+    ridge_y = E + rise
+    if kind != "cottage" and hash01(seed, 43) < 0.7:
+        chimney(F, (W * 0.28) if ridge == "a" else 0.0, D * 0.5 if ridge == "a" else D * 0.7, E + rise * 0.55, rise * 0.5 + 1.0, "chimney", roof_w)
+    elif kind == "cottage":
+        chimney(F, W * 0.25, D * 0.5, E + rise * 0.5, rise * 0.55 + 1.0, "chimney", roof_w)
+    if kind == "altana" and state == "whole":
+        altana(F, W * 0.15, D * 0.5, ridge_y - 0.1, 2.4, 2.4, roof_w, roofmat)
+    if kind in ("row", "shop", "portico") and n >= 2 and ridge == "a" and hash01(seed, 44) < 0.35 and state == "whole":
+        dormer(F, -W * 0.18, D * 0.28, E + rise * 0.28 * 1.0, 1.2, 0.9, 1.25, wall, roofmat, roof_w, shut)
+    if kind == "cottage" and street_half < 3.0:                              # in a lane: pots of flowers against the wall (not solid), nothing in the way
+        for sa in (-0.9, 0.9):
+            fcone(F, sa, -0.3, 0.45, 0.4, 1.0, "bloom", "A", 5)
+        fcone(F, 0.0, -0.3, 0.4, 0.4, 0.9, "tree", "A", 5)
+    elif kind == "cottage":                                                  # a pergola with a vine, a bench
+        for sa in (-1, 1):
+            fbox(F, sa * 1.3 - 0.07, sa * 1.3 + 0.07, -1.7, -1.56, 0.0, 3.0, "wood", wall_w)
+        fbox(F, -1.4, 1.4, -1.8, -0.1, 3.0, 3.12, "wood", wall_w)
+        fcone(F, 0.0, -0.9, 1.5, 3.1, 3.6, "tree", "A", 6)
+        fcone(F, -0.5, -0.9, 0.7, 3.2, 3.7, "bloom", "A", 5)
+        fcone(F, 1.7, -0.9, 0.6, 3.2, 3.6, "bloom", "A", 5)
+        fcone(F, 0.0, -0.9, 1.3, 3.1, 3.4, "moss", "B", 5)
+        fbox(F, -0.9, 0.9, -1.55, -1.15, 0.0, 0.45, "wood", wall_w)
+    if state != "whole" and kind != "cottage":                               # B: moss at the foot
+        fcone(F, W * 0.25, -0.3, 0.5, 0.0, 1.0, "moss", "B", 5)
+    return E, ridge_y
+
+
+# ---- small things ---------------------------------------------------------------------------------------------------------------
+
+def fdisc(Ff, a, y, r, b, mat, world="both", n=16, out=-1.0):
+    face([Ff.P(a + r * math.cos(2 * math.pi * k / n), b, y + r * math.sin(2 * math.pi * k / n)) for k in range(n)], Ff.V(0.0, out), mat, world, "overlay")
+
+
+def clock_face(Ff, a, y, r, b=0.0, world="both"):
+    """A clock on a flat wall: a gold ring, a pale face, twelve marks, two hands."""
+    fdisc(Ff, a, y, r * 1.2, b - 0.02, "gold", world)
+    fdisc(Ff, a, y, r, b - 0.04, "stone", world)
+    for k in range(12):
+        t = 2 * math.pi * k / 12
+        ca, cy = a + 0.86 * r * math.cos(t), y + 0.86 * r * math.sin(t)
+        w = 0.06 if k % 3 else 0.1
+        fpanel(Ff, ca - w, ca + w, b - 0.06, cy - w, cy + w, "iron", world)
+    for ang, ln, wd in ((math.radians(60), 0.78, 0.05), (math.radians(-100), 0.52, 0.07)):
+        ta, ty = math.cos(ang), math.sin(ang)
+        na, ny = -ty, ta
+        L = ln * r
+        face([Ff.P(a + na * wd, b - 0.07, y + ny * wd), Ff.P(a - na * wd, b - 0.07, y - ny * wd),
+              Ff.P(a + ta * L - na * wd * 0.3, b - 0.07, y + ty * L - ny * wd * 0.3), Ff.P(a + ta * L + na * wd * 0.3, b - 0.07, y + ty * L + ny * wd * 0.3)],
+             Ff.V(0.0, -1.0), "iron", world, "overlay")
+
+
+def stall(F, a, b, w=1.7, d=0.9, mat_awn="cloth", world="both"):
+    fbox(F, a - w / 2, a + w / 2, b - d / 2, b + d / 2, 0.0, 0.9, "wood", world)
+    for sa in (-1, 1):
+        fbox(F, a + sa * (w / 2 - 0.05) - 0.04, a + sa * (w / 2 - 0.05) + 0.04, b - d / 2, b - d / 2 + 0.08, 0.9, 2.5, "wood", world)
+    Fs = F.at(a, b - d / 2)
+    awning(Fs, 0.0, 2.2, w + 0.3, 0.2, mat_awn, "A")
+    for k in range(3):
+        fbox(F, a - w / 2 + 0.2 + 0.5 * k, a - w / 2 + 0.55 + 0.5 * k, b - 0.2, b + 0.2, 0.9, 1.05, "cloth2" if k % 2 else "cloth", "A")
+
+
+def barrel(F, a, b, r=0.38, h=0.95, world="both"):
+    fdrum(F, a, b, r, 0.0, h, "wood", world, 8)
+
+
+def crate(F, a, b, s=0.6, world="both"):
+    fbox(F, a - s / 2, a + s / 2, b - s / 2, b + s / 2, 0.0, s, "wood", world)
+
+
+def ramp(F, a0, a1, b0, b1, y0, y1, mat="stone", world="both", depth=0.6):
+    """A wedge, solid and walkable: its top rises from y0 at b0 to y1 at b1 (keep the slope under 24 degrees); depth: how far its
+    sides and its foot go down, so that it stands on any ground."""
+    face([F.P(a0, b0, y0), F.P(a1, b0, y0), F.P(a1, b1, y1), F.P(a0, b1, y1)], (0, 1, 0), mat, world)
+    for aa, out in ((a0, -1.0), (a1, 1.0)):
+        face([F.P(aa, b0, y0 - depth), F.P(aa, b1, y1 - depth), F.P(aa, b1, y1), F.P(aa, b0, y0)], F.V(out, 0.0), mat, world)
+    face([F.P(a0, b0, y0 - depth), F.P(a1, b0, y0 - depth), F.P(a1, b0, y0), F.P(a0, b0, y0)], F.V(0.0, -1.0), mat, world)
+
+
+# ---- the landmarks --------------------------------------------------------------------------------------------------------------
+
+def market_hall(F, W=15.0, D=9.4, state="whole", low=-0.6, enterable=True):
+    """The market hall: a covered market under an arcade of five round arches on each long side, a hall above it with arched windows,
+    a balcony and a coat of arms at the middle of the front, a hip roof with dormers and a cupola with a copper dome. The floor of the
+    market is at y = 0, two low steps round it. The front is -b."""
+    roof_w = "A" if state != "whole" else "both"
+    top_w = "A" if state != "whole" else "both"
+    fbox(F, -W / 2 - 0.9, W / 2 + 0.9, -0.9, D + 0.9, low, -0.2, "stone")
+    fbox(F, -W / 2 - 0.45, W / 2 + 0.45, -0.45, D + 0.45, low, -0.0, "stone", top_mat="paving")
+    fbox(F, -W / 2, W / 2, 0.0, D, low, 0.0, "stone", top=False)
+    pier, nop = 0.83, 5
+    aw = (W - pier * (nop + 1)) / nop
+    ops = [{"a": -W / 2 + pier + aw / 2 + i * (aw + pier), "w": aw, "y_spring": 2.7, "rise": aw / 2} for i in range(nop)]
+    wall_with_openings(F, -W / 2, W / 2, 0.0, 0.7, 0.0, 4.4, ops, "stone", "both")
+    Fb = Frame(*F.P(0, D, 0)[::2], -F.a, -F.b, F.y0)
+    wall_with_openings(Fb, -W / 2, W / 2, 0.0, 0.7, 0.0, 4.4, ops, "stone", "both")
+    for sgn in (-1, 1):                                                       # the ends: a wall (with a door when the market can be entered)
+        G = Frame(*F.P(sgn * W / 2 - (0.7 if sgn > 0 else 0.0), 0, 0)[::2], F.b, F.a, F.y0)
+        wall_with_openings(G, 0.0, D, 0.0, 0.7, 0.0, 4.4, [{"a": D / 2, "w": 1.9, "y_spring": 2.4, "rise": 0.95}] if enterable else [], "stone", "both")
+    fbox(F, -W / 2, W / 2, 0.0, D, 4.4, 4.9, "stone", top_mat="plaster3", bottom_mat="plaster3")      # the floor of the hall above
+    if enterable:
+        for i in range(4):                                                    # the piers inside
+            for bb in (D / 3, 2 * D / 3):
+                a = -W / 2 + (i + 1) * W / 5
+                fbox(F, a - 0.38, a + 0.38, bb - 0.38, bb + 0.38, 0.0, 4.1, "stone")
+                fbox(F, a - 0.55, a + 0.55, bb - 0.55, bb + 0.55, 4.1, 4.4, "stone")
+        face([F.P(-W / 2 + 0.7, 0.7, 0.03), F.P(W / 2 - 0.7, 0.7, 0.03), F.P(W / 2 - 0.7, D - 0.7, 0.03), F.P(-W / 2 + 0.7, D - 0.7, 0.03)],
+             (0, 1, 0), "paving", "both", "overlay")
+        for k, (a, bb) in enumerate(((-5.2, 2.2), (-2.4, 2.2), (2.4, 2.2), (5.2, 2.2), (-5.2, D - 2.2), (-2.4, D - 2.2), (2.4, D - 2.2), (5.2, D - 2.2))):
+            if k % 2 == 0:
+                stall(F, a, bb, 1.7, 0.9, "cloth" if k % 4 == 0 else "cloth2")
+            else:
+                barrel(F, a, bb)
+                crate(F, a + 0.7, bb - 0.2)
+    else:                                                                     # shop fronts 0.9 m behind the arches: a door, a window, a stall
+        for FF in (F, Fb):
+            fbox(FF, -W / 2 + 0.7, W / 2 - 0.7, 1.6, 2.0, 0.0, 4.4, "plaster1", "both", top=False, sides=(1, 0, 0, 0))
+            Fs = FF.at(0.0, 1.6)
+            for j, o in enumerate(ops):
+                if j % 2 == 0:
+                    door(Fs, o["a"], 1.0, 2.1, True, "door", "both", False, 0.0, True)
+                else:
+                    window(Fs, o["a"], 0.9, 1.0, 1.5, True, "shutter2", "window", "both", True, 0.0)
+                    fbox(Fs, o["a"] - 0.6, o["a"] + 0.6, -0.5, -0.1, 0.0, 0.85, "wood", "both", sides=(1, 1, 0, 1))
+                awning(Fs, o["a"], 2.35, aw * 0.9, 0.5, AWNINGS[j % 3], "A", False)
+    # the hall above
+    Fh = F.at(0.0, 0.25, 0.0)
+    Wh, Dh = W - 0.5, D - 0.5
+    fbox(Fh, -Wh / 2, Wh / 2, 0.0, Dh, 4.9, 10.0, "plaster3", "both", top_mat="plaster3")
+    fr = side_frames(Fh, Wh, Dh)
+    for key, wid in (("front", Wh), ("back", Wh)):
+        Ff = fr[key]
+        band(Ff, -wid / 2, wid / 2, 4.9, 5.15, "stone")
+        for i in range(5):
+            a = -wid / 2 + (i + 0.5) * wid / 5
+            if key == "front" and i == 2:
+                window(Ff, a, 5.3, 1.3, 3.1, True, None, "window", "both", False, 0.0)
+                balcony(Ff, a, 5.25, 3.0, 1.1, "stone", "both", False)
+                fdisc(Ff, a, 9.0, 0.55, 0.0, "gold")
+                fdisc(Ff, a, 9.0, 0.38, -0.02, "cloth")
+            else:
+                window(Ff, a, 5.6, 1.05, 2.5, True, "shutter", "window", "both", True, 0.0)
+            if i < 4:
+                a2 = a + wid / 10
+                fpanel(Ff, a2 - 0.17, a2 + 0.17, -0.03, 5.15, 9.7, "stone")
+        for sg in (-1, 1):
+            fpanel(Ff, sg * (wid / 2 - 0.25) - 0.2, sg * (wid / 2 - 0.25) + 0.2, -0.03, 5.15, 9.7, "stone")
+    for key in ("left", "right"):
+        for k in range(2):
+            window(fr[key], (-0.25 + 0.5 * k) * Dh * 0.5, 5.6, 1.0, 2.4, True, "shutter", "window", "both", True, 0.0)
+    fbox(F, -W / 2 + 0.25 - 0.4, W / 2 - 0.25 + 0.4, -0.4 + 0.25, D + 0.4 - 0.25, 9.7, 10.0, "stone")       # the cornice
+    roof_hip(F, -W / 2 + 0.25, W / 2 - 0.25, 0.25, D - 0.25, 10.0, 3.2, 0.8, "roof", roof_w)
+    slope = 3.2 / ((D - 0.5) / 2)
+    for a in (-4.2, 4.2):
+        dormer(F, a, 1.15, 10.0 + slope * 0.9, 1.3, 1.0, 1.3, "plaster3", "roof2", roof_w, "shutter")
+        Fbk = Frame(*F.P(0, D, 0)[::2], -F.a, -F.b, F.y0)
+        dormer(Fbk, -a, 1.15, 10.0 + slope * 0.9, 1.3, 1.0, 1.3, "plaster3", "roof2", roof_w, "shutter")
+    # the cupola on the ridge
+    cb, cy = D / 2, 10.0 + 3.2
+    fdrum(F, 0.0, cb, 1.35, cy - 0.1, cy + 1.7, "plaster3", top_w, 8, "stone")
+    for k in range(8):
+        t = 2 * math.pi * (k + 0.5) / 8
+        Fk = Frame(F.P(1.34 * math.cos(t), cb + 1.34 * math.sin(t))[0], F.P(1.34 * math.cos(t), cb + 1.34 * math.sin(t))[2], (-math.sin(t) * F.a + math.cos(t) * F.b), (-math.cos(t) * F.a - math.sin(t) * F.b), F.y0 + cy)
+        if k % 2 == 0:
+            window(Fk, 0.0, 0.35, 0.5, 1.1, True, None, "window", top_w, False, 0.0)
+    fdrum(F, 0.0, cb, 1.55, cy + 1.7, cy + 1.95, "stone", top_w, 8)
+    fdome(F, 0.0, cb, 1.5, cy + 1.95, "copper", top_w, 8, 3)
+    fdrum(F, 0.0, cb, 0.2, cy + 3.4, cy + 4.0, "gold", top_w, 6)
+    if state != "whole":                                                      # B: the roof is gone: rafters, a fallen heap in the market
+        for i in range(6):
+            fbox(F, -W / 2 + 0.5, W / 2 - 0.5, 0.6 + (D - 1.2) * i / 5 - 0.06, 0.6 + (D - 1.2) * i / 5 + 0.06, 10.0, 10.16, "wood", "B")
+        fbox(F, -2.5, 1.5, D * 0.35, D * 0.65, 0.0, 0.5, "debris", "B")
+        fbox(F, -1.5, 0.3, D * 0.4, D * 0.55, 0.5, 0.9, "wood", "B")
+
+
+def clock_tower(F, W=5.6, state="whole", low=-0.6, passage=True):
+    """The clock tower: a stone base with a round arch through it (the street runs under it, along b), a shaft with a niche, a clock on
+    each side, a balcony, a belfry with an open arch on each side and a bell, a copper pyramid roof with four pinnacles. About 29 m."""
+    D = W
+    top_w = "A" if state != "whole" else "both"
+    if passage:
+        wall_with_openings(F, -W / 2, W / 2, 0.0, D, low, 4.8, [{"a": 0.0, "w": 2.8, "y_spring": 2.7, "rise": 1.4}], "stone", "both", "stone")
+    else:                                                                     # a solid base with a blind arch: no way in that is not a way
+        fbox(F, -W / 2, W / 2, 0.0, D, low, 4.8, "stone", "both", top_mat="stone")
+        for FF in side_frames(F, W, D).values():
+            opening_pane(FF, 0.0, 1.2, 0.0, 2.4, 1.0, -0.03, "stone_dark", "both")
+            opening_pane(FF, 0.0, 1.0, 0.0, 2.3, 0.85, -0.05, "door", "both")
+    fr0 = side_frames(F, W, D)
+    for key in ("front", "back", "left", "right"):
+        for i in range(1, 5):
+            y = 0.95 * i
+            if key in ("front", "back"):                                          # not across the arch
+                if y < 4.1:
+                    band(fr0[key], -W / 2, -1.55 if y < 2.7 else -1.45 + 0.0, y - 0.06, y + 0.06, "stone_dark")
+                    band(fr0[key], 1.55 if y < 2.7 else 1.45, W / 2, y - 0.06, y + 0.06, "stone_dark")
+                else:
+                    band(fr0[key], -W / 2, W / 2, y - 0.06, y + 0.06, "stone_dark")
+            else:
+                band(fr0[key], -W / 2, W / 2, y - 0.06, y + 0.06, "stone_dark")
+    fbox(F, -W / 2 - 0.15, W / 2 + 0.15, -0.15, D + 0.15, 4.8, 5.1, "stone")             # a cornice over the base
+    if passage:
+        face([F.P(-1.35, 0.0, 0.04), F.P(1.35, 0.0, 0.04), F.P(1.35, D, 0.04), F.P(-1.35, D, 0.04)], (0, 1, 0), "paving", "both", "overlay")
+    fbox(F, -W / 2, W / 2, 0.0, D, 5.1, 9.6, "plaster3")
+    fr1 = side_frames(F, W, D)
+    for key in ("front", "back", "left", "right"):
+        Ff = fr1[key]
+        opening_pane(Ff, 0.0, 0.6, 5.9, 8.0, 0.6, -0.03, "stone", "both")                  # a niche with a figure
+        opening_pane(Ff, 0.0, 0.5, 6.0, 7.9, 0.5, -0.05, "stone_dark", "both")
+        fbox(Ff, -0.14, 0.14, -0.1, 0.0, 6.0, 7.2, "gold", "both", top=False)
+        window(Ff, -1.7, 6.1, 0.5, 1.4, True, "shutter", "window", "both", False, 0.0)
+        window(Ff, 1.7, 6.1, 0.5, 1.4, True, "shutter", "window", "both", False, 0.0)
+    fbox(F, -W / 2 - 0.2, W / 2 + 0.2, -0.2, D + 0.2, 9.6, 9.95, "stone")
+    fbox(F, -W / 2 + 0.25, W / 2 - 0.25, 0.25, D - 0.25, 9.95, 15.0, "plaster1")
+    Fc = F.at(0.0, 0.25)
+    fr2 = side_frames(Fc, W - 0.5, D - 0.5)
+    for key in ("front", "back", "left", "right"):
+        clock_face(fr2[key], 0.0, 12.4, 1.25, 0.0, "both")
+        for sg in (-1, 1):
+            fpanel(fr2[key], sg * 2.35 - 0.12, sg * 2.35 + 0.12, -0.03, 10.0, 14.6, "stone")
+    fbox(F, -W / 2 - 0.55, W / 2 + 0.55, -0.55, D + 0.55, 15.0, 15.3, "stone")           # the balcony
+    for (a0, a1, b0, b1) in ((-W / 2 - 0.55, W / 2 + 0.55, -0.55, -0.3), (-W / 2 - 0.55, W / 2 + 0.55, D + 0.3, D + 0.55),
+                             (-W / 2 - 0.55, -W / 2 - 0.3, -0.3, D + 0.3), (W / 2 + 0.3, W / 2 + 0.55, -0.3, D + 0.3)):
+        fbox(F, a0, a1, b0, b1, 15.3, 16.2, "stone", "both", top_mat="stone")
+    fbox(F, -W / 2 + 0.3, W / 2 - 0.3, 0.3, D - 0.3, 15.3, 16.2, "plaster3")
+    # the belfry: four walls with two open arches each, a bell inside
+    Fb = F.at(0.0, 0.3)
+    Wb, Db = W - 0.6, D - 0.6
+    ops = [{"a": -Wb * 0.24, "w": 1.15, "y_bot": 16.9 - 16.2, "y_spring": 19.0 - 16.2, "rise": 0.57}, {"a": Wb * 0.24, "w": 1.15, "y_bot": 16.9 - 16.2, "y_spring": 19.0 - 16.2, "rise": 0.57}]
+    Fb0 = Frame(*Fb.P(0, 0, 0)[::2], Fb.a, Fb.b, Fb.y0 + 16.2)
+    frs = side_frames(Fb0, Wb, Db)
+    wall_with_openings(frs["front"], -Wb / 2, Wb / 2, 0.0, 0.5, 0.0, 4.6, ops, "plaster3", "both")
+    wall_with_openings(frs["back"], -Wb / 2, Wb / 2, 0.0, 0.5, 0.0, 4.6, ops, "plaster3", "both")
+    ops2 = [{"a": 0.0, "w": 1.15, "y_bot": 0.7, "y_spring": 2.8, "rise": 0.57}]
+    wall_with_openings(frs["left"], -Db / 2 + 0.5, Db / 2 - 0.5, 0.0, 0.5, 0.0, 4.6, ops2, "plaster3", "both")
+    wall_with_openings(frs["right"], -Db / 2 + 0.5, Db / 2 - 0.5, 0.0, 0.5, 0.0, 4.6, ops2, "plaster3", "both")
+    fbox(F, -W / 2 + 0.3, W / 2 - 0.3, 0.3, D - 0.3, 16.2, 16.3, "wood", top=True)
+    fcone(F, 0.0, D / 2, 0.75, 16.8, 18.4, "gold", "both", 8)
+    fbox(F, -Wb / 2 + 0.5, Wb / 2 - 0.5, D / 2 - 0.08, D / 2 + 0.08, 18.5, 18.7, "wood", "both")
+    fbox(F, -W / 2 - 0.1, W / 2 + 0.1, -0.1, D + 0.1, 20.8, 21.15, "stone")
+    fbox(F, -W / 2 - 0.3, W / 2 + 0.3, -0.3, D + 0.3, 21.15, 21.4, "stone")
+    roof_pyramid(F, -W / 2 - 0.2, W / 2 + 0.2, -0.2, D + 0.2, 21.4, 6.2, 0.2, "copper", top_w)
+    for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1)):                          # four pinnacles
+        a, b = sa * (W / 2 + 0.05), (D / 2 + sb * (D / 2 + 0.05))
+        fbox(F, a - 0.28, a + 0.28, b - 0.28, b + 0.28, 21.4, 22.4, "stone")
+        roof_pyramid(F, a - 0.28, a + 0.28, b - 0.28, b + 0.28, 22.4, 0.9, 0.05, "copper", top_w)
+    fdrum(F, 0.0, D / 2, 0.55, 27.4, 28.4, "plaster3", top_w, 8)
+    fdrum(F, 0.0, D / 2, 0.45, 28.4, 29.0, "gold", top_w, 8)
+    fbox(F, -0.03, 0.03, D / 2 - 0.5, D / 2 + 0.5, 29.0, 30.2, "iron", top_w)
+    if state != "whole":
+        fbox(F, -W / 2 + 0.3, W / 2 - 0.3, 0.3, D - 0.3, 20.7, 20.9, "debris", "B", sides=(0, 0, 0, 0))
+
+
+def water_tower(F, r=3.4, state="whole", low=-0.6):
+    """The water tower: a twelve-sided stone drum with buttresses and blind arches, a gallery, a tank house with iron hoops, an open belfry
+    with a bell, a conical roof. The door is on the -b side. About 21 m. The centre is the origin."""
+    top_w = "A" if state != "whole" else "both"
+    n = 12
+    fdrum(F, 0, 0, r + 0.65, low, 0.55, "stone_dark", "both", n, "stone")
+    fdrum(F, 0, 0, r, 0.55, 9.0, "stone", "both", n, "stone")
+    apo = r * math.cos(math.pi / n)
+    for k in range(n):
+        t = 2 * math.pi * k / n + math.pi / n * 0.0
+        ca, cb = (apo + 0.03) * math.cos(t + math.pi / n), (apo + 0.03) * math.sin(t + math.pi / n)
+        # blind arches on each of the twelve faces: a frame turned to face outward
+        Fk = Frame(F.P(ca, cb, 0)[0], F.P(ca, cb, 0)[2], (-math.sin(t + math.pi / n) * F.a + math.cos(t + math.pi / n) * F.b),
+                   (-math.cos(t + math.pi / n) * F.a - math.sin(t + math.pi / n) * F.b), F.y0)
+        opening_pane(Fk, 0.0, 0.45, 2.6, 6.2, 0.45, 0.0, "stone_dark", "both")
+        band(Fk, -0.85, 0.85, 8.4, 8.7, "stone_dark")
+    for k in range(6):                                                        # six buttresses, 0.4 m deep at the foot
+        t = 2 * math.pi * (k + 0.5) / 6
+        ca, cb = r * 0.97 * math.cos(t), r * 0.97 * math.sin(t)
+        pts = [(ca + 0.55 * math.sin(t) + 0.0, cb - 0.55 * math.cos(t)), (ca - 0.55 * math.sin(t), cb + 0.55 * math.cos(t)),
+               (ca - 0.55 * math.sin(t) + 0.4 * math.cos(t), cb + 0.55 * math.cos(t) + 0.4 * math.sin(t)),
+               (ca + 0.55 * math.sin(t) + 0.4 * math.cos(t), cb - 0.55 * math.cos(t) + 0.4 * math.sin(t))]
+        fprism(F, pts, 0.55, 7.6, "stone", "both", "stone")
+    # the door on the -b side
+    apo_door = apo
+    Fd = Frame(F.P(0, -apo_door - 0.03, 0)[0], F.P(0, -apo_door - 0.03, 0)[2], F.a, F.b, F.y0)
+    door(Fd, 0.0, 1.3, 2.5, True, "door", "both", True, 0.0, True)
+    fbox(F, -0.1, 0.1, -apo_door - 0.5, -apo_door - 0.05, 3.4, 3.7, "stone")
+    # the gallery
+    fdrum(F, 0, 0, r + 0.95, 9.0, 9.3, "stone", "both", n, "paving")
+    ring_o, ring_i = r + 0.95, r + 0.7
+    for k in range(n):
+        t0, t1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+        pts = [(ring_o * math.cos(t0), ring_o * math.sin(t0)), (ring_o * math.cos(t1), ring_o * math.sin(t1)),
+               (ring_i * math.cos(t1), ring_i * math.sin(t1)), (ring_i * math.cos(t0), ring_i * math.sin(t0))]
+        fprism(F, pts, 9.3, 10.2, "stone", "both", "stone")
+    fdrum(F, 0, 0, r + 0.1, 9.3, 14.0, "plaster2", "both", n, "stone")
+    for hy in (10.2, 12.6):
+        fdrum(F, 0, 0, r + 0.2, hy, hy + 0.14, "iron", "both", n)
+    for k in range(6):
+        t = 2 * math.pi * (k + 0.5) / 6
+        apo2 = (r + 0.1) * math.cos(math.pi / n)
+        ca, cb = (apo2 + 0.03) * math.cos(t), (apo2 + 0.03) * math.sin(t)
+        Fk = Frame(F.P(ca, cb, 0)[0], F.P(ca, cb, 0)[2], (-math.sin(t) * F.a + math.cos(t) * F.b), (-math.cos(t) * F.a - math.sin(t) * F.b), F.y0)
+        window(Fk, 0.0, 11.0, 0.35, 1.2, False, None, "window", "both", False, 0.0)
+    # the open belfry: six piers and a ring
+    fdrum(F, 0, 0, r + 0.25, 14.0, 14.3, "stone", "both", n, "stone")
+    for k in range(6):
+        t = 2 * math.pi * k / 6
+        ca, cb = (r - 0.15) * math.cos(t), (r - 0.15) * math.sin(t)
+        fbox(F, ca - 0.35, ca + 0.35, cb - 0.35, cb + 0.35, 14.3, 17.2, "stone")
+    fdrum(F, 0, 0, r + 0.2, 17.2, 17.7, "stone", "both", n, "stone")
+    fcone(F, 0, 0, 0.8, 15.2, 16.9, "gold", "both", 8)
+    fbox(F, -r + 0.4, r - 0.4, -0.08, 0.08, 17.0, 17.12, "wood", "both")
+    fcone(F, 0, 0, r + 0.9, 17.7, 21.8, "roof", top_w, n)
+    fdrum(F, 0, 0, 0.35, 21.8, 22.5, "gold", top_w, 6)
+
+
+def aqueduct(F, length=30.0, h=7.0, w=1.7, span=3.0, state="whole"):
+    """An aqueduct along a: arches of `span` on piers, a stone channel on top (water in A). The channel is at y = h."""
+    n = max(2, int(length // (span + 1.0)))
+    pier = (length - n * span) / (n + 1)
+    ops = [{"a": pier + span / 2 + i * (span + pier), "w": span, "y_spring": h - 1.5 - span / 2, "rise": span / 2} for i in range(n)]
+    wall_with_openings(F, 0.0, length, 0.0, w, 0.0, h, ops, "stone", "both")
+    fbox(F, -0.1, length + 0.1, -0.15, w + 0.15, h, h + 0.9, "stone", "both", top=False)
+    face([F.P(0.1, 0.12, h + 0.72), F.P(length - 0.1, 0.12, h + 0.72), F.P(length - 0.1, w - 0.12, h + 0.72), F.P(0.1, w - 0.12, h + 0.72)],
+         (0, 1, 0), "water", "A", "water")
+    face([F.P(0.0, 0.0, h + 0.9), F.P(length, 0.0, h + 0.9), F.P(length, w, h + 0.9), F.P(0.0, w, h + 0.9)], (0, 1, 0), "stone", "both")
+
+
+def chapel(F, W=5.4, D=8.2, state="whole", low=-0.5):
+    """A chapel that can be entered: a nave with a round-arched door, a rose window, a bell gable with a bell, buttresses, arched windows,
+    a half-round apse, an altar, benches. The front is -b. In B the roof is gone."""
+    roof_w = "A" if state != "whole" else "both"
+    t = 0.5
+    E = 5.8
+    ramp(F, -0.95, 0.95, -2.2, 0.0, -0.5, 0.0, "stone")                                                  # the way in: a ramp of 13 degrees
+    fbox(F, -W / 2 + t, W / 2 - t, t, D, low, 0.0, "paving", "both")                                      # a solid floor, over any ground
+    fprism(F, [(ro_ * math.cos(a_), D + ro_ * math.sin(a_)) for a_ in np.linspace(0.0, math.pi, 13) for ro_ in (W / 2 - t,)], low, 0.0, "paving")
+    wall_with_openings(F, -W / 2, W / 2, 0.0, t, low, E, [{"a": 0.0, "w": 1.5, "y_spring": 2.2, "rise": 0.75}], "plaster3", "both")
+    fbox(F, -W / 2, -W / 2 + t, t, D, low, E, "plaster3")
+    fbox(F, W / 2 - t, W / 2, t, D, low, E, "plaster3")
+    for sg in (-1, 1):
+        Fs = Frame(*F.P(sg * W / 2, D / 2, 0)[::2], F.b if sg > 0 else -F.b, -F.a * sg, F.y0)
+        for bb in (2.4, 4.3, 6.2):
+            a_loc = (bb - D / 2) * (1 if sg > 0 else -1)
+            window(Fs, a_loc, 1.6, 0.8, 2.3, True, None, "window", "both", False, 0.0)
+        for bb in (1.2, 3.35, 5.25, 7.0):                                             # buttresses, 0.35 deep
+            fbox(F, sg * (W / 2 + 0.17) - 0.17, sg * (W / 2 + 0.17) + 0.17, bb - 0.2, bb + 0.2, 0.0, 4.9, "stone")
+    # the apse: half of a twelve-gon behind the nave
+    ro, ri = W / 2, W / 2 - t
+    seg = 6
+    for k in range(seg):
+        t0, t1 = math.pi * k / seg, math.pi * (k + 1) / seg
+        pts = [(ro * math.cos(t0), D + ro * math.sin(t0)), (ro * math.cos(t1), D + ro * math.sin(t1)),
+               (ri * math.cos(t1), D + ri * math.sin(t1)), (ri * math.cos(t0), D + ri * math.sin(t0))]
+        fprism(F, pts, low, E, "plaster3", "both", "plaster3")
+    for k in range(seg):
+        t0, t1 = math.pi * k / seg, math.pi * (k + 1) / seg
+        tm = 0.5 * (t0 + t1)
+        if k in (1, 3):
+            ca, cb = (ro + 0.03) * math.cos(tm), D + (ro + 0.03) * math.sin(tm)
+            Fk = Frame(F.P(ca, cb, 0)[0], F.P(ca, cb, 0)[2], (-math.sin(tm) * F.a + math.cos(tm) * F.b), (-math.cos(tm) * F.a - math.sin(tm) * F.b), F.y0)
+            window(Fk, 0.0, 1.7, 0.6, 2.2, True, None, "window", "both", False, 0.0)
+    # the roof: a gable with the ridge along b, a half-cone over the apse; the bell gable at the front
+    roof_gable(F, -W / 2, W / 2, 0.0, D, E, 1.7, "b", 0.5, 0.3, "roof2", roof_w, "plaster3", wall_world="both")
+    for k in range(seg):
+        t0, t1 = math.pi * k / seg, math.pi * (k + 1) / seg
+        r2 = ro + 0.45
+        face([F.P(r2 * math.cos(t0), D + r2 * math.sin(t0), E - 0.3), F.P(r2 * math.cos(t1), D + r2 * math.sin(t1), E - 0.3), F.P(0, D, E + 1.7)],
+             F.V(math.cos((t0 + t1) / 2), math.sin((t0 + t1) / 2), 0.9), "roof2", roof_w)
+    wall_with_openings(F, -0.9, 0.9, 0.0, t, E, E + 3.2, [{"a": 0.0, "w": 0.9, "y_bot": E + 1.0, "y_spring": E + 2.4, "rise": 0.45}], "plaster3", "both")
+    roof_gable(F, -0.9, 0.9, 0.0, t, E + 3.2, 0.5, "a", 0.15, 0.1, "roof2", "both", "plaster3")
+    fcone(F, 0.0, t / 2, 0.28, E + 1.2, E + 2.0, "gold", "both", 6)
+    fdisc(F, 0.0, 4.2, 0.75, -0.03, "stone", "both", 16)                                   # the rose window
+    fdisc(F, 0.0, 4.2, 0.62, -0.05, "window", "both", 16)
+    for k in range(8):
+        tt = math.pi * k / 8
+        fpanel(F, -0.02 + 0.6 * math.cos(tt) * 0, 0.02, -0.07, 4.2 - 0.62, 4.2 + 0.62, "stone", "both") if k == 0 else None
+    fpanel(F, -0.62, 0.62, -0.07, 4.17, 4.23, "stone", "both")
+    # the ceiling (A), an altar, benches, a candle
+    fbox(F, -W / 2 + t, W / 2 - t, t, D, E - 0.2, E, "wood", "A", top=False, bottom_mat="plaster3")
+    fbox(F, -0.9, 0.9, D + 0.5, D + 1.3, 0.0, 1.0, "stone", "both", top_mat="paving")
+    fbox(F, -0.1, 0.1, D + 0.8, D + 1.0, 1.0, 1.9, "gold", "both")
+    fbox(F, -0.5, 0.5, D + 0.8, D + 1.0, 1.45, 1.6, "gold", "both")
+    for k in range(3):
+        for sg in (-1, 1):
+            fbox(F, sg * 0.5 + (0 if sg > 0 else -1.5), sg * 0.5 + (1.5 if sg > 0 else 0), 1.6 + 1.6 * k, 2.0 + 1.6 * k, 0.0, 0.5, "wood", "both" if state == "whole" else "A")
+            if state != "whole":
+                fbox(F, sg * 0.5 + (0 if sg > 0 else -0.9), sg * 0.5 + (0.9 if sg > 0 else 0), 1.6 + 1.6 * k, 2.0 + 1.6 * k, 0.0, 0.2, "debris", "B")
+    face([F.P(-0.35, 0.6, 0.03), F.P(0.35, 0.6, 0.03), F.P(0.35, D, 0.03), F.P(-0.35, D, 0.03)], (0, 1, 0), "cloth", "A", "overlay")
+    fdrum(F, 0.0, D + 0.9, 0.12, 1.9, 2.3, "lantern", "both", 6)
+    if state != "whole":
+        fbox(F, -W / 2 + t + 0.1, -W / 2 + 1.8, D - 2.2, D - 0.4, 0.0, 0.9, "debris", "B")
+        fcone(F, W * 0.15, D * 0.5, 0.9, 0.0, 1.2, "moss", "B", 5)
+
+
+def dogana(F, W=26.0, D=9.0, state="whole"):
+    """The customs house on the quay: a hall under an arcade of seven round arches on the quay side, a floor above with pedimented
+    windows, a taller middle with a gable and a coat of arms, a hip roof with a copper cupola. The quay is -b. Crates, barrels and a
+    hand crane stand in front. The floor of the hall is at y = 0."""
+    roof_w = "A" if state != "whole" else "both"
+    n = 7
+    pier = 1.0
+    aw = (W - pier * (n + 1)) / n
+    ops = [{"a": -W / 2 + pier + aw / 2 + i * (aw + pier), "w": aw, "y_spring": 3.0, "rise": aw / 2} for i in range(n)]
+    fbox(F, -W / 2 - 0.6, W / 2 + 0.6, -0.9, D + 0.3, -0.6, -0.0, "stone", top_mat="paving")
+    wall_with_openings(F, -W / 2, W / 2, 0.0, 0.8, 0.0, 4.8, ops, "stone", "both")
+    Fb = Frame(*F.P(0, D, 0)[::2], -F.a, -F.b, F.y0)
+    wall_with_openings(Fb, -W / 2, W / 2, 0.0, 0.7, 0.0, 4.8, [{"a": -W * 0.22, "w": 2.0, "y_spring": 2.6, "rise": 1.0}, {"a": W * 0.22, "w": 2.0, "y_spring": 2.6, "rise": 1.0}], "plaster1", "both")
+    for sgn in (-1, 1):
+        G = Frame(*F.P(sgn * W / 2 - (0.7 if sgn > 0 else 0.0), 0, 0)[::2], F.b, F.a, F.y0)
+        wall_with_openings(G, 0.0, D, 0.0, 0.7, 0.0, 4.8, [{"a": D / 2, "w": 2.0, "y_spring": 2.6, "rise": 1.0}], "plaster1", "both")
+    fbox(F, -W / 2, W / 2, 0.0, D, 4.8, 5.3, "stone", top_mat="plaster1", bottom_mat="plaster1")
+    for i in range(6):
+        a = -W / 2 + (i + 1) * W / 7
+        fbox(F, a - 0.4, a + 0.4, D / 2 - 0.4, D / 2 + 0.4, 0.0, 4.8, "stone")
+    face([F.P(-W / 2 + 0.8, 0.8, 0.03), F.P(W / 2 - 0.8, 0.8, 0.03), F.P(W / 2 - 0.8, D - 0.7, 0.03), F.P(-W / 2 + 0.8, D - 0.7, 0.03)], (0, 1, 0), "paving", "both", "overlay")
+    # the floor above
+    fbox(F, -W / 2 + 0.1, W / 2 - 0.1, 0.1, D - 0.1, 5.3, 10.4, "plaster1")
+    Fh = F.at(0.0, 0.1)
+    fr = side_frames(Fh, W - 0.2, D - 0.2)
+    Ff = fr["front"]
+    band(Ff, -W / 2, W / 2, 5.3, 5.6, "stone")
+    for i in range(n):
+        a = -W / 2 + pier + aw / 2 + i * (aw + pier)
+        window(Ff, a, 6.0, 1.1, 2.4, i % 2 == 1, "shutter", "window", "both", True, 0.0)
+        tri = [(a - 0.8, -0.04, 8.55), (a + 0.8, -0.04, 8.55), (a, -0.04, 9.15)]
+        if i % 2 == 0:
+            fpoly(Ff, tri, "stone", "both")
+        else:
+            opening_pane(Ff, a, 0.8, 8.4, 8.4, 0.4, -0.04, "stone", "both")
+        fpanel(Ff, a - 0.15 - (aw + pier) / 2 + 0.05, a + 0.15 - (aw + pier) / 2 + 0.05, -0.03, 5.6, 10.0, "stone") if i == 0 else None
+        fpanel(Ff, a + (aw + pier) / 2 - 0.15, a + (aw + pier) / 2 + 0.15, -0.03, 5.6, 10.0, "stone")
+    fbox(F, -W / 2 + 0.1 - 0.4, W / 2 - 0.1 + 0.4, 0.1 - 0.4, D - 0.1 + 0.3, 10.0, 10.4, "stone")
+    balcony(Ff, 0.0, 5.7, 4.2, 1.2, "stone", "both", False)
+    fdisc(Ff, 0.0, 9.3, 0.7, -0.03, "gold")
+    fdisc(Ff, 0.0, 9.3, 0.5, -0.05, "cloth")
+    for key in ("left", "right"):
+        for k in range(2):
+            window(fr[key], (-0.2 + 0.4 * k) * D * 0.5, 6.0, 1.0, 2.2, True, "shutter", "window", "both", True, 0.0)
+    roof_hip(F, -W / 2 + 0.1, W / 2 - 0.1, 0.1, D - 0.1, 10.4, 3.0, 0.8, "roof", roof_w)
+    # the middle: a gable with a pediment toward the quay
+    fbox(F, -3.6, 3.6, -0.45, 0.1, 5.3, 10.4, "plaster1", "both", top=False)
+    roof_gable(F, -3.6, 3.6, -0.45, 3.6, 10.4, 2.4, "b", 0.5, 0.3, "roof2", roof_w, "plaster1")
+    cb, cy = D / 2, 10.4 + 3.0
+    fdrum(F, 0.0, cb, 1.2, cy - 0.2, cy + 1.4, "plaster3", roof_w, 8, "stone")
+    fdome(F, 0.0, cb, 1.3, cy + 1.4, "copper", roof_w, 8, 3)
+    fdrum(F, 0.0, cb, 0.18, cy + 2.7, cy + 3.3, "gold", roof_w, 6)
+    for a in (-8.0, 8.0):
+        chimney(F, a, D * 0.5, 10.4 + 1.2, 2.0, "chimney", roof_w)
+    # on the quay: crates, barrels, bollards, a hand crane
+    for k, (a, b) in enumerate(((-10.5, -2.0), (-9.7, -2.3), (-10.1, -1.4), (6.0, -2.2), (7.1, -2.0), (6.6, -1.3), (-3.2, -2.6), (3.5, -2.5))):
+        if k % 3 == 0:
+            barrel(F, a, b)
+        else:
+            crate(F, a, b, 0.7)
+    for a in (-12.0, -6.0, 0.0, 6.0, 12.0):
+        fdrum(F, a, -3.6, 0.14, 0.0, 0.5, "iron", "both", 6)
+    fbox(F, 9.6, 9.9, -2.6, -2.3, 0.0, 4.2, "wood")
+    fbox(F, 9.6, 9.9, -2.6, -0.8, 4.0, 4.3, "wood")
+    rope = [F.P(9.75, -1.0, 4.0), F.P(9.75, -1.0, 2.2)]
+    face([rope[0], rope[1], (rope[1][0] + 0.03, rope[1][1], rope[1][2]), (rope[0][0] + 0.03, rope[0][1], rope[0][2])], (1, 0, 0), "cloth2", "A", "overlay")
+    if state != "whole":
+        for i in range(6):
+            fbox(F, -W / 2 + 0.5, W / 2 - 0.5, 0.6 + (D - 1.2) * i / 5 - 0.06, 0.6 + (D - 1.2) * i / 5 + 0.06, 10.4, 10.56, "wood", "B")
+
+
+# ---- rows: houses along the edge of a street -----------------------------------------------------------------------------------
+
+def curve_lengths(c):
+    c = np.asarray(c, float)
+    return np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(c, axis=0), axis=1))]
+
+
+def curve_at(c, s):
+    """The point and the unit direction of a polyline at the distance s from its start."""
+    c = np.asarray(c, float)
+    d = curve_lengths(c)
+    s = float(np.clip(s, 0.0, d[-1]))
+    i = int(np.clip(np.searchsorted(d, s) - 1, 0, len(c) - 2))
+    u = (s - d[i]) / max(d[i + 1] - d[i], 1e-9)
+    v = c[i + 1] - c[i]
+    return c[i] + u * v, v / max(float(np.linalg.norm(v)), 1e-9)
+
+
+DENSITY = {
+    # what a front is made of: weights of the kinds, the chance of a third floor, how far a house may step with the slope
+    "hub": {"row": 3, "shop": 3, "altana": 2, "portico": 1, "palazzetto": 1, "third": 0.30},
+    "terrace": {"row": 4, "altana": 3, "cottage": 2, "shop": 1, "third": 0.12},
+    "rim": {"cottage": 5, "row": 3, "altana": 1, "third": 0.0},
+}
+
+
+def pick_kind(density, k, last):
+    w = DENSITY[density]
+    kinds = [(kd, wt) for kd, wt in w.items() if kd in KINDS and kd != last or (kd == last and False)]
+    if not kinds:
+        kinds = [(kd, wt) for kd, wt in w.items() if kd in KINDS]
+    tot = sum(wt for _, wt in kinds)
+    r = hash01(k, 91) * tot
+    for kd, wt in kinds:
+        r -= wt
+        if r <= 0:
+            return kd
+    return kinds[-1][0]
+
+
+def plan_row(curve, side, half, seed, density="terrace", accept=None, ground=None, state_fn=None, start=1.5, end=None, gap=0.12,
+             alley_every=0.0, slope_max=4.5, max_lots=400, cap_fn=None, stats=None, open_half=None):
+    """Builds the houses along the edge of a street. curve: the middle line (n, 2), half: half the width of the street, side: +1 or -1
+    (which side of the direction of the curve), density: 'hub', 'terrace' or 'rim' (what the front is made of). accept(outline) says
+    whether a footprint (four (x, z) points) may be built on (the model's site_free); ground(x, z) is the height of the ground;
+    state_fn(x, z) gives 'whole', 'unroofed' or 'ruin' (how much the storm did there). Every lot is tried at its width, then narrower and
+    shallower; a house that does not fit is left out and the walk goes on. cap_fn(outline) gives the highest y that anything on the
+    footprint may reach, or None (the sight lines to the signal mast): under 12.5 m of room a house is a cottage, under 6.4 m none.
+    The colour of a house is chosen from the weights of the density (WALL_WEIGHTS, ROOF_WEIGHTS) and is never that of its neighbour.
+    open_half: the half width of the open space in front (a square or a quay: more than the street half); what stands out of a front (a
+    porch of two arches, a pergola) is used only where there are 2.8 m from the middle to the front, so that a lane stays a lane.
+    Returns the lots that were built, as dicts."""
+    c = np.asarray(curve, float)
+    L = curve_lengths(c)[-1]
+    end = L - 1.5 if end is None else end
+    gr = ground or (lambda x, z: 0.0)
+    out = []
+    s = start
+    k = int(seed) * 1000
+    last = None
+    last_wall = last_roof = None
+    since_alley = 0.0
+    prev_floor = None
+    while s < end - 4.0 and len(out) < max_lots:
+        k += 1
+        kind = pick_kind(density, k, last)
+        (w0, w1), (d0, d1), (f0, f1) = KINDS[kind]
+        W0 = w0 + (w1 - w0) * hash01(k, 1)
+        D0 = d0 + (d1 - d0) * hash01(k, 2)
+        placed = False
+        for fw, fd in ((1.0, 1.0), (0.85, 1.0), (1.0, 0.82), (0.75, 0.8), (0.9, 0.68), (0.72, 0.66)):    # narrower, shallower: the inside of a bend
+            W, D = W0 * fw, D0 * fd
+            if W < 4.6 or D < 4.8:
+                continue
+            p, v = curve_at(c, s + W / 2)
+            if s + W > end:
+                break
+            n = np.array([-v[1], v[0]]) * side
+            fpt = p + n * (half + 0.35)
+            F0 = Frame(fpt[0], fpt[1], v, n, 0.0)
+            outline = [(F0.P(a, b)[0], F0.P(a, b)[2]) for a, b in ((-W / 2, 0), (W / 2, 0), (W / 2, D), (-W / 2, D))]
+            if accept is not None and not accept(outline):
+                if stats is not None:
+                    stats["site"] = stats.get("site", 0) + 1
+                continue
+            samples = [gr(*F0.P(a, b)[::2]) for a, b in ((-W / 2, 0), (0, 0), (W / 2, 0), (-W / 2, D), (W / 2, D), (0, D / 2))]
+            if max(samples) - min(samples) > slope_max:
+                if stats is not None:
+                    stats["slope"] = stats.get("slope", 0) + 1
+                continue
+            floor = float(gr(fpt[0], fpt[1])) + 0.12
+            use = kind
+            if use == "portico" and (open_half if open_half is not None else half) < 2.8:
+                use = "row"
+            cap = cap_fn(outline) if cap_fn is not None else None
+            if cap is not None and cap - floor < 12.5:
+                if cap - floor >= 6.4 and W <= 6.6 and D <= 6.6:
+                    use = "cottage"
+                else:
+                    if stats is not None:
+                        stats["sight"] = stats.get("sight", 0) + 1
+                    continue
+            F = Frame(fpt[0], fpt[1], v, n, floor)
+            floors = None
+            if KINDS[use][2][1] > KINDS[use][2][0]:
+                floors = KINDS[use][2][0] + (1 if hash01(k, 3) < 0.45 else 0)
+            if use in ("row", "shop", "altana") and W >= 6.4 and hash01(k, 6) < DENSITY[density].get("third", 0.0) and cap is None:
+                floors = 3
+            low = min(samples) - floor
+            x_, z_ = F.P(0, D / 2)[0], F.P(0, D / 2)[2]
+            st = state_fn(x_, z_) if state_fn else "whole"
+            step = abs(floor - prev_floor) if prev_floor is not None else 0.0
+            sides = (1 if step > 0.8 else 0, 1)
+            wall = weighted(WALL_WEIGHTS[density], k, 81, (last_wall,) if last_wall else ())
+            roofmat = weighted(ROOF_WEIGHTS[density], k, 82, (last_roof,) if last_roof and hash01(k, 83) < 0.7 else ())
+            house(F, use, W, D, k, floors, st, wall, sides, low, back_free=False, roofmat=roofmat,
+                  street_half=open_half if open_half is not None else half)
+            last_wall, last_roof = wall, roofmat
+            out.append({"kind": use, "wall": wall, "roof": roofmat, "W": W, "D": D, "frame": F, "seed": k, "state": st, "outline": outline, "door": F.P(0, 0, 0), "floor": floor,
+                        "front": (float(fpt[0]), float(fpt[1])), "s": s + W / 2})
+            prev_floor = floor
+            last = use
+            s += W + gap
+            since_alley += W + gap
+            if alley_every and since_alley > alley_every * (0.8 + 0.4 * hash01(k, 7)):
+                s += 1.9
+                since_alley = 0.0
+            placed = True
+            break
+        if not placed:
+            s += 1.2
+    return out

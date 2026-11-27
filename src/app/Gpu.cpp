@@ -28,10 +28,10 @@ void ApplyTownThemes(Models& models, const town::TownData& town)
         const float aZenith[3] = {0.51f, 0.59f, 0.72f};
         t.zenith = lin(i == 0 ? aZenith : l.skyTop);
         const float warmBounce[3] = {0.29f, 0.22f, 0.18f};
-        const float coolBounce[3] = {0.17f, 0.22f, 0.27f};
+        const float coolBounce[3] = {0.21f, 0.22f, 0.24f}; // the ground of B is weathered stone: it bounces a grey, not a blue
         t.groundFill = lin(i == 0 ? warmBounce : coolBounce);
         t.mistBase = town.sea + 2.0f;
-        t.mistDensity = i == 0 ? 0.0018f : 0.0042f;
+        t.mistDensity = i == 0 ? 0.0018f : 0.0036f;
         t.tint = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f); // the town has its own colours: no stone tint
         t.weathering = 0.0f;
     }

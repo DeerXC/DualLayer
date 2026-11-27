@@ -1,7 +1,7 @@
 // LayerRipple.h - the timing of the switch between layer A and layer B: a circle that opens from one point of the
-// screen. Owns:      which layer is outside the circle, which one is inside, and how far the circle has opened (0 ..
-// 1). It knows
-//            nothing about Direct3D, so it is tested without a window; Models turns the numbers into pixels.
+// screen.
+// Owns:      which layer is outside the circle, which one is inside, and how far the circle has opened (0 .. 1). It
+//            knows nothing about Direct3D, so it is tested without a window; Models turns the numbers into pixels.
 // Rules:     idle          = the whole screen shows one layer (Outer), the circle is closed.
 //            Toggle        = the other layer starts to open as a circle from the centre (the ripple).
 //            Toggle again while it moves = the circle turns round and closes again; the picture never jumps.

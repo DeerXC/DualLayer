@@ -1,13 +1,12 @@
 // TownEffects.h - the two effects of the town loop that are drawn as objects: the sea round the eye and the ring that
-// marks a
-//                 return after a fall.
-// Sea:       one flat plane per layer, centred under the eye and wider than the far plane, so the horizon is never a
-// edge. It
-//            moves in steps of kSeaSnap, so the pattern of the waves (shaders/models.hlsl, scene::kMatSea) does not
-//            slide.
+// marks a return after a fall.
+// Sea:       one flat plane per layer, centred under the eye and wider than the far plane, so the horizon is never an
+//            edge. It moves in steps of kSeaSnap, so the pattern of the waves (shaders/models.hlsl, scene::kMatSea)
+//            does not slide.
 // Ring:      a flat torus that spreads on the floor for kRespawnRingSeconds after the body came back to the last place
-// it stood on. Plain data, no Windows, no Direct3D: tested without a window (tests/test_effects.cpp). UNITS: metres,
-// seconds.
+//            it stood on.
+// Plain data, no Windows, no Direct3D: tested without a window (tests/test_effects.cpp).
+// UNITS: metres, seconds.
 #pragma once
 
 #include "scene/Camera.h" // Vec3

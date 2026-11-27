@@ -289,7 +289,7 @@ void Device::EndFrame()
     {
         DL_LOG_ERROR("Device", "device lost (Present 0x%08X, reason 0x%08X)", static_cast<unsigned>(hr),
                      static_cast<unsigned>(m_device->GetDeviceRemovedReason()));
-        m_lost = true; // main.cpp sees Lost() and makes a new Device (Gpu::Recover); this object is not used again
+        m_lost = true; // TownSession sees Lost() and makes a new Device (Gpu::Recover); this object is not used again
     }
 }
 

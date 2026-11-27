@@ -1,13 +1,13 @@
 // Window.h - one Win32 window. Declares per-monitor DPI awareness before creating it.
 // Owns:      the HWND, and the state of the mouse capture.
 // Units:     all sizes are PHYSICAL pixels of the client area (at 150% scaling a 1600 px window is about 1067 logical
-// px wide). Mouse:     raw mouse input (WM_INPUT) is read while the mouse is captured: a click into the window captures
-// it (the cursor is
-//            hidden and kept inside the window), Esc or leaving the window (Alt + Tab) releases it. The movement is
-//            added up in counts of the mouse, not in pixels, so it does not stop at the edge of the screen and ignores
-//            the pointer speed setting of Windows. Esc while the mouse is free closes the window, unless the program
-//            asks to be told of it instead (SetEscapeQuits: the map closes on Esc). While the map is open a click does
-//            not capture the mouse (SetCaptureAllowed), and CursorClient says where the pointer is.
+//            px wide).
+// Mouse:     raw mouse input (WM_INPUT) is read while the mouse is captured: a click into the window captures it (the
+//            cursor is hidden and kept inside the window), Esc or leaving the window (Alt + Tab) releases it. The
+//            movement is added up in counts of the mouse, not in pixels, so it does not stop at the edge of the screen
+//            and ignores the pointer speed setting of Windows. Esc while the mouse is free closes the window, unless
+//            the program asks to be told of it instead (SetEscapeQuits: the map closes on Esc). While the map is open a
+//            click does not capture the mouse (SetCaptureAllowed), and CursorClient says where the pointer is.
 // Threading: main thread only (messages are pumped by PumpMessages()).
 #pragma once
 

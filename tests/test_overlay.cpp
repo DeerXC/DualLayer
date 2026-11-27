@@ -5,18 +5,16 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only overlay
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. the font: every letter, digit and sign that the game writes has its own glyph; a small letter is drawn as its
-//   capital;
-//      an unknown character is a box; some glyphs pixel by pixel ('E', 'T', '1')
+//      capital; an unknown character is a box; some glyphs pixel by pixel ('E', 'T', '1')
 //   2. the batch: a rectangle is six vertices with the right corners and colour; a frame is four rectangles round the
-//   inside
-//      of its box; text covers exactly the lit pixels of its glyphs (the area is counted), its width is n * 6 - 1 font
-//      pixels; a full batch drops whole rectangles and says so; nothing for a size that is not above 0
+//      inside of its box; text covers exactly the lit pixels of its glyphs (the area is counted), its width is n * 6 -
+//      1 font pixels; a full batch drops whole rectangles and says so; nothing for a size that is not above 0
 //   3. the prompts: nothing unless the body walks; a shut thing in reach in the past wins and says its verb, then the
-//   lantern
-//      (call it back, take it, put it down); nothing for a thing in the present; every prompt text can be drawn by the
-//      font
+//      lantern (call it back, take it, put it down); nothing for a thing in the present; every prompt text can be drawn
+//      by the font
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "render/OverlayBatch.h"
 #include "scene/Prompts.h"
 
@@ -26,23 +24,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::OverlayBatch;
 using dl::OverlayColor;

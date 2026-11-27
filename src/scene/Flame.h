@@ -1,12 +1,10 @@
 // Flame.h - the flame of the lantern, which leans toward what the player is looking for (docs/DESIGN.md 10.3).
 // Why:      help is an object of the world and not a layer on the screen: the lantern is the compass. The flame stands
-// over the
-//           lantern, in the hand and set down, and leans toward the next thing to do; the longer the player goes
-//           without progress, the further it leans and the more it throws sparks.
+//           over the lantern, in the hand and set down, and leans toward the next thing to do; the longer the player
+//           goes without progress, the further it leans and the more it throws sparks.
 // Drawn:    a thin glowing plume (an ellipsoid turned by `tilt` round X and then by `yaw` round Y, so that it leans
-// toward
-//           (sin yaw, cos yaw): the same bearing as the avatar turns) and, when it is restless, three sparks that fly
-//           off its tip.
+//           toward (sin yaw, cos yaw): the same bearing as the avatar turns) and, when it is restless, three sparks
+//           that fly off its tip.
 // Plain data, no Windows, no Direct3D: tested without a window (tests/test_guidance.cpp).
 // UNITS: metres, radians, seconds. Space: left-handed, +Y up.
 #pragma once

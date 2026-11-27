@@ -1,15 +1,13 @@
 // OverlayBatch.h - what the screen overlay draws in one frame, as a list of coloured triangles in screen pixels:
-// rectangles,
-//            frames and text (render/Font5x7.h). render/Overlay.h puts the list on the GPU; this part has no Windows
-//            and no Direct3D, so the layout is tested without a window (tests/test_overlay.cpp).
+// rectangles, frames and text (render/Font5x7.h). render/Overlay.h puts the list on the GPU; this part has no Windows
+// and no Direct3D, so the layout is tested without a window (tests/test_overlay.cpp).
 // Space:     screen pixels, (0, 0) = the top-left corner of the client area, +x to the right, +y down.
 // Colour:    sRGB with alpha (0 .. 1), as a designer writes it; the overlay converts it to linear when it is drawn (the
-// back
-//            buffer is written through an sRGB view, docs/CONVENTIONS.md).
+//            back buffer is written through an sRGB view, docs/CONVENTIONS.md).
 // Text:      every row of a glyph is cut into runs of lit pixels, and each run is one rectangle (a letter is a few
 //            rectangles, not 35). `scale` is the size of a font pixel in screen pixels.
 // Limits:    at most kMaxVertices; what does not fit is dropped whole (a rectangle is never half drawn), and Full()
-// says so.
+//            says so.
 #pragma once
 
 #include "render/Font5x7.h"

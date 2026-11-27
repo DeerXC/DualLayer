@@ -3,31 +3,27 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only player
 // Header-only: there is no .cpp to add to the project. What is checked:
 //   1. standing: the body rests on the floor (feet at the top of the floor, eye at the eye height) and a fall ends
-//   there
+//      there
 //   2. walking: forward, back and sideways at the walking speed (after the short run-up of the acceleration); two keys
-//   are not
-//      faster; looking up or down does not slow it; the walk direction (WishDirection) is a unit vector, (0, 0) without
-//      keys
+//      are not faster; looking up or down does not slow it; the walk direction (WishDirection) is a unit vector, (0, 0)
+//      without keys
 //   3. jumping: a held jump rises exactly the jump height, the landing is reported once, a jump pressed shortly before
-//   the
-//      landing happens at the landing (jump buffer), a jump shortly after leaving an edge still works (coyote time)
+//      the landing happens at the landing (jump buffer), a jump shortly after leaving an edge still works (coyote time)
 //   4. layers: the red cube stops the body in A and not in B; standing on top of an object and switching to the layer
-//   in which it
-//      does not exist makes the body fall; the cylinder can be jumped onto
+//      in which it does not exist makes the body fall; the cylinder can be jumped onto
 //   5. falling off the floor puts the body back at the spawn point
 //   6. FEEL: full speed in about 0.06 s and a stop in about 0.05 s; a tap is a small hop and a held key the full jump;
-//   the fall
-//      is faster than the rise; the air steers more slowly than the ground; a hard landing is reported once (for the
-//      camera dip); a wall takes away the walk into it (no stored speed), also when the floor pushes in the same step;
-//      the running jump covers 3.2 .. 4.0 m (the level design relies on it)
+//      the fall is faster than the rise; the air steers more slowly than the ground; a hard landing is reported once
+//      (for the camera dip); a wall takes away the walk into it (no stored speed), also when the floor pushes in the
+//      same step; the running jump covers 3.2 .. 4.0 m (the level design relies on it)
 //   7. RAMPS AND STEPS: up and down ramps of 15 .. 32 degrees at full speed without a stop; walking DOWN a 27 degree
-//   ramp the
-//      body stays on the ground in every frame (no small hops: the camera does not shake); a step down of 0.3 m keeps
-//      the body on the ground, one of 0.5 m does not; walking off an edge still falls
+//      ramp the body stays on the ground in every frame (no small hops: the camera does not shake); a step down of 0.3
+//      m keeps the body on the ground, one of 0.5 m does not; walking off an edge still falls
 //   8. a long random run in both layers: never a bad number, never inside a solid
 //   9. bad input (NaN, zero or negative time, a huge frame, nonsense settings) changes nothing that matters
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Player.h"
 #include "scene/TriMesh.h"
 
@@ -39,23 +35,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Player;
 using dl::Vec3;

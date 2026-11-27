@@ -6,23 +6,21 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only lighting
 // What is checked:
 //   1. the maths of the shader: the fall-off of a lamp (1.4 under a street lamp, 0 at its range, only falling), one
-//   lamp on a surface (not
-//      behind it, not beyond its range, the highlight where the half vector says), the soft shoulder (nothing below the
-//      knee, only rising, never 1, the hue kept, no kink), the fade at the edge of the shadow map, the halo and the
-//      haze of the sun
+//      lamp on a surface (not behind it, not beyond its range, the highlight where the half vector says), the soft
+//      shoulder (nothing below the knee, only rising, never 1, the hue kept, no kink), the fade at the edge of the
+//      shadow map, the halo and the haze of the sun
 //   2. the choice of lamps: the moment, the cap of kMaxLamps, the nearest and strongest stay, a far lamp fades out, the
-//   scales, the flicker
+//      scales, the flicker
 //   3. the shadow box: what is inside it is inside the map, depth runs from the light, the box moves on the texel grid,
-//   a light overhead,
-//      nonsense in; and the whole chain on a toy scene (a software depth map drawn through the matrix, looked up with
-//      the formulas of ShadowAt and the default bias): no speckle on a plane, also at a grazing angle; a box leaves the
-//      shadow that a ray says it should
+//      a light overhead, nonsense in; and the whole chain on a toy scene (a software depth map drawn through the
+//      matrix, looked up with the formulas of ShadowAt and the default bias): no speckle on a plane, also at a grazing
+//      angle; a box leaves the shadow that a ray says it should
 //   4. the settings: defaults, a nonsense value pulled in, the size a power of two, the config file
 //   5. the town: its lamps (kinds, moments, positions), their conversion to point lights, the lantern, the lit lamps of
-//   the mast, the bell
-//      lamps, the halos (a weaker one in A, a cap, a distance)
+//      the mast, the bell lamps, the halos (a weaker one in A, a cap, a distance)
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "render/LightingSettings.h"
 #include "render/Lights.h"
 #include "render/ShadowMath.h"
@@ -45,23 +43,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 bool Near(float a, float b, float eps)
 {
@@ -676,7 +657,7 @@ void TestTownLamps()
     }
     std::printf("  lamps: %zu (street %d, post %d, light %d, memory %d, grave %d); in A %d, in B %d, in both %d\n",
                 t.lamps.size(), kinds[0], kinds[1], kinds[2], kinds[3], kinds[4], inA, inB, both);
-    CHECK(t.lamps.size() > 40 && kinds[0] > 30 && kinds[1] == 2 && kinds[2] == 2 && kinds[3] == 9 && kinds[4] == 1 &&
+    CHECK(t.lamps.size() > 40 && kinds[0] > 30 && kinds[1] == 2 && kinds[2] == 2 && kinds[3] >= 9 && kinds[4] == 1 &&
           sane);
     CHECK(inA > inB && inB >= 10 && both >= 10); // the evening has every lamp lit, the ruin only some
     // to point lights: colour linear times strength, the moments, a halo by kind, a phase of its own

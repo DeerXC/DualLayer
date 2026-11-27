@@ -1,9 +1,9 @@
 // SceneData.h - what the renderer draws one by one: a shape, where it stands, how it looks and in which moment it
 // exists. Why here: the objects of the town loop (the lantern, the things that change, the avatar, the sea, the
-// guidance) are made by
-//            the scene code and drawn by render/Models.cpp; both only need this record. Plain data: no Windows, no
-//            Direct3D.
-// Space:     left-handed, +Y up (docs/CONVENTIONS.md). UNITS: metres, radians.
+// guidance) are made by the scene code and drawn by render/Models.cpp; both only need this record. Plain data: no
+// Windows, no Direct3D.
+// Space:     left-handed, +Y up (docs/CONVENTIONS.md).
+// UNITS: metres, radians.
 // Rules:     A shape is 1 metre big before the scale (a sphere: across). The world matrix of an object is
 //            Scale * RotationX(tilt) * RotationY(yaw) * Translation (row vectors, read left to right).
 #pragma once

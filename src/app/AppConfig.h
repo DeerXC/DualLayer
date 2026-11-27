@@ -1,7 +1,6 @@
 // AppConfig.h - what the program reads from config/default.ini outside the renderer: the log level, the camera, the
-// walking
-//               body, the guidance and the map. Every value is optional; a missing or nonsensical one falls back
-//               (core/Config.h).
+// walking body, the guidance and the map. Every value is optional; a missing or nonsensical one falls back
+// (core/Config.h).
 // Reload:       the same functions run again when F5 is pressed.
 #pragma once
 

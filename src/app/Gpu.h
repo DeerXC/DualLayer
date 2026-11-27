@@ -2,8 +2,7 @@
 // Owns:      the device (a new one is made after a loss: a Device that was lost is never reused), Models, Overlay.
 // Borrows:   the town, whose polygons are baked into the static batch of each moment at Init.
 // Recovery:  a lost device takes all of it, so all of it is made again together (Recover); what lives outside (the
-// town, the
-//            body, the camera) is kept.
+//            town, the body, the camera) is kept.
 #pragma once
 
 #include "core/Config.h"

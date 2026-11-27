@@ -1,40 +1,33 @@
 // TownSession.h - the town, walked: one session from the first frame to the close of the window.
 // Frame:    PumpMessages > (lost device: Recover) > (F5: reload the config) > (resize) > mouse and keys > the map (M) >
-// the
-//           switch through the LayerGuard > the camera > the body (walk, use, water, fall, return) > the guidance and
-//           the map memory > the objects of the frame > render [GPU event "Frame" > "Opaque.Models" > "Overlay"] >
+//           the switch through the LayerGuard > the camera > the body (walk, use, water, fall, return) > the guidance
+//           and the map memory > the objects of the frame > render [GPU event "Frame" > "Opaque.Models" > "Overlay"] >
 //           Present > the title bar
 // Owns:     the solid of both moments (scene/TriMesh.h) with and without the circle of the lantern, the walking body,
-// the lantern,
-//           the things that change and their traces, the guard of the switch, the guidance, what the player has seen of
-//           the map and the markers they left, and the state of the camera and of the avatar.
+//           the lantern, the things that change and their traces, the guard of the switch, the guidance, what the
+//           player has seen of the map and the markers they left, and the state of the camera and of the avatar.
 // Borrows:  the window, the GPU objects, the config, the camera and the town (they outlive the session).
 // Keys:     W A S D move, the mouse turns (click into the window to capture it; Esc gives it back, a second Esc quits),
-// the arrow
-//           keys turn as well, Shift sprints, Space jumps (held = the full jump, a tap = a small hop) and climbs a
-//           ledge, Tab switches the moment (A, the past <-> B, the present), E opens a thing of the past or sets the
-//           lantern down / takes it up, H asks the lantern for more help (docs/DESIGN.md 10.3), L looks at the light in
-//           parts (everything, no shadows, no lamps, only the shadow of the sun, only the lamps: docs/DESIGN.md 6.3), M
-//           opens the map (docs/DESIGN.md 10.4), R goes back to the last place the body stood still on, F5 reloads
-//           config/default.ini, F walking / flying, N collision on / off, Z wireframe, X the next level of detail, Q /
-//           E down / up (flying). F9 (only with [debug] device_reset_key = 1) throws the GPU objects away and builds
-//           them again: the test of the recovery.
+//           the arrow keys turn as well, Shift sprints, Space jumps (held = the full jump, a tap = a small hop) and
+//           climbs a ledge, Tab switches the moment (A, the past <-> B, the present), E opens a thing of the past or
+//           sets the lantern down / takes it up, H asks the lantern for more help (docs/DESIGN.md 10.3), L looks at the
+//           light in parts (everything, no shadows, no lamps, only the shadow of the sun, only the lamps:
+//           docs/DESIGN.md 6.3), M opens the map (docs/DESIGN.md 10.4), R goes back to the last place the body stood
+//           still on, F5 reloads config/default.ini, F walking / flying, N collision on / off, Z wireframe, X the next
+//           level of detail, Q / E down / up (flying). F9 (only with [debug] device_reset_key = 1) throws the GPU
+//           objects away and builds them again: the test of the recovery.
 // Map:      M opens two sheets of tracing paper over the frozen game; the mouse is free; Tab turns the other sheet to
-// the top, E
-//           puts a marker where the pointer is (or takes the one there away), M or Esc closes it. Time stands still
-//           while it is open (the guidance clock too).
+//           the top, E puts a marker where the pointer is (or takes the one there away), M or Esc closes it. Time
+//           stands still while it is open (the guidance clock too).
 // Switch:   a switch that would put the body inside something, or under the water of the other moment, is refused: the
-// ripple
-//           opens a little and turns back (scene/LayerGuard.h), and the old moment stays solid meanwhile.
+//           ripple opens a little and turns back (scene/LayerGuard.h), and the old moment stays solid meanwhile.
 // Camera:   third person by default ([player] third_person): the camera orbits behind the body and is pulled in by the
-// walls
-//           (town::CameraClearDistance). A hard landing lowers the eye for a moment ([camera] land_dip). The first
-//           frame looks where the town file says (spawn yaw and pitch): the heap of the quay, the winch of the sea gate
-//           and the lamps of the signal mast (tests/test_firstminute.cpp).
+//           walls (town::CameraClearDistance). A hard landing lowers the eye for a moment ([camera] land_dip). The
+//           first frame looks where the town file says (spawn yaw and pitch): the heap of the quay, the winch of the
+//           sea gate and the lamps of the signal mast (tests/test_firstminute.cpp).
 // Overlay:  drawn last (render/Hud.h, render/MapView.h): a dot, the one prompt of the key that does something now, a
-// status line. Lost device: Present reports it, the loop builds device and models again (Gpu::Recover); the moment, the
-// town and the camera
-//           stay as they were. After kMaxRecoveries tries the session says so and ends.
+//           status line. Lost device: Present reports it, the loop builds device and models again (Gpu::Recover); the
+//           moment, the town and the camera stay as they were. After kMaxRecoveries tries the session says so and ends.
 // Threading: main thread only. The object is not copied or moved: the solids hold pointers into it.
 #pragma once
 

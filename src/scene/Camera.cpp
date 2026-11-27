@@ -1,5 +1,6 @@
 #include "scene/Camera.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace dl
@@ -89,7 +90,8 @@ void Camera::Update(const CameraInput& input, float dt)
         wish.y /= length;
         wish.z /= length;
     }
-    const float step = m_settings.moveSpeed * dt; // UNITS: metres
+    const float boost = std::isfinite(input.boost) ? std::clamp(input.boost, 1.0f, kMaxBoost) : 1.0f;
+    const float step = m_settings.moveSpeed * boost * dt; // UNITS: metres
     m_position.x += wish.x * step;
     m_position.y += wish.y * step;
     m_position.z += wish.z * step;

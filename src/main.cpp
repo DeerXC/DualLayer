@@ -1,10 +1,8 @@
 // main.cpp - entry point: the log, the config, the window, the town, the GPU objects, and then the session of the town.
 // Town:    data/town.dlt, written by tools/layout/city_model.py (scene/Town.h), is loaded once and kept for the whole
-// run; the
-//          game cannot start without it.
+//          run; the game cannot start without it.
 // Session: app/TownSession.h is the frame loop. Everything else of the game lives in src/scene (no Windows, tested
-// without a
-//          window), src/render (Direct3D 11) and src/core (log, config, window).
+//          without a window), src/render (Direct3D 11) and src/core (log, config, window).
 // Args:    --adapter N   choose the N-th adapter listed in the log (overrides [render] adapter)
 
 #define WIN32_LEAN_AND_MEAN

@@ -1,7 +1,7 @@
 // TriMesh.h - a solid made of triangles: the town of the model (scene/Town.h), one per layer.
 // Grid:      the triangles are filed in a grid of square cells over the ground plane (x, z), kCell metres each; a
-// triangle
-//            is filed in every cell its box over the ground touches. A query looks only at the cells round a ball.
+//            triangle is filed in every cell its box over the ground touches. A query looks only at the cells round a
+//            ball.
 // Collision: PushOut moves a ball out of the triangles near it, as the ground does (scene/TriMath.h): the
 //            closest point on each triangle, a few rounds. A triangle has no inside: a ball is pushed out to the side
 //            its centre is on, so a surface is solid from both sides. The walking body (scene/Player.h SetMeshes) uses

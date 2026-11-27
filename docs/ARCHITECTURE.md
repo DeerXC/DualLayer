@@ -4,6 +4,18 @@ The code as built: one program that loads the town as data and walks a body thro
 [DESIGN.md](DESIGN.md); the rules of the code (units, coordinates, colour, depth) are in [CONVENTIONS.md](CONVENTIONS.md).
 An earlier prototype with hand-placed rooms and puzzles was removed on 2026-11-26; it is in the git tag `m2-greybox`.
 
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `src/` | the game: `core`, `scene`, `render`, `app` and `main.cpp` (see Modules) |
+| `shaders/` | HLSL, compiled by the game at start |
+| `data/` | `town.dlt`, the town as data, written by the layout model |
+| `config/` | `default.ini`, every tunable value |
+| `tests/` | the logic tests, `check.h` (the shared check macro) and `run_tests.ps1` |
+| `tools/` | `check.ps1` (the one-command check); `layout/` is the layout model of the town in Python: `city_model.py` (the model and the export), `architecture.py` (the buildings), `town_style.py` (the palette) and the review tools |
+| `docs/` | design, build, architecture and conventions |
+
 ## One frame
 
 ```
@@ -85,7 +97,7 @@ lines of the streets, the lamps, and the polygons of the town with their moment 
   both sides because the model's polygons have no fixed winding (the terrain and a surface of water only from above). The
   colours are the model's own (`color.a` 0: no stone tint). `BakeWater` gives the water of A, drawn by
   `Models::SetStaticWater` in the water pass. The looks of the two moments come from the model's lights (`ApplyTownThemes`
-  in `main.cpp`).
+  in `app/Gpu.cpp`).
 - Solid: `TownData::BuildMesh` gives a `TriMesh` per moment (its solid and terrain polygons), triangles filed in a grid of 4 m
   cells; `TriMesh::PushOut` moves a ball out of them as the ground does. `Moments` holds both and the circle of the
   lantern; the walking body takes it with `Player::SetTown`.
@@ -117,9 +129,9 @@ the past, the whole city in a warm evening, B the present, the same city after a
 gives the city (objects of both layers that do not glow) the tint and the weathering of the layer, and fogs everything by
 its distance into the background colour; glowing things are seen through more of the fog. In the town, the renderer
 also draws a world-aligned sky before the opaque scene, using the same full-screen triangle vertex shader as the
-ripple. Each ripple target gets its own sky; the local lantern pass changes only geometry and water. The 256-byte
-frame buffer carries the camera axes, sky colour and low-mist parameters, the matrix of the shadow box and the exposure. Opaque objects and water share the same
-distance and height haze.
+ripple. Each ripple target gets its own sky; the local lantern pass changes only geometry and water. The frame
+buffer (464 bytes: see Light) carries the camera axes, sky colour and low-mist parameters, the matrix of the shadow box, the
+exposure and the registers of the style. Opaque objects and water share the same distance and height haze.
 
 `LayerRipple` keeps the timing of a switch. While no ripple runs, one layer is drawn straight to the back buffer. During a
 ripple, `Models::DrawRipple` draws the outer layer and the inner layer into two off-screen pictures (sRGB colour and their
@@ -207,14 +219,22 @@ Esc closes it (`SetEscapeQuits`, `ConsumeEscape`).
 `OverlayBatch` collects what is drawn over the picture in one frame as triangles in screen pixels: rectangles, frames and
 text in `Font5x7`, a bitmap font written for the project (each row of lit pixels of a glyph is one rectangle). `Overlay`
 copies the batch into one dynamic vertex buffer (pixels to clip space, sRGB to linear) and draws it last, with alpha
-blending and without depth. `Hud` fills the batch; `Prompts` decides which prompt it shows from a small `Input` that `main.cpp`
-reads from the game, so the rule is tested without a window.
+blending and without depth. `Hud` fills the batch; `Prompts` decides which prompt it shows from a small `Input` that
+`TownSession` fills from the game (`ChoosePrompt`), so the rule is tested without a window.
 
 ## Device recovery
 
-`Present` reports a removed or reset device; `Device` only sets `Lost()`. `main.cpp` keeps every GPU object in one `Gpu`
-struct, shuts it down, makes a new `Device` and initialises everything again, at most five times per run. The town, the body
-and the camera live outside it and are kept. F9 runs the same path for testing.
+`Present` reports a removed or reset device; `Device` only sets `Lost()`. `TownSession::RecoverDevice` then shuts down the
+`Gpu` object (`app/Gpu.h`: every GPU object in one place), makes a new `Device` and initialises everything again (`Gpu::Recover`),
+at most five times per run (`kMaxRecoveries`). The town, the body and the camera live outside it and are kept. F9 runs the same
+path for testing.
+
+## Tests
+
+Each file in `tests/` is a program of its own: `tests/run_tests.ps1` builds and runs them with MSVC, and the header of each
+file gives the g++ command. All but `test_mesh.cpp` share `tests/check.h`. None needs a window or a GPU: the shader maths of `shaders/lighting.hlsli`
+is written in the part of HLSL that is also C++ and runs through `tests/hlsl_shim.h`, and `test_route.cpp` plays the main path
+of the whole town with a solver and reports any way round a puzzle.
 
 ## Debugging
 

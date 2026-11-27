@@ -1,3 +1,4 @@
+#include "check.h"
 #include "scene/TownPlayer.h"
 #include <algorithm>
 #include <cmath>
@@ -5,22 +6,6 @@
 
 using namespace dl;
 using namespace dl::town;
-
-static int failures = 0;
-static int passed = 0;
-#define CHECK(value)                                                                                                   \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (!(value))                                                                                                  \
-        {                                                                                                              \
-            std::printf("FAIL %d: %s\n", __LINE__, #value);                                                            \
-            ++failures;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++passed;                                                                                                  \
-        }                                                                                                              \
-    } while (false)
 
 static void Quad(TriMesh& mesh, Vec3 a, Vec3 b, Vec3 c, Vec3 d)
 {
@@ -234,6 +219,6 @@ int main()
     CHECK(!Climb(2.10f, 2.20f, false, false));
     CHECK(!Climb(2.10f, 2.20f, false, true, true));
     TestAvatar();
-    std::printf("town_player: %d passed, %d failed\n", passed, failures);
-    return failures != 0 ? 1 : 0;
+    std::printf("town_player: %d passed, %d failed\n", g_passed, g_failed);
+    return g_failed != 0 ? 1 : 0;
 }

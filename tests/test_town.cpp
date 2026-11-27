@@ -7,19 +7,17 @@
 //   1. the file: a bad magic, another version, a file cut short and bytes after the end are refused
 //   2. the data: polygons, materials, stations and streets; every material used exists; the water is in A only
 //   3. the triangle solid: a ball resting on a floor, pushed out of a wall from either side, a surface found under a
-//   point
+//      point
 //   4. drawn: each polygon of a moment drawn from both sides (the terrain and a surface of water from above); the front
-//   of
-//      every triangle faces along its normal
+//      of every triangle faces along its normal
 //   5. the start: the body stands on the quay in both moments, and fits there (a switch is allowed); walking north from
-//   it for
-//      0.8 s keeps it on the quay (tools/check.ps1 does that in the game and reads the height of the eye)
+//      it for 0.8 s keeps it on the quay (tools/check.ps1 does that in the game and reads the height of the eye)
 //   6. the streets: the real body walks every street from end to end in A without a jump, but the five the puzzles
-//   close
-//      (docs/DESIGN.md 8); in B the streets it cannot walk are listed (fallen arches lie across some of them)
+//      close (docs/DESIGN.md 8); in B the streets it cannot walk are listed (fallen arches lie across some of them)
 //   7. the water: under the moat of A is in the water, the same place in B is not
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Moments.h"
 #include "scene/Player.h"
 #include "scene/Town.h"
@@ -34,23 +32,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Player;
 using dl::Vec3;
@@ -190,6 +171,24 @@ void TestTriMesh()
     CHECK(m.PushOut(far, 0.35f) == 0.0f);
 }
 
+void TestPainted()
+{
+    using town::TownData;
+    // the materials that are painted by hand, by prefix (a new plaster or tile is painted without a change of the game)
+    CHECK(TownData::Painted("stone") && TownData::Painted("stone_dark") && TownData::Painted("rock") &&
+          TownData::Painted("paving"));
+    CHECK(TownData::Painted("plaster0") && TownData::Painted("plaster7") && TownData::Painted("chimney"));
+    CHECK(TownData::Painted("roof") && TownData::Painted("roof4") && TownData::Painted("grass") &&
+          TownData::Painted("field") && TownData::Painted("sand") && TownData::Painted("debris"));
+    CHECK(!TownData::Painted("wood") && !TownData::Painted("door") && !TownData::Painted("iron") &&
+          !TownData::Painted("gold") && !TownData::Painted("copper") && !TownData::Painted("window") &&
+          !TownData::Painted("lantern"));
+    CHECK(!TownData::Painted("shutter") && !TownData::Painted("shutter3") && !TownData::Painted("cloth") &&
+          !TownData::Painted("bloom") && !TownData::Painted("water") && !TownData::Painted("tree") &&
+          !TownData::Painted("cypress") && !TownData::Painted("moss"));
+    CHECK(!TownData::Painted(""));
+}
+
 void TestDrawn()
 {
     const town::TownData& t = Town();
@@ -223,13 +222,21 @@ void TestDrawn()
             up = up && v.params[0] > 1.5f && (v.normal[1] > 0.0f || std::fabs(v.normal[1]) < 0.3f);
         }
         CHECK(up);
-        // no colour takes the stone tint (alpha 0)
-        bool own = true;
+        // the alpha is 1 for what is painted by hand (stone, plaster, tile, ground) and 0 for what keeps its own
+        // colour: a share of each, nothing in between
+        bool binary = true;
+        std::size_t painted = 0;
+        std::size_t counted = 0;
         for (std::size_t i = 0; i < drawn.vertices.size(); i += 97)
         {
-            own = own && drawn.vertices[i].color[3] == 0.0f;
+            const float a = drawn.vertices[i].color[3];
+            binary = binary && (a == 0.0f || a == 1.0f);
+            painted += a == 1.0f ? 1 : 0;
+            ++counted;
         }
-        CHECK(own);
+        CHECK(binary && painted * 4 > counted && painted * 20 < counted * 19);
+        std::printf("  painted %c: %.0f%% of the drawn vertices\n", layer == 0 ? 'A' : 'B',
+                    100.0 * static_cast<double>(painted) / static_cast<double>(counted));
     }
 }
 
@@ -327,6 +334,8 @@ void TestStreets()
     for (int layer = 0; layer < 2; ++layer)
     {
         int walked = 0;
+        int rooms = 0;
+        int roomsWalked = 0;
         std::string blocked;
         for (const town::Street& s : t.streets)
         {
@@ -341,6 +350,19 @@ void TestStreets()
                 ok = w.WalkTo(s.line[k].x, s.line[k].z);
             }
             ok = ok && w.WalkTo(s.line.back().x, s.line.back().z) && Near(w.body.Feet().y, s.line.back().y, 0.8f);
+            if (s.name.rfind("room: ", 0) == 0)
+            {
+                // a room (docs/DESIGN.md 7.9): the way from the street through the door to the middle of the room is
+                // walked in both moments, without a jump
+                ++rooms;
+                roomsWalked += ok ? 1 : 0;
+                if (!ok)
+                {
+                    std::printf("  room not entered in %c: %s (stopped at %.1f %.1f %.1f)\n", layer == 0 ? 'A' : 'B',
+                                s.name.c_str(), static_cast<double>(w.body.Feet().x),
+                                static_cast<double>(w.body.Feet().y), static_cast<double>(w.body.Feet().z));
+                }
+            }
             if (ok)
             {
                 ++walked;
@@ -356,6 +378,8 @@ void TestStreets()
         }
         std::printf("  streets walked in %c: %d of %zu%s%s\n", layer == 0 ? 'A' : 'B', walked, t.streets.size(),
                     blocked.empty() ? "" : "; not: ", blocked.c_str());
+        std::printf("  rooms entered in %c: %d of %d\n", layer == 0 ? 'A' : 'B', roomsWalked, rooms);
+        CHECK(rooms >= 5 && roomsWalked == rooms);
         if (layer == 0)
         {
             // in the past every street is open but those the puzzles close (docs/DESIGN.md 8; tests/test_things.cpp and
@@ -423,6 +447,7 @@ int main()
     TestFile();
     TestData();
     TestTriMesh();
+    TestPainted();
     TestDrawn();
     TestStart();
     TestStreets();

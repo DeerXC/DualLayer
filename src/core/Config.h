@@ -1,7 +1,10 @@
 // Config.h - tiny INI reader for tunable values (data-driven: change a number without recompiling; F5 reloads it in the
-// game). Syntax:   [section]   key = value   lines starting with # or ; are comments; a " #" after a value starts a
-// comment too. Access:   Get*(section, key, default) never fails: a missing or malformed value gives the default. Owns:
-// its key/value map.   Threading: main thread only.
+// game).
+// Syntax:    [section]   key = value   lines starting with # or ; are comments; a " #" after a value starts a comment
+//            too.
+// Access:    Get*(section, key, default) never fails: a missing or malformed value gives the default.
+// Owns:      its key/value map.
+// Threading: main thread only.
 #pragma once
 
 #include <map>

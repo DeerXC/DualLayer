@@ -10,6 +10,7 @@
 //   6. the farthest-corner distance (the radius at which the circle covers the whole screen)
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "render/LayerRipple.h"
 
 #include <cmath>
@@ -17,23 +18,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 bool Near(float a, float b, float eps = 1e-4f)
 {

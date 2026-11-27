@@ -1,7 +1,6 @@
 // StaticBatch.h - the vertex of the static batch and the joining of meshes. The town (scene/Town.h) bakes every polygon
-// of a
-//            moment into one list of vertices, so that the whole fixed town is drawn with one draw call per moment
-//            instead of one per polygon (render/Models.cpp puts the lists on the GPU).
+// of a moment into one list of vertices, so that the whole fixed town is drawn with one draw call per moment instead of
+// one per polygon (render/Models.cpp puts the lists on the GPU).
 // Vertex:    the world position and the world normal (already transformed), the linear colour with the "city" flag in
 //            alpha, and the parameters of the model shader (checker, shine strength, shininess, glow): what the
 //            per-object constant buffer would have carried. So the model shader treats a baked polygon exactly as an

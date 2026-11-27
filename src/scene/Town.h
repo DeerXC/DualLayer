@@ -1,19 +1,19 @@
 // Town.h - the town of the layout model, loaded as data (docs/DESIGN.md 7.1 and 12, step 2).
 // File:      data/town.dlt, written by `python tools/layout/city_model.py export` (its docstring of export() is the
-// format):
-//            the lights of both moments, the materials (an sRGB colour in A and in B, and whether it shines), the
-//            stations of the main path, the streets (their middle lines), the polygons of the town (their moment, their
-//            kind and their material), the things that change, the steps of the main path, the three emblems of the
-//            signal mast, the overlooks, the lamps of the streets and the plan of both moments for the map. The game
-//            and the model are one town: a change of the layout is made in the model and exported again.
+//            format): the lights of both moments, the materials (an sRGB colour in A and in B, and whether it shines),
+//            the stations of the main path, the streets (their middle lines), the polygons of the town (their moment,
+//            their kind and their material), the things that change, the steps of the main path, the three emblems of
+//            the signal mast, the overlooks, the lamps of the streets and the plan of both moments for the map. The
+//            game and the model are one town: a change of the layout is made in the model and exported again.
 // Kinds:     solid (walls, roofs, bridges, trees...), terrain (the ground), overlay (paving and treads laid on the
-// ground:
-//            drawn, not solid: the ground under them already has their height), water (in A: drawn as water, a body
-//            under its surface is in the water).
+//            ground: drawn, not solid: the ground under them already has their height), water (in A: drawn as water, a
+//            body under its surface is in the water).
 // Drawn:     BakeLayer gives the static batch of one moment: every polygon of that moment as a fan of triangles, both
-// sides
-//            (the model's polygons have no fixed winding), the terrain and the water from above only. Colours are the
-//            model's own (no stone tint), a shining material glows. BakeWater gives the water of A.
+//            sides (the model's polygons have no fixed winding), the terrain and the water from above only. Colours are
+//            the model's own (no stone tint), a shining material glows. The stone, the plaster, the tile and the ground
+//            (Painted) take the hand-painted look of the style of the light (alpha 1: blotches, tall rain stains, the
+//            damp of the foot of the town, a third of the rim); the town's tint is white and its weathering 0, so that
+//            nothing else of the stone path of the shader applies. BakeWater gives the water of A.
 // Solid:     BuildMesh gives the TriMesh of one moment: its solid and terrain polygons.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_town.cpp).
 // UNITS: metres. Space: left-handed, +Y up.
@@ -502,6 +502,24 @@ class TownData
         return mesh;
     }
 
+    /// True for the materials that are painted by hand in the style of the light (docs/DESIGN.md 6.9): the stone of the
+    /// walls and the streets, the plaster, the clay tile, the ground and the rubble. Wood, cloth, paint, metal, light,
+    /// water and the crowns of the trees keep their own colour. Named by prefix, so that a new plaster or a new tile is
+    /// painted without a change here.
+    static bool Painted(const std::string& name)
+    {
+        static const char* const kPrefixes[] = {"stone", "rock",    "paving", "sand",  "plaster",
+                                                "roof",  "chimney", "grass",  "field", "debris"};
+        for (const char* prefix : kPrefixes)
+        {
+            if (name.rfind(prefix, 0) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// The drawn town of `layer`: every polygon of that moment but its water, in one batch.
     BatchMesh BakeLayer(int layer) const
     {
@@ -718,9 +736,10 @@ class TownData
         const Material& m = materials[p.material];
         const float* srgb = layer == 0 ? m.a : m.b;
         const bool shines = layer == 0 ? m.shinesA : m.shinesB;
-        // its own colour (a = 0: no stone tint); a shining material glows; water is drawn as water
+        // its own colour (a = 0: no stone tint; a = 1: painted by hand, see Painted); a shining material glows; water
+        // is drawn as water
         const float colour[4] = {batch_detail::SrgbToLinear(srgb[0]), batch_detail::SrgbToLinear(srgb[1]),
-                                 batch_detail::SrgbToLinear(srgb[2]), 0.0f};
+                                 batch_detail::SrgbToLinear(srgb[2]), (!water && Painted(m.name)) ? 1.0f : 0.0f};
         float params[4] = {0.0f, 0.04f, 8.0f, shines ? 0.9f : 0.0f};
         if (water)
         {

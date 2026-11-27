@@ -8,17 +8,17 @@
 // What is checked:
 //   1. the circle: a sphere; nothing without it
 //   2. the solid with the circle: in A nothing changes; in B a ball over the gap is held inside the circle and not
-//   outside it;
-//      a wall of A inside the circle is solid in B, outside it is not
+//      outside it; a wall of A inside the circle is solid in B, outside it is not
 //   3. the rules of the lantern: set down only in A and standing; on the floor of A ahead (at the feet at an edge);
-//   taken up
-//      within reach in either moment; refused while the body stands on what only the circle keeps; allowed elsewhere
+//      taken up within reach in either moment; refused while the body stands on what only the circle keeps; allowed
+//      elsewhere
 //   4. the walk: in B the body cannot cross the gap; with the lantern set down on the bridge in A it walks across in B
 //   5. the water of A is water inside the circle in B
 //   6. traces: none until a change, coming up over kTraceRise, marked toward the colour of the lantern, gone with an
-//   undo
+//      undo
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Lantern.h"
 #include "scene/Moments.h"
 #include "scene/Player.h"
@@ -31,23 +31,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Player;
 using dl::Vec3;

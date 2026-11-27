@@ -1,35 +1,33 @@
 // Models.h - the scene of M1 and M2: a cube, a sphere, a cylinder and a torus standing on a checkered floor, lit by one
 //            light, split into two layers (A and B) that look like two different worlds.
 // Owns:      the shaders, the input layout, the constant buffers, the render states, the vertex / index buffers of the
-// four
-//            shapes, the look (theme) of each layer, and the ripple that switches between the layers. The shapes come
-//            from MeshData (CPU, tested without a window); this class only puts them on the GPU.
+//            four shapes, the look (theme) of each layer, and the ripple that switches between the layers. The shapes
+//            come from MeshData (CPU, tested without a window); this class only puts them on the GPU.
 // Shader:    compiled at run time from shaders/models.hlsl and shaders/ripple.hlsl (working directory = the project
-// folder). Depth:     Draw needs the depth buffer to be bound (Device::BeginFrame does it) and tests against it. State:
-// Draw puts back every state it changes (render targets, viewport, rasterizer, depth, blend, input assembler,
+//            folder).
+// Depth:     Draw needs the depth buffer to be bound (Device::BeginFrame does it) and tests against it. State: Draw
+//            puts back every state it changes (render targets, viewport, rasterizer, depth, blend, input assembler,
 //            shaders, constant buffers, shader resources, sampler), so the code that draws before or after it does not
 //            notice that it ran.
 // Layers:    every object carries a mask (A = 1, B = 2, both = 3). When one layer is on the screen, only its objects
-// are
-//            drawn, straight to the back buffer. ToggleLayer starts a ripple (LayerRipple.h): for about a second BOTH
-//            layers are drawn into two off-screen pictures, and a circle that opens from the centre of the screen shows
-//            the new layer inside and the old one outside.
+//            are drawn, straight to the back buffer. ToggleLayer starts a ripple (LayerRipple.h): for about a second
+//            BOTH layers are drawn into two off-screen pictures, and a circle that opens from the centre of the screen
+//            shows the new layer inside and the old one outside.
 // Targets:   the two off-screen pictures are made the first time a ripple needs them and again when the window size
 //            changes; they live until Shutdown.
 // Objects:   a table of scene::SceneObject (scene/SceneData.h), given every frame by SetObjects and drawn one by one.
 // Static:    the fixed town is baked by its owner (scene/Town.h) into one vertex buffer per layer
-// (render/StaticBatch.h),
-//            given once by SetStaticTown / SetStaticWater and drawn with one call per layer. The baked lists are kept
-//            on the CPU, so a new device after a lost one makes the buffers again by itself.
+//            (render/StaticBatch.h), given once by SetStaticTown / SetStaticWater and drawn with one call per layer.
+//            The baked lists are kept on the CPU, so a new device after a lost one makes the buffers again by itself.
 // Light:     the sun of A and the moon of B cast shadows into a shadow map (an orthographic box that follows the
-// camera, drawn with the
-//            same shaders and no pixel shader: render/ShadowMath.h), the lamps of the moment (render/Lights.h: the
-//            fixed lamps of the town and the moving ones, at most kMaxLamps chosen every frame) light every surface,
-//            the sum is bent by a soft shoulder, and the halos (kMatHalo objects) are added over the lit lamps. All of
-//            it is set by LightingSettings ([lighting] in the config); a shadow map that cannot be made switches the
-//            shadows off and the rest goes on.
-// Keys:      main.cpp reads the keyboard (focus rules live there) and calls ToggleWireframe / CycleDetail /
-// ToggleLayer. Threading: main thread only.
+//            camera, drawn with the same shaders and no pixel shader: render/ShadowMath.h), the lamps of the moment
+//            (render/Lights.h: the fixed lamps of the town and the moving ones, at most kMaxLamps chosen every frame)
+//            light every surface, the sum is bent by a soft shoulder, and the halos (kMatHalo objects) are added over
+//            the lit lamps. All of it is set by LightingSettings ([lighting] in the config); a shadow map that cannot
+//            be made switches the shadows off and the rest goes on.
+// Keys:      app/TownSession.cpp reads the keyboard (app/Input.h; the focus rules live there) and calls
+//            ToggleWireframe / CycleDetail / ToggleLayer.
+// Threading: main thread only.
 #pragma once
 
 #include "core/Config.h"

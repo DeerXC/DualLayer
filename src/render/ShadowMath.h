@@ -1,14 +1,12 @@
 // ShadowMath.h - the matrix of the sun's (or the moon's) shadow map: an orthographic box that follows the camera.
 // Fit:       the box is 2 * radius wide and high (across the light) and 2 * halfDepth deep (along it), centred on a
-// point near
-//            the camera. Its centre is moved to the grid of the shadow map's texels in the light's own plane, so that a
-//            shadow does not crawl or shimmer when the camera walks: it only appears at the edge of the box.
+//            point near the camera. Its centre is moved to the grid of the shadow map's texels in the light's own
+//            plane, so that a shadow does not crawl or shimmer when the camera walks: it only appears at the edge of
+//            the box.
 // Space:     left-handed, +Y up; row vectors: clip = world * ViewProjection (DirectXMath's convention,
-// docs/CONVENTIONS.md). The
-//            result is 16 floats, row by row, what the constant buffer takes as it is.
+//            docs/CONVENTIONS.md). The result is 16 floats, row by row, what the constant buffer takes as it is.
 // Depth:     0 at the light's side of the box and 1 at the far side (the plane of the light is `halfDepth` toward the
-// light
-//            from the centre).
+//            light from the centre).
 // Plain maths, no Windows, no Direct3D: tested without a window (tests/test_lighting.cpp).
 // UNITS:     metres.
 #pragma once

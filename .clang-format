@@ -4,3 +4,6 @@ ColumnLimit: 120
 BreakBeforeBraces: Allman
 PointerAlignment: Left
 SortIncludes: false
+# WHY: the reflow cut long comments at the column limit and left a few words alone on a line between two full lines
+# (the file headers of src/ had to be mended by hand); comments are wrapped by the author, clang-format leaves them.
+ReflowComments: false

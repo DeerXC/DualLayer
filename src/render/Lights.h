@@ -1,17 +1,13 @@
 // Lights.h - the point lights of the town (street lamps, the lantern, lit lamps of the mast) and the choice of the ones
-// a frame
-//            sends to the GPU.
+// a frame sends to the GPU.
 // Why:       the shader lights every pixel with the sun or moon of the moment and with at most kMaxLamps point lights
-// (a loop
-//            over a constant buffer, no light culling pass). A town has far more lamps than that, so every frame the
-//            nearest and strongest ones of the moment on the screen are chosen here (SelectLamps) and the rest are left
-//            out.
+//            (a loop over a constant buffer, no light culling pass). A town has far more lamps than that, so every
+//            frame the nearest and strongest ones of the moment on the screen are chosen here (SelectLamps) and the
+//            rest are left out.
 // Pop:       a lamp that is chosen or left out must not blink on and off as the camera walks: its light fades out
-// between
-//            LampFade's two distances, and the ones left out are the least important by the same measure.
+//            between LampFade's two distances, and the ones left out are the least important by the same measure.
 // Flicker:   a flame is never still: a lamp with `flicker` > 0 changes its strength by up to that part, two slow sines
-// with a
-//            phase of its own, so that two lamps never flicker together.
+//            with a phase of its own, so that two lamps never flicker together.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lighting.cpp).
 // UNITS:     metres, seconds. Colours are LINEAR (the intensity is folded in: 1 is the light of the sun on a lit wall).
 #pragma once

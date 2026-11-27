@@ -1,33 +1,29 @@
 // Player.h - a walking body for the camera: it walks, sprints, falls, lands, jumps and stands on the solid of the town.
 // Plain maths, no Windows, no Direct3D: tested without a window (tests/test_player.cpp).
 // Body:      three balls of the collision radius, one above the other: at the feet, at the eye (the camera) and one
-// halfway,
-//            so that the body cannot slip between thin parts. The camera is the eye; the feet are the point on the
-//            ground.
+//            halfway, so that the body cannot slip between thin parts. The camera is the eye; the feet are the point on
+//            the ground.
 // Solid:     SetTown gives the body the solid of the town of the model in both moments, with the circle of the lantern
 //            (scene/Moments.h). The moment is a parameter of every Update, so a body standing on something that is not
 //            in the new moment falls at once. Without a town nothing is solid.
 // Feel:      the horizontal speed follows the keys with an acceleration: quick on the ground (full speed in about 0.06
-// s, a
-//            stop in about 0.05 s), slower in the air, so a jump commits the body but can still be steered. Gravity is
-//            stronger while the body falls than while it rises, so a jump goes up softly and comes down firmly. Letting
-//            the jump key go while the body still rises cuts the rise (a short tap is a small hop, a held key the full
-//            jump height). Coyote time: a jump still works for 0.08 s after the body left an edge; jump buffer: a jump
-//            pressed 0.1 s before the landing happens at the landing.
+//            s, a stop in about 0.05 s), slower in the air, so a jump commits the body but can still be steered.
+//            Gravity is stronger while the body falls than while it rises, so a jump goes up softly and comes down
+//            firmly. Letting the jump key go while the body still rises cuts the rise (a short tap is a small hop, a
+//            held key the full jump height). Coyote time: a jump still works for 0.08 s after the body left an edge;
+//            jump buffer: a jump pressed 0.1 s before the landing happens at the landing.
 // Method:    per small step: the speed on the ground moves toward the wish of the keys; gravity; jump; move; push the
-// three
-//            balls out of the solid. The direction of the push is the normal of what was hit: the part of the speed
-//            that goes into it is removed and the rest stays, so a floor ends a fall and a slope that is too steep
-//            turns the fall into a slide. The walk is taken away only by pushes that are not ground (AddWallPush): a
-//            ramp keeps the walk, a wall takes the part into it, also when the floor pushes in the same step. Then a
-//            probe a few centimetres below the feet tells whether the body stands on something (the surface must face
-//            up: a slope limit of about 53 degrees).
+//            three balls out of the solid. The direction of the push is the normal of what was hit: the part of the
+//            speed that goes into it is removed and the rest stays, so a floor ends a fall and a slope that is too
+//            steep turns the fall into a slide. The walk is taken away only by pushes that are not ground
+//            (AddWallPush): a ramp keeps the walk, a wall takes the part into it, also when the floor pushes in the
+//            same step. Then a probe a few centimetres below the feet tells whether the body stands on something (the
+//            surface must face up: a slope limit of about 53 degrees).
 // Snap:      a body that stood in the last step and did not jump is kept on the ground when the ground drops away by at
 //            most kSnapDown in one step (walking down a ramp or off a low step), so that it does not fly off in small
 //            hops: that was the shaking of the camera on the way down.
 // Time:      Update takes the real frame time, limited to 0.1 s, and cuts it into steps that move the body by less than
-// the
-//            radius, so that nothing is jumped over.
+//            the radius, so that nothing is jumped over.
 // Falling:   a body that falls below kFallBelow goes back to the spawn point (JustRespawned tells it).
 // Space:     left-handed, +Y up. With the forward direction f on the ground, right = (f.z, 0, -f.x).
 // UNITS:     metres, seconds, metres per second.

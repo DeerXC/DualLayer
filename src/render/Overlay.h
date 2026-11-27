@@ -1,15 +1,14 @@
 // Overlay.h - draws an OverlayBatch (render/OverlayBatch.h) over the finished picture: flat, see-through rectangles and
-// text
-//            in screen pixels, for the prompts and the small status line of the game.
+// text in screen pixels, for the prompts and the small status line of the game.
 // Owns:      the shaders (shaders/overlay.hlsl), the input layout, one dynamic vertex buffer of
-// OverlayBatch::kMaxVertices,
-//            the blend state (alpha), the rasterizer state (no culling) and the depth state (no test, no write).
+//            OverlayBatch::kMaxVertices, the blend state (alpha), the rasterizer state (no culling) and the depth state
+//            (no test, no write).
 // Order:     drawn last in the frame, after the models (and the test triangle), into the bound back buffer.
 // State:     Draw sets everything it needs and, at the end, puts back the default blend, depth and rasterizer states,
-// so the
-//            next pass of the next frame starts from the defaults.
+//            so the next pass of the next frame starts from the defaults.
 // Colour:    the batch holds sRGB colours; they are converted to linear when they are copied (the back buffer view is
-// sRGB). Threading: main thread only.
+//            sRGB).
+// Threading: main thread only.
 #pragma once
 
 #include "render/OverlayBatch.h"

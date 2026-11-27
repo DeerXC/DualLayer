@@ -4,8 +4,10 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only batch
 // What is checked: the vertex is 56 bytes (what the input layout of the renderer assumes); sRGB to linear at the ends
 // and in the middle and on both sides of the knee of the curve; joining two meshes moves the indices of the second past
-// the vertices of the first and adds the counts; joining nothing changes nothing. Returns 1 when a check fails.
+// the vertices of the first and adds the counts; joining nothing changes nothing.
+// Returns 1 when a check fails.
 
+#include "check.h"
 #include "render/StaticBatch.h"
 
 #include <cmath>
@@ -13,23 +15,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 bool Near(float a, float b, float eps)
 {

@@ -1,28 +1,24 @@
 // test_guidance.cpp - tests of the help of the game, the lantern as compass (no window, no GPU): src/scene/Guidance.h
-// and src/scene/Flame.h, on a small town made here:
-//   three steps: a door (a thing, handle at z 20), the lantern (a platform at z 40), a bell (a thing at z 60); a mast
-//   with three emblems over x 0, z 90. g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_guidance.cpp -o test_guidance
+// and src/scene/Flame.h, on a small town made here: three steps: a door (a thing, handle at z 20), the lantern (a
+// platform at z 40), a bell (a thing at z 60); a mast with three emblems over x 0, z 90.
+//   g++ -std=c++20 -O2 -Wall -Wextra -I src tests/test_guidance.cpp -o test_guidance
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only guidance
 // What is checked:
 //   1. the goal: the first step that is not done, in order; a thing is done when it is open; the lantern when it has
-//   stood at
-//      its spot (and stays done when it is taken up); the signal mast when every step is done; none when the guidance
-//      is off
+//      stood at its spot (and stays done when it is taken up); the signal mast when every step is done; none when the
+//      guidance is off
 //   2. the flame: on, leaning toward the goal (its bearing) by leanDegrees; restless (further, with sparks) after
-//   idleSeconds
-//      without progress; calm again after progress; upright at the goal; the same for the lantern set down
+//      idleSeconds without progress; calm again after progress; upright at the goal; the same for the lantern set down
 //   3. progress: a body that keeps reaching new ground is never idle; one that stands or goes round in one place is; a
-//   step
-//      done starts the count again
+//      step done starts the count again
 //   4. H: the first press raises the lantern and sweeps a beam for sweepSeconds; a second press puts it away unless the
-//   player
-//      has been stuck for ghostAfterSeconds, when it shows a frame round the thing and a line to it for ghostSeconds; a
-//      step done puts everything away; nothing without a goal or without room in the table
+//      player has been stuck for ghostAfterSeconds, when it shows a frame round the thing and a line to it for
+//      ghostSeconds; a step done puts everything away; nothing without a goal or without room in the table
 //   5. the flame as objects: the plume leans along its bearing, the sparks only when restless; the avatar and the
-//   set-down
-//      lantern carry it
+//      set-down lantern carry it
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Guidance.h"
 #include "scene/Lantern.h"
 #include "scene/Moments.h"
@@ -36,23 +32,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Vec3;
 using namespace dl::scene;

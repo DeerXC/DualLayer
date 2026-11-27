@@ -1,6 +1,9 @@
-// Camera.h - a free-fly camera: a position and two angles. Plain maths, no DirectX, so it is tested without a window
-// (tests/test_camera.cpp). Space:  left-handed, +Y up, +X right, +Z forward (docs/CONVENTIONS.md). yaw = 0 looks along
-// +Z; a positive yaw turns toward +X (to the right). UNITS:  metres, radians, seconds. Owns:   its position and angles.
+// Camera.h - a free-fly camera: a position and two angles.
+// Plain maths, no DirectX, so it is tested without a window (tests/test_camera.cpp).
+// Space:  left-handed, +Y up, +X right, +Z forward (docs/CONVENTIONS.md). yaw = 0 looks along +Z; a positive yaw turns
+//         toward +X (to the right).
+// UNITS:  metres, radians, seconds.
+// Owns:   its position and angles.
 // Threading: main thread only.
 #pragma once
 
@@ -18,7 +21,8 @@ struct CameraInput
 {
     float moveForward = 0.0f; // W = +1, S = -1
     float moveRight = 0.0f;   // D = +1, A = -1
-    float moveUp = 0.0f;      // E = +1, Q = -1
+    float moveUp = 0.0f;      // E or Space = +1, Q = -1
+    float boost = 1.0f;       // 1 = normal; Shift asks for kFlyBoost (the camera keeps it in 1 .. kMaxBoost)
     float lookRight = 0.0f;   // right arrow = +1, left arrow = -1
     float lookUp = 0.0f;      // up arrow = +1, down arrow = -1
 };
@@ -38,6 +42,8 @@ class Camera
     // WHY: after a pause in the debugger one frame can last many seconds; without a limit the camera would jump across
     // the world.
     static constexpr float kMaxStep = 0.1f; // UNITS: seconds
+    // WHY a cap: a town is 200 m across; 8 times a speed of 12 m/s crosses it in two seconds, more than that is blind.
+    static constexpr float kMaxBoost = 8.0f;
 
     void SetSettings(const Settings& settings)
     {

@@ -1,12 +1,10 @@
 // MapMemory.h - what the player has seen of the town, and the markers they left (docs/DESIGN.md 10.4).
 // Seen:      a cell of the plan (scene/Town.h Plan) is seen once the body has been within `revealRadius` metres of it,
-// or has
-//            stood at an overlook of the model (a high point: the bastions, the plaza, the top row of the theatre, the
-//            graveyard) and so looked over the town from there. The rest of the map is blank paper: the map never shows
-//            the position of what the player has not seen.
+//            or has stood at an overlook of the model (a high point: the bastions, the plaza, the top row of the
+//            theatre, the graveyard) and so looked over the town from there. The rest of the map is blank paper: the
+//            map never shows the position of what the player has not seen.
 // Markers:   up to kMaxMarkers; each is a place on the ground with one of kMarkerTypes shapes and the moment (A or B)
-// it
-//            was set in. Marking a place that already has a marker takes it away; an eleventh marker takes the
+//            it was set in. Marking a place that already has a marker takes it away; an eleventh marker takes the
 //            oldest one's place. No text.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_map.cpp).
 // UNITS: metres. Space: left-handed, +Y up (the plan is seen from above: x east, z north).

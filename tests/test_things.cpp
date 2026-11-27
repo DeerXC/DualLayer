@@ -4,15 +4,13 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only things
 // What is checked:
 //   1. the rules on a box of their own: E opens in A only; nothing happens in B; an opening into the body is refused;
-//   the
-//      solid of a thing follows its state in both moments; the trace comes up in B; Reset shuts everything
+//      the solid of a thing follows its state in both moments; the trace comes up in B; Reset shuts everything
 //   2. the data: the game starts in B; the sea gate has a handle, and boxes of both states in both moments
 //   3. beat 1, the switch: a flood of every place the body can walk to (steps up to 1.2 m, any drop that lands in the
-//   map,
-//      no jump across a gap) shows that in B the start is closed off from the sea stair by the heap, and in A it is not
+//      map, no jump across a gap) shows that in B the start is closed off from the sea stair by the heap, and in A it
+//      is not
 //   4. beat 2, the causal rule: from the foot of the sea stair the top of it (the lower town) is reached in B only
-//   after
-//      the gate was opened in A; never in A (the cargo), never in B with the gate shut
+//      after the gate was opened in A; never in A (the cargo), never in B with the gate shut
 //   5. the same with the real body: in A it walks to the winch, E opens the gate, it switches to B where it stands, and
 //      walks up through the gate; in B the handle does nothing
 //   6. beat 3, the switch in the air: the lower street is closed in both moments (the flood); the real body climbs the
@@ -21,6 +19,7 @@
 //      the heap
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Lantern.h"
 #include "scene/Moments.h"
 #include "scene/Player.h"
@@ -37,23 +36,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Player;
 using dl::Vec3;

@@ -1,20 +1,18 @@
 // Lantern.h - the lantern and the circle of the past it keeps standing in the present (docs/DESIGN.md 3.2), and the
-// traces
-//            that what was done in the past leaves in the present (3.5).
+// traces that what was done in the past leaves in the present (3.5).
 // Circle:    the lantern set down in A keeps a sphere of radius kRadius round it in A in both moments. In B, inside the
 //            sphere, what is solid and what is seen is A; outside it, B. (A is A everywhere: the circle changes nothing
 //            in A.)
 // Moments:   the solid of the town with the circle (scene/Moments.h). The water of A is water inside the circle in B as
-// well. Rules:     set down in A only, by a body that stands on something; taken up in either moment from within
-// kReach, unless
-//            taking it would leave the body inside something or without the floor it stands on (refused, as a switch
-//            is). While it is set down, the body carries nothing; a switch is checked against the moment with the
-//            circle.
+//            well.
+// Rules:     set down in A only, by a body that stands on something; taken up in either moment from within kReach,
+//            unless taking it would leave the body inside something or without the floor it stands on (refused, as a
+//            switch is). While it is set down, the body carries nothing; a switch is checked against the moment with
+//            the circle.
 // Traces:    a thing changed in A is marked in B by a faint glow of the colour of the lantern (never gold: gold means
-// use),
-//            which comes up over kTraceRise seconds after the change and then stays (Traces). The things that change in
-//            A come with the puzzles of the town (docs/DESIGN.md 12, step 4); the record is here so that every one of
-//            them uses the same rule.
+//            use), which comes up over kTraceRise seconds after the change and then stays (Traces). The things that
+//            change in A come with the puzzles of the town (docs/DESIGN.md 12, step 4); the record is here so that
+//            every one of them uses the same rule.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lantern.cpp).
 // UNITS: metres, seconds. Space: left-handed, +Y up.
 #pragma once

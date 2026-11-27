@@ -1,7 +1,8 @@
 // test_core.cpp - tests of the parts of src/core that need no window and no GPU.
-//   g++ -std=c++20 -Wall -Wextra -I src tests/test_core.cpp src/core/Config.cpp src/core/Log.cpp src/core/Assert.cpp -o
-//   test_core MSVC (Developer PowerShell):  cl /nologo /std:c++20 /EHsc /W4 /I src tests\test_core.cpp
-//   src\core\Config.cpp src\core\Log.cpp src\core\Assert.cpp
+//   g++ -std=c++20 -Wall -Wextra -I src tests/test_core.cpp src/core/Config.cpp src/core/Log.cpp src/core/Assert.cpp
+//       -o test_core
+//   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only core
+#include "check.h"
 #include "core/Assert.h"
 #include "core/Config.h"
 #include "core/Log.h"
@@ -11,23 +12,7 @@
 
 namespace
 {
-int g_failed = 0;
-int g_passed = 0;
 int g_assertCalls = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 void CountingHandler(const char*, int, const char*, const char*)
 {

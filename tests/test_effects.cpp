@@ -3,12 +3,12 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only effects
 // What is checked:
 //   1. the sea: one plane per layer, each in its own layer, at the level asked for, wider than the far plane round any
-//   eye,
-//      moving in steps (so the pattern of the waves does not slide), drawn as the sea material; nothing when the eye is
-//      so far north that the sea is out of sight, nothing when the table is full
+//      eye, moving in steps (so the pattern of the waves does not slide), drawn as the sea material; nothing when the
+//      eye is so far north that the sea is out of sight, nothing when the table is full
 //   2. the ring of a return: only while it lasts, growing and fading, in both layers; nothing for a full table
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/TownEffects.h"
 
 #include <cmath>
@@ -16,23 +16,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Vec3;
 using namespace dl::scene;

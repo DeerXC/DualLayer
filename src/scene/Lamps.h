@@ -1,16 +1,16 @@
 // Lamps.h - the lights of the town as the renderer wants them (render/Lights.h): the lamps of the streets and the
-// harbour that the model
-//           writes into the town file, and the ones that change while the game is played: the lantern of the traveller
-//           (in the hand or set down), the lamps of the signal mast that a ringing of a bell has lit, and the lamp over
-//           the rope of a bell that was rung.
+// harbour that the model writes into the town file, and the ones that change while the game is played: the lantern of
+// the traveller (in the hand or set down), the lamps of the signal mast that a ringing of a bell has lit, and the lamp
+// over the rope of a bell that was rung.
 // Fixed:    TownLamps once; the renderer keeps them (Models::SetStaticLamps) and every frame chooses the nearest ones.
 // Moving:   MovingLamps every frame (Models::SetMovingLamps).
 // Halos:    AddHalos gives a soft glowing sphere (scene::kMatHalo) for every lamp near the camera, to be drawn over the
-// picture: a lit lamp
-//           is a light in the air as well as on the walls. A halo is weaker in A (the sun hides a lamp) than in B.
+//           picture: a lit lamp is a light in the air as well as on the walls. A halo is weaker in A (the sun hides a
+//           lamp) than in B.
 // Colour:   the model gives sRGB, the renderer works in linear light: a lamp's colour is converted here and multiplied
-// by its strength. Plain data and plain maths, no Windows, no Direct3D: tested without a window
-// (tests/test_lighting.cpp). UNITS:    metres, seconds.
+//           by its strength.
+// Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lighting.cpp).
+// UNITS:    metres, seconds.
 #pragma once
 
 #include "render/Lights.h"

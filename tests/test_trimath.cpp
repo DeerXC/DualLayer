@@ -3,8 +3,10 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only trimath
 // What is checked: the vector operations; the closest point of a triangle to a point in each of the seven regions (over
 // the face, past each of the three edges, beyond each of the three corners), and on a long series of points: it lies in
-// the triangle, and no point of a fine sampling of the triangle is closer to the point. Returns 1 when a check fails.
+// the triangle, and no point of a fine sampling of the triangle is closer to the point.
+// Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/TriMath.h"
 
 #include <cmath>
@@ -12,23 +14,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Vec3;
 namespace tri = dl::tri;

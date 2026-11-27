@@ -5,23 +5,20 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only style
 // What is checked:
 //   1. the lamp: the rings (0 at 0, only rising, flat in the middle of a step, the amount 0 leaves the smooth light),
-//   the warmth (the
-//      core whiter than the edge), and that a style of 0 is exactly the smooth lamp of LampShade
+//      the warmth (the core whiter than the edge), and that a style of 0 is exactly the smooth lamp of LampShade
 //   2. the sun: the soft bands (the ends, only rising, flat inside a band), the clouds (the range, the amount, the
-//   drift, the share of
-//      the sky they cover, the same value along a ray of light), the rim (none on a floor, none seen squarely, more at
-//      the edge)
+//      drift, the share of the sky they cover, the same value along a ray of light), the rim (none on a floor, none
+//      seen squarely, more at the edge)
 //   3. a surface: the plain sum when the style is 0; the cool fill on the shadow side only; the rim of the stone is a
-//   third of
-//      the rim of the rest; the painted stone (identity at 0, a bounded change, damp darker and cooler); the haze
-//      (nothing near)
+//      third of the rim of the rest; the painted stone (identity at 0, a bounded change, damp darker and cooler); the
+//      haze (nothing near)
 //   4. the grade: identity when neutral, the contrast keeps the middle grey, the corners, no negative colour, the
-//   saturation
+//      saturation
 //   5. the settings: the defaults, nonsense pulled in, the keys of the config, MakeStyle (plain = zeros, the master,
-//   the shafts need
-//      the shadows, A and B differ), and the looks (cool and tones keep the brightness)
+//      the shafts need the shadows, A and B differ), and the looks (cool and tones keep the brightness)
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "render/LightingSettings.h"
 
 #include <algorithm>
@@ -37,23 +34,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 bool Near(float a, float b, float eps)
 {

@@ -5,28 +5,25 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only map
 // What is checked:
 //   1. the plan of the model: the size, the classes, the sea in both moments, the moat of A that is not in B, the
-//   streets of
-//      the model under their middle lines, the two moments differing in a few hundred cells and not in most of them
+//      streets of the model under their middle lines, the two moments differing in a few hundred cells and not in most
+//      of them
 //   2. what is seen: the body sees the cells within the radius and no others; the overlooks reveal far, but only to a
-//   body that
-//      stands at them; nothing outside the plan is marked; the box of what is seen
+//      body that stands at them; nothing outside the plan is marked; the box of what is seen
 //   3. the markers: placed, taken away where they stand, never more than ten (the eleventh takes the oldest place), the
 //      six shapes and the moment each was set in are kept, no bad numbers
 //   4. the paper: it is inside every screen; the whole plan is in the window from the first frame (and the player and
-//   the
-//      tower with it); zoom and pan stay inside the plan; a point of the screen and a place of the plan are turned into
-//      each other both ways; the buttons are on the screen and are found by a point
+//      the tower with it); zoom and pan stay inside the plan; a point of the screen and a place of the plan are turned
+//      into each other both ways; the buttons are on the screen and are found by a point
 //   5. the ink: in both moments the same is neutral, in one moment only it is warm (A) or cool (B), where both have
-//   something
-//      the sheet on top shows; what is not seen is blank paper; the lamps of the tower are lit or dark; the arrow
-//      points where the camera looks; the marker shapes and the lantern are drawn; nothing leaves the screen and the
-//      batch is never full
+//      something the sheet on top shows; what is not seen is blank paper; the lamps of the tower are lit or dark; the
+//      arrow points where the camera looks; the marker shapes and the lantern are drawn; nothing leaves the screen and
+//      the batch is never full
 //   6. the fog and the shapes: the whole town is under fog at the start and nothing of the unseen is inked; the edge of
-//   an
-//      ink is smooth (a round building has the area of a circle, not of a staircase); the rings of the puzzles to solve
-//      show in the fog and go when solved; the cached layer is made again only when what it shows changes
+//      an ink is smooth (a round building has the area of a circle, not of a staircase); the rings of the puzzles to
+//      solve show in the fog and go when solved; the cached layer is made again only when what it shows changes
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "render/MapView.h"
 #include "scene/MapMemory.h"
 #include "scene/Town.h"
@@ -38,23 +35,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::MapFrame;
 using dl::MapScene;
@@ -113,7 +93,11 @@ void TestPlan()
         CHECK(counts[w][tn::kPlanWater] > 2000 && counts[w][tn::kPlanBuilding] > 6000 &&
               counts[w][tn::kPlanStreet] > 4000 && counts[w][tn::kPlanCliff] > 800);
     }
-    CHECK(differ > 6000 && differ < 8000); // the moments differ in a few thousand cells of 1 m and agree in most
+    // the moments differ in a few thousand cells and agree in most (3.5% of the plan at pass 6). The lower bound was
+    // 6000 and the town of pass 5 had 6109; the smooth ground, the court and the rooms of pass 6 move the shore and
+    // the footprints, and it has 5726. So the bound is 5000: what is checked is that the sheets are not the same,
+    // and that they are not different everywhere.
+    CHECK(differ > 5000 && differ < 8000);
     // the sea, in the basin of the harbour, is water in both moments
     CHECK(ClassAt(plan, 0, 4.0f, -86.0f) == tn::kPlanWater && ClassAt(plan, 1, 4.0f, -86.0f) == tn::kPlanWater);
     // the moat round the rock (south side, clear of the lift): water in A, not in B

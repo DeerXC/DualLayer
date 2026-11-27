@@ -6,22 +6,19 @@
 // The goal is the signal mast over the bell tower with its three dark lamps. The sea wall 8 m in front of the quay
 // hides the tower itself in both moments, so the test casts the rays and measures the first frame. What is checked:
 //   1. the rays: from the camera of the first frame, and from the eye, every lamp is seen (nothing of the town in the
-//   way) in
-//      the moment the game starts in and in the other; the wall does hide the tower itself (the reason for the mast)
+//      way) in the moment the game starts in and in the other; the wall does hide the tower itself (the reason for the
+//      mast)
 //   2. the first frame: for the lenses of 60, 70 and 90 degrees and the screens 16:9, 16:10 and 4:3, the three lamps,
-//   the winch
-//      of the sea gate and the heap of the quay are all inside the picture
+//      the winch of the sea gate and the heap of the quay are all inside the picture
 //   3. the lamps: three, dark at the start, each lit by the bell of its district and no other, each with its own shape;
-//   the
-//      objects drawn for them, lit or dark
+//      the objects drawn for them, lit or dark
 //   4. the compass: at the start the guidance has the winch of the sea gate for goal and the flame leans toward it, and
-//   that
-//      bearing is inside the first frame; the prompt of TAB is offered after 8 s of walking and not before
+//      that bearing is inside the first frame; the prompt of TAB is offered after 8 s of walking and not before
 //   5. the first lesson can be played: from the start, in A, the winch is reached (tests/test_route.cpp proves the
-//   whole way;
-//      here only that the heap of B closes the way to it and A does not)
+//      whole way; here only that the heap of B closes the way to it and A does not)
 // Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Emblems.h"
 #include "scene/Guidance.h"
 #include "scene/Prompts.h"
@@ -36,23 +33,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Vec3;
 namespace town = dl::town;

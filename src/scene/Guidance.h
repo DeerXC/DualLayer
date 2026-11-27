@@ -1,24 +1,20 @@
 // Guidance.h - the help of the game: the lantern as compass (docs/DESIGN.md 10.3).
 // Goal:      the first step of the main path (scene/Town.h `steps`, in the order it is played) that is not done: a
-// thing opened
-//            (scene/Things.h), or the lantern set down at its spot (scene/Lantern.h; once it has stood there it counts
-//            as done, also when it is taken up again). When every step is done the goal is the signal mast over the
-//            tower.
+//            thing opened (scene/Things.h), or the lantern set down at its spot (scene/Lantern.h; once it has stood
+//            there it counts as done, also when it is taken up again). When every step is done the goal is the signal
+//            mast over the tower.
 // Flame:     always on. The flame of the lantern leans toward the goal by leanDegrees; after idleSeconds without
-// progress it
-//            leans further (leanIdleDegrees) and throws sparks. It stands upright when the body is at the goal. It is a
-//            compass, not an answer: it points at the place, never at what to do there.
+//            progress it leans further (leanIdleDegrees) and throws sparks. It stands upright when the body is at the
+//            goal. It is a compass, not an answer: it points at the place, never at what to do there.
 // Progress:  a step done, a cell of kCell metres that the body has not stood in since the goal changed, or a new
-// closest
-//            approach to the goal by kProgressMetres. A body that walks somewhere new is never helped; one that goes
-//            round and round is.
+//            closest approach to the goal by kProgressMetres. A body that walks somewhere new is never helped; one that
+//            goes round and round is.
 // H:         the player asks for more, in three steps that the player escalates by pressing and by time without
-// progress, never
-//            by distance to an answer. First press: the lantern is raised and a warm beam sweeps over the place for
-//            sweepSeconds. Second press during the sweep, and only after ghostAfterSeconds without progress (so the
-//            player has tried first): a faint frame round the thing to use, joined to the lantern by a thin line, for
-//            ghostSeconds. A press while it shows (and before the second step is allowed) puts it away. The third step
-//            of the design (the point of a suggested switch) is not built.
+//            progress, never by distance to an answer. First press: the lantern is raised and a warm beam sweeps over
+//            the place for sweepSeconds. Second press during the sweep, and only after ghostAfterSeconds without
+//            progress (so the player has tried first): a faint frame round the thing to use, joined to the lantern by a
+//            thin line, for ghostSeconds. A press while it shows (and before the second step is allowed) puts it away.
+//            The third step of the design (the point of a suggested switch) is not built.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_guidance.cpp).
 // UNITS: metres, seconds, degrees in the settings, radians inside. Space: left-handed, +Y up.
 #pragma once

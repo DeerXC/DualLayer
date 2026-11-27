@@ -3,8 +3,10 @@
 //   MSVC (Developer PowerShell):  .\tests\run_tests.ps1 -Only layer_guard
 // What is checked: a switch that fits is done whatever the ripple does; one that does not fit is refused, the old layer
 // is held, the ripple is turned back once after kRefuseSeconds, and requests during a refusal or during a ripple are
-// ignored. Returns 1 when a check fails.
+// ignored.
+// Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/LayerGuard.h"
 
 #include <cmath>
@@ -12,23 +14,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 bool Near(float a, float b, float eps)
 {

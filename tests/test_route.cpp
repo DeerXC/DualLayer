@@ -8,11 +8,13 @@
 // the air: a jump of at most 1.65 m up with the moment changed at its top, onto a floor of the other moment within 1 m
 // that the moment it jumped in does not have. The lantern is a circle (set down on the scaffold of the west). The water
 // of a moment is not walked. A handle is reached in A within its reach. Ways: test_route [every] x y z [thing numbers
-// done] [L]  prints the way found to (x, y, z) (every cell with "every");
-//       test_route probe x y z [things] [L]  prints the floor and the fit there in both moments.
+// done] [L]  prints the way found to (x, y, z) (every cell with "every"); test_route probe x y z [things] [L]  prints
+// the floor and the fit there in both moments.
 // The steps: the things in the order of the main path and the lantern (Town().steps); for each, its handle is reached,
-// and no handle further on is reached before it is done (no way round a puzzle). Returns 1 when a check fails.
+// and no handle further on is reached before it is done (no way round a puzzle).
+// Returns 1 when a check fails.
 
+#include "check.h"
 #include "scene/Lantern.h"
 #include "scene/Moments.h"
 #include "scene/Player.h"
@@ -30,23 +32,6 @@
 
 namespace
 {
-
-int g_failed = 0;
-int g_passed = 0;
-
-#define CHECK(cond)                                                                                                    \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (cond)                                                                                                      \
-        {                                                                                                              \
-            ++g_passed;                                                                                                \
-        }                                                                                                              \
-        else                                                                                                           \
-        {                                                                                                              \
-            ++g_failed;                                                                                                \
-            std::printf("FAIL line %d: %s\n", __LINE__, #cond);                                                        \
-        }                                                                                                              \
-    } while (0)
 
 using dl::Vec3;
 namespace town = dl::town;

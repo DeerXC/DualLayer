@@ -1,16 +1,15 @@
 // LightingSettings.h - every number of the light of the town that is not in the model: what the config file [lighting]
-// says. Why:       the model (tools/layout/city_model.py LIGHT) gives the sun, the moon, the sky and the fog of each
-// moment; the game
-//            adds the shadows, the point lights, the exposure and the glow, and these are the knobs of them. F5 reloads
-//            them.
+// says.
+// Why:       the model (tools/layout/city_model.py LIGHT) gives the sun, the moon, the sky and the fog of each moment;
+//            the game adds the shadows, the point lights, the exposure and the glow, and these are the knobs of them.
+//            F5 reloads them.
 // Rules:     a value that makes no sense is pulled into a range that works (Sanitize); a missing key keeps the default.
-// The
-//            defaults are the ones the lighting was made with: A, the warm evening, as the model has it; B, the cold
-//            present, a little darker so that the lamps and the lantern read in it.
+//            The defaults are the ones the lighting was made with: A, the warm evening, as the model has it; B, the
+//            cold present, a little darker so that the lamps and the lantern read in it.
 // Style:     since 2026-11-26 the light is stylised (shaders/lighting.hlsli, "the style of the light"): the numbers of
-// it are
-//            below, `style` is their master and 0 gives the plain light that was before. MakeStyle turns them into the
-//            five registers that the model shader reads; the colours of the looks of A and B are in StyleLookOf.
+//            it are below, `style` is their master and 0 gives the plain light that was before. MakeStyle turns them
+//            into the five registers that the model shader reads; the colours of the looks of A and B are in
+//            StyleLookOf.
 // Plain data, no Windows, no Direct3D: tested without a window (tests/test_lighting.cpp).
 // UNITS:     metres; texels for the shadow map; the other numbers are factors (1 = as the model says).
 #pragma once
@@ -89,8 +88,9 @@ struct StyleLook
     float vignette;    ///< 0 .. 1: how much darker the corners are
 };
 
-/// A: the warm evening: shadows blue-violet, the lights gold. B: the cold present: shadows indigo, the lights pale
-/// cyan.
+/// A: the warm evening: shadows blue-violet, the lights gold. B: the present, weathered stone in the light of the moon: shadows
+/// blue-violet (the moon's sky), the lights silver with a trace of cyan, the haze a pale grey-blue. (Passes 1 to 5 had saturation
+/// 1.25, contrast 1.22 and a teal haze: a night of ice.)
 inline StyleLook StyleLookOf(int layer)
 {
     if (layer == 0)
@@ -106,16 +106,16 @@ inline StyleLook StyleLookOf(int layer)
                          1.08f,
                          0.20f};
     }
-    return StyleLook{{0.96f, 0.92f, 1.22f},
-                     {0.98f, 0.92f, 1.18f},
-                     {0.94f, 1.01f, 1.10f},
-                     0.75f,
-                     0.45f,
-                     {0.80f, 1.00f, 1.12f},
-                     1.0f,
-                     1.25f,
-                     1.22f,
-                     0.32f};
+    return StyleLook{{0.98f, 0.95f, 1.14f},
+                     {1.00f, 0.95f, 1.12f},
+                     {0.99f, 1.00f, 1.04f},
+                     0.70f,
+                     0.40f,
+                     {0.92f, 0.99f, 1.06f},
+                     0.8f,
+                     1.06f,
+                     1.14f,
+                     0.30f};
 }
 
 /// What the model shader reads for the style (cbuffer Frame, from gradeParams2 on: shaders/models.hlsl). Four floats
