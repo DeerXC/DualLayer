@@ -19,6 +19,9 @@ logs/
 assets_src/
 *.zip
 config/local.ini
-
+# backups and caches
+*.bak*
+__pycache__/
+*.pyc
 # personal study notes, kept outside version control
 docs/understanding/
