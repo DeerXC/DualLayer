@@ -47,6 +47,8 @@ bool Gpu::Init(const Window& window, const Config& config, int adapter)
     {
         return false;
     }
+    timer.Init(device->GetDevice()); // a device without timestamp queries is not an error: the title bar says gpu n/a
+    models.SetTimer(&timer);
     models.LoadThemes(config);   // the looks of the layers: built in, [layer_a] / [layer_b] in the config change them
     models.LoadLighting(config); // the shadows, the lamps, the exposure: [lighting] in the config
     models.SetStaticLamps(
@@ -63,6 +65,7 @@ void Gpu::Shutdown()
 {
     overlay.Shutdown();
     models.Shutdown();
+    timer.Shutdown();
     device->Shutdown();
 }
 

@@ -879,6 +879,8 @@ void TownSession::Render(const Frame& frame)
                                                              DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
     float clear[4] = {};
     m_gpu.models.ClearColor(clear);
+    ID3D11DeviceContext* context = m_gpu.device->GetContext();
+    m_gpu.timer.BeginFrame(context); // the GPU time of the parts of the frame, read some frames later (the title bar)
     {
         GpuEvent frameEvent(m_gpu.device->GetAnnotation(), L"Frame");
         m_gpu.device->BeginFrame(clear);
@@ -907,10 +909,13 @@ void TownSession::Render(const Frame& frame)
                          ComputeMapFrame(m_gpu.device->Width(), m_gpu.device->Height(), scene), &m_mapCache);
             }
             GpuEvent pass(m_gpu.device->GetAnnotation(), L"Overlay");
+            const GpuScope hudTime(&m_gpu.timer, context, GpuTimer::kHud);
             m_gpu.overlay.Draw(m_gpu.device->GetContext(), *m_hud, m_gpu.device->Width(), m_gpu.device->Height());
         }
     }
+    m_gpu.timer.EndFrame(context);
     m_gpu.device->EndFrame();
+    m_gpu.timer.Collect(context);
 }
 
 void TownSession::UpdateTitle(const Frame& frame)
@@ -925,18 +930,34 @@ void TownSession::UpdateTitle(const Frame& frame)
     // the words "layer", "walk", "fly", "noclip" and "quay" are part of the contract.
     const Vec3 body = frame.walking ? m_player.Eye() : m_camera.Position();
     const wchar_t* mode = m_collide ? (m_walk ? L"collide | walk" : L"collide | fly") : L"noclip";
-    wchar_t title[520];
-    swprintf_s(
-        title,
-        L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms) | body %.1f %.1f %.1f | %s | %s | town: %hs | bells %d of %d | "
-        L"lamps %d of %d | steps %d of %d | falls %d | light %hs%s%s",
-        m_gpu.device->AdapterName().c_str(), m_gpu.device->Width(), m_gpu.device->Height(),
-        static_cast<double>(m_fpsFrames) / m_fpsTimer, 1000.0 * m_fpsTimer / static_cast<double>(m_fpsFrames),
-        static_cast<double>(body.x), static_cast<double>(body.y), static_cast<double>(body.z),
-        m_gpu.models.StatusLine().c_str(), mode, m_town.NearestPlace(body.x, body.z), m_things.BellsRung(),
-        m_things.BellCount(), town::LitEmblems(m_town, m_things), static_cast<int>(m_town.emblems.size()),
-        m_guidance.Done(), static_cast<int>(m_town.steps.size()), m_falls, kLightViewNames[m_lightView],
-        m_mapOpen ? L" | map" : L"", m_window.MouseCaptured() ? L"" : (m_mapOpen ? L"" : L" | click for mouse look"));
+    // the GPU time of the frame and of its parts (render/GpuTimer.h), right after the frame time: a frame time that
+    // does not move with the work is a cap, and this says what the GPU spends. None of the words that check.ps1 reads
+    // is in it.
+    wchar_t gpuText[112];
+    if (m_gpu.timer.Valid())
+    {
+        const GpuTimer& t = m_gpu.timer;
+        swprintf_s(gpuText, L" | gpu %.2f ms (shadow %.2f scene %.2f lines %.2f rain %.2f hud %.2f)",
+                   static_cast<double>(t.Ms(GpuTimer::kFrame)), static_cast<double>(t.Ms(GpuTimer::kShadow)),
+                   static_cast<double>(t.Ms(GpuTimer::kScene)), static_cast<double>(t.Ms(GpuTimer::kLines)),
+                   static_cast<double>(t.Ms(GpuTimer::kRain)), static_cast<double>(t.Ms(GpuTimer::kHud)));
+    }
+    else
+    {
+        swprintf_s(gpuText, L" | gpu n/a");
+    }
+    wchar_t title[640];
+    swprintf_s(title,
+               L"DualLayer | %s | %d x %d | %.1f FPS (%.2f ms)%s | body %.1f %.1f %.1f | %s | %s | town: %hs | "
+               L"bells %d of %d | lamps %d of %d | steps %d of %d | falls %d | light %hs%s%s",
+               m_gpu.device->AdapterName().c_str(), m_gpu.device->Width(), m_gpu.device->Height(),
+               static_cast<double>(m_fpsFrames) / m_fpsTimer, 1000.0 * m_fpsTimer / static_cast<double>(m_fpsFrames),
+               gpuText, static_cast<double>(body.x), static_cast<double>(body.y), static_cast<double>(body.z),
+               m_gpu.models.StatusLine().c_str(), mode, m_town.NearestPlace(body.x, body.z), m_things.BellsRung(),
+               m_things.BellCount(), town::LitEmblems(m_town, m_things), static_cast<int>(m_town.emblems.size()),
+               m_guidance.Done(), static_cast<int>(m_town.steps.size()), m_falls, kLightViewNames[m_lightView],
+               m_mapOpen ? L" | map" : L"",
+               m_window.MouseCaptured() ? L"" : (m_mapOpen ? L"" : L" | click for mouse look"));
     m_window.SetTitle(title);
     m_fpsTimer = 0.0;
     m_fpsFrames = 0;

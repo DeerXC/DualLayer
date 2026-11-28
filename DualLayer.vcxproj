@@ -92,6 +92,7 @@
     <ClCompile Include="src\core\Log.cpp" />
     <ClCompile Include="src\core\Window.cpp" />
     <ClCompile Include="src\render\Device.cpp" />
+    <ClCompile Include="src\render\GpuTimer.cpp" />
     <ClCompile Include="src\render\MeshData.cpp" />
     <ClCompile Include="src\render\Models.cpp" />
     <ClCompile Include="src\render\Overlay.cpp" />
@@ -109,6 +110,7 @@
     <ClInclude Include="src\core\Window.h" />
     <ClInclude Include="src\render\Device.h" />
     <ClInclude Include="src\render\GpuDebug.h" />
+    <ClInclude Include="src\render\GpuTimer.h" />
     <ClInclude Include="src\render\Hud.h" />
     <ClInclude Include="src\render\LayerRipple.h" />
     <ClInclude Include="src\render\LightingSettings.h" />
@@ -120,6 +122,7 @@
     <ClInclude Include="src\render\Font5x7.h" />
     <ClInclude Include="src\render\Overlay.h" />
     <ClInclude Include="src\render\OverlayBatch.h" />
+    <ClInclude Include="src\render\RainSettings.h" />
     <ClInclude Include="src\render\Projection.h" />
     <ClInclude Include="src\render\ShaderCompiler.h" />
     <ClInclude Include="src\render\ShadowMath.h" />
@@ -153,6 +156,8 @@
     <None Include="shaders\lines_blend.hlsli" />
     <None Include="shaders\models.hlsl" />
     <None Include="shaders\overlay.hlsl" />
+    <None Include="shaders\rain.hlsl" />
+    <None Include="shaders\rain.hlsli" />
     <None Include="shaders\ripple.hlsl" />
     <None Include="config\default.ini" />
     <None Include="tools\check.ps1" />

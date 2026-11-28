@@ -30,17 +30,23 @@
 //   8. the sky: its horizon leans to the hue that the far land fades to (LeanToHue, StyleSky), none overhead, none in
 //      the plain view; the sky that the water reflects is the sky of the picture (StyleWaterSky): the sea meets the
 //      horizon in its colour
+//  10. the rain of B (6.11, R1): shaders/rain.hlsli as C++ (the hash, the streaks and their fall, the layers behind a
+//      wall and in the dry circle, the rings on the ground, the wet look and the sky under cloud), the keys of [rain],
+//      the registers of the pass and of the wet look, and the look of B in the rain against the numbers of 6.10 (the
+//      ground, the shadow, the deepest dark, the horizon)
 // Returns 1 when a check fails.
 
 #include "check.h"
 #include "render/LightingSettings.h"
 #include "render/LineSettings.h"
+#include "render/RainSettings.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -51,6 +57,7 @@
 #include "../shaders/lighting.hlsli"
 #include "../shaders/lines.hlsli"
 #include "../shaders/lines_blend.hlsli"
+#include "../shaders/rain.hlsli"
 
 #include "hlsl_shim_end.h"
 
@@ -1030,6 +1037,612 @@ void TestHighlight()
     CHECK(hi.x <= 1.0f && hi.y <= 1.0f && hi.z <= 1.0f && lo.z > 0.0f); // and nothing is out of range
 }
 
+// ---- 10. the rain of B (docs/DESIGN.md 6.11, stage R1) shaders/rain.hlsli run as C++: the streaks, the layers, the
+// dry circle, the rings, the wet look; src/render/RainSettings.h: the keys of [rain], the registers of the rain pass
+// and the numbers of the wet look; and the look of B in the rain against the numbers of 6.10.
+
+// the share of the pixels of a block that a layer of streaks covers, as a mean coverage
+float StreakMean(float density, float seed)
+{
+    double sum = 0.0;
+    int count = 0;
+    for (int y = 0; y < 1200; y += 2)
+    {
+        for (int x = 0; x < 500; x += 2)
+        {
+            sum += static_cast<double>(RainStreak(static_cast<float>(x), static_cast<float>(y), 20.0f, 60.0f, density,
+                                                  700.0f, 1.3f, 0.5f, 2.0f, seed));
+            ++count;
+        }
+    }
+    return static_cast<float>(sum / count);
+}
+
+void TestRainMaths()
+{
+    // ---- the hashes
+    double sum1 = 0.0;
+    double sum2 = 0.0;
+    int low = 0;
+    int close = 0;
+    bool range = true;
+    bool repeats = true;
+    const int cells = 200;
+    for (int i = 0; i < cells; ++i)
+    {
+        for (int j = 0; j < cells; ++j)
+        {
+            const float a = static_cast<float>(i);
+            const float b = static_cast<float>(j);
+            const float h1 = RainHash(a, b);
+            const float h2 = RainHash2(a, b);
+            range = range && h1 >= 0.0f && h1 < 1.0f && h2 >= 0.0f && h2 < 1.0f;
+            repeats = repeats && h1 == RainHash(a, b) && h2 == RainHash2(a, b);
+            sum1 += static_cast<double>(h1);
+            sum2 += static_cast<double>(h2);
+            low += h1 < 0.25f ? 1 : 0;
+            close += std::fabs(h1 - h2) < 0.05f ? 1 : 0;
+        }
+    }
+    const double total = static_cast<double>(cells) * cells;
+    CHECK(range && repeats);
+    CHECK(sum1 / total > 0.47 && sum1 / total < 0.53 && sum2 / total > 0.47 && sum2 / total < 0.53); // spread evenly
+    CHECK(static_cast<double>(low) / total > 0.22 && static_cast<double>(low) / total < 0.28);
+    CHECK(static_cast<double>(close) / total > 0.07 &&
+          static_cast<double>(close) / total < 0.13); // the two do not follow each other
+    CHECK(RainWrap(0.0f) == 0.0f && RainWrap(1023.0f) == 1023.0f && RainWrap(1024.0f) == 0.0f &&
+          RainWrap(-1.0f) == 1023.0f);
+    CHECK(Near(RainWrap(5000.0f), 904.0f, 1.0e-3f));
+
+    // ---- one layer of streaks
+    bool none = true;
+    bool bounded = true;
+    for (int y = 0; y < 600; y += 3)
+    {
+        for (int x = 0; x < 400; x += 3)
+        {
+            none = none && RainStreak(static_cast<float>(x), static_cast<float>(y), 40.0f, 300.0f, 0.0f, 900.0f, 2.0f,
+                                      0.5f, 2.0f, 1.0f) == 0.0f;
+            const float c = RainStreak(static_cast<float>(x), static_cast<float>(y), 20.0f, 60.0f, 1.0f, 500.0f, 0.7f,
+                                       0.5f, 2.0f, 2.0f);
+            bounded = bounded && c >= 0.0f && c <= 1.0f;
+        }
+    }
+    CHECK(none && bounded); // a density of 0 has no streak; the coverage is in 0 .. 1
+    // one cell (density 1): its streak is thin, lies in the cell, covers its share of the cell, and is faint at the
+    // tail and full at the head
+    {
+        const float cellW = 40.0f;
+        const float cellH = 300.0f;
+        const float col = 3.0f;
+        const float row = 2.0f;
+        float vFirst = 1.0e9f;
+        float vLast = -1.0e9f;
+        float uLeft = 1.0e9f;
+        float uRight = -1.0e9f;
+        float best = 0.0f;
+        float uBest = 0.0f;
+        for (float v = row * cellH; v < (row + 1.0f) * cellH; v += 0.5f)
+        {
+            for (float u = col * cellW; u < (col + 1.0f) * cellW; u += 0.25f)
+            {
+                const float c = RainStreak(u, v, cellW, cellH, 1.0f, 900.0f, 0.0f, 0.5f, 2.0f, 1.0f);
+                if (c > 0.02f)
+                {
+                    vFirst = std::min(vFirst, v);
+                    vLast = std::max(vLast, v);
+                    uLeft = std::min(uLeft, u);
+                    uRight = std::max(uRight, u);
+                }
+                if (c > best)
+                {
+                    best = c;
+                    uBest = u;
+                }
+            }
+        }
+        std::printf("  rain: a streak is %.0f px long (a cell of %.0f, a length of 0.5), %.1f px wide, at most %.2f\n",
+                    Show(vLast - vFirst), Show(cellH), Show(uRight - uLeft), Show(best));
+        CHECK(best > 0.8f && best <= 1.0f);
+        CHECK(vLast - vFirst > 0.85f * 0.5f * cellH && vLast - vFirst < 0.5f * cellH + 1.0f); // its share of the cell
+        CHECK(uRight - uLeft < 2.0f + 1.5f);                                                  // thin
+        CHECK(uLeft >= col * cellW + 0.2f * cellW &&
+              uRight <= (col + 1.0f) * cellW - 0.2f * cellW); // away from the edge of its cell
+        const float tail =
+            RainStreak(uBest, vFirst + 0.1f * (vLast - vFirst), cellW, cellH, 1.0f, 900.0f, 0.0f, 0.5f, 2.0f, 1.0f);
+        const float head =
+            RainStreak(uBest, vFirst + 0.8f * (vLast - vFirst), cellW, cellH, 1.0f, 900.0f, 0.0f, 0.5f, 2.0f, 1.0f);
+        CHECK(tail < 0.5f * head && head > 0.6f); // the tail is faint, the head is full
+    }
+    // it falls: the pattern at time t is the pattern at time 0 moved by speed * t along v; and a pixel never jumps (it
+    // moves by one pixel at most between two samples that are a hair apart in time)
+    bool falls = true;
+    bool smooth = true;
+    for (int i = 0; i < 400; ++i)
+    {
+        const float u = 3.7f * static_cast<float>(i % 53);
+        const float v = 11.3f * static_cast<float>(i % 97);
+        const float t = 0.37f + 0.011f * static_cast<float>(i);
+        falls = falls &&
+                Near(RainStreak(u, v, 28.0f, 260.0f, 0.5f, 1100.0f, t, 0.5f, 1.5f, 2.0f),
+                     RainStreak(u, v - 1100.0f * t, 28.0f, 260.0f, 0.5f, 1100.0f, 0.0f, 0.5f, 1.5f, 2.0f), 1.0e-3f);
+        smooth = smooth && Near(RainStreak(u, v, 28.0f, 260.0f, 0.5f, 1100.0f, t, 0.5f, 1.5f, 2.0f),
+                                RainStreak(u, v, 28.0f, 260.0f, 0.5f, 1100.0f, t + 0.0001f, 0.5f, 1.5f, 2.0f), 0.2f);
+    }
+    CHECK(falls && smooth);
+    // more density, more rain, in proportion; and two layers with another seed are not the same pattern
+    const float thin = StreakMean(0.1f, 1.0f);
+    const float thick = StreakMean(0.3f, 1.0f);
+    CHECK(thin > 0.0f && thick / thin > 2.5f && thick / thin < 3.5f);
+    int different = 0;
+    for (int i = 0; i < 600; ++i)
+    {
+        const float u = 7.0f * static_cast<float>(i % 60);
+        const float v = 5.0f * static_cast<float>(i);
+        different += RainStreak(u, v, 20.0f, 60.0f, 0.6f, 700.0f, 0.0f, 0.5f, 2.0f, 1.0f) !=
+                             RainStreak(u, v, 20.0f, 60.0f, 0.6f, 700.0f, 0.0f, 0.5f, 2.0f, 2.0f)
+                         ? 1
+                         : 0;
+    }
+    CHECK(different > 40);
+
+    // ---- the distance of a streak: its own, between 0.4 and 1.6 of the layer's, the same for the whole cell, falling
+    // with it. The points are made from a cell and a place well inside it (at least a fifth of the cell from every
+    // edge), so that no rounding of the arithmetic, on any compiler, can put one in the next cell.
+    const float depthCellW = 28.0f;
+    const float depthCellH = 260.0f;
+    const float depthSpeed = 1100.0f;
+    bool depthRange = true;
+    bool depthCell = true;
+    bool depthFalls = true;
+    float depthLow = 9.0f;
+    float depthHigh = 0.0f;
+    for (int i = 0; i < 600; ++i)
+    {
+        const float col = static_cast<float>(i % 71);
+        const float row = static_cast<float>((i * 7) % 97);
+        const float t = 0.21f + 0.011f * static_cast<float>(i % 300);
+        const float a = 0.2f + 0.6f * frac(0.618f * static_cast<float>(i));
+        const float b = 0.2f + 0.6f * frac(0.414f * static_cast<float>(i));
+        const float c = 0.2f + 0.6f * frac(0.732f * static_cast<float>(i));
+        const float d = 0.2f + 0.6f * frac(0.236f * static_cast<float>(i));
+        // a place in the cell (col, row) as it is on the screen at time t, and another place in the same cell
+        const float u1 = (col + a) * depthCellW;
+        const float v1 = (row + b) * depthCellH + depthSpeed * t;
+        const float u2 = (col + c) * depthCellW;
+        const float v2 = (row + d) * depthCellH + depthSpeed * t;
+        const float f = RainDepthFactor(u1, v1, depthCellW, depthCellH, depthSpeed, t, 2.0f);
+        depthRange = depthRange && f >= 0.4f - 1.0e-6f && f <= 1.6f + 1.0e-6f;
+        depthLow = std::min(depthLow, f);
+        depthHigh = std::max(depthHigh, f);
+        depthCell = depthCell && Near(f, RainDepthFactor(u2, v2, depthCellW, depthCellH, depthSpeed, t, 2.0f), 1.0e-6f);
+        // the same cell a moment before the clock started: the pattern has only moved
+        depthFalls =
+            depthFalls &&
+            Near(f, RainDepthFactor(u1, (row + b) * depthCellH, depthCellW, depthCellH, depthSpeed, 0.0f, 2.0f),
+                 1.0e-6f);
+    }
+    CHECK(depthRange);                          // between 0.4 and 1.6
+    CHECK(depthCell);                           // the same for every place of a cell
+    CHECK(depthFalls);                          // and it falls with the streak
+    CHECK(depthLow < 0.5f && depthHigh > 1.5f); // spread over the whole range
+    // ---- what a layer adds at a pixel: in front of the surface, out of the dry circle
+    CHECK(RainVisible(300.0f, 24.0f) == 1.0f && RainVisible(2.0f, 8.0f) == 0.0f && RainVisible(8.0f, 8.0f) == 0.0f);
+    CHECK(RainVisible(8.0f * 1.15f, 8.0f) == 1.0f);
+    bool risingDepth = true;
+    float lastVisible = -1.0f;
+    for (float d = 0.0f; d <= 20.0f; d += 0.1f)
+    {
+        const float v = RainVisible(d, 8.0f);
+        risingDepth = risingDepth && v >= lastVisible && v >= 0.0f && v <= 1.0f;
+        lastVisible = v;
+    }
+    CHECK(risingDepth); // the farther the surface, the more of the layer shows
+    CHECK(RainDry(5.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f) == 1.0f); // a radius of 0 is no circle
+    CHECK(RainDry(0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 3.5f, 1.2f) == 0.0f &&
+          RainDry(20.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 3.5f, 1.2f) == 1.0f);
+    bool dryRising = true;
+    float lastDry = -1.0f;
+    for (float d = 0.0f; d <= 6.0f; d += 0.05f)
+    {
+        const float v = RainDry(d, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 3.5f, 1.2f);
+        dryRising = dryRising && v >= lastDry;
+        lastDry = v;
+    }
+    CHECK(dryRising && RainDry(3.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 3.5f, 1.2f) == 0.0f &&
+          Near(RainDry(0.0f, 0.0f, 3.5f + 0.6f, 0.0f, 0.0f, 0.0f, 3.5f, 1.2f), 0.5f,
+               1.0e-3f)); // the edge is soft and a sphere
+    CHECK(RainLayerCoverage(0.8f, 300.0f, 8.0f, 1.0f, 0.5f) ==
+          0.4f); // in front of the sky: the streak times the strength
+    CHECK(RainLayerCoverage(0.8f, 3.0f, 8.0f, 1.0f, 0.5f) == 0.0f);   // behind a wall that is nearer
+    CHECK(RainLayerCoverage(0.8f, 300.0f, 8.0f, 0.0f, 0.5f) == 0.0f); // inside the dry circle
+    CHECK(RainLayerCoverage(5.0f, 300.0f, 8.0f, 1.0f, 5.0f) == 1.0f &&
+          RainLayerCoverage(-1.0f, 300.0f, 8.0f, 1.0f, 1.0f) == 0.0f);
+
+    // ---- the rings on the ground
+    bool noRing = true;
+    bool ringBounded = true;
+    for (int i = 0; i < 40; ++i)
+    {
+        for (int j = 0; j < 40; ++j)
+        {
+            const float x = 0.31f * static_cast<float>(i);
+            const float z = 0.29f * static_cast<float>(j);
+            noRing = noRing && RainRing(x, z, 1.7f, 0.0f, 1.2f, 0.32f, 0.02f, 1.4f) == 0.0f;
+            const float c = RainRing(x, z, 1.7f, 1.0f, 1.2f, 0.32f, 0.02f, 1.4f);
+            ringBounded = ringBounded && c >= 0.0f && c <= 1.0f;
+        }
+    }
+    CHECK(noRing && ringBounded);
+    // a ring is a ring. An isolated cell (its hash is the lowest of its nine, and the density lets only it through; the
+    // cell is looked up as the shader does: KEEP IN SYNC with RainRing): at the radius that its age gives it has the
+    // strength 1 - age, all round the circle, and nowhere else (not at the middle, not outside it)
+    int tested = 0;
+    bool onCircle = true;
+    bool offCircle = true;
+    for (int gxi = 4; gxi < 70 && tested < 24; ++gxi)
+    {
+        for (int gzi = 4; gzi < 70 && tested < 24; ++gzi)
+        {
+            const float gx = static_cast<float>(gxi);
+            const float gz = static_cast<float>(gzi);
+            const float h0 = RainHash(gx, gz);
+            bool lowest = true;
+            for (int dj = -1; dj <= 1; ++dj)
+            {
+                for (int di = -1; di <= 1; ++di)
+                {
+                    lowest = lowest && ((di == 0 && dj == 0) ||
+                                        RainHash(gx + static_cast<float>(di), gz + static_cast<float>(dj)) > h0);
+                }
+            }
+            const float time = 0.3f + 0.17f * static_cast<float>(tested);
+            const float centreX = (gx + RainHash2(gx, gz)) * 1.2f;
+            const float centreZ = (gz + RainHash2(gz + 7.0f, gx)) * 1.2f;
+            const float phase = frac(time * 1.4f + RainHash(gz + 3.0f, gx + 5.0f));
+            const float radius = phase * 0.32f;
+            if (!lowest || radius < 0.14f)
+            {
+                continue;
+            }
+            const float only = h0 + 1.0e-6f; // the density: this cell and no other of the nine
+            for (int k = 0; k < 8; ++k)
+            {
+                const float angle = 0.7853982f * static_cast<float>(k);
+                const float ca = std::cos(angle);
+                const float sa = std::sin(angle);
+                const float onRing =
+                    RainRing(centreX + radius * ca, centreZ + radius * sa, time, only, 1.2f, 0.32f, 0.02f, 1.4f);
+                onCircle = onCircle && Near(onRing, 1.0f - phase, 2.0e-3f);
+                const float outside = RainRing(centreX + (radius + 0.08f) * ca, centreZ + (radius + 0.08f) * sa, time,
+                                               only, 1.2f, 0.32f, 0.02f, 1.4f);
+                const float inside = RainRing(centreX + (radius - 0.08f) * ca, centreZ + (radius - 0.08f) * sa, time,
+                                              only, 1.2f, 0.32f, 0.02f, 1.4f);
+                offCircle = offCircle && outside == 0.0f && inside == 0.0f;
+            }
+            offCircle = offCircle && RainRing(centreX, centreZ, time, only, 1.2f, 0.32f, 0.02f, 1.4f) == 0.0f;
+            ++tested;
+        }
+    }
+    CHECK(tested >= 20 && onCircle && offCircle);
+    // the share of the ground that rings cover is small, and it does not change with the time (rings are born and die
+    // all the while)
+    float lowest = 1.0e9f;
+    float highest = 0.0f;
+    for (int step = 0; step < 6; ++step)
+    {
+        int covered = 0;
+        int samples = 0;
+        for (int i = 0; i < 300; ++i)
+        {
+            for (int j = 0; j < 300; ++j)
+            {
+                covered += RainRing(0.02f * static_cast<float>(i), 0.02f * static_cast<float>(j),
+                                    0.29f * static_cast<float>(step), 1.0f, 1.2f, 0.32f, 0.02f, 1.4f) > 0.05f
+                               ? 1
+                               : 0;
+                ++samples;
+            }
+        }
+        const float share = static_cast<float>(covered) / static_cast<float>(samples);
+        lowest = std::min(lowest, share);
+        highest = std::max(highest, share);
+    }
+    std::printf("  rain: rings cover %.1f to %.1f%% of the ground (a density of 1)\n", Show(100.0f * lowest),
+                Show(100.0f * highest));
+    CHECK(lowest > 0.004f && highest < 0.08f && highest < 3.0f * lowest);
+    bool periodic = true;
+    for (int i = 0; i < 200; ++i)
+    {
+        const float x = 0.37f * static_cast<float>(i % 41);
+        const float z = 0.53f * static_cast<float>(i % 29);
+        periodic = periodic && Near(RainRing(x, z, 0.4f, 0.5f, 1.2f, 0.32f, 0.02f, 1.4f),
+                                    RainRing(x, z, 0.4f + 1.0f / 1.4f, 0.5f, 1.2f, 0.32f, 0.02f, 1.4f), 1.0e-3f);
+    }
+    CHECK(periodic); // every ring lives 1 / rate seconds and begins again
+    // and they move: a little later the pattern is another one
+    int moved = 0;
+    int either = 0;
+    for (int i = 0; i < 300; ++i)
+    {
+        for (int j = 0; j < 300; ++j)
+        {
+            const float x = 0.02f * static_cast<float>(i);
+            const float z = 0.02f * static_cast<float>(j);
+            const bool now = RainRing(x, z, 1.0f, 1.0f, 1.2f, 0.32f, 0.02f, 1.4f) > 0.05f;
+            const bool later = RainRing(x, z, 1.15f, 1.0f, 1.2f, 0.32f, 0.02f, 1.4f) > 0.05f;
+            moved += now != later ? 1 : 0;
+            either += (now || later) ? 1 : 0;
+        }
+    }
+    CHECK(either > 0 && moved > either / 2);
+    CHECK(RainGround(1.0f) == 1.0f && RainGround(0.0f) == 0.0f && RainGround(-1.0f) == 0.0f &&
+          RainGround(0.8f) > 0.0f && RainGround(0.8f) < 1.0f);
+    CHECK(RainRingReach(0.0f, 22.0f) == 1.0f && RainRingReach(0.55f * 22.0f, 22.0f) == 1.0f &&
+          RainRingReach(22.0f, 22.0f) == 0.0f && RainRingReach(40.0f, 22.0f) == 0.0f &&
+          RainRingReach(16.0f, 22.0f) > 0.0f && RainRingReach(16.0f, 22.0f) < 1.0f);
+    CHECK(RainRingWidth(1.0f, 0.001f) == 0.018f &&
+          RainRingWidth(30.0f, 0.001f) > RainRingWidth(10.0f, 0.001f)); // never thinner than a pixel
+    // the layers and the rings are laid one over the other
+    CHECK(RainCombine(0.0f, 0.0f, 0.0f, 0.0f) == 0.0f && Near(RainCombine(0.3f, 0.0f, 0.0f, 0.0f), 0.3f, 1.0e-6f) &&
+          Near(RainCombine(0.0f, 0.0f, 0.0f, 0.6f), 0.6f, 1.0e-6f));
+    bool laid = true;
+    for (int i = 0; i < 200; ++i)
+    {
+        const float a = 0.011f * static_cast<float>(i % 90);
+        const float b = 0.013f * static_cast<float>(i % 77);
+        const float c = 0.017f * static_cast<float>(i % 55);
+        const float d = 0.019f * static_cast<float>(i % 51);
+        const float all = RainCombine(a, b, c, d);
+        laid = laid && all <= 1.0f && all >= std::max(std::max(a, b), std::max(c, d)) - 1.0e-6f &&
+               Near(all, RainCombine(d, c, b, a), 1.0e-6f);
+    }
+    CHECK(laid && RainCombine(2.0f, 0.5f, 0.5f, 0.5f) == 1.0f);
+}
+
+void TestRainWet()
+{
+    // ---- the wet look
+    CHECK(RainWetness(1.0f, 1.0f) == 1.0f && Near(RainWetness(0.0f, 1.0f), 0.35f, 1.0e-6f) &&
+          Near(RainWetness(-1.0f, 1.0f), 0.35f, 1.0e-6f));
+    CHECK(RainWetness(1.0f, 0.0f) == 0.0f && RainWetness(0.5f, 0.5f) > RainWetness(0.0f, 0.5f) &&
+          RainWetness(1.0f, 0.5f) == 0.5f);
+    const float3 stone(0.40f, 0.30f, 0.20f);
+    CHECK(Near3(RainDarken(stone, 0.0f), stone, 0.0f));
+    const float3 wet = RainDarken(stone, 1.0f);
+    CHECK(Near3(wet, stone * 0.82f, 1.0e-6f) &&
+          Near(wet.x / wet.z, stone.x / stone.z, 1.0e-5f)); // darker, the same hue
+    CHECK(RainDarken(stone, 0.5f).x < stone.x && RainDarken(stone, 0.5f).x > wet.x &&
+          Near3(RainDarken(stone, 2.0f), wet, 0.0f));
+    const float3 sky(0.30f, 0.27f, 0.40f);
+    CHECK(Near3(RainReflect(sky, 0.0f), float3(0, 0, 0), 0.0f) && Near3(RainReflect(sky, 1.0f), sky * 0.05f, 1.0e-6f) &&
+          RainReflect(sky, 0.5f).z < RainReflect(sky, 1.0f).z);
+    CHECK(RainSheenStrength(0.0f, 0.0f) == 0.0f && RainSheenStrength(0.7f, 0.0f) == 0.7f &&
+          Near(RainSheenStrength(0.0f, 1.0f), 0.45f, 1.0e-6f) &&
+          RainSheenStrength(0.9f, 1.0f) == 0.9f); // a face that shone keeps its shine
+    CHECK(RainSheenPower(8.0f, 0.0f) == 8.0f && Near(RainSheenPower(8.0f, 1.0f), 28.0f, 1.0e-4f) &&
+          RainSheenPower(100.0f, 1.0f) == 100.0f);
+    // ---- the sky under cloud
+    CHECK(Near3(RainOvercast(sky, 0.0f), sky, 0.0f));
+    const float3 night(0.10f, 0.14f, 0.30f);
+    const float3 flat = RainOvercast(night, 1.0f);
+    const float3 grey(0.2126f, 0.7152f, 0.0722f);
+    CHECK(Chroma(flat) < Chroma(night) && dot(flat, grey) > 0.9f * dot(night, grey) &&
+          dot(flat, grey) <= dot(night, grey) + 1.0e-6f); // greyer, a little darker
+    CHECK(Near3(RainOvercast(night, 5.0f), flat, 0.0f) && RainOvercast(night, 0.5f).z < night.z &&
+          RainOvercast(night, 0.5f).z > flat.z);
+    CHECK(RainMoonCore(0.0f) == 1.0f && RainMoonCore(1.0f) == 0.0f && RainMoonGlow(0.0f) == 1.0f &&
+          Near(RainMoonGlow(1.0f), 1.6f, 1.0e-6f));
+    CHECK(RainMoonCore(0.6f) < RainMoonCore(0.3f) &&
+          RainMoonGlow(0.6f) > RainMoonGlow(0.3f)); // a soft glow in place of the disc
+
+    // ---- the look of B in the rain, against the numbers of 6.10 (the same flat face as TestLook: the light of the
+    // model, the palette)
+    dl::LightingSettings set;
+    const bool read = ShippedSettings(set);
+    CHECK(read);
+    if (!read)
+    {
+        return;
+    }
+    dl::RainSettings rain;
+    const dl::RainSettings shippedRain = [&]
+    {
+        dl::Config c;
+        return ShippedConfig(c) ? dl::ReadRainSettings(c) : dl::RainSettings{};
+    }();
+    const dl::RainWet w = dl::MakeWet(shippedRain, 1, false);
+    const StyleParams style = StyleOf(set, 1);
+    const float3 toLight = normalize(float3(-0.30f, 0.80f, -0.52f));
+    const float3 lightColor(0.92f * set.sunB, 0.98f * set.sunB, 1.10f * set.sunB);
+    const float3 shade(0.30f, 0.33f, 0.43f);
+    const float3 none(0, 0, 0);
+    // B with `wetValue` (0: dry): the albedo darkened, the sky reflected, as shaders/models.hlsl PSMain does
+    const auto seenB = [&](const float3& albedoSrgb, const float3& n, float sun, float wetValue)
+    {
+        const float3 albedo0(Linear(albedoSrgb.x), Linear(albedoSrgb.y), Linear(albedoSrgb.z));
+        const float wetness = RainWetness(n.y, wetValue);
+        const float3 skyDown = shade * 0.55f;
+        const float3 skyLight = lerp(skyDown, shade, n.y * 0.5f + 0.5f) * set.ambientB;
+        const float3 c = StyleShade(RainDarken(albedo0, wetness), n, toLight, n, skyLight, lightColor, sun, 0.0f, 0.0f,
+                                    none, none, 1.0f, style) +
+                         RainReflect(skyLight, wetness);
+        return SoftShoulder(StyleGrade(c * set.exposure, style, 0.0f, 0.0f), set.knee);
+    };
+    const float3 paving(0.553f, 0.533f, 0.498f);
+    const float3 roofB(0.361f, 0.235f, 0.224f);
+    const float3 up(0, 1, 0);
+    const float3 side(0, 0, 1);
+    const float groundDry = LStar(seenB(paving, up, 1.0f, 0.0f));
+    const float groundWet = LStar(seenB(paving, up, 1.0f, w.wet));
+    const float castWet = LStar(seenB(paving, up, 1.0f - set.shadowStrength, w.wet));
+    const float roofCastWet = LStar(seenB(roofB, up, 1.0f - set.shadowStrength, w.wet));
+    const float roofWallWet = LStar(seenB(roofB, side, 0.0f, w.wet));
+    std::printf("  rain B: ground L* %.1f (dry %.1f), ground in a shadow %.1f, roof in a shadow %.1f, roof wall in the "
+                "dark %.1f\n",
+                Show(groundWet), Show(groundDry), Show(castWet), Show(roofCastWet), Show(roofWallWet));
+    CHECK(w.wet > 0.9f);
+    CHECK(groundWet < groundDry && groundWet >= 50.0f &&
+          groundWet <= 64.0f);                           // wet stone is darker, and still not pale or dark
+    CHECK(castWet >= 33.0f);                             // the route reads in a shadow with the rain on (6.10, rule 4)
+    CHECK(roofCastWet >= 14.0f && roofWallWet >= 11.0f); // and the deepest dark is not below L* 12
+    // the horizon of B in the rain: the sky, the far land and the sea are one colour (they all lean to the same
+    // overcast)
+    const float3 horizonB(0.45f, 0.49f, 0.56f);
+    const float3 horizonLin(Linear(horizonB.x), Linear(horizonB.y), Linear(horizonB.z));
+    const auto graded = [&](const float3& c)
+    { return SoftShoulder(StyleGrade(c * set.exposure, style, 0.0f, 0.0f), set.knee); };
+    const float3 skyRain = graded(RainOvercast(StyleSky(horizonLin, 0.0f, style), w.overcast));
+    const float3 farRain = graded(RainOvercast(StyleHaze(horizonLin, 3000.0f, style), w.overcast));
+    const float3 seaRain =
+        graded(RainOvercast(StyleWaterSky(horizonLin, float3(0.2f, 0.22f, 0.3f), 0.0f, style), w.overcast));
+    CHECK(Near3(skyRain, farRain, 1.0e-5f) && Near3(skyRain, seaRain, 1.0e-5f));
+    CHECK(Chroma(skyRain) < Chroma(graded(StyleSky(horizonLin, 0.0f, style)))); // and it is greyer than the clear sky
+    // A has no rain: its numbers are the ones of TestLook
+    const dl::RainWet wetA = dl::MakeWet(shippedRain, 0, false);
+    CHECK(wetA.wet == 0.0f && wetA.overcast == 0.0f && wetA.fogScale == 1.0f);
+    (void)rain;
+}
+
+void TestRainSettings()
+{
+    const dl::RainSettings d;
+    CHECK(d.amount == 1.0f && d.density == 1.0f && d.rings == 1.0f && d.ringReach == 22.0f && d.wet == 1.0f &&
+          d.overcast == 0.6f && d.fog == 0.25f);
+    dl::RainSettings bad;
+    bad.amount = 9.0f;
+    bad.density = -1.0f;
+    bad.speed = 0.0f;
+    bad.length = 50.0f;
+    bad.width = std::nanf("");
+    bad.alpha = 2.0f;
+    bad.rings = 99.0f;
+    bad.ringReach = 1.0f;
+    bad.wet = -3.0f;
+    bad.overcast = 7.0f;
+    bad.fog = std::numeric_limits<float>::infinity();
+    const dl::RainSettings fixed = dl::Sanitize(bad);
+    CHECK(fixed.amount == 1.0f && fixed.density == 0.0f && fixed.speed == 0.3f && fixed.length == 1.8f &&
+          fixed.width == d.width);
+    CHECK(fixed.alpha == 1.0f && fixed.rings == 2.0f && fixed.ringReach == 5.0f && fixed.wet == 0.0f &&
+          fixed.overcast == 1.0f && fixed.fog == d.fog);
+    dl::Config c;
+    c.ParseString("[rain]\namount = 0.5\ndensity = 1.5\nring_reach = 40\nwet = abc\nfog = 0.1\nrings = 0\n");
+    const dl::RainSettings r = dl::ReadRainSettings(c);
+    CHECK(r.amount == 0.5f && r.density == 1.5f && r.ringReach == 40.0f && r.wet == d.wet && r.fog == 0.1f &&
+          r.rings == 0.0f && r.speed == d.speed);
+    // the shipped file says what the code defaults to
+    dl::Config shipped;
+    if (ShippedConfig(shipped))
+    {
+        const dl::RainSettings f = dl::ReadRainSettings(shipped);
+        const float e = 1.0e-6f;
+        CHECK(Near(f.amount, d.amount, e) && Near(f.density, d.density, e) && Near(f.speed, d.speed, e) &&
+              Near(f.length, d.length, e));
+        CHECK(Near(f.width, d.width, e) && Near(f.alpha, d.alpha, e) && Near(f.rings, d.rings, e) &&
+              Near(f.ringReach, d.ringReach, e));
+        CHECK(Near(f.wet, d.wet, e) && Near(f.overcast, d.overcast, e) && Near(f.fog, d.fog, e));
+    }
+    // ---- what the model shader gets: A and the plain view are dry, B is wet, the master scales it
+    const dl::RainWet a = dl::MakeWet(d, 0, false);
+    const dl::RainWet plain = dl::MakeWet(d, 1, true);
+    const dl::RainWet b = dl::MakeWet(d, 1, false);
+    CHECK(a.wet == 0.0f && a.overcast == 0.0f && a.fogScale == 1.0f && plain.wet == 0.0f && plain.overcast == 0.0f &&
+          plain.fogScale == 1.0f);
+    CHECK(b.wet == d.wet * d.amount && b.overcast == d.overcast * d.amount &&
+          Near(b.fogScale, 1.0f + d.fog * d.amount, 1.0e-6f));
+    dl::RainSettings half;
+    half.amount = 0.5f;
+    CHECK(Near(dl::MakeWet(half, 1, false).wet, 0.5f * d.wet, 1.0e-6f) &&
+          Near(dl::MakeWet(half, 1, false).fogScale, 1.0f + 0.5f * d.fog, 1.0e-6f));
+    dl::RainSettings none;
+    none.amount = 0.0f;
+    CHECK(dl::MakeWet(none, 1, false).wet == 0.0f &&
+          dl::MakeWet(none, 1, false).fogScale == 1.0f); // no rain: nothing changes
+    CHECK(dl::MakeWet(d, 7, false).wet == 0.0f);         // a layer that is not 1 is not B
+
+    // ---- the registers of the pass
+    dl::RainView v;
+    v.tanAcross = 1.2f;
+    v.tanUp = 0.7f;
+    v.heightPixels = 1080.0f;
+    v.time = 12.5f;
+    v.eye[0] = 3.0f;
+    v.eye[1] = 4.0f;
+    v.eye[2] = 5.0f;
+    v.travel[0] = 0.30f;
+    v.travel[1] = -0.80f;
+    v.travel[2] = 0.52f;
+    v.lantern[0] = 1.0f;
+    v.lantern[1] = 2.0f;
+    v.lantern[2] = 3.0f;
+    v.lantern[3] = 3.5f;
+    const dl::RainConstants cb = dl::MakeRain(d, 1, false, v);
+    CHECK(cb.clock[2] == d.amount && cb.view[0] == 1.2f && cb.view[1] == 0.7f && cb.clock[0] == 12.5f &&
+          cb.clock[1] == 1.0f);
+    CHECK(Near(cb.fall[3], 2.0f * 0.7f / 1080.0f, 1.0e-9f) && cb.fall[2] == d.ringReach && cb.eye[1] == 4.0f &&
+          cb.lantern[3] == 3.5f);
+    CHECK(Near(cb.ground[0], 0.0f, 0.0f) && Near(cb.ground[1], 1.0f, 0.0f) &&
+          Near(cb.ground[2], 0.0f, 0.0f)); // the world up in a level camera
+    CHECK(dl::MakeRain(d, 0, false, v).clock[2] == 0.0f &&
+          dl::MakeRain(d, 1, true, v).clock[2] == 0.0f); // none in A, none in the plain view
+    dl::RainView pitched =
+        v; // a camera that looks 45 degrees down: the world up is half up and half back in its view space
+    pitched.up[1] = 0.70710678f;
+    pitched.up[2] = 0.70710678f;
+    pitched.forward[1] = -0.70710678f;
+    pitched.forward[2] = 0.70710678f;
+    const dl::RainConstants cp = dl::MakeRain(d, 1, false, pitched);
+    CHECK(Near(cp.ground[0], 0.0f, 1.0e-6f) && Near(cp.ground[1], 0.70710678f, 1.0e-6f) &&
+          Near(cp.ground[2], -0.70710678f, 1.0e-6f));
+    CHECK(cb.layerA[2] < cb.layerB[2] && cb.layerB[2] < cb.layerC[2] && cb.layerA[0] > cb.layerB[0] &&
+          cb.layerB[0] > cb.layerC[0]); // fewer and wider near
+    CHECK(cb.layerA[3] > cb.layerB[3] && cb.layerB[3] > cb.layerC[3] && cb.depths[0] < cb.depths[1] &&
+          cb.depths[1] < cb.depths[2]);
+    CHECK(cb.look[0] > 0.0f && cb.look[0] <= 0.9f && cb.look[2] > 0.0f && cb.look[2] < 1.0f &&
+          cb.tint[2] > cb.tint[0] && cb.tint[3] < 1.2f); // a pale blue
+    dl::RainSettings strong;
+    strong.density = 1.5f;
+    strong.speed = 2.0f;
+    strong.rings = 2.0f;
+    strong.length = 1.8f;
+    const dl::RainConstants cs = dl::MakeRain(strong, 1, false, v);
+    CHECK(Near(cs.layerC[2], 0.75f, 1.0e-6f) && Near(cs.layerA[3], 2.0f * cb.layerA[3], 1.0e-3f) &&
+          Near(cs.clock[3], 2.0f * cb.clock[3], 1.0e-6f) && cs.look[0] == 0.9f);
+    dl::RainView tall = v;
+    tall.heightPixels = 2160.0f;
+    CHECK(dl::MakeRain(d, 1, false, tall).clock[1] == 2.0f &&
+          dl::MakeRain(d, 1, false, tall).fall[3] < cb.fall[3]); // pixels scale with the height
+    // the clock is a small number (the hash of a big one loses its bits) and never negative
+    CHECK(dl::RainClock(0.0f) == 0.0f && Near(dl::RainClock(3599.5f), std::fmod(3599.5f, 300.0f), 1.0e-3f) &&
+          dl::RainClock(-4.0f) == 0.0f);
+    bool clockSmall = true;
+    for (int i = 0; i < 400; ++i)
+    {
+        const float t = dl::RainClock(9.7f * static_cast<float>(i));
+        clockSmall = clockSmall && t >= 0.0f && t < 300.0f;
+    }
+    CHECK(clockSmall);
+    // ---- the direction of the fall on the screen
+    float dir[2];
+    const float level[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}; // right, up, forward of a camera that looks along +z
+    const float straight[3] = {0, -1, 0};
+    dl::RainScreenDirection(straight, level[0], level[1], dir);
+    CHECK(Near(dir[0], 0.0f, 1.0e-6f) && Near(dir[1], 1.0f, 1.0e-6f)); // straight down the screen
+    const float slanted[3] = {0.5f, -0.8f, 0.3f};
+    dl::RainScreenDirection(slanted, level[0], level[1], dir);
+    CHECK(dir[0] > 0.3f && dir[1] > 0.5f &&
+          Near(dir[0] * dir[0] + dir[1] * dir[1], 1.0f, 1.0e-5f)); // to the right and down
+    const float leftward[3] = {-0.5f, -0.8f, 0.3f};
+    dl::RainScreenDirection(leftward, level[0], level[1], dir);
+    CHECK(dir[0] < -0.3f && dir[1] > 0.5f);
+    const float downLook[3][3] = {
+        {1, 0, 0}, {0, 0, 1}, {0, -1, 0}}; // a camera that looks straight down: the screen up is the world +z
+    dl::RainScreenDirection(straight, downLook[0], downLook[1], dir);
+    CHECK(Near(dir[0], 0.0f, 1.0e-6f) && Near(dir[1], 1.0f, 1.0e-6f)); // nothing to follow: down the screen
+    CHECK(Near(cb.fall[0] * cb.fall[0] + cb.fall[1] * cb.fall[1], 1.0f, 1.0e-5f));
+}
+
 // ---- 7. the ink lines of docs/DESIGN.md 6.10 (S2)
 // A scene of boxes, a ground, a ramp and a far wall is cast ray by ray into a depth buffer the way the game's
 // projection makes it (D3D depth, near 0.1 m, far 600 m, 60 degrees of height, a camera 1.7 m over the ground looking
@@ -1509,6 +2122,9 @@ int main()
     TestSettings();
     TestLook();
     TestHighlight();
+    TestRainMaths();
+    TestRainWet();
+    TestRainSettings();
     TestLines();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

@@ -35,6 +35,7 @@ namespace
 constexpr char kModelsShaderPath[] = "shaders/models.hlsl";
 constexpr char kRippleShaderPath[] = "shaders/ripple.hlsl";
 constexpr char kLinesShaderPath[] = "shaders/lines.hlsl";
+constexpr char kRainShaderPath[] = "shaders/rain.hlsl";
 constexpr int kDetailLevels[] = {8, 16, 32, 64};
 constexpr float kShadowHalfDepth =
     160.0f; // UNITS: metres: the shadow box reaches this far toward the light and away from it
@@ -75,7 +76,7 @@ struct FrameConstants
     XMFLOAT4 styleLight; // x: the shadow of the clouds, y: the rings of a lamp, z: the light shafts, w: their samples
     XMFLOAT4 styleFar;   // rgb: what the haze is multiplied by far away, a: how far
     XMFLOAT4 styleMisc;  // x: the painted blotches, y: the damp near the water, z: the contrast, w: the edge (pixels)
-    XMFLOAT4 styleMore;  // x: the extra fog of the far distance, yzw: reserved
+    XMFLOAT4 styleMore;  // x: far fog, y: a bright light to grey, z: wet stone, w: overcast sky
 };
 
 struct ObjectConstants
@@ -287,6 +288,7 @@ bool Models::Init(ID3D11Device* device, int segments)
     m_themes = DefaultThemes();      // LoadThemes may change them from the config afterwards
     m_lighting = LightingSettings{}; // LoadLighting may change them from the config afterwards
     m_lines = LineSettings{};
+    m_rain = RainSettings{};
     m_ripple.SetSeconds(kDefaultRippleSeconds);
     m_rippleWidth = kDefaultRippleWidth;
     m_rippleDistortion = kDefaultRippleDistortion;
@@ -396,6 +398,8 @@ bool Models::Init(ID3D11Device* device, int segments)
     }
     // the ink lines: a pass that cannot be made is not an error either: the log says so and the picture has no lines
     CreateLineResources();
+    // the rain of B: the same
+    CreateRainResources();
     // the shadow map: a map that cannot be made is not an error, the shadows are off and the log says so
     if (m_lighting.shadows && !CreateShadowMap(m_lighting.shadowSize))
     {
@@ -438,6 +442,9 @@ void Models::Shutdown()
     m_lineBlend.Reset();
     m_lineBuffer.Reset();
     m_linePixelShader.Reset();
+    m_rainBlend.Reset();
+    m_rainBuffer.Reset();
+    m_rainPixelShader.Reset();
     m_noDepthState.Reset();
     m_noCullState.Reset();
     m_sampler.Reset();
@@ -791,6 +798,7 @@ void Models::DrawLines(ID3D11DeviceContext* context, int layer, const XMMATRIX& 
     {
         return;
     }
+    const GpuScope linesTime(m_timer, context, GpuTimer::kLines);
     ComPtr<ID3D11RenderTargetView> target;
     ComPtr<ID3D11DepthStencilView> depthView;
     context->OMGetRenderTargets(1, target.GetAddressOf(), depthView.GetAddressOf());
@@ -835,6 +843,155 @@ void Models::DrawLines(ID3D11DeviceContext* context, int layer, const XMMATRIX& 
     context->PSSetShader(m_linePixelShader.Get(), nullptr, 0);
     ID3D11Buffer* lineConstants = m_lineBuffer.Get();
     context->PSSetConstantBuffers(0, 1, &lineConstants);
+    context->PSSetShaderResources(1, 1, &depthRead); // t0 is the shadow map of the scene: left alone
+    context->Draw(3, 0);
+    ID3D11ShaderResourceView* none[1] = {}; // the depth must not stay bound for reading: it is written again
+    context->PSSetShaderResources(1, 1, none);
+    context->OMSetRenderTargets(1, &colour, depthView.Get());
+    BindScenePipeline(context); // the shaders, the states and the buffers of the scene again
+    ++m_drawCalls;
+}
+
+// The rain of B (6.11, R1): the pixel shader of shaders/rain.hlsl (the vertex shader is the one of the ripple), its
+// constants and the blend that lays the rain over the picture: result = source.rgb + picture * (1 - source.a). Nothing
+// else needs them: when they cannot be made the rain is off and the log says why.
+bool Models::CreateRainResources()
+{
+    m_rainPixelShader.Reset();
+    m_rainBuffer.Reset();
+    m_rainBlend.Reset();
+    ComPtr<ID3DBlob> psBlob;
+    if (!CompileShader(kRainShaderPath, "PSMain", "ps_5_0", psBlob))
+    {
+        DL_LOG_ERROR("Models", "the rain is off: %s did not compile", kRainShaderPath);
+        return false;
+    }
+    HRESULT hr =
+        m_device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_rainPixelShader);
+    if (SUCCEEDED(hr))
+    {
+        D3D11_BUFFER_DESC cb{};
+        cb.Usage = D3D11_USAGE_DYNAMIC;
+        cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        cb.ByteWidth = sizeof(RainConstants);
+        hr = m_device->CreateBuffer(&cb, nullptr, &m_rainBuffer);
+    }
+    if (SUCCEEDED(hr))
+    {
+        D3D11_BLEND_DESC blend{};
+        blend.RenderTarget[0].BlendEnable = TRUE;
+        blend.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+        blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+        blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+        blend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        blend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        hr = m_device->CreateBlendState(&blend, &m_rainBlend);
+    }
+    if (FAILED(hr))
+    {
+        DL_LOG_ERROR("Models", "the rain is off: its shader objects failed (0x%08X)", static_cast<unsigned>(hr));
+        m_rainPixelShader.Reset();
+        m_rainBuffer.Reset();
+        m_rainBlend.Reset();
+        return false;
+    }
+    SetDebugName(m_rainPixelShader.Get(), "Models.Rain.PS");
+    SetDebugName(m_rainBuffer.Get(), "Models.Rain.CB");
+    SetDebugName(m_rainBlend.Get(), "Models.Rain.BlendState");
+    return true;
+}
+
+void Models::DrawRain(ID3D11DeviceContext* context, int layer, const XMMATRIX& view, const XMMATRIX& projection,
+                      const XMFLOAT3& eye)
+{
+    const bool plain = m_debugView == kDebugViewPlain;
+    if (layer != 1 || plain || !m_rainPixelShader || !m_rainBuffer || !m_rainBlend || !(m_lighting.style > 0.0f) ||
+        !(m_rain.amount > 0.0f))
+    {
+        return; // the rain is for B, and not in the plain view
+    }
+    ComPtr<ID3D11RenderTargetView> target;
+    ComPtr<ID3D11DepthStencilView> depthView;
+    context->OMGetRenderTargets(1, target.GetAddressOf(), depthView.GetAddressOf());
+    if (!target || !depthView)
+    {
+        return;
+    }
+    ComPtr<ID3D11Resource> depthResource;
+    depthView->GetResource(&depthResource);
+    ID3D11ShaderResourceView* depthRead = DepthViewOf(depthResource.Get());
+    ComPtr<ID3D11Texture2D> depthTexture;
+    if (depthRead == nullptr || FAILED(depthResource.As(&depthTexture)))
+    {
+        if (!m_rainDepthWarned)
+        {
+            m_rainDepthWarned = true;
+            DL_LOG_WARN("Models", "the rain is off: the depth buffer cannot be read in a shader");
+        }
+        return;
+    }
+    const GpuScope rainTime(m_timer, context, GpuTimer::kRain);
+    D3D11_TEXTURE2D_DESC depthDesc{};
+    depthTexture->GetDesc(&depthDesc);
+    // the camera: its axes are the rows of the transposed view (docs/CONVENTIONS.md), unit length
+    const XMMATRIX axes = XMMatrixTranspose(view);
+    RainView rv;
+    rv.tanAcross = 1.0f / XMVectorGetX(projection.r[0]);
+    rv.tanUp = 1.0f / XMVectorGetY(projection.r[1]);
+    rv.nearZ = kNearPlane;
+    rv.farZ = kFarPlane;
+    rv.heightPixels = static_cast<float>(depthDesc.Height);
+    rv.time = m_time;
+    XMFLOAT3 axis{};
+    XMStoreFloat3(&axis, axes.r[0]);
+    rv.right[0] = axis.x;
+    rv.right[1] = axis.y;
+    rv.right[2] = axis.z;
+    XMStoreFloat3(&axis, axes.r[1]);
+    rv.up[0] = axis.x;
+    rv.up[1] = axis.y;
+    rv.up[2] = axis.z;
+    XMStoreFloat3(&axis, axes.r[2]);
+    rv.forward[0] = axis.x;
+    rv.forward[1] = axis.y;
+    rv.forward[2] = axis.z;
+    rv.eye[0] = eye.x;
+    rv.eye[1] = eye.y;
+    rv.eye[2] = eye.z;
+    // the rain falls the way the moonlight travels (6.11): from the moon to the ground
+    const Theme moon = ThemeOf(1);
+    XMFLOAT3 toMoon{};
+    XMStoreFloat3(&toMoon, XMVector3Normalize(XMLoadFloat3(&moon.toLight)));
+    rv.travel[0] = -toMoon.x;
+    rv.travel[1] = -toMoon.y;
+    rv.travel[2] = -toMoon.z;
+    rv.lantern[0] = m_lantern.x;
+    rv.lantern[1] = m_lantern.y;
+    rv.lantern[2] = m_lantern.z;
+    rv.lantern[3] = m_lantern.w;
+    const RainConstants constants = MakeRain(m_rain, layer, plain, rv);
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (FAILED(context->Map(m_rainBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        return;
+    }
+    std::memcpy(mapped.pData, &constants, sizeof(constants));
+    context->Unmap(m_rainBuffer.Get(), 0);
+    // the depth cannot be read while it is bound for writing: the picture is bound without it for this pass
+    ID3D11RenderTargetView* colour = target.Get();
+    context->OMSetRenderTargets(1, &colour, nullptr);
+    context->OMSetBlendState(m_rainBlend.Get(), nullptr, 0xffffffff);
+    context->OMSetDepthStencilState(m_noDepthState.Get(), 0);
+    context->RSSetState(m_noCullState.Get());
+    context->IASetInputLayout(nullptr); // the vertex shader makes its positions from SV_VertexID
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->VSSetShader(m_rippleVertexShader.Get(), nullptr, 0);
+    context->PSSetShader(m_rainPixelShader.Get(), nullptr, 0);
+    ID3D11Buffer* rainConstants = m_rainBuffer.Get();
+    context->PSSetConstantBuffers(0, 1, &rainConstants);
     context->PSSetShaderResources(1, 1, &depthRead); // t0 is the shadow map of the scene: left alone
     context->Draw(3, 0);
     ID3D11ShaderResourceView* none[1] = {}; // the depth must not stay bound for reading: it is written again
@@ -1110,6 +1267,7 @@ void Models::LoadLighting(const Config& config)
 {
     SetLighting(ReadLightingSettings(config));
     m_lines = ReadLineSettings(config);
+    m_rain = ReadRainSettings(config);
     DL_LOG_INFO("Models", "lighting: shadows %s %d (radius %.0f m), lamps %s, exposure %.2f, knee %.2f",
                 m_lighting.shadows ? "on" : "off", m_lighting.shadowSize, static_cast<double>(m_lighting.shadowRadius),
                 m_lighting.pointLights ? "on" : "off", static_cast<double>(m_lighting.exposure),
@@ -1346,6 +1504,12 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         std::memcpy(&frame.styleFar, style.hazeTint, sizeof(style.hazeTint));
         std::memcpy(&frame.styleMisc, style.misc, sizeof(style.misc));
         std::memcpy(&frame.styleMore, style.more, sizeof(style.more));
+        // the rain of B (6.11): the stone is wet, the sky overcast and the fog thicker; A and the plain view are as
+        // they were, and so is the circle of the lantern in B (drawn with the frame of A)
+        const RainWet wet = MakeWet(m_rain, themeLayer, m_debugView == kDebugViewPlain || !(m_lighting.style > 0.0f));
+        frame.styleMore.z = wet.wet;
+        frame.styleMore.w = wet.overcast;
+        frame.fogDensity *= wet.fogScale;
         return frame;
     };
     const auto writeFrame = [&](const FrameConstants& frame)
@@ -1405,6 +1569,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
     // ---- the shadow pass: the casters of this moment seen from the light, into the shadow map (depth only)
     if (wantShadow)
     {
+        const GpuScope shadowTime(m_timer, context, GpuTimer::kShadow);
         ComPtr<ID3D11RenderTargetView> savedView;
         ComPtr<ID3D11DepthStencilView> savedDepth;
         context->OMGetRenderTargets(1, savedView.GetAddressOf(), savedDepth.GetAddressOf());
@@ -1566,6 +1731,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         context->OMSetDepthStencilState(m_depthState.Get(), 0);
         context->RSSetState(m_wireframe ? m_wireState.Get() : m_solidState.Get());
     }
+    // ---- the rain of B (6.11): over everything of the picture, the water and the halos too
+    DrawRain(context, layer, view, projection, eye);
     if (shadowOn)
     {
         ID3D11ShaderResourceView* none[1] =
@@ -1670,6 +1837,7 @@ void Models::Draw(ID3D11DeviceContext* context, const XMMATRIX& view, const XMMA
         return; // Init did not work: the log has said so; the program goes on without the models
     }
     const StateGuard guard(context);
+    const GpuScope sceneTime(m_timer, context, GpuTimer::kScene);
     m_drawCalls = 0;
     m_shadowDraws = 0;
 

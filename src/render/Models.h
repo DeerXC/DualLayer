@@ -29,17 +29,26 @@
 //            (docs/DESIGN.md 6.10): one full-screen pass that reads the depth buffer of the picture (shaders/lines.hlsl
 //            and lines.hlsli), set by LineSettings ([lines] in the config). The plain view (key L) has none. A pass
 //            that cannot be made is not an error: the log says so and the picture has no lines.
+// Rain:      B has a fine steady rain and A has none (docs/DESIGN.md 6.11): after everything else of the picture of B,
+//            DrawRain lays ink streaks in three layers and small rings on the ground over it (shaders/rain.hlsl and
+//            rain.hlsli), set by RainSettings ([rain] in the config); the stone of B is wet, its sky overcast and its
+//            fog thicker (the registers styleMore.z and .w of cbuffer Frame). The plain view (key L) has none. A pass
+//            that cannot be made is not an error: the log says so.
+// Timer:     a GpuTimer (render/GpuTimer.h), when one is given, measures the shadow pass, the scene, the lines, the
+//            rain and the HUD.
 // Keys:      app/TownSession.cpp reads the keyboard (app/Input.h; the focus rules live there) and calls
 //            ToggleWireframe / CycleDetail / ToggleLayer.
 // Threading: main thread only.
 #pragma once
 
 #include "core/Config.h"
+#include "render/GpuTimer.h"
 #include "render/LayerRipple.h"
 #include "render/LightingSettings.h"
 #include "render/Lights.h"
 #include "render/LineSettings.h"
 #include "render/MeshData.h"
+#include "render/RainSettings.h"
 #include "render/ShadowMath.h"
 #include "render/StaticBatch.h"
 #include "scene/SceneData.h"
@@ -97,6 +106,15 @@ class Models
     /// the config.
     void LoadLighting(const Config& config);
     void SetLighting(const LightingSettings& settings);
+    /// The timer that measures the parts of the frame. BORROWS: it must outlive the models; nullptr: none.
+    void SetTimer(GpuTimer* timer)
+    {
+        m_timer = timer;
+    }
+    const RainSettings& Rain() const
+    {
+        return m_rain;
+    }
     const LightingSettings& Lighting() const
     {
         return m_lighting;
@@ -269,6 +287,12 @@ class Models
     void DrawLines(ID3D11DeviceContext* context, int layer, const DirectX::XMMATRIX& projection);
     /// The shader view of a depth texture of a picture (nullptr when it cannot be read in a shader).
     ID3D11ShaderResourceView* DepthViewOf(ID3D11Resource* depth);
+    bool CreateRainResources();
+    /// The rain of B over the picture that is bound (6.11, R1): the same kind of pass as DrawLines, after everything
+    /// else. Nothing is drawn and nothing is changed for A, in the plain view, when the rain is off or when the depth
+    /// cannot be read.
+    void DrawRain(ID3D11DeviceContext* context, int layer, const DirectX::XMMATRIX& view,
+                  const DirectX::XMMATRIX& projection, const DirectX::XMFLOAT3& eye);
     int TriangleTotal() const;
     int VisibleModelCount() const;
 
@@ -299,6 +323,8 @@ class Models
     // ---- light
     LightingSettings m_lighting;
     LineSettings m_lines;
+    RainSettings m_rain;
+    GpuTimer* m_timer = nullptr;           // BORROWED: see SetTimer
     std::vector<PointLight> m_fixedLamps;  // the lamps of the town
     std::vector<PointLight> m_movingLamps; // the lantern and the other lamps that change (every frame)
     int m_debugView = 0;
@@ -355,6 +381,11 @@ class Models
     Microsoft::WRL::ComPtr<ID3D11Resource> m_screenDepth; // the depth texture that m_screenDepthView belongs to
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_screenDepthView;
     bool m_lineDepthWarned = false; // the log says once that the depth cannot be read
+    // ---- the rain
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_rainPixelShader;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_rainBuffer;
+    Microsoft::WRL::ComPtr<ID3D11BlendState> m_rainBlend; // result = source.rgb + picture * (1 - source.a)
+    bool m_rainDepthWarned = false;
     // ---- the ripple
     LayerRipple m_ripple;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_rippleVertexShader;

@@ -26,7 +26,8 @@
 //          sun-less side takes a cool fill, clouds drift their shadows over the town, an edge has a rim, a lamp has rings and a warm
 //          edge, rays of light stand in the air (LightShafts: a march along the ray of sight through the shadow map), and the picture is
 //          graded (split tone, colour, a soft dark corner); the stone is painted with soft blotches and is damp near the water; the far
-//          haze leans to a colour and the far distance has more fog (StyleFarFog). All of it comes from the eight registers at the end of
+//          haze leans to a colour and the far distance has more fog (StyleFarFog). In the rain of B (docs/DESIGN.md 6.11, rain.hlsli) the
+//          stone is wet (darker, a sheen, the sky reflected) and the sky is overcast: styleMore.z and .w. All of it comes from the eight registers at the end of
 //          cbuffer Frame (gradeParams2 and the seven after it), set by
 //          render/LightingSettings.h (MakeStyle); with all of them 0 the light is the plain one (the debug view "plain").
 // KEEP IN SYNC: struct FrameConstants, struct ObjectConstants and struct LampConstants in src/render/Models.cpp (field for field;
@@ -35,6 +36,7 @@
 
 #include "common.hlsli"
 #include "lighting.hlsli"
+#include "rain.hlsli"
 
 #define MAX_LAMPS 32
 
@@ -70,7 +72,7 @@ cbuffer Frame : register(b0)
     float4 styleLight;      // x: the shadow of the clouds, y: the rings of a lamp, z: strength of the light shafts, w: their samples
     float4 styleFar;        // rgb: what the haze is multiplied by far away, a: how far
     float4 styleMisc;       // x: the painted blotches of the stone, y: the damp near the water, z: the contrast, w: the soft edge of a step of the sun, in pixels (0: 1.5)
-    float4 styleMore;       // x: the extra fog of the far distance, y: how far a light over the knee goes to grey, zw: reserved
+    float4 styleMore;       // x: the extra fog of the far distance, y: how far a light over the knee goes to grey, z: the wet look of stone in rain, w: the overcast sky
 };
 
 cbuffer Lamps : register(b2)
@@ -240,9 +242,10 @@ float3 AtmosphereColour(float3 ray)
 {
     const float alignment = saturate(dot(ray, toLight));
     // Broad glow and a soft bright core; no noise or sky textures.
-    const float halo = pow(alignment, 20.0) * 0.23 + pow(alignment, 220.0) * 0.37;
+    // in the rain of B (6.11) the moon is behind cloud: a soft glow and no disc (styleMore.w is 0 in A and in the plain view)
+    const float halo = pow(alignment, 20.0) * 0.23 * RainMoonGlow(styleMore.w) + pow(alignment, 220.0) * 0.37 * RainMoonCore(styleMore.w);
     // the horizon of the sky has the hue that the far land fades to (StyleSky, 6.10 S3c): no band of the colour of the model over the pale hills
-    const float3 gradient = StyleSky(SkyGradient(ray.y), ray.y, Style());
+    const float3 gradient = RainOvercast(StyleSky(SkyGradient(ray.y), ray.y, Style()), styleMore.w);
     return gradient + lightColor * (skyForward.w * halo * smoothstep(-0.02, 0.10, ray.y));
 }
 
@@ -427,7 +430,7 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
         const float fresnel = 0.02 + 0.98 * pow(saturate(1.0 - facing), 5.0);
         const float3 r = reflect(-v, nn);
         // the sky in the water is the sky of the picture (StyleWaterSky): the sea meets the horizon in its colour
-        const float3 skyColour = StyleWaterSky(fogColor, skyUp, r.y, waterStyle);
+        const float3 skyColour = RainOvercast(StyleWaterSky(fogColor, skyUp, r.y, waterStyle), styleMore.w);
         const float glint = pow(saturate(dot(r, l)), sea ? 260.0 : 480.0) * (sea ? 3.0 : 4.0);
         const float3 body = albedo * (skyLight + lightColor * (0.25 + 0.5 * diffuse)) * lerp(1.0, 0.55, facing);
         colour = lerp(body, skyColour, fresnel) + lightColor * glint;
@@ -440,7 +443,7 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     float3 haze;
     const float fogOfModel = SceneFog(p, haze);
     const float waterMetres = length(p - eye);
-    haze = StyleHaze(haze, waterMetres, waterStyle);
+    haze = RainOvercast(StyleHaze(haze, waterMetres, waterStyle), styleMore.w);
     const float fog = StyleFog(fogOfModel, waterMetres, waterStyle);
     const float3 shafts = LightShafts((p - eye) / max(length(p - eye), 1.0e-4), length(p - eye), pixel) * (1.0 - fog);
     return float4(Finish(lerp(colour, haze, fog) + shafts, NdcOf(p)), alpha);
@@ -533,7 +536,11 @@ float4 PSMain(VSOut input) : SV_Target
     // a sky above and a ground below: a surface that looks up gets more light than one that looks down, and a face turned away from the light is dark but not black
     const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
     const float diffuse = saturate(dot(n, l));
-    const float shine = pow(saturate(dot(n, h)), max(input.knobs.z, 1.0)) * input.knobs.y * step(0.0001, diffuse);
+    // wet stone in the rain of B (6.11): darker, with a sheen, and it reflects the sky; not where the thing glows (styleMore.z is 0 in A)
+    const float wetness = RainWetness(n.y, styleMore.z) * (1.0 - saturate(input.knobs.w));
+    albedo = RainDarken(albedo, wetness);
+    const float shine = pow(saturate(dot(n, h)), max(RainSheenPower(input.knobs.z, wetness), 1.0)) *
+                        RainSheenStrength(input.knobs.y, wetness) * step(0.0001, diffuse);
     // the shadow of the sun or the moon and of the clouds, and the lamps of the moment (the debug views of gradeParams.z leave one of them out)
     const int view = (int)(gradeParams.z + 0.5);
     float sun = 1.0;
@@ -549,6 +556,7 @@ float4 PSMain(VSOut input) : SV_Target
     // glow: light of its own (a lamp, a hint, an orb), the same in both layers and on every side. The city has less rim than what keeps its own colour.
     const float rimScale = input.tone.a > 0.5 ? 0.35 : 1.0;
     float3 shaded = StyleShade(albedo, n, l, v, skyLight, lightColor, sun, shine, input.knobs.w, lamps.diffuse, lamps.specular, rimScale, style);
+    shaded += RainReflect(skyLight, wetness);
     if (view == 4)
     {
         shaded = albedo * lamps.diffuse + lamps.specular;
@@ -558,7 +566,7 @@ float4 PSMain(VSOut input) : SV_Target
     const float fogOfModel = SceneFog(input.worldPosition, haze);
     const float3 offset = input.worldPosition - eye;
     const float metres = length(offset);
-    haze = StyleHaze(haze, metres, style);
+    haze = RainOvercast(StyleHaze(haze, metres, style), styleMore.w); // overcast like the sky (6.11)
     const float fog = StyleFog(fogOfModel, metres, style) * (1.0 - 0.75 * saturate(input.knobs.w));
     // the light shafts: the light of the sun scattered by the air between the eye and this point, added in front of the fog
     const float3 shafts = LightShafts(offset / max(metres, 1.0e-4), metres, input.position.xy) * (1.0 - fog);

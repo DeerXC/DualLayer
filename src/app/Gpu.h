@@ -8,6 +8,7 @@
 #include "core/Config.h"
 #include "core/Window.h"
 #include "render/Device.h"
+#include "render/GpuTimer.h"
 #include "render/Models.h"
 #include "render/Overlay.h"
 #include "scene/Town.h"
@@ -30,6 +31,7 @@ struct Gpu
     std::unique_ptr<Device> device = std::make_unique<Device>();
     Models models;
     Overlay overlay;
+    GpuTimer timer;             ///< how long the GPU takes for the parts of a frame (the title bar shows it)
     const town::TownData& town; // BORROWS: the town outlives the GPU objects
 
     bool Init(const Window& window, const Config& config, int adapter);
