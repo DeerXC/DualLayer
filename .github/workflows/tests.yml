@@ -1,0 +1,35 @@
+# tests.yml - the logic tests on a hosted Linux runner: no window, no GPU, no Visual Studio. They are the same programs that
+# tests/run_tests.ps1 builds with MSVC; tools/run_tests.py builds them with g++ and runs them. UNVERIFIED on a hosted runner
+# (the steps were run by hand with the same commands): if the first run fails, the log of the failing step says why.
+# The step "town file" only warns when data/town.dlt differs from what tools/layout/city_model.py writes on this runner: the
+# model uses floating-point maths, and another system may round the last bit differently, so a difference is a reason to
+# look and not yet an error. The tests run on the file in the repository, the one the game loads.
+name: tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  logic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python packages of the town model
+        run: python -m pip install numpy matplotlib
+      - name: Town file
+        run: |
+          cp data/town.dlt "$RUNNER_TEMP/town.committed"
+          python tools/layout/city_model.py export
+          if cmp -s data/town.dlt "$RUNNER_TEMP/town.committed"; then
+            echo "data/town.dlt is what the model writes"
+          else
+            echo "::warning file=data/town.dlt::data/town.dlt differs from what tools/layout/city_model.py export writes on this runner"
+          fi
+          cp "$RUNNER_TEMP/town.committed" data/town.dlt
+      - name: Logic tests
+        run: python tools/run_tests.py

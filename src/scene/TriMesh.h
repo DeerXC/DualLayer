@@ -2,6 +2,14 @@
 // Grid:      the triangles are filed in a grid of square cells over the ground plane (x, z), kCell metres each; a
 //            triangle is filed in every cell its box over the ground touches. A query looks only at the cells round a
 //            ball.
+// Once:      a triangle that is filed in several cells is met once per query, in the first of the cells that the
+//            query looks at (in the order of the cells). That is found from the box of the triangle and the range of
+//            the query, so a query writes nothing: any number of them may run at the same time on one mesh.
+// Box:       each cell holds the boxes of its triangles in one row of memory, and a ball is tested against the box
+//            before the closest point of the triangle is worked out, a ray against the box before the barycentric
+//            coordinates. Most triangles of a cell are far from the query (the town is 87% of them for a ray and 99%
+//            for a ball), so most of the work is skipped, with the same result: the margins below are wider than the
+//            rounding of the triangle maths, and tests/test_trimesh.cpp compares with a search of every triangle.
 // Collision: PushOut moves a ball out of the triangles near it, as the ground does (scene/TriMath.h): the
 //            closest point on each triangle, a few rounds. A triangle has no inside: a ball is pushed out to the side
 //            its centre is on, so a surface is solid from both sides. The walking body (scene/Player.h SetMeshes) uses
@@ -40,56 +48,69 @@ class TriMesh
     void Build()
     {
         m_offsets.clear();
-        m_items.clear();
-        m_stamp.assign(m_tris.size(), 0u);
+        m_entries.clear();
         if (m_tris.empty())
         {
             m_nx = m_nz = 0;
             return;
         }
+        std::vector<Box> boxes(m_tris.size());
         float x0 = 1.0e30f, z0 = 1.0e30f, x1 = -1.0e30f, z1 = -1.0e30f;
-        for (const Tri& t : m_tris)
+        for (std::size_t k = 0; k < m_tris.size(); ++k)
         {
-            for (const Vec3* p : {&t.a, &t.b, &t.c})
-            {
-                x0 = p->x < x0 ? p->x : x0;
-                z0 = p->z < z0 ? p->z : z0;
-                x1 = p->x > x1 ? p->x : x1;
-                z1 = p->z > z1 ? p->z : z1;
-            }
+            const Tri& t = m_tris[k];
+            Box& b = boxes[k];
+            b.lo[0] = Min3(t.a.x, t.b.x, t.c.x);
+            b.lo[1] = Min3(t.a.y, t.b.y, t.c.y);
+            b.lo[2] = Min3(t.a.z, t.b.z, t.c.z);
+            b.hi[0] = Max3(t.a.x, t.b.x, t.c.x);
+            b.hi[1] = Max3(t.a.y, t.b.y, t.c.y);
+            b.hi[2] = Max3(t.a.z, t.b.z, t.c.z);
+            x0 = b.lo[0] < x0 ? b.lo[0] : x0;
+            z0 = b.lo[2] < z0 ? b.lo[2] : z0;
+            x1 = b.hi[0] > x1 ? b.hi[0] : x1;
+            z1 = b.hi[2] > z1 ? b.hi[2] : z1;
         }
         m_x0 = x0;
         m_z0 = z0;
         m_nx = static_cast<int>(std::floor((x1 - x0) / kCell)) + 1;
         m_nz = static_cast<int>(std::floor((z1 - z0) / kCell)) + 1;
         std::vector<std::uint32_t> counts(static_cast<std::size_t>(m_nx) * static_cast<std::size_t>(m_nz) + 1u, 0u);
-        const auto forCells = [&](const Tri& t, auto&& f)
+        const auto forCells = [&](const Box& b, auto&& f)
         {
             int i0, i1, j0, j1;
-            CellRange(Min3(t.a.x, t.b.x, t.c.x), Max3(t.a.x, t.b.x, t.c.x), Min3(t.a.z, t.b.z, t.c.z),
-                      Max3(t.a.z, t.b.z, t.c.z), i0, i1, j0, j1);
+            CellRange(b.lo[0], b.hi[0], b.lo[2], b.hi[2], i0, i1, j0, j1);
             for (int j = j0; j <= j1; ++j)
             {
                 for (int i = i0; i <= i1; ++i)
                 {
-                    f(static_cast<std::size_t>(j) * static_cast<std::size_t>(m_nx) + static_cast<std::size_t>(i));
+                    f(static_cast<std::size_t>(j) * static_cast<std::size_t>(m_nx) + static_cast<std::size_t>(i), i0,
+                      j0);
                 }
             }
         };
-        for (const Tri& t : m_tris)
+        for (const Box& b : boxes)
         {
-            forCells(t, [&](std::size_t cell) { ++counts[cell + 1u]; });
+            forCells(b, [&](std::size_t cell, int, int) { ++counts[cell + 1u]; });
         }
         for (std::size_t k = 1; k < counts.size(); ++k)
         {
             counts[k] += counts[k - 1];
         }
         m_offsets = counts;
-        m_items.resize(counts.back());
+        m_entries.resize(counts.back());
         std::vector<std::uint32_t> fill(counts.begin(), counts.end() - 1);
         for (std::uint32_t k = 0; k < m_tris.size(); ++k)
         {
-            forCells(m_tris[k], [&](std::size_t cell) { m_items[fill[cell]++] = k; });
+            forCells(boxes[k],
+                     [&](std::size_t cell, int i0, int j0)
+                     {
+                         Entry& e = m_entries[fill[cell]++];
+                         static_cast<Box&>(e) = boxes[k];
+                         e.tri = k;
+                         e.i0 = i0;
+                         e.j0 = j0;
+                     });
         }
     }
 
@@ -98,38 +119,32 @@ class TriMesh
         return static_cast<int>(m_tris.size());
     }
 
-    /// Calls f(a, b, c) once for every triangle whose cell lies within `r` of (x, z) on the ground plane.
+    /// Calls f(a, b, c) once for every triangle that is filed in a cell within `r` of (x, z) on the ground plane.
     template <class F> void ForEachNear(float x, float z, float r, F&& f) const
     {
-        if (m_nx <= 0)
-        {
-            return;
-        }
-        int i0, i1, j0, j1;
-        CellRange(x - r, x + r, z - r, z + r, i0, i1, j0, j1);
-        if (++m_visit == 0u) // the counter went round: forget every old stamp
-        {
-            m_stamp.assign(m_stamp.size(), 0u);
-            m_visit = 1u;
-        }
-        for (int j = j0; j <= j1; ++j)
-        {
-            for (int i = i0; i <= i1; ++i)
-            {
-                const std::size_t cell =
-                    static_cast<std::size_t>(j) * static_cast<std::size_t>(m_nx) + static_cast<std::size_t>(i);
-                for (std::uint32_t k = m_offsets[cell]; k < m_offsets[cell + 1u]; ++k)
-                {
-                    const std::uint32_t t = m_items[k];
-                    if (m_stamp[t] == m_visit)
-                    {
-                        continue; // filed in more than one cell: once is enough
-                    }
-                    m_stamp[t] = m_visit;
-                    f(m_tris[t].a, m_tris[t].b, m_tris[t].c);
-                }
-            }
-        }
+        ForEachFiled(x - r, x + r, z - r, z + r,
+                     [&](const Entry& e)
+                     {
+                         const Tri& t = m_tris[e.tri];
+                         f(t.a, t.b, t.c);
+                     });
+    }
+
+    /// Calls f(a, b, c) once for every triangle that is filed in a cell within `r` of the ball centre `c` on the ground
+    /// plane, except those that cannot touch the ball: a triangle whose box is farther from `c` than sqrt(limitD2) is
+    /// left out. `limitD2` is read again for every triangle, so a caller that is looking for the closest point can pass
+    /// the squared distance of the closest so far, and the search gets faster as it goes.
+    template <class F> void ForEachNearBall(const Vec3& c, float r, const float& limitD2, F&& f) const
+    {
+        ForEachFiled(c.x - r, c.x + r, c.z - r, c.z + r,
+                     [&](const Entry& e)
+                     {
+                         if (BoxDistance2(e, c) <= limitD2 + kBallSlack)
+                         {
+                             const Tri& t = m_tris[e.tri];
+                             f(t.a, t.b, t.c);
+                         }
+                     });
     }
 
     /// Moves the centre `c` of a ball of radius `r` out of every triangle it overlaps. Returns how far it moved.
@@ -146,20 +161,20 @@ class TriMesh
             Vec3 bestNormal{0.0f, 1.0f, 0.0f};
             float bestD2 = r * r;
             bool hit = false;
-            ForEachNear(c.x, c.z, r,
-                        [&](const Vec3& a, const Vec3& b, const Vec3& t)
-                        {
-                            const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);
-                            const Vec3 d = tri::Sub(c, q);
-                            const float d2 = tri::Dot(d, d);
-                            if (d2 < bestD2)
+            ForEachNearBall(c, r, bestD2,
+                            [&](const Vec3& a, const Vec3& b, const Vec3& t)
                             {
-                                bestD2 = d2;
-                                best = q;
-                                bestNormal = tri::Cross(tri::Sub(b, a), tri::Sub(t, a));
-                                hit = true;
-                            }
-                        });
+                                const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);
+                                const Vec3 d = tri::Sub(c, q);
+                                const float d2 = tri::Dot(d, d);
+                                if (d2 < bestD2)
+                                {
+                                    bestD2 = d2;
+                                    best = q;
+                                    bestNormal = tri::Cross(tri::Sub(b, a), tri::Sub(t, a));
+                                    hit = true;
+                                }
+                            });
             if (!hit)
             {
                 break;
@@ -190,43 +205,23 @@ class TriMesh
     bool HighestBelow(float x, float z, float y1, float y0, float& y) const
     {
         bool found = false;
-        ForEachNear(x, z, 0.0f,
-                    [&](const Vec3& a, const Vec3& b, const Vec3& c)
-                    {
-                        float h = 0.0f;
-                        if (HeightOn(a, b, c, x, z, h) && h <= y1 && h >= y0 && (!found || h > y))
-                        {
-                            y = h;
-                            found = true;
-                        }
-                    });
+        ForEachFiled(x, x, z, z,
+                     [&](const Entry& e)
+                     {
+                         if (x < e.lo[0] - kRaySlack || x > e.hi[0] + kRaySlack || z < e.lo[2] - kRaySlack ||
+                             z > e.hi[2] + kRaySlack || e.hi[1] < y0 - kRaySlack || e.lo[1] > y1 + kRaySlack)
+                         {
+                             return; // the ray misses the box of the triangle, or the box is out of the range
+                         }
+                         const Tri& t = m_tris[e.tri];
+                         float h = 0.0f;
+                         if (HeightOn(t.a, t.b, t.c, x, z, h) && h <= y1 && h >= y0 && (!found || h > y))
+                         {
+                             y = h;
+                             found = true;
+                         }
+                     });
         return found;
-    }
-
-  private:
-    struct Tri
-    {
-        Vec3 a, b, c;
-    };
-
-    static float Min3(float a, float b, float c)
-    {
-        const float m = a < b ? a : b;
-        return m < c ? m : c;
-    }
-    static float Max3(float a, float b, float c)
-    {
-        const float m = a > b ? a : b;
-        return m > c ? m : c;
-    }
-
-    void CellRange(float xa, float xb, float za, float zb, int& i0, int& i1, int& j0, int& j1) const
-    {
-        const auto clampI = [](int v, int n) { return v < 0 ? 0 : (v >= n ? n - 1 : v); };
-        i0 = clampI(static_cast<int>(std::floor((xa - m_x0) / kCell)), m_nx);
-        i1 = clampI(static_cast<int>(std::floor((xb - m_x0) / kCell)), m_nx);
-        j0 = clampI(static_cast<int>(std::floor((za - m_z0) / kCell)), m_nz);
-        j1 = clampI(static_cast<int>(std::floor((zb - m_z0) / kCell)), m_nz);
     }
 
     /// The height of the triangle over (x, z), when (x, z) lies inside it seen from above (a vertical wall has none).
@@ -249,11 +244,104 @@ class TriMesh
         return true;
     }
 
+  private:
+    /// WHY these margins: HeightOn accepts a point a hair outside the triangle (1e-5 of its size, in float), and
+    /// ClosestOnTriangle has the rounding of float coordinates up to a few hundred metres. Both margins are far wider
+    /// than that, so a triangle that the exact test would take is never left out by the box; the box only has to be
+    /// right when a triangle is far away, and then it is right by a wide margin.
+    static constexpr float kRaySlack = 0.05f;  ///< UNITS: metres, round the box of a triangle, for a ray down
+    static constexpr float kBallSlack = 1.0e-3f; ///< UNITS: metres squared, added to the squared limit of a ball
+
+    struct Tri
+    {
+        Vec3 a, b, c;
+    };
+    struct Box
+    {
+        float lo[3]; ///< x, y, z
+        float hi[3];
+    };
+    struct Entry : Box ///< a triangle as filed in a cell: its box (to read first) and where the triangle is
+    {
+        std::uint32_t tri;
+        std::int32_t i0, j0; ///< the first column and row in which the triangle is filed
+    };
+
+    static float Min3(float a, float b, float c)
+    {
+        const float m = a < b ? a : b;
+        return m < c ? m : c;
+    }
+    static float Max3(float a, float b, float c)
+    {
+        const float m = a > b ? a : b;
+        return m > c ? m : c;
+    }
+
+    /// The squared distance from `p` to the box of the triangle (0 inside it).
+    static float BoxDistance2(const Box& b, const Vec3& p)
+    {
+        const float dx = p.x < b.lo[0] ? b.lo[0] - p.x : (p.x > b.hi[0] ? p.x - b.hi[0] : 0.0f);
+        const float dy = p.y < b.lo[1] ? b.lo[1] - p.y : (p.y > b.hi[1] ? p.y - b.hi[1] : 0.0f);
+        const float dz = p.z < b.lo[2] ? b.lo[2] - p.z : (p.z > b.hi[2] ? p.z - b.hi[2] : 0.0f);
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    int Column(float x) const
+    {
+        const int i = static_cast<int>(std::floor((x - m_x0) / kCell));
+        return i < 0 ? 0 : (i >= m_nx ? m_nx - 1 : i);
+    }
+    int Row(float z) const
+    {
+        const int j = static_cast<int>(std::floor((z - m_z0) / kCell));
+        return j < 0 ? 0 : (j >= m_nz ? m_nz - 1 : j);
+    }
+    void CellRange(float xa, float xb, float za, float zb, int& i0, int& i1, int& j0, int& j1) const
+    {
+        i0 = Column(xa);
+        i1 = Column(xb);
+        j0 = Row(za);
+        j1 = Row(zb);
+    }
+
+    /// Calls f(entry) once for every triangle filed in a cell of the range (x from xa to xb, z from za to zb), cell by
+    /// cell, row by row. A triangle that is filed in several cells of the range is given in the first of them: the
+    /// one where the larger of the first column of its box and the first column of the range is, and the same for the
+    /// row (the cells of a triangle are a whole block, and so are the cells of the range). That needs a look only when
+    /// the range is more than one cell; a range of one cell, as a ray down has, never meets a triangle twice. Reads,
+    /// never writes.
+    template <class F> void ForEachFiled(float xa, float xb, float za, float zb, F&& f) const
+    {
+        if (m_nx <= 0)
+        {
+            return;
+        }
+        int i0, i1, j0, j1;
+        CellRange(xa, xb, za, zb, i0, i1, j0, j1);
+        const bool several = i1 > i0 || j1 > j0;
+        for (int j = j0; j <= j1; ++j)
+        {
+            for (int i = i0; i <= i1; ++i)
+            {
+                const std::size_t cell =
+                    static_cast<std::size_t>(j) * static_cast<std::size_t>(m_nx) + static_cast<std::size_t>(i);
+                for (std::uint32_t k = m_offsets[cell]; k < m_offsets[cell + 1u]; ++k)
+                {
+                    const Entry& e = m_entries[k];
+                    if (several && !((i == i0 || i == e.i0) && (j == j0 || j == e.j0)))
+                    {
+                        continue; // met in an earlier cell of the range
+                    }
+                    f(e);
+                }
+            }
+        }
+    }
+
     std::vector<Tri> m_tris;
-    std::vector<std::uint32_t> m_offsets; // the triangles of cell k are m_items[m_offsets[k] .. m_offsets[k + 1])
-    std::vector<std::uint32_t> m_items;
-    mutable std::vector<std::uint32_t> m_stamp; // the query that last met each triangle (so it is met once per query)
-    mutable std::uint32_t m_visit = 0;
+    std::vector<std::uint32_t> m_offsets; // the triangles of cell k are m_entries[m_offsets[k] .. m_offsets[k + 1])
+    std::vector<Entry> m_entries;
     float m_x0 = 0.0f;
     float m_z0 = 0.0f;
     int m_nx = 0;

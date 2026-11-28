@@ -28,7 +28,6 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
-#include <iterator>
 #include <string>
 #include <vector>
 
@@ -264,7 +263,22 @@ class TownData
             error = std::string("cannot open ") + path + " (make it with: python tools/layout/city_model.py export)";
             return false;
         }
-        const std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        // WHY one read and not an iterator over the stream: the town file is 3 MB, and a Debug build of the standard
+        // library checks every step of an iterator (seconds at the start of the game)
+        in.seekg(0, std::ios::end);
+        const std::streamoff size = in.tellg();
+        in.seekg(0, std::ios::beg);
+        if (size < 0 || !in)
+        {
+            error = std::string("cannot read ") + path;
+            return false;
+        }
+        std::vector<unsigned char> bytes(static_cast<std::size_t>(size));
+        if (size > 0 && !in.read(reinterpret_cast<char*>(bytes.data()), size))
+        {
+            error = std::string("cannot read ") + path;
+            return false;
+        }
         return Parse(bytes.data(), bytes.size(), error);
     }
 

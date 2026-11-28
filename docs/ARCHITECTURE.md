@@ -12,8 +12,8 @@ An earlier prototype with hand-placed rooms and puzzles was removed on 2026-11-2
 | `shaders/` | HLSL, compiled by the game at start |
 | `data/` | `town.dlt`, the town as data, written by the layout model |
 | `config/` | `default.ini`, every tunable value |
-| `tests/` | the logic tests, `check.h` (the shared check macro) and `run_tests.ps1` |
-| `tools/` | `check.ps1` (the one-command check); `layout/` is the layout model of the town in Python: `city_model.py` (the model and the export), `architecture.py` (the buildings), `town_style.py` (the palette) and the review tools |
+| `tests/` | the logic tests, `check.h` (the shared check macro) and `run_tests.ps1` (MSVC) |
+| `tools/` | `check.ps1` (the one-command check on Windows); `run_tests.py` (the same logic tests with g++ or clang++, on any system); `layout/` is the layout model of the town in Python: `city_model.py` (the model and the export), `architecture.py` (the buildings), `town_style.py` (the palette) and the review tools |
 | `docs/` | design, build, architecture and conventions |
 
 ## One frame
@@ -71,7 +71,7 @@ that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `
 | `app/TownSession.h` | the frame loop of the town, in small steps (see One frame) |
 | `app/Gpu.h`, `app/AppConfig.h`, `app/Input.h` | the GPU objects made and lost together; the config of the program; the keyboard |
 | `scene/Town.h` | reads `data/town.dlt`; bakes the drawn polygons; builds the solid of each moment; the steps of the main path |
-| `scene/TriMath.h`, `scene/TriMesh.h` | the closest point of a triangle; triangles filed in a grid of 4 m cells and the push-out of a ball |
+| `scene/TriMath.h`, `scene/TriMesh.h` | the closest point of a triangle; triangles filed in a grid of 4 m cells, each with its box, and the push-out of a ball |
 | `scene/Moments.h` | the solid of both moments with the circle of the lantern; the push-out and the wall push |
 | `scene/Lantern.h`, `scene/LanternModel.h` | the lantern: set down in A, a circle of A in B; the traces of things changed in A; the model of the lantern and of the post it hangs from when it is set down (also what the traveller carries) |
 | `scene/Things.h` | the things that change: opened in A, a trace in B (the causal rule) |
@@ -100,7 +100,8 @@ lines of the streets, the lamps, and the polygons of the town with their moment 
   in `app/Gpu.cpp`).
 - Solid: `TownData::BuildMesh` gives a `TriMesh` per moment (its solid and terrain polygons), triangles filed in a grid of 4 m
   cells; `TriMesh::PushOut` moves a ball out of them as the ground does. `Moments` holds both and the circle of the
-  lantern; the walking body takes it with `Player::SetTown`.
+  lantern; the walking body takes it with `Player::SetTown`. A query writes nothing, so any number of them may run on one
+  mesh at the same time (see Collision).
 - The lantern (`scene/Lantern.h`): set down in A, it keeps a sphere of A (radius 3.5 m) in B. Solid: `Moments::PushOut`
   in B takes a triangle of A when the point of it nearest to the ball lies inside the sphere, a triangle of B when that point
   lies outside, so a floor of A ends under the centre of the ball at the edge, where its picture ends. Drawn:
@@ -173,6 +174,14 @@ The model shader (`shaders/models.hlsl`) lights a surface with five terms: the s
 `Moments::PushOut` does the same over the solid of a moment, the things that are open now and the circle of the lantern. They
 only move the ball; speed is the job of the body.
 
+How a query is kept cheap: a cell of the grid holds, in one row of memory, the box of each of its triangles, and a query reads
+the box first. In the queries of the route solver, of the triangles in the cells round a ball 99% are farther away than the ball can
+reach, and of those under a ray down 87% are not under it, so the closest point (or the barycentric coordinates) is worked out for the few that remain. A
+triangle that is filed in several cells is met once, in the first cell of the query that holds it, which is found from the first
+cell of the triangle: nothing is written during a query. The answers are the same, bit for bit, as those of a search of every
+triangle (`tests/test_trimesh.cpp`); `PushOut` is about twice as fast and `HighestBelow` about one and a half times, and a pass
+of the route solver (`tests/test_route.cpp`) takes half the time.
+
 `Player` is three balls of the collision radius (feet, halfway, eye); the camera is the eye. A frame is cut into steps
 shorter than the radius. In each step: the ground speed moves toward the keys with an acceleration; gravity (stronger while
 falling); the jump (its rise is cut when Space is let go); the move; the push-out. The push removes the part of the speed
@@ -232,7 +241,8 @@ path for testing.
 ## Tests
 
 Each file in `tests/` is a program of its own: `tests/run_tests.ps1` builds and runs them with MSVC, and the header of each
-file gives the g++ command. All but `test_mesh.cpp` share `tests/check.h`. None needs a window or a GPU: the shader maths of `shaders/lighting.hlsli`
+file gives the g++ command, which `tools/run_tests.py` reads, so there is one list of sources and nothing to keep in step. All but
+`test_mesh.cpp` share `tests/check.h`. None needs a window or a GPU: the shader maths of `shaders/lighting.hlsli`
 is written in the part of HLSL that is also C++ and runs through `tests/hlsl_shim.h`, and `test_route.cpp` plays the main path
 of the whole town with a solver and reports any way round a puzzle.
 

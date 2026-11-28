@@ -2,9 +2,9 @@
 // scene/Lantern.h).
 // Circle:    a sphere in which B is A: what is solid there and what is seen is A.
 // PushOut:   a ball is pushed out of a triangle of A when the point of the triangle nearest to it lies inside the
-//            circle, and out of a triangle of B when that point lies outside it. So a floor of A ends at the edge of the circle
-//            under the centre of the ball, as the picture ends there (shaders/models.hlsl LanternClip). In A the circle
-//            changes nothing.
+//            circle, and out of a triangle of B when that point lies outside it. So a floor of A ends at the edge of
+//            the circle under the centre of the ball, as the picture ends there (shaders/models.hlsl LanternClip). In A
+//            the circle changes nothing.
 // Extra:     the things that change (scene/Things.h) add small solids to a moment (SetExtra): the boxes of their state
 //            now. They follow the same rule as the town's own triangles.
 // Plain data and plain maths, no Windows, no Direct3D: tested without a window (tests/test_lantern.cpp).
@@ -115,7 +115,7 @@ class Moments
                 {
                     return;
                 }
-                mesh->ForEachNear(c.x, c.z, r,
+                mesh->ForEachNearBall(c, r, bestD2,
                                   [&](const Vec3& a, const Vec3& b, const Vec3& t)
                                   {
                                       const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);
@@ -175,6 +175,7 @@ class Moments
             return;
         }
         const bool circle = layer == 1 && m_circle.On(); // in the present with the circle of the lantern
+        const float limit = r * r;                       // a triangle farther than this from the ball pushes nothing
         enum Filter
         {
             kAny,
@@ -187,7 +188,7 @@ class Moments
             {
                 return;
             }
-            mesh->ForEachNear(c.x, c.z, r,
+            mesh->ForEachNearBall(c, r, limit,
                               [&](const Vec3& a, const Vec3& b, const Vec3& t)
                               {
                                   const Vec3 q = tri::ClosestOnTriangle(c, a, b, t);

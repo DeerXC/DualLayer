@@ -15,8 +15,9 @@ Controls and checks apply to the current build. The lens, the beacons, the three
    is the project folder, so `shaders/` and `config/` are found.
 2. `build\x64\<Config>\DualLayer.exe` also runs from Explorer: a post-build step copies `shaders\` and `config\` next to it.
 3. The logic tests alone: `.\tests\run_tests.ps1` in a Developer PowerShell for VS; one test: `.\tests\run_tests.ps1 -Only town`.
-   The longest is `route` (a few minutes with /O2). None of them needs a window or a GPU, and each also builds with g++ (the
-   command is in the header of the test). `town`, `route`, `things`, `map`, `firstminute` and `lighting` read `data/town.dlt`;
+   The longest is `route` (a few minutes with /O2). None of them needs a window or a GPU. On any system with g++ or clang++:
+   `python tools/run_tests.py` builds and runs all of them side by side (`--list` shows them, `-j 4` limits the builds, `--strict`
+   makes warnings errors, `--export` writes `data/town.dlt` first; one test: `python tools/run_tests.py town`). `town`, `route`, `things`, `map`, `firstminute` and `lighting` read `data/town.dlt`;
    if it is missing, `python tools/layout/city_model.py export` writes it (see Configuration).
 
 ## Keys
