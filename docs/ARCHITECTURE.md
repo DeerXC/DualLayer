@@ -42,8 +42,8 @@ WinMain > RunApp
                                      their traces, the ring of a return, the markers, the beam or the frame of H, the avatar, the halos of the lamps > Models::SetObjects;
                                      the lamps that move (scene/Lamps.h MovingLamps: the lantern, the lit lamps of the mast, the lamps of the bells rung) > Models::SetMovingLamps
          11. Render                > Device::BeginFrame, Models::Draw (the shadow map and the picture of one moment, or the ripple), Overlay::Draw (BuildHud: the
-                                     prompt, the status line; BuildMap over it when the map is open), Device::EndFrame (Present)
-         12. UpdateTitle           > adapter, speed, body, moment, place, bells, steps, falls
+                                     prompt, the status line; BuildMap over it when the map is open), Device::EndFrame (Present); the GpuTimer brackets the frame and its parts
+         12. UpdateTitle           > adapter, frame time, GPU time of the parts, body, moment, place, bells, steps, falls
   end:    Gpu::Shutdown (Models, Overlay, Device: the debug layer reports leaks), log closed
 ```
 
@@ -56,7 +56,7 @@ main
  +- app      AppConfig, Gpu, Input, TownSession                                                    > render, scene, core
  +- render   Device, Models, MeshData, LayerRipple, Projection, ShaderCompiler, GpuDebug,
              Overlay, OverlayBatch, Font5x7, StaticBatch, Hud, MapView, Lights, ShadowMath,
-             LightingSettings                                                                       > core, scene (data only)
+             LightingSettings, LineSettings, RainSettings, GpuTimer                                 > core, scene (data only)
  +- scene    Camera, SceneData, TriMath, TriMesh, Moments, Player, TownPlayer, Town, Lantern, LanternModel,
              Things, Ledger, Guidance, Flame, Emblems, Lamps, MapMemory, LayerGuard, Prompts,
              TownEffects                                                                              > standard library only
@@ -87,6 +87,7 @@ that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `
 | `render/Hud.h` | the overlay of one frame |
 | `render/Lights.h`, `scene/Lamps.h` | the point lights: the choice of the 32 for a frame (the moment, the distance, the flicker); the lamps of the town file, the lantern, the lamps that bells light, and the halos |
 | `render/ShadowMath.h`, `render/LightingSettings.h` | the matrix of the shadow box on the texel grid; every number of `[lighting]`, the looks of A and B (`StyleLookOf`) and their registers (`MakeStyle`) |
+| `render/LineSettings.h`, `render/RainSettings.h`, `render/GpuTimer.h` | the keys, registers and numbers of the ink lines and of the rain (`MakeLines`, `MakeRain`, `MakeWet`); the GPU time of the parts of a frame (see Passes over the picture) |
 
 ## The town
 
@@ -141,7 +142,7 @@ gives the city (objects of both layers that do not glow) the tint and the weathe
 its distance into the background colour; glowing things are seen through more of the fog. In the town, the renderer
 also draws a world-aligned sky before the opaque scene, using the same full-screen triangle vertex shader as the
 ripple. Each ripple target gets its own sky; the local lantern pass changes only geometry and water. The frame
-buffer (464 bytes: see Light) carries the camera axes, sky colour and low-mist parameters, the matrix of the shadow box, the
+buffer (480 bytes: see Light) carries the camera axes, sky colour and low-mist parameters, the matrix of the shadow box, the
 exposure and the registers of the style. Opaque objects and water share the same distance and height haze.
 
 `LayerRipple` keeps the timing of a switch. While no ripple runs, one layer is drawn straight to the back buffer. During a
@@ -175,8 +176,17 @@ The model shader (`shaders/models.hlsl`) lights a surface with five terms: the s
 - Lamps: the town's lamps come from the file (`TownData::lamps`; the model writes one for each lantern it builds, `city_model.py lamp`), the moving ones from `MovingLamps` every frame. `SelectLamps` (`render/Lights.h`) takes for each moment the 32 that light the surroundings of the camera most (strength, distance, range), fades a lamp out with distance and gives it its flicker; they go to the constant buffer `Lamps` (b2) and the shader adds `LampShade` for each: a diffuse term and a highlight, falling with the inverse square and ending exactly at the range of the lamp.
 - Halos: `AddHalos` makes a soft sphere (`kMatHalo`) for each of the nearest lamps; `Models` draws them after the water, added to the picture (an additive blend, depth tested and not written, both sides), and the shader gives them a strength that falls to 0 at their rim and into the fog.
 - The haze: the fog colour gets the light of the sun scattered toward the sun (`SunScatter`).
-- Style: the pixel shader builds a `StyleParams` (`lighting.hlsli`, "the style of the light") from the seven registers that end the frame buffer (`gradeParams2`, `styleCool`, `styleLow`, `styleHigh`, `styleLight`, `styleFar`, `styleMisc`; 464 bytes in all) and every part is a function of that file that `tests/test_style.cpp` runs as C++: `ToonRamp`, `CloudShade`, `RimTerm`, `LampShadeStyled` (`LampRings`, `LampWarmth`), `PaintAlbedo`, `StyleShade` (the plain sum with the cool fill and the rim), `StyleHaze`, `StyleGrade` (`StyleContrast`, the tones, the saturation, the dark corner; it comes before `SoftShoulder` in `Finish`) and `ShaftPhase`. The one part that needs the shadow map is `LightShafts` in `models.hlsl`: it walks the ray of sight from the eye to the surface (to 48 m) in `shaft_steps` samples, moved by a noise per pixel, and adds the light that the map lets through, thicker near the sea; the sky pass does the same along the ray into the sky. `render/LightingSettings.h` turns `[lighting]` into those registers (`MakeStyle`; the colours of the cool fill, the tones and the haze of A and B are `StyleLookOf`), and `Models::DrawObjects` copies them into the frame buffer. All of it is 0 in the view "plain".
+- Style: the pixel shader builds a `StyleParams` (`lighting.hlsli`, "the style of the light") from the eight registers that end the frame buffer (`gradeParams2`, `styleCool`, `styleLow`, `styleHigh`, `styleLight`, `styleFar`, `styleMisc`, `styleMore`; 480 bytes in all) and every part is a function of that file that `tests/test_style.cpp` runs as C++: `ToonRamp`, `CloudShade`, `RimTerm`, `LampShadeStyled` (`LampRings`, `LampWarmth`), `PaintAlbedo`, `StyleShade` (the plain sum with the cool fill and the rim), `StyleHaze` and `StyleFarFog` (a hue and extra fog far away), `StyleSky` and `StyleWaterSky` (the sky and its reflection lean the same way), `StyleGrade` (`StyleContrast`, the tones, the saturation, a very bright light toward grey, the dark corner; it comes before `SoftShoulder` in `Finish`) and `ShaftPhase`. The one part that needs the shadow map is `LightShafts` in `models.hlsl`: it walks the ray of sight from the eye to the surface (to 48 m) in `shaft_steps` samples, moved by a noise per pixel, and adds the light that the map lets through, thicker near the sea; the sky pass does the same along the ray into the sky. `render/LightingSettings.h` turns `[lighting]` into those registers (`MakeStyle`; the colours of the cool fill, the tones and the haze of A and B are `StyleLookOf`), and `Models::DrawObjects` copies them into the frame buffer. All of it is 0 in the view "plain".
 - Debug: the key L cycles the debug view of `gradeParams.z` in the frame buffer: everything, no shadows, no lamps, only the shadow, only the lamps, plain (the style left out: `MakeStyle` with `plain` true gives all zeros).
+
+## Passes over the picture
+
+The depth buffer of `Device` and the two depth textures of the ripple are `R32_TYPELESS`, with a `D32_FLOAT` depth view and an `R32_FLOAT` shader view (`Models::DepthViewOf`), so that a pass can read what the picture has drawn. Both passes below are one full-screen triangle made from `SV_VertexID` (the vertex shader of `ripple.hlsl`), bind the picture without its depth while they read it, put the pipeline back with `BindScenePipeline`, and add their result with the blend ONE, INV_SRC_ALPHA, so that no copy of the picture is needed. A pass that cannot be made is not an error: the log says so and the picture goes without it. Both are 0 in the view "plain".
+
+- Ink lines (`Models::DrawLines`, `shaders/lines.hlsl`, maths in `lines.hlsli`, numbers in `[lines]` through `LineSettings.h`): after everything opaque and before the water, for the screen and for each ripple picture. A pixel is on an outline where it stands in front of its neighbours by more than a plane can explain (a ridge of 1 / z: zero on any plane at any distance and slant), on the near side only, and on an inner edge where the four triangles that meet at it turn by 30 degrees or more (full 15 degrees later). The width is in pixels and scales with the height of the screen; the inner edges fade out between `fade_near` and `fade_far`, the outlines thin beyond. `lines_blend.hlsli` gives `LineComposite` as a blend. Limits: the water, the halos and the sky are not in the depth, and terrain facets that turn by 30 degrees or more draw inner edges up to the fade distance.
+- Rain (`Models::DrawRain`, `shaders/rain.hlsl`, maths in `rain.hlsli`, numbers in `[rain]` through `RainSettings.h`, registers 240 bytes): after the water and the halos, in the picture of B only. Three layers of cells scroll along the fall (the direction of the moonlight, seen from the camera); a streak stands at a distance of its own, 0.4 to 1.6 of its layer's (2.5, 8 and 24 m), and is drawn only where the surface behind it is farther. Rings grow and fade on faces that look up (the normal comes from the depth) up to `ring_reach`. No streak or ring falls inside the circle of the lantern. The hash is made of fractions and products, so that a CPU, a GPU and fused arithmetic agree. The rain knows nothing of a roof over a street (that is R2 of `DESIGN.md` 6.11).
+- Wet look (`models.hlsl`, `styleMore.z` and `.w`; no register was added): in B the stone is darker, has a sheen and reflects a twentieth of the sky light; the sky, the haze of the far land and the sky in the water lean to the same overcast, and `MakeWet` makes the fog thicker. The circle of the lantern in B is drawn with the frame of A and is dry.
+- GPU time (`render/GpuTimer.h`): timestamp queries in a ring of four frames in flight, at most 48 timestamps each, read some frames later and never waited for. `Gpu` owns the timer and `Models` borrows it; `TownSession::Render` times the frame and the HUD, `Models` the shadow pass, the scene, the lines and the rain (`GpuScope`; a part begun several times in a frame adds up). A frame whose clock jumped is dropped. The title bar shows `gpu` and the times, or `gpu n/a` when the device gives none.
 
 ## Collision and the walking body
 
