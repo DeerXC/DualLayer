@@ -1,8 +1,8 @@
 # DualLayer
 
-日本語：同じ港町の「過去」（高潮の前夜）と「現在」（高潮から約12年後）を切り替えて探索する、戦闘のない 3D 探索パズル。過去（A）で行ったことは現在（B）に痕跡として残り、その逆は起きません。過去に置いたランタンは、現在の廃墟に小さな「過去の一角」を残します。C++20 と Direct3D 11 で、ゲームエンジンを使わずに制作しています。
+日本語：同じ港町の「過去」（大嵐の前夜、祭りの最後の夕暮れ）と「現在」（その12年後）を切り替えて探索する、戦闘のない 3D 探索パズル。過去（A）で行ったことは、12年という時間が何を残したかとして現在（B）に現れ、その逆は起きません。種を植えれば木になり、野ざらしの木材は朽ち、開けたままの鉄の門は錆びて開いたままになります。過去に置いたランタンは、現在の廃墟に小さな「過去の一角」を残します。C++20 と Direct3D 11 で、ゲームエンジンを使わずに制作しています。
 
-DualLayer is a 3D exploration puzzle without combat, set in two versions of one harbour town: A, a calm evening before a storm surge, and B, the same town about twelve years later. Actions in the past (A) leave traces in the present (B); nothing done in the present changes the past. A lantern set down in A keeps a small piece of A standing in B. It is written in C++20 and Direct3D 11 without a game engine.
+DualLayer is a 3D exploration puzzle without combat, set in two versions of one harbour town: A, the last calm evening before a great storm, and B, the same town twelve years later. What is done in the past is what twelve years make of it in the present: a seed planted in A is a tree in B, raw timber rots, an iron gate stays as it was left. Nothing done in the present changes the past. A lantern set down in A keeps a small piece of A standing in B. It is written in C++20 and Direct3D 11 without a game engine.
 
 **Status:** playable prototype (milestone `m2-layers`, in progress). The story, the three-district structure and the finale at the tower are specified in [docs/DESIGN.md](docs/DESIGN.md) and are not built yet. Known issues are listed in [CHANGELOG.md](CHANGELOG.md).
 
@@ -47,7 +47,7 @@ Requirements, keys, configuration and the check command are in [docs/BUILD.md](d
 
 | Document | Contents |
 |---|---|
-| [docs/DESIGN.md](docs/DESIGN.md) | The game: principles, the switch, the causal rule, art, the map, puzzles, limits and proof |
+| [docs/DESIGN.md](docs/DESIGN.md) | The game: story, principles, the switch, the causal rule, favours, the finale, art, the map, puzzles, guidance, limits and proof |
 | [docs/BUILD.md](docs/BUILD.md) | Requirements, build, keys, configuration, the one-command check |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The code as built: one frame, modules, the town, layers, collision, light |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Coordinate system, matrices, colour, depth, layers, naming |
