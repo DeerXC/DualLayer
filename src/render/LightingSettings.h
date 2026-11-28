@@ -35,13 +35,13 @@ struct LightingSettings
     float shadowNormal = 1.5f; ///< texels: a surface is moved this far along its normal before the shadow is looked up
     // ---- the point lights
     bool pointLights = true;
-    float lampsA = 0.55f; ///< the street lamps in A: low, the sun is up (the evening)
+    float lampsA = 0.9f;  ///< the street lamps in A: lit at dusk, read against the shade of the low sun
     float lampsB = 1.0f;  ///< the street lamps in B: the only light but the moon
     float lantern = 1.0f; ///< the lantern of the traveller (and the lit lamps of the mast and the bells)
     // ---- the sun, the sky and the air
     float sunA = 1.0f;        ///< the light of the sun of A
     float sunB = 0.8f;        ///< the light of the moon of B
-    float ambientA = 1.0f;    ///< the sky light of A
+    float ambientA = 0.85f;   ///< the sky light of A: the shade of the dusk (not below 0.8)
     float ambientB = 0.9f;    ///< the sky light of B
     float sunScatter = 0.25f; ///< how much of the light of the sun the fog scatters toward the sun: a haze round it
     // ---- the picture

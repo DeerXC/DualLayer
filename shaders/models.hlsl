@@ -240,7 +240,9 @@ float3 AtmosphereColour(float3 ray)
     const float alignment = saturate(dot(ray, toLight));
     // Broad glow and a soft bright core; no noise or sky textures.
     const float halo = pow(alignment, 20.0) * 0.23 + pow(alignment, 220.0) * 0.37;
-    return SkyGradient(ray.y) + lightColor * (skyForward.w * halo * smoothstep(-0.02, 0.10, ray.y));
+    // the horizon of the sky has the hue that the far land fades to (StyleSky, 6.10 S3c): no band of the colour of the model over the pale hills
+    const float3 gradient = StyleSky(SkyGradient(ray.y), ray.y, Style());
+    return gradient + lightColor * (skyForward.w * halo * smoothstep(-0.02, 0.10, ray.y));
 }
 
 float4 PSSky(float4 position : SV_Position, float2 uv : TEXCOORD0) : SV_Target

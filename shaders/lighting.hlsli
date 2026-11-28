@@ -252,15 +252,35 @@ float3 PaintAlbedo(float3 albedo, float3 p, float3 n, float lowMist, StyleParams
     return albedo * shift * damp * value;
 }
 
-// The haze toward the horizon, leaning toward the HUE of `farTint` the farther it is: nothing within 24 m, all of it from 200 m (6.10: the
-// middle distance, the town seen from the air, is already cooler than what is near, and the far hills are lavender and not orange). The
-// brightness of the haze is kept: only its hue moves. (A multiplier cannot do it: an orange horizon would stay orange.)
-float3 StyleHaze(float3 haze, float metres, StyleParams s)
+// The hue of the colour `c` moved toward the hue of `tint` by `amount` (0 .. 1), its brightness kept: only the hue moves. (A multiplier cannot do
+// this: an orange horizon would stay orange.)
+float3 LeanToHue(float3 c, float3 tint, float amount)
 {
     const float3 grey = float3(0.2126f, 0.7152f, 0.0722f);
-    const float amount = smoothstep(24.0f, 200.0f, metres) * s.farAmount;
-    const float3 leaning = s.farTint * (dot(haze, grey) / max(dot(s.farTint, grey), 1.0e-4f));
-    return lerp(haze, leaning, amount);
+    const float3 leaning = tint * (dot(c, grey) / max(dot(tint, grey), 1.0e-4f));
+    return lerp(c, leaning, amount);
+}
+
+// The haze toward the horizon, leaning toward the HUE of `farTint` the farther it is: nothing within 24 m, all of it from 200 m (6.10: the
+// middle distance, the town seen from the air, is already cooler than what is near, and the far hills are lavender and not orange). The
+// brightness of the haze is kept: only its hue moves.
+float3 StyleHaze(float3 haze, float metres, StyleParams s)
+{
+    return LeanToHue(haze, s.farTint, smoothstep(24.0f, 200.0f, metres) * s.farAmount);
+}
+
+// How much of the lean of the far distance the sky has at `altitude` (the y of the ray of sight, -1 .. 1): all of it at the horizon and below it, where
+// the far land melts into the sky, falling to none from 0.55 up (about 33 degrees), so that the sky overhead keeps its own colour.
+float SkyHorizonWeight(float altitude)
+{
+    return 1.0f - smoothstep(0.08f, 0.55f, altitude);
+}
+
+// The sky leaning to the hue of the far distance (6.10, S3c): the horizon of the sky is the colour that the far land fades to, so there is no band
+// of the old horizon colour over the pale hills. The brightness of the sky is kept. With a farAmount of 0 (the plain view) the sky is as it was.
+float3 StyleSky(float3 sky, float altitude, StyleParams s)
+{
+    return LeanToHue(sky, s.farTint, SkyHorizonWeight(altitude) * s.farAmount);
 }
 
 // More fog far away than the fog of the model has (6.10, aerial perspective): none within 100 m, all of `farFog` from 280 m. The distance

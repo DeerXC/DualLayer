@@ -24,7 +24,9 @@
 //   6. the look of docs/DESIGN.md 6.10, with the settings that config/default.ini really has: A in three tones (sunny
 //      wall, ground, shadow) with a cool shadow; B with its open ground not pale, its route readable in the moon alone
 //      and its deepest dark not below L* 12; the distance of A lavender and pale (the haze and the far fog), that of B
-//      as it was
+//      as it was; the horizon of the sky of A and of B is the colour of their far land (no band of the old horizon)
+//   8. the sky: its horizon leans to the hue that the far land fades to (LeanToHue, StyleSky), none overhead, none in
+//      the plain view
 // Returns 1 when a check fails.
 
 #include "check.h"
@@ -34,6 +36,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -421,6 +424,48 @@ void TestSurface()
     CHECK(Near(StyleFog(0.3f, 300.0f, fog), 1.0f - 0.7f * 0.5f, 1.0e-6f)); // far: both, one over the other
     CHECK(Near(StyleFog(0.0f, 300.0f, fog), 0.5f, 1.0e-6f) && StyleFog(1.0f, 300.0f, fog) == 1.0f);
     CHECK(Near(StyleFog(0.4f, 900.0f, Neutral()), 0.4f, 1.0e-6f)); // no far fog: the fog of the model
+    // the sky (6.10, S3c): the lean of the far distance, strongest at the horizon, none overhead, none when the
+    // style is off
+    CHECK(Near3(LeanToHue(base, haze.farTint, 0.0f), base, 0.0f));
+    const float3 leant = LeanToHue(base, haze.farTint, 1.0f);
+    CHECK(Near(dot(leant, grey), dot(base, grey), 1.0e-5f) &&
+          Near(leant.z / leant.x, haze.farTint.z / haze.farTint.x, 1.0e-5f));
+    // the haze is the lean by the distance, whichever way it is written
+    const float byDistance = smoothstep(24.0f, 200.0f, 120.0f) * haze.farAmount;
+    CHECK(Near3(StyleHaze(base, 120.0f, haze), LeanToHue(base, haze.farTint, byDistance), 1.0e-6f));
+    // the weight: all of it at the horizon and below, none from 0.55 up, falling in between and never out of 0 .. 1
+    CHECK(SkyHorizonWeight(-1.0f) == 1.0f && SkyHorizonWeight(0.0f) == 1.0f && SkyHorizonWeight(0.08f) == 1.0f);
+    CHECK(SkyHorizonWeight(0.55f) == 0.0f && SkyHorizonWeight(1.0f) == 0.0f);
+    bool weightFalls = true;
+    float lastWeight = 2.0f;
+    for (int i = -20; i <= 100; ++i)
+    {
+        const float w = SkyHorizonWeight(0.01f * static_cast<float>(i));
+        weightFalls = weightFalls && w <= lastWeight + 1.0e-6f && w >= 0.0f && w <= 1.0f;
+        lastWeight = w;
+    }
+    CHECK(weightFalls && SkyHorizonWeight(0.3f) > 0.0f && SkyHorizonWeight(0.3f) < 1.0f);
+    // the horizon of the sky is the haze of the far land (200 m and more): there is no band between them
+    CHECK(Near3(StyleSky(base, 0.0f, haze), StyleHaze(base, 300.0f, haze), 1.0e-6f));
+    CHECK(Near3(StyleSky(base, -0.5f, haze), StyleHaze(base, 300.0f, haze), 1.0e-6f)); // and below it
+    CHECK(Near3(StyleSky(base, 0.9f, haze), base, 0.0f));                              // overhead: as it was
+    // toward the horizon the sky leans more and more to blue, and keeps its brightness all the way
+    float skyBlue = base.z / base.x;
+    bool skyLeans = true;
+    bool skyBright = true;
+    for (float altitude = 0.60f; altitude >= -0.01f; altitude -= 0.06f)
+    {
+        const float3 s = StyleSky(base, altitude, haze);
+        skyLeans = skyLeans && s.z / s.x >= skyBlue - 1.0e-6f;
+        skyBright = skyBright && Near(dot(s, grey), dot(base, grey), 1.0e-5f);
+        skyBlue = s.z / s.x;
+    }
+    CHECK(skyLeans && skyBright && skyBlue > 1.4f * (base.z / base.x));
+    // the plain view (a farAmount of 0) and a neutral style: the sky is as it was
+    CHECK(Near3(StyleSky(base, 0.0f, Neutral()), base, 0.0f));
+    StyleParams plainSky = haze;
+    plainSky.farAmount = 0.0f;
+    CHECK(Near3(StyleSky(base, 0.0f, plainSky), base, 0.0f));
 }
 
 // ---- 4. the grade
@@ -518,6 +563,8 @@ void TestSettings()
     CHECK(d.style == 1.0f && d.shafts && d.shaftSteps >= 4 && d.shaftSteps <= 32 && d.toon > 0.0f && d.cool > 0.0f);
     CHECK(d.toon == 1.0f && d.toonEdge == 1.5f); // 6.10: hard steps, an edge of a pixel and a half
     CHECK(d.farFog == 1.0f && d.haze == 0.85f);  // S3: the far fog of the look in full, the haze leaning far
+    // S3c: the dusk of A: lamps lit and a darker shade (ambient_a is held at 0.8 or more by TestLook)
+    CHECK(d.lampsA == 0.9f && d.ambientA == 0.85f && d.ambientA >= 0.8f && d.lampsA < d.lampsB);
 
     dl::LightingSettings bad;
     bad.style = 5.0f;
@@ -703,6 +750,36 @@ bool ShippedConfig(dl::Config& out)
     return true;
 }
 
+// The height of the sun of A over the horizon, as tools/layout/city_model.py has it (A_SUN_ELEVATION, degrees). The
+// copy of the sun in TestLook says KEEP IN SYNC with the model; this is what keeps it so, and a test that cannot find
+// the line fails and does not pass in silence.
+bool ModelSunElevation(float& degrees)
+{
+    std::ifstream file("tools/layout/city_model.py", std::ios::binary);
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (line.rfind("A_SUN_ELEVATION", 0) != 0)
+        {
+            continue;
+        }
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos)
+        {
+            return false;
+        }
+        char* end = nullptr;
+        const float v = std::strtof(line.c_str() + eq + 1, &end);
+        if (end == line.c_str() + eq + 1)
+        {
+            return false;
+        }
+        degrees = v;
+        return true;
+    }
+    return false;
+}
+
 bool ShippedSettings(dl::LightingSettings& out)
 {
     dl::Config c;
@@ -725,8 +802,19 @@ void TestLook()
         return;
     }
     CHECK(set.toon == 1.0f && set.style == 1.0f && set.toonEdge >= 0.25f && set.toonEdge <= 3.0f); // hard steps are on
-    const Moment a{float3(-0.70f, 0.40f, -0.58f), float3(1.06f, 0.86f, 0.64f), float3(0.36f, 0.27f, 0.52f)};
+    const Moment a{float3(-0.7471f, 0.2419f, -0.6191f), float3(1.06f, 0.86f, 0.64f), float3(0.36f, 0.27f, 0.52f)};
     const Moment b{float3(-0.30f, 0.80f, -0.52f), float3(0.92f, 0.98f, 1.10f), float3(0.30f, 0.33f, 0.43f)};
+    // the copy of the sun of A above is the sun of the model: 14 degrees over the horizon (6.10, S3b)
+    float modelElevation = 0.0f;
+    const bool haveModel = ModelSunElevation(modelElevation);
+    CHECK(haveModel);
+    if (haveModel)
+    {
+        const float copy = std::asin(a.toLight.y / length(a.toLight)) * 180.0f / 3.14159265f;
+        std::printf("  sun of A: the model %.1f degrees, the copy in this test %.1f\n", Show(modelElevation),
+                    Show(copy));
+        CHECK(Near(copy, modelElevation, 0.1f));
+    }
     const float3 up(0, 1, 0);
     const float3 stone(0.86f, 0.76f, 0.60f); // A: limestone
     const float3 roofA(0.70f, 0.31f, 0.19f);
@@ -780,6 +868,30 @@ void TestLook()
     CHECK(hillMiddle.z / hillMiddle.x > hillNear.z / hillNear.x);      // the middle distance has begun
     CHECK(hillMiddle.z / hillMiddle.x < hillFar.z / hillFar.x);        // and goes on
     CHECK(LStar(hillFar) > LStar(hillNear) && LStar(hillFar) < 95.0f); // lighter, not white
+    // ---- the horizon of the sky of A is the colour of the far hills: the sky at the horizon (the horizon colour of
+    // the model, leant and graded as the picture is) against the far land at 3 km, where the fog has taken all but
+    // a thousandth of it
+    const StyleParams styleA = StyleOf(set, 0);
+    const float3 horizonLin(Linear(horizonA.x), Linear(horizonA.y), Linear(horizonA.z));
+    const float3 skyHorizon =
+        SoftShoulder(StyleGrade(StyleSky(horizonLin, 0.0f, styleA) * set.exposure, styleA, 0.0f, 0.0f), set.knee);
+    const float3 oldSky = SoftShoulder(StyleGrade(horizonLin * set.exposure, styleA, 0.0f, 0.0f), set.knee);
+    const float3 hillsLimit = SeenFar(set, 0, horizonA, 0.0020f, 3000.0f, hill);
+    std::printf("  sky A at the horizon blue/red %.2f (it was %.2f), the far land at 3 km %.2f\n",
+                Show(skyHorizon.z / skyHorizon.x), Show(oldSky.z / oldSky.x), Show(hillsLimit.z / hillsLimit.x));
+    CHECK(Near3(skyHorizon, hillsLimit, 0.01f));                       // no band between the sky and the hills
+    CHECK(skyHorizon.z / skyHorizon.x > 1.5f * (oldSky.z / oldSky.x)); // and it is not the old orange
+    // not darker than it was and not blown out. (The lean keeps the brightness before the grade; after it the horizon
+    // is brighter, L* 80 to 87, because an orange with a red channel far over the knee lost light to the shoulder and a
+    // lavender, whose light is spread over the three, does not.)
+    CHECK(LStar(skyHorizon) > LStar(oldSky) - 1.5f && LStar(skyHorizon) < 95.0f);
+    // the same for B, which has its own horizon and a thicker fog
+    const StyleParams styleB = StyleOf(set, 1);
+    const float3 horizonB(0.45f, 0.49f, 0.56f);
+    const float3 horizonBLin(Linear(horizonB.x), Linear(horizonB.y), Linear(horizonB.z));
+    const float3 skyHorizonB =
+        SoftShoulder(StyleGrade(StyleSky(horizonBLin, 0.0f, styleB) * set.exposure, styleB, 0.0f, 0.0f), set.knee);
+    CHECK(Near3(skyHorizonB, SeenFar(set, 1, horizonB, 0.0036f, 3000.0f, float3(0.3f, 0.3f, 0.3f)), 0.01f));
     // the distance of B has no far fog of its own
     CHECK(StyleFarFog(250.0f, StyleOf(set, 1)) == 0.0f && StyleFarFog(250.0f, StyleOf(set, 0)) > 0.2f);
 }
