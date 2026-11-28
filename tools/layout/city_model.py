@@ -48,9 +48,29 @@ import architecture as ar    # the buildings: houses, landmarks (docs/DESIGN.md 
 import town_style as _style    # the palette of the whole town, one table for A and B, B derived from A (docs/DESIGN.md 6.9)
 MAT = _style.build_mat()
 EMISSIVE = {"window": (True, False), "lantern": (True, True), "memory": (True, True), "glow": (True, True)}
+def sun_toward(elevation_deg, horizontal):
+    """The unit vector toward the sun: `elevation_deg` over the horizon, along the horizontal direction `horizontal` (x, z)."""
+    hx, hz = float(horizontal[0]), float(horizontal[1])
+    n = math.hypot(hx, hz)
+    e = math.radians(elevation_deg)
+    return (round(hx / n * math.cos(e), 4), round(math.sin(e), 4), round(hz / n * math.cos(e), 4))
+
+
+# The sun of A is low (docs/DESIGN.md 6.10, "the lantern in the dusk", step S3b): 14 degrees over the horizon, from the south-west as before
+# (it was 24 degrees; the azimuth is the horizontal part of the old direction). Why 14: the sun falls on a face in three hard tones (shaders/
+# lighting.hlsli ToonRampEdge: none below a cosine of 0.14, 0.46 of it up to 0.52, all of it above), and a flat sunlit surface has a cosine
+# equal to the height of the sun, so it is in the middle tone for any sun between 8 and 31 degrees: the height of the sun does not dim flat ground.
+# What it changes is how much stands in the full tone: measured on the ground of the model (the whole town, the terrain and the streets, without
+# the houses), the quay has 57% of its ground at full sun at 24 degrees and 17% at 14, the town 37% and 26%; a roof of 30 degrees must face within about
+# 50 degrees of the sun to be at full tone instead of within 68. The rest is the middle tone and the shade, so the lanterns and the lamps (6.3) stand
+# on a darker ground and the lime wash shows its three values. Longer shadows, too: a wall of 4.5 m casts 18 m (10 m at 24 degrees).
+# check() fails when the cosine of flat ground leaves the middle tone.
+A_SUN_ELEVATION = 14.0
+A_SUN_FROM = (-0.770, -0.638)   # the horizontal part of the direction toward the sun (x, z): the south-west
+SUN_TONE_BAND = (0.17, 0.50)    # the cosine of flat ground must be inside this: the middle tone of ToonRampEdge is 0.14 to 0.52, with room for its soft edge
 LIGHT = {
-    #     to the light (sun / moon)      its colour            the shade (ambient)    sky top            horizon (fog)    fog
-    "A": ((-0.70, 0.40, -0.58), (1.06, 0.86, 0.64), (0.36, 0.27, 0.52), (0.74, 0.48, 0.52), (0.99, 0.80, 0.62), 0.0020),
+    #     to the light (sun / moon)                          its colour            the shade (ambient)    sky top            horizon (fog)    fog
+    "A": (sun_toward(A_SUN_ELEVATION, A_SUN_FROM), (1.06, 0.86, 0.64), (0.36, 0.27, 0.52), (0.74, 0.48, 0.52), (0.99, 0.80, 0.62), 0.0020),
     # B: the moon is silver (pale, only a little blue), the sky light is a lavender-grey, the haze a pale grey-blue: the town is weathered
     # stone in the moonlight, not a town under ice (passes 1 to 5 had (0.86, 0.96, 1.15), (0.24, 0.30, 0.45), (0.14, 0.19, 0.33),
     # (0.40, 0.48, 0.60) and a fog of 0.0040)
@@ -3382,6 +3402,15 @@ def check():
         PROBLEMS.append(("lock stairs", "too steep"))
     rows.append("  the gorge: %.0f m from the plaza down to its floor; the bridges %.1f m long" % (ROCK_Y - GORGE_Y, abs(BRIDGEHEADS["west"][0]) - 1.5 - ROCK_R + 0.2))
     rows.append("  gates in the town wall for: %s" % (", ".join(GATES) if GATES else "none"))
+    sun_a = np.array(LIGHT["A"][0], float)
+    sun_a /= np.linalg.norm(sun_a)
+    moon_b = np.array(LIGHT["B"][0], float)
+    moon_b /= np.linalg.norm(moon_b)
+    rows.append("  the sun of A: %.1f degrees over the horizon (flat ground at a cosine of %.2f, in the middle tone of the sun: %.2f to %.2f); the moon of B: %.1f degrees" % (
+        math.degrees(math.asin(sun_a[1])), sun_a[1], SUN_TONE_BAND[0], SUN_TONE_BAND[1], math.degrees(math.asin(moon_b[1]))))
+    if not SUN_TONE_BAND[0] <= sun_a[1] <= SUN_TONE_BAND[1]:
+        PROBLEMS.append(("the sun of A", "flat ground at a cosine of %.2f is not in the middle tone of the sun (%.2f to %.2f): the look of docs/DESIGN.md 6.10 and tests/test_style.cpp TestLook assume it" % (
+            sun_a[1], SUN_TONE_BAND[0], SUN_TONE_BAND[1])))
     print("check:")
     print("\n".join(rows))
     if PROBLEMS:
