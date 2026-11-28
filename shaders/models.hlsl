@@ -22,7 +22,7 @@
 //          Lamps: up to MAX_LAMPS point lights chosen by render/Lights.h), and the sky and the glow of the surface are added; the
 //          sum is bent by a soft shoulder (lighting.hlsli SoftShoulder) so that no lamp turns a wall into a white patch. A haze is
 //          scattered toward the sun. Glowing soft spheres (kMatHalo) are added to the picture over the lit lamps.
-// Style:   the light is not photographic (lighting.hlsli, "the style of the light"; docs/DESIGN.md 6.3): the sun falls in soft bands, the
+// Style:   the light is not photographic (lighting.hlsli, "the style of the light"; docs/DESIGN.md 6.3 and 6.10): the sun falls in hard steps, the
 //          sun-less side takes a cool fill, clouds drift their shadows over the town, an edge has a rim, a lamp has rings and a warm
 //          edge, rays of light stand in the air (LightShafts: a march along the ray of sight through the shadow map), and the picture is
 //          graded (split tone, colour, a soft dark corner); the stone is painted with soft blotches and is damp near the water; the far
@@ -68,7 +68,7 @@ cbuffer Frame : register(b0)
     float4 styleHigh;       // rgb: the grade of the lights, a: how much
     float4 styleLight;      // x: the shadow of the clouds, y: the rings of a lamp, z: strength of the light shafts, w: their samples
     float4 styleFar;        // rgb: what the haze is multiplied by far away, a: how far
-    float4 styleMisc;       // x: the painted blotches of the stone, y: the damp near the water, z: the contrast, w: reserved
+    float4 styleMisc;       // x: the painted blotches of the stone, y: the damp near the water, z: the contrast, w: the soft edge of a step of the sun, in pixels (0: 1.5)
 };
 
 cbuffer Lamps : register(b2)
@@ -104,6 +104,7 @@ StyleParams Style()
     s.damp = styleMisc.y;
     s.farTint = styleFar.rgb;
     s.farAmount = styleFar.a;
+    s.toonEdge = 0.0; // PSMain sets it from the change of the cosine over a pixel
     return s;
 }
 
@@ -465,6 +466,8 @@ float4 HaloPS(VSOut input, float3 n, float3 v)
 
 float4 PSMain(VSOut input) : SV_Target
 {
+    // first, before any return: how fast the cosine to the sun changes from one pixel to the next (the soft edge of a step of the sun, 6.10)
+    const float ndlWidth = fwidth(saturate(dot(normalize(input.worldNormal), normalize(toLight))));
     const float rim = LanternClip(input.worldPosition);
     if (rim > 0.0)
     {
@@ -508,7 +511,9 @@ float4 PSMain(VSOut input) : SV_Target
         albedo = lerp(albedo, float3(0.035, 0.07, 0.03), up * weathering * 0.55 * grain);
     }
     // the style: the stone painted by hand and damp near the water (the city only: what keeps its own colour is left as it is)
-    const StyleParams style = Style();
+    StyleParams style = Style();
+    // the edge of a step of the sun is toon_edge pixels wide; a flat face has no change of the cosine, so its step is hard
+    style.toonEdge = ndlWidth * (styleMisc.w > 0.0 ? styleMisc.w : 1.5);
     if (input.tone.a > 0.5)
     {
         const float nearWater = (skyZenith.w > 0.5) ? LowMist(input.worldPosition.y) : 0.0;

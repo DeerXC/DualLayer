@@ -12,8 +12,8 @@ DualLayer is a 3D exploration puzzle without combat, set in two versions of one 
 
 - **One rule, two worlds.** The only mechanic is switching between A and B. Opening a gate or pushing a crate in A changes what is found in B; the reverse never happens. Every puzzle is built on this single rule.
 - **Own engine code.** Rendering, collision, the walking body, shadows, point lights, the map and device-loss recovery are written for this project on Direct3D 11 and DirectXMath. No game engine and no other third-party library.
-- **Hand-painted light.** The sun of A and the moon of B cast shadows. Lamps are point lights. Sun in soft bands, cool shadows, drifting cloud shadows and light shafts give a painted look instead of a photographic one. One key shows the plain light for comparison.
-- **Tests without a GPU.** Twenty-one logic tests run without a window, on Windows with MSVC and on any system with g++ or clang++ (`python tools/run_tests.py`). The shader maths is plain C++-compatible HLSL, so the tests run it on the CPU. A route solver plays the main path step by step and reports any way round a puzzle. One command (`tools/check.ps1`) runs the tests, a full Debug and Release build, a short play of the game and a repository check.
+- **Hand-painted light.** The sun of A and the moon of B cast shadows. Lamps are point lights. Sun in hard tones, cool shadows, drifting cloud shadows and light shafts give a painted look instead of a photographic one. One key shows the plain light for comparison.
+- **Tests without a GPU.** Twenty-two logic tests run without a window, on Windows with MSVC and on any system with g++ or clang++ (`python tools/run_tests.py`). The shader maths is plain C++-compatible HLSL, so the tests run it on the CPU. A route solver plays the main path step by step and reports any way round a puzzle. One command (`tools/check.ps1`) runs the tests, a full Debug and Release build, a short play of the game and a repository check.
 
 ## Build and run
 

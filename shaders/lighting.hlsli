@@ -1,7 +1,7 @@
 // lighting.hlsli - the maths of the light that needs no texture and no constant buffer: the fall-off of a lamp, the shading of one
 //                  lamp, the shoulder that bends a light that is too bright, the fade at the edge of the shadow map, the glow round a
-//                  lamp and the haze toward the sun; and, since the style of the light (docs/DESIGN.md 6.3), the soft bands of the
-//                  sun, the cool fill of a shadow, the shadows of the clouds, the rim of an edge, the rings and the colour of a
+//                  lamp and the haze toward the sun; and, since the style of the light (docs/DESIGN.md 6.3 and 6.10), the hard steps
+//                  of the sun, the cool fill of a shadow, the shadows of the clouds, the rim of an edge, the rings and the colour of a
 //                  lamp, the grade of the picture (split tone, saturation, vignette) and the phase of the light shafts.
 // Why a file of its own: this is written in the part of HLSL that is also C++ (no swizzles, no out parameters, no textures), so
 //                  tests/test_lighting.cpp includes it through a stand-in for the vector types (tests/hlsl_shim.h) and checks the
@@ -127,15 +127,16 @@ float3 SunScatter(float3 sun, float cosine, float amount)
 }
 
 // ---- the style of the light --------------------------------------------------------------------------------------------------
-// The light of the town is not photographic. The sun falls on a face in soft bands (the faces of a low-poly town read as separate
-// planes), the sun-less side of everything takes a cool fill against the warm light, clouds drift their shadows over the stone, an edge
+// The light of the town is not photographic. The sun falls on a face in hard steps (the faces of a low-poly town read as separate
+// planes, and a flat fill in three tones is the look of docs/DESIGN.md 6.10), the sun-less side of everything takes a cool fill against
+// the warm light, clouds drift their shadows over the stone, an edge
 // that faces the light has a rim, a lamp lights its pool in rings, rays of light stand in the air, and the picture is graded (the
 // darks leaning one way, the lights the other, a little more colour, a soft dark corner). Every amount below is 0 .. 1 and 0 is the
 // plain light that was before: the master `style` and the debug view "plain" of the game (key L) set all of them to 0.
 
 struct StyleParams
 {
-    float toon;       // 0 .. 1: how much of the sun falls in bands (ToonRamp)
+    float toon;       // 0 .. 1: how much of the sun falls in hard steps (ToonRampEdge)
     float rim;        // the strength of the rim of an edge (RimTerm); 0: none
     float saturation; // 1 = as it is; the grade (StyleGrade)
     float vignette;   // 0 .. 1: how much darker the corners of the picture are
@@ -154,17 +155,32 @@ struct StyleParams
     float damp;       // 0 .. 1: how much darker and cooler the stone is near the water (PaintAlbedo)
     float3 farTint;   // what the haze is multiplied by far away (StyleHaze): the distance leans toward this colour
     float farAmount;  // 0 .. 1: how far
+    float toonEdge;   // UNITS: cosine: the soft edge of a step of the sun (ToonRampEdge); 0: hard. The pixel shader sets it from fwidth
 };
 
-// How much of a surface's cosine to the sun remains after the soft bands: the cosine cut into three steps (0.36, 0.70 and 1.0 of the
-// light) with smooth edges; `amount` 0 leaves the cosine as it is. 0 at 0, 1 from 0.78 on, only rising.
+// A step: 0 below `t`, 1 above it, and between t - edge / 2 and t + edge / 2 a smooth rise. `edge` is the width of that rise (0: a hard step;
+// the narrowest that is divided by is 0.0001).
+float ToonStep(float x, float t, float edge)
+{
+    const float k = saturate((x - t) / max(edge, 1.0e-4f) + 0.5f);
+    return k * k * (3.0f - 2.0f * k);
+}
+
+// How much of a surface's cosine to the sun remains after the hard steps of the sun (docs/DESIGN.md 6.10): three tones. None of the sun below a
+// cosine of 0.14 (the face is turned from it and has only the sky), 0.46 of it from 0.14 (a roof or the ground under a low sun), all of it from
+// 0.52 (a wall that faces the sun). Each edge is `edge` wide, in cosine units: the pixel shader passes the change of the cosine over one or two
+// pixels, so that the edge of a step on a round thing is as soft as the edge of a drawn line and a flat face (which has no change) is flat.
+// `amount` 0 leaves the cosine as it is. 0 at 0, 1 at 1 (to a rounding), only rising.
+float ToonRampEdge(float x, float amount, float edge)
+{
+    const float banded = 0.46f * ToonStep(x, 0.14f, edge) + 0.54f * ToonStep(x, 0.52f, edge);
+    return lerp(x, banded, amount);
+}
+
+// The same with hard steps (the reference of the tests).
 float ToonRamp(float x, float amount)
 {
-    const float s1 = smoothstep(0.05f, 0.17f, x);
-    const float s2 = smoothstep(0.33f, 0.47f, x);
-    const float s3 = smoothstep(0.64f, 0.78f, x);
-    const float banded = 0.36f * s1 + 0.34f * s2 + 0.30f * s3;
-    return lerp(x, banded, amount);
+    return ToonRampEdge(x, amount, 0.0f);
 }
 
 // A hash of a point of a grid, 0 .. 1.
@@ -241,7 +257,7 @@ float3 StyleHaze(float3 haze, float metres, StyleParams s)
     return haze * lerp(float3(1.0f, 1.0f, 1.0f), s.farTint, smoothstep(40.0f, 260.0f, metres) * s.farAmount);
 }
 
-// What a surface looks like in the style: the light that is the sum of the plain one (the sky light, the sun in bands, the highlight, the
+// What a surface looks like in the style: the light that is the sum of the plain one (the sky light, the sun in hard steps, the highlight, the
 // glow of the surface and the lamps), the cool fill of the shadow and the rim. `sun`: what the shadow and the clouds leave of the sun (0 ..
 // 1); `shine`: the highlight (already with its strength); `glow`: the light of its own; `lampDiffuse` and `lampSpecular`: the lamps
 // (LampShadeStyled); `rimScale`: 1 for the things that keep their own colour, less for the stone of the city.
@@ -249,7 +265,7 @@ float3 StyleShade(float3 albedo, float3 n, float3 l, float3 v, float3 skyLight, 
                   float3 lampDiffuse, float3 lampSpecular, float rimScale, StyleParams s)
 {
     const float diffuse = saturate(dot(n, l));
-    const float litAmount = ToonRamp(diffuse, s.toon) * sun;
+    const float litAmount = ToonRampEdge(diffuse, s.toon, s.toonEdge) * sun;
     // the sky light of a surface that the sun does not reach leans toward the cool colour
     const float3 sky = skyLight * lerp(float3(1.0f, 1.0f, 1.0f), s.cool, (1.0f - litAmount) * s.coolAmount);
     const float3 plain = albedo * sky + albedo * lightColor * litAmount + lightColor * (shine * sun) + albedo * glow +

@@ -8,8 +8,9 @@
 //            cold present, a little darker so that the lamps and the lantern read in it.
 // Style:     since 2026-11-26 the light is stylised (shaders/lighting.hlsli, "the style of the light"): the numbers of
 //            it are below, `style` is their master and 0 gives the plain light that was before. MakeStyle turns them
-//            into the five registers that the model shader reads; the colours of the looks of A and B are in
-//            StyleLookOf.
+//            into the registers that the model shader reads; the colours of the looks of A and B are in StyleLookOf.
+//            Since 2026-11-28 (docs/DESIGN.md 6.10) the sun falls on a face in hard steps: `toon` is 1 and `toon_edge`
+//            is the soft edge of a step in pixels.
 // Plain data, no Windows, no Direct3D: tested without a window (tests/test_lighting.cpp).
 // UNITS:     metres; texels for the shadow map; the other numbers are factors (1 = as the model says).
 #pragma once
@@ -51,7 +52,8 @@ struct LightingSettings
     float haloB = 1.0f;    ///< ... and in B
     // ---- the style of the light (every amount 0 .. 1 unless said; 0 is the plain light)
     float style = 1.0f;     ///< the master of all of it: 0 is the plain light, 1 the style as set below
-    float toon = 0.6f;      ///< the sun falls on a face in soft bands (three steps) instead of a smooth slope
+    float toon = 1.0f;      ///< the sun falls on a face in hard steps (three tones) instead of a smooth slope
+    float toonEdge = 1.5f;  ///< 0.25 .. 6: pixels: the soft edge of a step of the sun on a round thing
     float cool = 0.75f;     ///< the sky light of a face that the sun does not reach leans toward a cool colour
     float rim = 0.28f;      ///< the rim of an edge that faces the light (the stone of the city has a third of it)
     float cloudsA = 0.38f;  ///< the part of the sun that a cloud takes in A: patches of shadow that drift
@@ -88,17 +90,19 @@ struct StyleLook
     float vignette;    ///< 0 .. 1: how much darker the corners are
 };
 
-/// A: the warm evening: shadows blue-violet, the lights gold. B: the present, weathered stone in the light of the moon: shadows
-/// blue-violet (the moon's sky), the lights silver with a trace of cyan, the haze a pale grey-blue. (Passes 1 to 5 had saturation
-/// 1.25, contrast 1.22 and a teal haze: a night of ice.)
+/// A: the warm evening: shadows mauve-violet, the lights gold. B: the present, weathered stone in the light of the
+/// moon: shadows blue-violet (the moon's sky), the lights silver with a trace of cyan, the haze a pale grey-blue.
+/// (Passes 1 to 5 had saturation 1.25, contrast 1.22 and a teal haze: a night of ice.) 2026-11-28 (6.10): the shadow of
+/// A a little lighter, B with less contrast so that its deepest dark is not below L* 12; the numbers are held to the
+/// values of 6.10 by tests/test_style.cpp (TestLook).
 inline StyleLook StyleLookOf(int layer)
 {
     if (layer == 0)
     {
-        return StyleLook{{0.80f, 0.92f, 1.28f},
-                         {0.86f, 0.93f, 1.16f},
+        return StyleLook{{0.84f, 0.97f, 1.26f},
+                         {0.92f, 0.98f, 1.18f},
                          {1.06f, 1.00f, 0.90f},
-                         0.75f,
+                         0.70f,
                          0.45f,
                          {0.84f, 0.90f, 1.22f},
                          0.5f,
@@ -106,15 +110,15 @@ inline StyleLook StyleLookOf(int layer)
                          1.08f,
                          0.20f};
     }
-    return StyleLook{{0.98f, 0.95f, 1.14f},
-                     {1.00f, 0.95f, 1.12f},
+    return StyleLook{{0.96f, 0.95f, 1.20f},
+                     {1.02f, 0.98f, 1.16f},
                      {0.99f, 1.00f, 1.04f},
                      0.70f,
                      0.40f,
                      {0.92f, 0.99f, 1.06f},
                      0.8f,
                      1.06f,
-                     1.14f,
+                     1.06f,
                      0.30f};
 }
 
@@ -122,13 +126,13 @@ inline StyleLook StyleLookOf(int layer)
 /// each.
 struct StyleConstants
 {
-    float grade2[4];   ///< x: the sun in bands, y: the rim, z: saturation, w: vignette
+    float grade2[4];   ///< x: the sun in hard steps, y: the rim, z: saturation, w: vignette
     float cool[4];     ///< rgb: the multiplier of the sky light of an unlit face, a: how far
     float low[4];      ///< rgb: the grade of the darks, a: how much
     float high[4];     ///< rgb: the grade of the lights, a: how much
     float light[4];    ///< x: the clouds, y: the rings of a lamp, z: the light shafts, w: their samples
     float hazeTint[4]; ///< rgb: what the haze is multiplied by far away, a: how far
-    float misc[4];     ///< x: the painted blotches, y: the damp near the water, z: the contrast
+    float misc[4];     ///< x: the painted blotches, y: the damp near the water, z: the contrast, w: the edge (pixels)
 };
 
 inline float LightingClamp(float v, float lo, float hi, float fallback)
@@ -175,6 +179,7 @@ inline LightingSettings Sanitize(const LightingSettings& in)
     s.haloB = LightingClamp(in.haloB, 0.0f, 4.0f, d.haloB);
     s.style = LightingClamp(in.style, 0.0f, 1.0f, d.style);
     s.toon = LightingClamp(in.toon, 0.0f, 1.0f, d.toon);
+    s.toonEdge = LightingClamp(in.toonEdge, 0.25f, 6.0f, d.toonEdge);
     s.cool = LightingClamp(in.cool, 0.0f, 1.0f, d.cool);
     s.rim = LightingClamp(in.rim, 0.0f, 2.0f, d.rim);
     s.cloudsA = LightingClamp(in.cloudsA, 0.0f, 0.9f, d.cloudsA);
@@ -220,6 +225,7 @@ inline LightingSettings ReadLightingSettings(const Config& c)
     s.haloB = c.GetFloat("lighting", "halo_b", d.haloB);
     s.style = c.GetFloat("lighting", "style", d.style);
     s.toon = c.GetFloat("lighting", "toon", d.toon);
+    s.toonEdge = c.GetFloat("lighting", "toon_edge", d.toonEdge);
     s.cool = c.GetFloat("lighting", "cool", d.cool);
     s.rim = c.GetFloat("lighting", "rim", d.rim);
     s.cloudsA = c.GetFloat("lighting", "clouds_a", d.cloudsA);
@@ -273,6 +279,8 @@ inline StyleConstants MakeStyle(const LightingSettings& in, int layer, bool plai
     c.misc[0] = s.wash * k;
     c.misc[1] = s.damp * look.dampScale * k;
     c.misc[2] = 1.0f + (look.contrast - 1.0f) * s.contrast * k;
+    // the soft edge of a step of the sun, in pixels (the shader reads 0 as 1.5)
+    c.misc[3] = k > 0.0f ? s.toonEdge : 0.0f;
     return c;
 }
 
