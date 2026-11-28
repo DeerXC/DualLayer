@@ -297,7 +297,7 @@ One sun or moon with soft sky and ground fill, the lamps of the town, and what i
 - **What the player did is a light too.** The lantern of the traveller, in the hand or set down, lights its surroundings (13 m) in both moments with the colour of its flame. The lamps of the mast, lit from the lantern in the belfry, light the tower under them (5.2). The world answers with light.
 - **No lamp is needed to read the route.** The route, the next landing and every interaction must read in the moonlight alone (`lamps_b = 0` tests it). A lamp helps the eye and never carries the game; gold still means use, and the lantern's own colour is its flame.
 - **No colour is cut off.** The sum of the light goes through a soft shoulder (a colour brighter than 0.78 bends toward white and keeps its hue), so a lamp lights a wall and does not turn it into a white patch. A soft glow round each lit lamp (a halo: 35% in A, 100% in B) puts the light in the air as well as on the walls.
-- **The light has a style as well as a physics.** The town is hand-painted, and nine parts say so; each is a number in `[lighting]`, all of them are one master (`style`), and the last view of the key L, "plain", shows the same light without any of them. (1) The sun falls on a face in three soft bands. (2) The sky light of a face that the sun does not reach leans cool: blue-violet in A, indigo in B. (3) Clouds drift soft shadows over the town (38% of the sun in A, 28% in B). (4) An edge that faces the light has a rim. (5) A lamp lights its pool in four soft rings, a whiter core and an amber edge. (6) The stone is painted with soft blotches and tall rain stains, and is damper near the water. (7) Rays of light stand in the air: each ray of sight is sampled 14 times through the shadow map, up to 48 m. (8) The far haze leans to lavender in A and to teal in B. (9) The picture is graded: darks and lights lean opposite ways, colour is pushed a little, contrast is raised round the middle grey and the corners are a little dark. The style never carries a rule of the game: a landing, an edge and an interaction read in the plain view as well as in the styled one (E-25).
+- **The light has a style as well as a physics.** The town is hand-painted, and nine parts say so; each is a number in `[lighting]`, all of them are one master (`style`), and the last view of the key L, "plain", shows the same light without any of them. (1) The sun falls on a face in three soft bands. (2) The sky light of a face that the sun does not reach leans cool: blue-violet in A, indigo in B. (3) Clouds drift soft shadows over the town (38% of the sun in A, 28% in B). (4) An edge that faces the light has a rim. (5) A lamp lights its pool in four soft rings, a whiter core and an amber edge. (6) The stone is painted with soft blotches and tall rain stains, and is damper near the water. (7) Rays of light stand in the air: each ray of sight is sampled 14 times through the shadow map, up to 48 m. (8) The far haze leans to lavender in A and to teal in B. (9) The picture is graded: darks and lights lean opposite ways, colour is pushed a little, contrast is raised round the middle grey and the corners are a little dark. The style never carries a rule of the game: a landing, an edge and an interaction read in the plain view as well as in the styled one (E-25). Planned change: the three soft bands of the sun become two or three hard steps, and a line is drawn round the shapes (6.10).
 - **Sky and distance.** A procedural gradient replaces the solid sky: A moves from muted blue-grey overhead to pale gold at the horizon, with a low western sun; B moves from deep grey-blue to a misty cyan-grey horizon with cool moonlight. Restrained distance and height fog separate the quay, sea wall, streets, tower and hills. Fog and shadows never conceal the next landing or an interaction.
 - **Not built:** a shadow of a lamp or of the lantern, cascades for the far town, contact shading at wall bases and under eaves, screen-space ambient occlusion, a real bloom, and shafts beyond 48 m. Take one only if a play-test shows the light is flat, and check it on both machines.
 
@@ -335,6 +335,8 @@ Props and planting identify where the player is, point to the next route or show
 One stylised water language across the sea, harbour, pools, channels and waterfalls: scrolling surface normals, a stronger reflection at shallow viewing angles, colour by depth and restrained shore foam. A has warmer reflections and clearer green-blue shallows; B has deeper blue-green, less transparency and cooler reflections. Ripples and foam match flow, impact or rising and falling water. In A the water of the harbour and of the locks breathes a little out of step with the tide table (one of the three signs); the effect is slow and small. Shoreline and hazardous depth read before richer reflections are added.
 
 ### 6.7 Character and lantern
+
+Planned change (6.10): the traveller below is replaced by a slim hooded figure in a long cloak, which stays the same in both moments. The lantern, its light and the posed animation stay.
 
 The traveller is a stylised figure of rounded forms. It keeps the teal coat, the round hood and the small pack of the starting silhouette and stands 1.72 m from the feet to the top of the hood (visual stature only: eye height, body clearance and mantle reach are unchanged). The proportions are those of a picture book: a large hood with a peak, big boots, a coat that hangs from the waist like a bell and a short pack with its bedroll. Round joints separate the parts of a limb, so a pose reads from the camera without an outline. The scarf is the one second colour, a muted rust; a collar covers the chin and two tails stream behind at a run. Belt, pouch, straps and buttons are leather and brass. Cloth is matte, leather slightly smoother, brass a controlled highlight. The same silhouette and materials carry across both moments; the rim of 6.3 separates the figure from sunlit stone and cold ruins.
 
@@ -387,6 +389,100 @@ The town reads as one town and not as one orange because of the rules below: the
 | Rim: the wall lane | ivory, cream, ochre, sage | old, faded | cottages and rows |
 
 **Built.** The palette (43 materials), the rule of B, the painted path of the engine, and the library of buildings in the town (7.10). **Not built:** the town wall and its towers, the theatre, the harbour warehouses and the lighthouse, the bell tower and the plaza of the Rock, the aqueduct and the boxes of the puzzle pieces keep their old shapes in the new colours.
+
+### 6.10 Look development: ink and flat colour, warm against cool
+
+**Status: chosen on 2026-11-28, nothing built.** This section is the brief for one sample, the quay steps, and not for the town. The map is not rebuilt until the sample has passed (acceptance below); this is the reference proof that 6.8 asks for, and the one post-processing pass that 6.8 allows before it (the lines). Where 6.3 (the three soft bands of the sun) and 6.7 (the teal coat and the rounded forms) say otherwise, this section wins once the sample is accepted, and those two parts are then rewritten.
+
+**What the play-test showed.** The overview of A is one orange family: ground, walls, roofs, hills and fog are the same hue and close in value, so nothing separates the near from the far. The fog is orange as well, which removes the depth that the sky could give. The ground is one gradient with no breaks, the quay buildings are large plain blocks with no rhythm of windows, eaves or balconies, and B differs from A by hue only. The best view is the market stairs in B: windows, shutters, a cornice, a clock tower and a roofline that tells where one house ends and the next begins. That is the level the rest of the town is held to. The traveller is a figure of spheres and boxes and does not read as a person.
+
+**References, and what each gives.**
+
+| Reference | What the sample takes from it |
+|---|---|
+| Ink and flat colour (a concept painting made for this brief, kept outside the repository) | A thick outer line and a thin inner line, flat fills in two or three hard steps, sparse hatching in shadow, strong silhouettes, a dark foreground framing a bright middle ground |
+| Warm against cool (a second concept painting, kept outside the repository) | Warm light against cool shadow, a sky of layered cloud, a distance that goes paler and cooler, a lamp that is the brightest thing near it |
+| Cairn | A hand-drawn, comic-book look led by one art director: the look is designed first and rendered second |
+| 6.9 (Ligurian coast, Dubrovnik, Koriko) | Kept: one stone, lime-wash colours, one tile in four ages, tiers of detail |
+
+The concepts are 2D paintings. The sample aims at their structure (value, colour, line, layers, focal point) and not at their density of detail, which real-time rendering does not reach.
+
+**Rules of line and fill.**
+
+1. **Flat fills in hard steps.** The sun falls on a face in two or three steps with hard edges (an edge of one or two pixels of softness, against aliasing). This replaces the three soft bands of 6.3. Everything else of 6.3 stays: the shadow map, the lamps as lights, the rim, the single master (`style`) and the plain view on L.
+2. **Two kinds of line.** The traveller and the props have an inverted hull: a line of constant screen width (a few pixels), thinner with distance. The town has a screen-space line from depth (the outer silhouette, heavier) and from normals (the inner edges, thinner). Terrain and sea take the silhouette only: an inner line on the ground would draw every facet of it. Beyond 50 m only the silhouette is drawn (tier 1 of 6.9).
+3. **The line is a dark of the local colour, not black.** A: a warm brown-black. B: an indigo-black. Black lines on flat fills would cut the picture into pieces and lose the warmth.
+4. **Hatching is a second pass of the sample.** Two directions of fine lines in cast shadow and on shaded faces within 15 m only. It is added only if flat fills and lines are not enough.
+5. **Surface paint stays, quieter.** The blotches and stains of 6.9 (rule 9) keep their place at a lower contrast; they must not compete with the lines.
+6. **No gradient on a surface** except the sky, glow and fog.
+
+**Colour.** Sampled from the two concept paintings (the dominant colours of the half of each picture) and then set by hand. The values are start values for the sample; they are tuned there and then written into `town_style.py` and `[lighting]`.
+
+| Role | A, the past (calm dusk) | B, twelve years later (moon) |
+|---|---|---|
+| Lit face | `#F2AA66` peach orange | `#7088A7` silver blue |
+| Middle | `#C98859` | `#4F5B74` |
+| Shadow face (cool, not just darker) | `#897782` lavender | `#323848` indigo |
+| Line | `#2D221B` | `#0F0F14` |
+| Warm light (windows, lamps) | amber, weaker than in B | `#C89267`, the only warm in the view |
+| Fog, near to far | `#F0C09A` to `#A89AB8` | `#2C3448` to `#46526E` |
+
+Rules:
+
+1. The warm family is the lit side, and the cool family is the shadow and the sky. This is what separates the look from the one-orange town.
+2. The distance goes cooler and paler by a hue shift, not by a grey.
+3. Value comes before colour, as in 6.9, and is tested in greyscale and at thumbnail size.
+4. B is lifted from the concept, in which about 60 to 70% of the pixels are darker than a luma of 25 of 100. In B a walkable surface has a luma of at least 35, the deepest shadow 12 and the line 6, and the route must read in the moon alone (`lamps_b = 0`, 6.3).
+5. Accents (shutters, awnings, one flag) are 5 to 10% of what is lit and are the only saturated colours but the lamp.
+
+**Light and sky, in this order.**
+
+1. Tone mapping and grade, because they set the whole colour.
+2. The sky: a gradient with two or three bands of cloud and a low sun in A; a moon and torn cloud in B.
+3. Fog by height and by distance, in two colours (the near and the far of the table).
+4. Ambient occlusion baked into the vertices of the sample with the rays of `TriMesh` (the dark of wall feet, under eaves, in lanes). Large faces are subdivided first, or the bake has no detail.
+5. Light probes and a bake for the whole town, only after the geometry is frozen: one set for A and one for B, exchanged by the switch. This is not part of the sample.
+
+A baked light map is not planned: the town is static, and the probes plus the vertex bake give the read at a lower cost. The frame time of the quay view is written down before and after each pass (baseline: 5.6 ms at 2560 x 1494 on the laptop, from the play-test capture) and checked on both machines.
+
+**The traveller.**
+
+- **Keeps:** the height of 1.72 m to the top of the hood, the lantern model, its light and its amber (6.7), and the free left hand that holds the small thing that is carried (3.9).
+- **Silhouette:** a hood with a peak, a cloak to the knee with an uneven hem, a strap and a satchel at the left hip, a belt, fingerless gloves, sturdy boots, the lantern in the right hand at the hip. The face is in the shadow of the hood and has no geometry. The proportions are those of a slim adult (about seven heads), not of a picture book.
+- **Colour:** the cloak is blue-grey outside, with a lining of a dull ochre seen at the open front and the hem. 6.7 says that nothing else on the figure is amber, because the lantern is the strongest warm accent: the lining is therefore low in saturation, at least 25 luma points darker than the flame (a start value) and never emissive.
+- **The cloak does not change with the layer.** The traveller is the one thing that is the same in both moments, and the world changes around them. A flip of the cloak at the switch looked abrupt, so none is made: no colour or texture is swapped. The light does the work, and the switch is carried by the ripple of the layer (`LayerRipple.h`): as its front crosses the body, the cloak lifts at the hem like a gust (an impulse on the cloak bones, settling in about a third of a second), the flame of the lantern swells and settles, and the grade of the world changes behind the front. Nothing on the body jumps.
+- **Build:** one skinned mesh, with a start budget of 4,000 to 6,000 triangles (fixed by the first model). The legs and arms keep the two bones each of 6.7; the cloak adds three chains of three or four bones, driven by the speed, the turn and a wind vector. There is no cloth solver. Animations for the sample: idle, walk, run, lantern raised (H), lantern set down (E) and the switch.
+- **Test:** the figure at 64 px high, in greyscale, in both moments, reads as a hooded figure with a lantern.
+
+**The sample: the quay steps.** About 40 m of waterfront with a flight of stone steps rising to one side, a parapet and bollards, one lamp, three houses made of the kit below, the clock tower far off, the sea, a crate and the traveller. It is seen from two cameras: the third-person camera at eye level and an overview from 50 m. A and B are the same geometry. B differs by the changes of the ledger, set by hand here: a roof fallen in on one house, vines on named walls, the lamp unlit and rusted, no awnings or washing. A is the town in use: awnings, washing on a line, pots, lit lamps.
+
+**The kit.** Every part has a tier (6.9, rule 8). Tier 2 (a facade at 10 to 30 m): three window types, shutters, a balcony, a cornice and eaves, a door with a lintel, an awning, a chimney. Tier 3 (under 5 m): a sill, a step, a pot, a lamp bracket, a bollard. Tier 1 (over 50 m): the roof and tower shapes. A house is made of parts and never of a bare box, and the part is the unit that the ledger (3.9) later changes.
+
+**Acceptance of the sample.**
+
+1. A and B from the same two cameras: the near, the middle and the far read as three layers, in colour, in greyscale and at thumbnail size.
+2. The traveller reads at 64 px in both moments, and the lantern is the warmest point of the view.
+3. In B the route reads with the lamps off.
+4. The lines do not crawl or flicker when the camera moves, at the resolution of the play-test (2560 x 1494) and at the native 2560 x 1600 of the laptop.
+5. The frame time of the quay view is within the budget set at the first measure, on both machines.
+6. The functions of the new light (the hard steps, the line colour) are plain C++ in the shader shim and are covered in `tests/test_style.cpp`; every existing test passes.
+7. The author judges the pair of pictures against the two concepts and decides whether the town may be rebuilt in this look.
+
+**Order of work.** Each step ends with a pair of screenshots (A and B, the same camera) and waits for approval; no step is begun before the last is approved.
+
+| Step | Work | Size |
+|---|---|---|
+| S1 | The numbers of colour, hard steps and the plain view, on the present quay | small |
+| S2 | The two lines (hull and screen-space) | medium |
+| S3 | Sky, fog and grade | medium |
+| S4 | The kit and the dressing of the quay corner | large |
+| S5 | The traveller (mesh, cloak bones, the switch) | large |
+| S6 | Vertex AO for the sample | small |
+| S7 | The A and B pair against the acceptance list, and the decision on the map | small |
+
+After the sample: the map is redesigned on paper and approved, then rebuilt district by district (the harbour first), then the baked occlusion and the probes, and last the ledger is put into the new map (section 12).
+
+**Open, with the default taken.** The line is a dark of the local colour and not black. Hatching is off until S2 shows it is needed. B is lifted to the luma numbers above and not left as dark as the concept.
 
 ## 7. The map
 
@@ -825,6 +921,8 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 6. **The tower.** Prototype the door, the three floors, the last flight and the belfry, then the sweep of 5.3 (the ripple at slow speed from the tower, the ledger resolved in order of distance); verify the route from the link of each district, in each of the six orders, and all three looks of the ending, including a run with no favours.
 7. **The storm, sound and text.** The evidence of the storm in A (6.4); the sound of 10.8; the lines of the people in Japanese.
 
+**The look and the map come before the ledger is put into the town (decided 2026-11-28).** The look is proved on one sample, the quay steps (6.10); then the map is redesigned on paper and approved; then it is rebuilt district by district, the harbour first; then the baked occlusion and the light probes are made on the frozen geometry; and only then are the facts of the places (3.9) written into the new map. The numbered steps above keep their numbers and their content, and steps 2 to 6 that build on the town are taken on the new map.
+
 Before the layout is changed broadly, the first district is reviewed with a new player: can the player find the route without coaching, explain why a trace appears in B and use the lantern unprompted at the first required obstacle? Safe camera behaviour on every switch, a refused climb with inadequate clearance, a refused switch into solids or water, and recovery without lantern-dependent support are tested. The old route solver is a baseline, not proof for the new controller.
 
 ## 13. Decisions
@@ -839,7 +937,7 @@ The decisions that hold now. How each came about, and what each replaced, is in 
 - **The town.** One hill town. The harbour and the lower town are the teaching ground; three ways in any order, joined by the Rock and not by each other; an open town with shut thresholds; composed as a place that grew (7).
 - **Guidance without words.** A goal in sight (the mast), beacons, the lantern's flame as a compass, H for more, the map, the lens and a small vocabulary of signs (10). A corner minimap, a task list, a compass bar and narration are not used.
 - **The first minute.** The sea wall hides the tower from the quay in both moments (measured), so the far goal is a signal mast over it, in sight from the first frame (10.2).
-- **The look.** Hand-painted light with one master and a plain view; no lamp is needed to read the route; one palette; B derived from A and weathered stone in the moon, not ice (6).
+- **The look.** Hand-painted light with one master and a plain view; no lamp is needed to read the route; one palette; B derived from A and weathered stone in the moon, not ice (6). Chosen on 2026-11-28 and proved on a sample before the map is rebuilt: ink line and flat steps, warm light against cool shadow, and a traveller whose cloak is the same in both moments (6.10).
 - **Proof.** Nothing is kept that the route solver finds a way round, and the tests need no window and no GPU (11).
 
 ## 14. Open
@@ -855,6 +953,6 @@ The decisions that hold now. How each came about, and what each replaced, is in 
 - **The story left untold.** Where the lantern came from, the name of the town, who the traveller is and who lit the first window.
 - **The first frame.** The black piles, the pale stubs and the lit window must stay in the picture for every lens and screen of the test (`tests/test_firstminute.cpp`). The house of the lit window must be placed above the reach of the sea (0 m), in sight of the start; the model has not placed it.
 - **The town.** Its name; the east loop; the two dead ends that still end in nothing (the west end of the cooper lane and the north-east end of the lower east lane); the front of the theatre and the town wall in the vocabulary of the library.
-- **The look.** Look at B from the air and the quay with `B_AGE` at 0.65 (still too grey, too lilac, too blue?), the wash at 0.9, 0.6 and 0, the cool family (9%) and the accents (0.7%), and which old shape (the town wall, the theatre, the aqueduct, the bell tower) now looks least like the rest.
+- **The look.** Look at B from the air and the quay with `B_AGE` at 0.65 (still too grey, too lilac, too blue?), the wash at 0.9, 0.6 and 0, the cool family (9%) and the accents (0.7%), and which old shape (the town wall, the theatre, the aqueduct, the bell tower) now looks least like the rest. For the sample of 6.10: the colour of the line, whether hatching is needed and how bright B is.
 - **Tuning on play.** The camera, sprint speed, ledge height and the jump envelope on the reference route; the lean of the flame (18 and 40 degrees), the 30 s and 90 s times, the size and glow of the three lamps against the sky of A and of B, the colours of the map, the reveal radius (15 m); the light (E-21 to E-24): the lamps and the lantern against the moon of B, the weight of the shadows (0.85), the moon (0.8), the exposure, the shadow box (60 m, 2048 texels) and the cost on the laptop. If the tap on the ground feels late, the lens moves to the right mouse button (3.8).
 - **Not yet drawn:** the three emblems for the gates.
