@@ -58,7 +58,8 @@ main
              Overlay, OverlayBatch, Font5x7, StaticBatch, Hud, MapView, Lights, ShadowMath,
              LightingSettings                                                                       > core, scene (data only)
  +- scene    Camera, SceneData, TriMath, TriMesh, Moments, Player, TownPlayer, Town, Lantern, LanternModel,
-             Things, Guidance, Flame, Emblems, Lamps, MapMemory, LayerGuard, Prompts, TownEffects     > standard library only
+             Things, Ledger, Guidance, Flame, Emblems, Lamps, MapMemory, LayerGuard, Prompts,
+             TownEffects                                                                              > standard library only
  +- core     Log, Assert, Config, Window                                                           > standard library, Windows
 ```
 
@@ -75,6 +76,7 @@ that talks to Direct3D. Everything in `scene` and the pure parts of `core` and `
 | `scene/Moments.h` | the solid of both moments with the circle of the lantern; the push-out and the wall push |
 | `scene/Lantern.h`, `scene/LanternModel.h` | the lantern: set down in A, a circle of A in B; the traces of things changed in A; the model of the lantern and of the post it hangs from when it is set down (also what the traveller carries) |
 | `scene/Things.h` | the things that change: opened in A, a trace in B (the causal rule) |
+| `scene/Ledger.h` | what twelve years do: B as a function of A, by a table of rules (growth, rot and keeping, rust, a ballast crate, a prop, a dam, the sea, the people who keep things) |
 | `scene/Guidance.h`, `scene/Flame.h` | the goal (the first step of the main path not done), the progress of the player, the flame of the lantern that leans toward the goal, the two steps of H |
 | `scene/Emblems.h` | the three lamps of the signal mast, dark until the bell of their district is rung |
 | `scene/MapMemory.h`, `render/MapView.h` | what the player has seen and the markers they left; the map drawn on two sheets of tracing paper |
@@ -121,6 +123,14 @@ lines of the streets, the lamps, and the polygons of the town with their moment 
   where the body stands in both moments without the circle, so a return never ends in a wall or in the air. It draws the sea
   round the eye and the ring of a return (`scene/TownEffects.h`), the lantern, the things and the guidance; the town is in the
   static batch. The game starts in the moment the file gives (B).
+
+## The ledger
+
+`scene/Ledger.h` is the rules of `docs/DESIGN.md` 3.9 as data and one function. A `Subject` (what was left in A: a seed, a plank, a crate, an iron mechanism) at a place with some of five facts (`kSoil`, `kSun`, `kRoof`, `kWall`, `kSea`) is looked up in a `Table`: a row says that this stuff, at a place that has all of `need` and none of `forbid`, becomes this, and the first row that matches decides. `Age` answers for one subject; a prop (`AgeProp`), a dam (`AgeDam`) and what a person keeps (`Entrust`) are the same table seen through one more question (does the support stand? does the dam hold? what is his place like?). What no row touches is as it was, so stone is not in the table.
+
+There is no state: the same question gives the same answer, in any order, and B is computed from A each time and never kept. The trees, the keepers and the numbers that tie the table to section 11 (`maxRise`, the height of a heap, the reach of the sea) are in the table, and `Problems()` reads a table back for a row that can never match, a tree that cannot be climbed and the like, for the exporter and for the tests. The lantern's circle is not the ledger's business: inside it `Moments` swaps the triangles of B for those of A and nothing is asked.
+
+Not wired yet: the town file has no facts of places, and the exporter does not write them; the game does not draw B from the ledger. `tests/test_ledger.cpp` tests the table on its own, and `tests/test_things.cpp` checks that the crates and the iron things of the town agree with it.
 
 ## Layers and the ripple
 

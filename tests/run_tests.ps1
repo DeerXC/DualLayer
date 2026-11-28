@@ -16,6 +16,7 @@ $tests = @(
     @{ Name = "camera";    Sources = @("tests\test_camera.cpp", "src\scene\Camera.cpp");                                      Flags = @("/WX") },
     @{ Name = "mesh";      Sources = @("tests\test_mesh.cpp", "src\render\MeshData.cpp");                                     Flags = @() },
     @{ Name = "trimesh";   Sources = @("tests\test_trimesh.cpp");                                                           Flags = @("/O2") },
+    @{ Name = "ledger";    Sources = @("tests\test_ledger.cpp");                                                            Flags = @("/O2") },
     @{ Name = "batch";     Sources = @("tests\test_batch.cpp");                                                              Flags = @("/O2") },
     @{ Name = "trimath";   Sources = @("tests\test_trimath.cpp");                                                            Flags = @("/O2") },
     @{ Name = "ripple";    Sources = @("tests\test_ripple.cpp");                                                              Flags = @() },

@@ -17,10 +17,13 @@
 //      crates in A, and a jump from the top crate without a switch stays east, a jump with a switch at its top lands on
 //      the heap of B and walks down its steps to the street beyond; in B alone a jump from the street does not reach
 //      the heap
+//   7. the ledger and the town (scene/Ledger.h, docs/DESIGN.md 3.9): the crates of the town are ballast crates, so the
+//      box of B is as high as the heap that the ledger leaves, and the iron things stay open in B as A left them
 // Returns 1 when a check fails.
 
 #include "check.h"
 #include "scene/Lantern.h"
+#include "scene/Ledger.h"
 #include "scene/Moments.h"
 #include "scene/Player.h"
 #include "scene/Things.h"
@@ -555,6 +558,76 @@ void TestAirStep()
     }
 }
 
+// ---- 7. the ledger and the town
+
+const town::ThingDef* FindThing(const town::TownData& t, const char* name)
+{
+    for (const town::ThingDef& d : t.things)
+    {
+        if (d.name == name)
+        {
+            return &d;
+        }
+    }
+    return nullptr;
+}
+
+/// The box of a thing in a state and a moment (the first), or null.
+const town::ThingBox* BoxOf(const town::ThingDef& d, int state, int layer)
+{
+    for (const town::ThingBox& b : d.boxes)
+    {
+        if (b.state == state && (b.worlds & (1u << layer)) != 0u)
+        {
+            return &b;
+        }
+    }
+    return nullptr;
+}
+
+void TestLedgerAgrees()
+{
+    namespace lg = dl::ledger;
+    const town::TownData& t = Town();
+    // a crate pushed in A is, in B, the stone that filled it: as high as the crate was
+    for (const char* name : {"canal crate", "gatehouse crate"})
+    {
+        const town::ThingDef* d = FindThing(t, name);
+        CHECK(d != nullptr);
+        if (d == nullptr)
+        {
+            continue;
+        }
+        const town::ThingBox* a = BoxOf(*d, 0, 0);
+        const town::ThingBox* pushedB = BoxOf(*d, 1, 1);
+        CHECK(a != nullptr && pushedB != nullptr && d->verb == town::Verb::Push);
+        if (a == nullptr || pushedB == nullptr)
+        {
+            continue;
+        }
+        const lg::Outcome heap = lg::Age(lg::DefaultTable(), lg::Subject{lg::Stuff::BallastCrate, 2.0f * a->half.y}, 0);
+        std::printf("  %s: crate %.2f m, box of B %.2f m, heap of the ledger %.2f m\n", name,
+                    static_cast<double>(2.0f * a->half.y), static_cast<double>(2.0f * pushedB->half.y),
+                    static_cast<double>(heap.height));
+        CHECK(heap.becomes == lg::Becomes::Heap && std::fabs(heap.height - 2.0f * pushedB->half.y) < 1.0e-4f);
+        CHECK(std::fabs(2.0f * a->half.y - 1.2f) < 1.0e-4f); // a step of 1.2 m, the limit of docs/DESIGN.md 11
+    }
+    // an iron thing that was opened in A stays open in B (rust), at the sea gate and at the lift
+    for (const char* name : {"sea gate", "lift"})
+    {
+        const town::ThingDef* d = FindThing(t, name);
+        CHECK(d != nullptr);
+        if (d == nullptr)
+        {
+            continue;
+        }
+        const lg::Outcome open = lg::Age(lg::DefaultTable(), lg::Subject{lg::Stuff::IronOpen, 0.0f}, 0);
+        CHECK(open.becomes == lg::Becomes::StuckOpen && BoxOf(*d, 1, 1) != nullptr);
+        const lg::Outcome shut = lg::Age(lg::DefaultTable(), lg::Subject{lg::Stuff::IronShut, 0.0f}, 0);
+        CHECK(shut.becomes == lg::Becomes::StuckShut && BoxOf(*d, 0, 1) != nullptr);
+    }
+}
+
 } // namespace
 
 int main()
@@ -564,6 +637,7 @@ int main()
     TestBeats();
     TestRealBody();
     TestAirStep();
+    TestLedgerAgrees();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }
