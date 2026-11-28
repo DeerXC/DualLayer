@@ -26,7 +26,8 @@
 //      and its deepest dark not below L* 12; the distance of A lavender and pale (the haze and the far fog), that of B
 //      as it was; the horizon of the sky of A and of B is the colour of their far land (no band of the old horizon)
 //   8. the sky: its horizon leans to the hue that the far land fades to (LeanToHue, StyleSky), none overhead, none in
-//      the plain view
+//      the plain view; the sky that the water reflects is the sky of the picture (StyleWaterSky): the sea meets the
+//      horizon in its colour
 // Returns 1 when a check fails.
 
 #include "check.h"
@@ -463,6 +464,37 @@ void TestSurface()
     CHECK(skyLeans && skyBright && skyBlue > 1.4f * (base.z / base.x));
     // the plain view (a farAmount of 0) and a neutral style: the sky is as it was
     CHECK(Near3(StyleSky(base, 0.0f, Neutral()), base, 0.0f));
+    // the sky in the water (6.10, S3c). The formula that the water had, written out: the plain view must still be it
+    const float3 skyUpLight(0.30f, 0.27f, 0.40f);
+    StyleParams plainWater = haze;
+    plainWater.farAmount = 0.0f;
+    bool waterAsBefore = true;
+    for (int i = -20; i <= 100; ++i)
+    {
+        const float altitude = 0.01f * static_cast<float>(i);
+        const float3 before = lerp(base, skyUpLight * 1.3f + base * 0.4f, saturate(altitude * 1.5f));
+        waterAsBefore = waterAsBefore && Near3(StyleWaterSky(base, skyUpLight, altitude, Neutral()), before, 1.0e-6f) &&
+                        Near3(StyleWaterSky(base, skyUpLight, altitude, plainWater), before, 1.0e-6f);
+    }
+    CHECK(waterAsBefore);
+    // at the horizon and below the water reflects the horizon of the sky, whatever is above it
+    CHECK(Near3(StyleWaterSky(base, skyUpLight, 0.0f, haze), StyleSky(base, 0.0f, haze), 1.0e-6f));
+    CHECK(Near3(StyleWaterSky(base, skyUpLight, -0.4f, haze), StyleSky(base, -0.4f, haze), 1.0e-6f));
+    // and it is bluer than before there, with the brightness that it had
+    const float3 waterHorizon = StyleWaterSky(base, skyUpLight, 0.0f, haze);
+    CHECK(waterHorizon.z / waterHorizon.x > 1.4f * (base.z / base.x) &&
+          Near(dot(waterHorizon, grey), dot(base, grey), 1.0e-5f));
+    // higher up it is the sky light as it was (its horizon part is the lean of that height) and always finite
+    bool waterFinite = true;
+    for (int i = -20; i <= 100; ++i)
+    {
+        const float3 w = StyleWaterSky(base, skyUpLight, 0.01f * static_cast<float>(i), haze);
+        waterFinite =
+            waterFinite && std::isfinite(w.x) && std::isfinite(w.y) && std::isfinite(w.z) && w.x >= 0.0f && w.z >= 0.0f;
+    }
+    CHECK(waterFinite);
+    CHECK(Near3(StyleWaterSky(base, skyUpLight, 0.9f, haze), skyUpLight * 1.3f + base * 0.4f,
+                1.0e-6f)); // overhead: as it was
     StyleParams plainSky = haze;
     plainSky.farAmount = 0.0f;
     CHECK(Near3(StyleSky(base, 0.0f, plainSky), base, 0.0f));
@@ -885,6 +917,19 @@ void TestLook()
     // is brighter, L* 80 to 87, because an orange with a red channel far over the knee lost light to the shoulder and a
     // lavender, whose light is spread over the three, does not.)
     CHECK(LStar(skyHorizon) > LStar(oldSky) - 1.5f && LStar(skyHorizon) < 95.0f);
+    // the sea near the quay reflects that horizon: the same colour as the sky there (the water is graded as the picture
+    // is)
+    const float3 skyUpA(0.36f * 0.5f + 0.1f, 0.27f * 0.5f + 0.1f,
+                        0.52f * 0.5f + 0.1f); // the sky light of A: any plausible one
+    const float3 seaHorizon = SoftShoulder(
+        StyleGrade(StyleWaterSky(horizonLin, skyUpA, 0.0f, styleA) * set.exposure, styleA, 0.0f, 0.0f), set.knee);
+    const float3 oldSea = SoftShoulder(
+        StyleGrade(lerp(horizonLin, skyUpA * 1.3f + horizonLin * 0.4f, 0.0f) * set.exposure, styleA, 0.0f, 0.0f),
+        set.knee);
+    std::printf("  sea A at the horizon blue/red %.2f (it was %.2f), the sky %.2f\n", Show(seaHorizon.z / seaHorizon.x),
+                Show(oldSea.z / oldSea.x), Show(skyHorizon.z / skyHorizon.x));
+    CHECK(Near3(seaHorizon, skyHorizon, 1.0e-5f));                     // the sea meets the sky: no band
+    CHECK(seaHorizon.z / seaHorizon.x > 1.5f * (oldSea.z / oldSea.x)); // and it is not the old orange
     // the same for B, which has its own horizon and a thicker fog
     const StyleParams styleB = StyleOf(set, 1);
     const float3 horizonB(0.45f, 0.49f, 0.56f);
@@ -892,6 +937,11 @@ void TestLook()
     const float3 skyHorizonB =
         SoftShoulder(StyleGrade(StyleSky(horizonBLin, 0.0f, styleB) * set.exposure, styleB, 0.0f, 0.0f), set.knee);
     CHECK(Near3(skyHorizonB, SeenFar(set, 1, horizonB, 0.0036f, 3000.0f, float3(0.3f, 0.3f, 0.3f)), 0.01f));
+    const float3 seaHorizonB =
+        SoftShoulder(StyleGrade(StyleWaterSky(horizonBLin, float3(0.2f, 0.22f, 0.3f), 0.0f, styleB) * set.exposure,
+                                styleB, 0.0f, 0.0f),
+                     set.knee);
+    CHECK(Near3(seaHorizonB, skyHorizonB, 1.0e-5f)); // and in B
     // the distance of B has no far fog of its own
     CHECK(StyleFarFog(250.0f, StyleOf(set, 1)) == 0.0f && StyleFarFog(250.0f, StyleOf(set, 0)) > 0.2f);
 }

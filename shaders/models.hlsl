@@ -367,6 +367,7 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     const float3 albedo = input.tone.rgb;
     const float diffuse = saturate(dot(n, l));
     const float3 skyLight = lerp(skyDown, skyUp, n.y * 0.5 + 0.5) * ambient;
+    const StyleParams waterStyle = Style();
     float3 colour;
     float alpha;
     if (kind > 5.5)
@@ -424,7 +425,8 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
         const float facing = saturate(dot(nn, v));
         const float fresnel = 0.02 + 0.98 * pow(saturate(1.0 - facing), 5.0);
         const float3 r = reflect(-v, nn);
-        const float3 skyColour = lerp(fogColor, skyUp * 1.3 + fogColor * 0.4, saturate(r.y * 1.5));
+        // the sky in the water is the sky of the picture (StyleWaterSky): the sea meets the horizon in its colour
+        const float3 skyColour = StyleWaterSky(fogColor, skyUp, r.y, waterStyle);
         const float glint = pow(saturate(dot(r, l)), sea ? 260.0 : 480.0) * (sea ? 3.0 : 4.0);
         const float3 body = albedo * (skyLight + lightColor * (0.25 + 0.5 * diffuse)) * lerp(1.0, 0.55, facing);
         colour = lerp(body, skyColour, fresnel) + lightColor * glint;
@@ -436,7 +438,6 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
     }
     float3 haze;
     const float fogOfModel = SceneFog(p, haze);
-    const StyleParams waterStyle = Style();
     const float waterMetres = length(p - eye);
     haze = StyleHaze(haze, waterMetres, waterStyle);
     const float fog = StyleFog(fogOfModel, waterMetres, waterStyle);

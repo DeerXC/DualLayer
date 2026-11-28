@@ -283,6 +283,16 @@ float3 StyleSky(float3 sky, float altitude, StyleParams s)
     return LeanToHue(sky, s.farTint, SkyHorizonWeight(altitude) * s.farAmount);
 }
 
+// The sky that a water surface reflects, in the direction of the reflected ray whose height is `altitude` (6.10, S3c): the same sky as the
+// sky of the picture, so that the sea meets the horizon in the colour of the sky and not in the orange of the model. The horizon colour
+// `fogColor` leans to the hue of the far distance as the sky does (StyleSky); higher up the reflection is the sky light `skyUp`, as it was.
+// With a farAmount of 0 (the plain view) it is the formula that the water had before.
+float3 StyleWaterSky(float3 fogColor, float3 skyUp, float altitude, StyleParams s)
+{
+    const float3 horizon = StyleSky(fogColor, altitude, s);
+    return lerp(horizon, skyUp * 1.3f + horizon * 0.4f, saturate(altitude * 1.5f));
+}
+
 // More fog far away than the fog of the model has (6.10, aerial perspective): none within 100 m, all of `farFog` from 280 m. The distance
 // goes paler, as in the pictures that the look follows; the near and the middle are left as they are.
 float StyleFarFog(float metres, StyleParams s)

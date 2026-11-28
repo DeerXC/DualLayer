@@ -7,7 +7,7 @@ The target design of DualLayer. Each part is marked **built**, **partly built** 
 DualLayer is a third-person 3D exploration puzzle without combat, set in one walled harbour town on a hill, at two moments:
 
 - **A, the past:** the last calm evening before the great storm: the last light of dusk, the sun low over the western wall and the streets already in shade, the lamps lit, a clear sky, a flat sea, the town whole and its people standing about their business at the end of the autumn fair. The lantern holds this evening still, so it has no clock.
-- **B, the present:** the same town twelve years after the storm: ruins under a cold moon, a few people on the heights, and everything the evening left alone grown, rotted, silted or fallen.
+- **B, the present:** the same town twelve years after the storm: ruins under a cold moon and in a fine steady rain, a few people on the heights, and everything the evening left alone grown, rotted, silted or fallen.
 
 The traveller carries a lantern. **Tab** moves the whole world between the two moments. What is done in the past is what twelve years make of it in the present, and never the other way. So the game asks one question everywhere: **what will twelve years make of this?** The way through the town is found by reading the present and changing the past (3.9).
 
@@ -94,6 +94,7 @@ Rules:
 - Inside the circle what is seen is what is solid: A. Outside it, B.
 - Picking the lantern up removes the circle. A pick-up that would leave the body inside something, or standing on nothing it was standing on, is refused, like a switch.
 - The circle is warm light in the cold ruin: the image the game is recognised by. The lantern is also a real light that lights what is near it in either moment (6.3).
+- **In B the circle is dry (decided 2026-11-28, planned).** Inside the circle is A, so no rain falls in it and nothing in it is wet (6.11): a warm, still bubble in the rain.
 - **The circle is drawn in A too (decided 2026-11-28, planned).** Set down in A, the lantern shows what it will hold: a thin warm ring on the ground at the radius of the circle and a faint wall of light at its edge, so the player sees the area before the switch. In B the same ring is the rim of the held circle. It is a hint of the rule and not a second rule: nothing is solid or changed by it.
 - **Dark places in A (decided 2026-11-28, planned).** Some places of A are dark even at dusk: a cellar, a cistern, the stair of a tower, a passage under a house. The lantern lights them, in the hand or set down. A dark place holds only what is optional (a favour, a view, a secret) and never a step of the main route, so that the route reads without the lantern (6.3).
 - E sets the lantern down or takes it up, or acts on what is in reach (3.6); the prompt always names the one thing that E does now (10.3).
@@ -309,6 +310,7 @@ One sun or moon with soft sky and ground fill, the lamps of the town, and what i
 |---|---|---|---|---|
 | Sky | muted blue-grey to pale gold, a clear sky, a low western sun, a long swell on a flat sea | deep grey-blue, a cold moon, torn cloud | the same sky, with a warm window and smoke | clear morning |
 | Light and air | long amber sunlight, cool soft shadows, light golden haze | cool fill and moonlight, deeper blue-grey shadows, low cold mist | the moon, warm windows | the first sun in the game |
+| Weather | still air, a flat sea, cloth that barely moves: the held evening has no clock | a fine steady rain from the sea side, a drip at every eave, wet stone, the sound of it (6.11) | the same rain, and the dry circle of the lantern in it | clear: the rain has stopped |
 | Built surfaces | dry stone, intact doors and roofs, timber and terracotta, bunting and stalls | damp wall bases, greyer wood, rusted fittings; selective roof damage and debris | old stone with new timber and patches of new lime wash in another tone | the same, in daylight |
 | Timber | pale (raw) and black (tarred) | pale: gone, or a grey stub; black: standing; sheltered timber grey and sound | new timber beside the old | the same |
 | People | at their stalls, doors and posts | a few, on the heights | the same people, twelve years older, at the same places | in the streets |
@@ -394,7 +396,7 @@ The town reads as one town and not as one orange because of the rules below: the
 
 ### 6.10 Look development: ink and flat colour, warm against cool
 
-**Status: chosen on 2026-11-28; steps S1, S2a, S2b, S3a, S3b and S3c are built (the hard steps of the sun and the numbers of colour; the maths of the lines and the pass that draws them; the far colours of A; the low sun of A; the sky, the shade and the lamps of A); S2b, S3a and S3b were seen on the screen on 2026-11-28 and are to be tuned, S3c has not been seen; the rest is not.** This section is the brief for one sample, the quay steps, and not for the town. The map is not rebuilt until the sample has passed (acceptance below); this is the reference proof that 6.8 asks for, and the one post-processing pass that 6.8 allows before it (the lines). Where 6.3 (the three soft bands of the sun) and 6.7 (the teal coat and the rounded forms) say otherwise, this section wins once the sample is accepted, and those two parts are then rewritten.
+**Status: chosen on 2026-11-28; steps S1, S2a, S2b, S3a, S3b and S3c are built (the hard steps of the sun and the numbers of colour; the maths of the lines and the pass that draws them; the far colours of A; the low sun of A; the sky, the shade and the lamps of A); S2b, S3a, S3b and the sky of S3c were seen on the screen on 2026-11-28 and are to be tuned; the shade, the lamps and the near water of S3c have not been seen; the rain of B (6.11) is decided in principle and not built; the rest is not.** This section is the brief for one sample, the quay steps, and not for the town. The map is not rebuilt until the sample has passed (acceptance below); this is the reference proof that 6.8 asks for, and the one post-processing pass that 6.8 allows before it (the lines). Where 6.3 (the three soft bands of the sun) and 6.7 (the teal coat and the rounded forms) say otherwise, this section wins once the sample is accepted, and those two parts are then rewritten.
 
 **What the play-test showed.** The overview of A is one orange family: ground, walls, roofs, hills and fog are the same hue and close in value, so nothing separates the near from the far. The fog is orange as well, which removes the depth that the sky could give. The ground is one gradient with no breaks, the quay buildings are large plain blocks with no rhythm of windows, eaves or balconies, and B differs from A by hue only. The best view is the market stairs in B: windows, shutters, a cornice, a clock tower and a roofline that tells where one house ends and the next begins. That is the level the rest of the town is held to. The traveller is a figure of spheres and boxes and does not read as a person.
 
@@ -478,7 +480,8 @@ A baked light map is not planned: the town is static, and the probes plus the ve
 |---|---|---|
 | S1 | The numbers of colour, hard steps and the plain view, on the present quay (built 2026-11-28) | small |
 | S2 | The two lines: a, the maths and its test (built 2026-11-28); b, the pass over the depth of each moment (built 2026-11-28, seen) | medium |
-| S3 | Sky, fog and grade; the low sun of A and its lamps (the lantern in the dusk, below): a, the far colours of A (built 2026-11-28, seen); b, the low sun of A (built 2026-11-28, seen); c, the sky, the shade and the lamps of A (built 2026-11-28, not seen); d, the grade | medium |
+| S3 | Sky, fog and grade; the low sun of A and its lamps (the lantern in the dusk, below): a, the far colours of A (built 2026-11-28, seen); b, the low sun of A (built 2026-11-28, seen); c, the sky, the shade, the lamps and the near water of A (built 2026-11-28; the sky is seen, the rest is not); d, the grade, and A made cooler by its numbers | medium |
+| S3e | The rain of B (6.11): R1 the look, R2 the reading, R3 light in rain and the running water | medium |
 | S4 | The kit and the dressing of the quay corner | large |
 | S5 | The traveller and the lantern (mesh, cloak bones, the switch, the ring of the lantern set down in A) | large |
 | S6 | Vertex AO for the sample | small |
@@ -496,11 +499,77 @@ A baked light map is not planned: the town is static, and the probes plus the ve
 
 **S3, step b: the low sun of A (2026-11-28).** The sun of A is 14 degrees over the horizon (24 before), from the same side (`sun_toward`, `A_SUN_ELEVATION` and `A_SUN_FROM` in `tools/layout/city_model.py`; the town is exported again). Because the sun falls in three hard tones, a flat sunlit surface is in the middle tone for any sun between 8 and 31 degrees, so the lower sun does not dim flat ground; it takes the full tone from more of the roofs and walls (a roof of 30 degrees must face within 50 degrees of the sun instead of 68) and gives long shadows (a wall of 4.5 m casts 18 m, 10 before). `check()` of the model says the height of the sun and fails when the cosine of flat ground leaves 0.17 to 0.50. `TestLook` reads `A_SUN_ELEVATION` from the model and fails when its copy of the sun differs. Seen on the pictures after it, measured on the overview of A: the darkest 1% from L* 34 to 24, the pixels cooler than neutral from 0.1% to 1.4%; the long shadows and the lit lamps read well.
 
-**S3, step c: the sky, the shade and the lamps of A (2026-11-28).** The overview of A had a band of orange sky (61% of its top rows, red over blue 1.7) over a far land that is lavender (1.04 to 1.08): the sky was drawn from the horizon colour of the model and did not take the lean of the far distance. `StyleSky` leans the gradient of the sky to the hue of the far distance, all of it at the horizon and below and none from an altitude of 0.55 up (`SkyHorizonWeight`), so that the horizon of the sky is the colour that the far land fades to (and the sky overhead is as it was); the glow of the sun is not leant. Computed: the horizon of the sky of A has blue over red 1.01 where it had 0.24, like the far land at 3 km, and is brighter, L* 87 against 80, as the far land is. B leans to its own hue. The shade of A is darker (`ambient_a` 0.85; not below 0.8, which would take the shaded wall of `TestLook` under L* 36) and the lamps of A are stronger (`lamps_a` 0.9), so that a lamp stands against the shade. **Not seen yet** (KI-21). **Not done in S3:** the near water, which reflects the horizon colour of the model; the lantern in the hand in A; the grade.
+**S3, step c: the sky, the shade and the lamps of A (2026-11-28).** The overview of A had a band of orange sky (61% of its top rows, red over blue 1.7) over a far land that is lavender (1.04 to 1.08): the sky was drawn from the horizon colour of the model and did not take the lean of the far distance. `StyleSky` leans the gradient of the sky to the hue of the far distance, all of it at the horizon and below and none from an altitude of 0.55 up (`SkyHorizonWeight`), so that the horizon of the sky is the colour that the far land fades to (and the sky overhead is as it was); the glow of the sun is not leant. Computed: the horizon of the sky of A has blue over red 1.01 where it had 0.24, like the far land at 3 km, and is brighter, L* 87 against 80, as the far land is. B leans to its own hue. The shade of A is darker (`ambient_a` 0.85; not below 0.8, which would take the shaded wall of `TestLook` under L* 36) and the lamps of A are stronger (`lamps_a` 0.9), so that a lamp stands against the shade. Seen after it (2026-11-28, measured on the overview of A): the band of orange sky is gone (61.5% of the top rows before, 0.3% after; red over blue of the sky, in the values of the picture, 1.7 before and 1.08 after, like the far land at 1.02 to 1.08).
+
+**S3, step c, the near water (2026-11-28).** `WaterPS` reflected the horizon colour of the model (`fogColor`) directly, so the sea near the quay of A stayed peach under a lavender sky. `StyleWaterSky` in `shaders/lighting.hlsli` gives the reflection the lean of the sky: the horizon of the water is the horizon of the sky, and higher up the reflection is the sky light as it was; in the plain view it is the formula that the water had. Computed: blue over red 1.01 at the horizon of the sea of A where it was 0.24, the same as the sky and the far land; B leans to its own hue. **Not seen yet** (KI-21): the shade, the lamps and the near water of A. **Not done in S3:** the lantern in the hand in A; the grade.
 
 After the sample: the map is redesigned on paper and approved, then rebuilt district by district (the harbour first), then the baked occlusion and the probes, and last the ledger is put into the new map (section 12).
 
 **Open, with the default taken.** The line is a dark of the local colour and not black. Hatching is off until S2 shows it is needed. B is lifted to the luma numbers above and not left as dark as the concept.
+
+### 6.11 Rain in B
+
+**Status: decided in principle on 2026-11-28. None of the rain is built; the only step of this section that is built is the near water of A (S3c, below).** The numbers are start values for the pictures of R1.
+
+**Why.** Three reasons, in order of weight.
+
+1. **The two moments are told apart by more than hue.** A is the held evening: a warm low sun, the streets in shade, lit lamps, still air and a flat sea. B is the present, and it moves. One is warm and still, the other cool and in motion: they differ in colour, in light, in motion and in sound, so that the difference still reads in greyscale and at thumbnail size (principle 10), and A may go cooler in its shade and its sky (S3d) without becoming B.
+2. **Time.** The lantern holds the evening still and A has no clock (1). Rain is the weather of a world that went on, and B is where time passes.
+3. **The ledger gets a picture.** The roof is one of the five facts of a place (3.9), and 3.9 already says that a dripping eave marks the open. In rain the open is wet and a roofed place is dry, and the player reads it without a word.
+
+**Why A is not made a sunless blue hour.** A sun below the horizon takes away the three tones of the sun, the long shadows and the warm key light that the look of A stands on (6.10, S1, S3b), and it makes both moments blue. A stays the last light: the sun 14 degrees over the horizon, the streets in shade, a sky that is blue overhead and lavender at the horizon, the lamps lit. A is made cooler by its numbers (the shade, the sky and the ground: S3d), not by taking the sun away. The rain does the rest of the work of telling the pair apart.
+
+**What the rain is.** Ink and not particles: it is drawn as a comic draws rain, in the line of 6.10.
+
+- Thin pale strokes in three layers (near, middle, far: other length, speed and density), slanted along one wind, drawn as a pass over the picture of B only. A has none. In the ripple only the picture of B has it, so a switch brings the rain in at the front of the ring.
+- Small ink rings where drops fall on wet ground near the traveller, found from the depth of the picture: fewer farther away and none beyond about 25 m.
+- A wet look for B: horizontal faces a little darker with a faint sheen, the fog a little thicker, the sky overcast with the moon as a soft glow and no disc.
+- The plain view (L) has none. A master, `amount` of `[rain]` (0: none), and the other numbers are in the config.
+
+**The reading.** The rain falls along the direction of the moonlight (a driving rain from the sea side; the slant is open, below). Then the shadow map of the moon is the shelter map of the rain, with no new pass: a surface that the moon does not reach, the rain does not reach.
+
+- *R2.* Wet sheen and rings only where the moon reaches: dry under roofs and arches and in the lee of walls. Streaks are drawn only in open air (the shadow map is walked along the ray, as the light shafts do). A line of drops runs along the edge of every eave.
+- *The circle of the lantern is dry.* In B the inside of the circle is A (3.2): no rain, nothing wet, the dusk. A warm, still bubble in the rain is the picture of the circle from far away, and it needs nothing but not drawing rain inside it.
+- *R5, when the map is rebuilt.* The model writes the covered ground of the town as data, with the roof fact of 3.9, and replaces the shadow trick (the shadow map reaches only 60 m round the camera).
+
+**Light in rain.** Wet air holds light. The halos of the lamps are stronger in B (x1.3 to start), the shafts of the moon and of the lamps show the rain, and a lit window is the warmest, smallest thing in the view (10.7). The lamps of the mast and the lit window of the first frame read better in rain and not worse.
+
+**What the rain never does.**
+
+| It does not | Because |
+|---|---|
+| fill a dry bed, lift silt, rot timber or grow a seed | B is computed from A by the table of 3.9 and by nothing else, and a rule is added only after a puzzle needs it. The dry bed of the canal crate stays dry: the rain runs off into the drains as a sheen and is never a depth |
+| make stone slippery, make the traveller wade or wet the cloak | principles 3 and 9: nothing for the hands to learn |
+| come and go, gather, or become a storm that the player waits out | principle 3: no timer on the main path. The rain is steady. The storm is shown once, in the ending (5.3), and is another thing: a wall of cloud and the sea |
+| put out a lamp or the flame of the lantern | the lamps of B are the one warm thing of it, and the flame is given away only in the belfry (5.2) |
+| fall in A | A is the held evening |
+| know what the traveller did (thinner over a kept house) | principle 11: nothing acts for the sake of a puzzle. The kept look is told by windows and smoke |
+
+**Uses that are not rules (optional, later).**
+
+- *Silence marks shelter (R4, with the sound of 10.8).* Rain has three sounds, on stone, on water and on timber, and none under a roof. A closed room can be found by ear, and a gap in B that is a wall in A (the template Hidden way, 8.2) is a rope of falling water in the dark, seen by the light of the lantern.
+- *Running water reads the slope (R3).* Rain runs in thin ink rills down streets and stairs to the harbour and the drains, so the player reads where the town drains and, later, what a sluice held in A.
+- *The morning.* The sweep of the ending leaves a clear sky behind its ring, and the rain stops. 6.4 says that the first morning is the first sun of the game: the whole game is under rain, and the ending is the first dry day.
+
+**Stages.** Each ends with a pair of pictures (A and B from the same camera) and waits for approval.
+
+| Stage | Work |
+|---|---|
+| R1 | the look: the three layers of streaks, the rings, the wet look, the overcast sky of B, the dry circle, the master and the numbers of `[rain]`, and tests of the maths of the streaks and the rings (plain HLSL, as the lines) |
+| R2 | the reading: the shelter from the shadow map of the moon, the eaves, the dry ground |
+| R3 | light in rain (the halos, the shafts) and the running water |
+| R4 | the sound of rain, with the sound of 10.8 |
+| R5 | the covered ground as data from the model, with the rebuilt map |
+
+**Acceptance of R1.**
+
+1. A and B from the same camera, in greyscale and at thumbnail size, are told apart at once by a person who has not seen them (by rain and brightness, not only by hue).
+2. The three lamps of the mast stay in view for every lens and screen of `tests/test_firstminute.cpp`, and the ink lines are not buried.
+3. The route reads in the moon alone: the numbers of 6.10, rule 4, hold with the rain on.
+4. The streaks do not crawl, flicker or shimmer as the camera turns, and the pass is within a budget that is set when the frame rate is no longer capped (KI-21).
+5. The plain view has none, and an `amount` of 0 is the picture as it was.
+
+**Open.** The slant: the moon is 53 degrees up, so rain along it is 37 degrees from the vertical, a driving rain, and the moon may go lower. The density, whether the heights have it lighter, how far the rings go, and whether the clear sky of the ending is worth its cost.
 
 ## 7. The map
 
@@ -896,7 +965,7 @@ The world speaks a small vocabulary the same way everywhere, so that nothing nee
 
 ### 10.8 Sound
 
-Sound is a second cue. A: harbour activity, gulls, the murmur of a fair at its end, low voices, and under them a slow, long swell that is a little out of step. B: wind, dripping, a few voices on the heights, no gulls. A household that kept something has a faint hearth sound near it in B. The switch, a refusal and the placing of the lantern are told apart by sound once audio is added. The bell, when rung, is a deep, clear tone that the whole town hears; the hour bells are ambient and never a goal.
+Sound is a second cue. A: harbour activity, gulls, the murmur of a fair at its end, low voices, and under them a slow, long swell that is a little out of step. B: rain (on stone, on water and on timber, and none under a roof: 6.11), wind, dripping, a few voices on the heights, no gulls. A household that kept something has a faint hearth sound near it in B. The switch, a refusal and the placing of the lantern are told apart by sound once audio is added. The bell, when rung, is a deep, clear tone that the whole town hears; the hour bells are ambient and never a goal.
 
 ## 11. Limits and proof
 
@@ -927,7 +996,7 @@ The body walks at 5.5 m/s and jumps 2 m; a running jump covers about 3.6 m (numb
 | The map | `tests/test_map.cpp`: the plan of the model (both moments, the moat in A only, the streets under their middle lines); what is seen (the radius, the overlooks, never more); the markers; the paper (inside every screen, the player and the tower on it, the window); the ink (neutral, warm, cool, the sheet on top, blank paper, the lamps, the arrow, the flags); the whole town fits the batch |
 | The first minute | `tests/test_firstminute.cpp`: rays from the camera of the first frame to every lamp in both moments; the sea wall does hide the tower itself; the lamps, the winch and the heap inside the picture for every lens and screen; three lamps, dark at the start; the compass points into the picture; the heap closes the quay in B only |
 | The light | `tests/test_lighting.cpp`: the maths of the shader run as C++ (fall-off, one lamp on a surface, the soft shoulder, the fade at the edge of the shadow map); the choice of at most 32 lamps; the shadow box; the settings; the lamps of the town file, the lantern and the halos |
-| The style of the light | `tests/test_style.cpp`: the functions of the style run as C++ (the rings and the warmth of a lamp, the hard steps of the sun, the clouds, the rim, the cool fill only in the shadow, the painted stone and the damp, the haze, the grade), the numbers that feed them, the looks and the values of the look of 6.10 (the tones of A, the ground and the deepest dark of B, the far distance of A); the maths of the ink lines on a depth buffer that the test makes (no line on a plane or inside a face, the outline on the near side only, an inner edge from 50 degrees), the pass written again in C++ and the blend of the pass against the line, the sky leaning to the hue of the far land with its horizon equal to the far hills, and the sun of A held to the model |
+| The style of the light | `tests/test_style.cpp`: the functions of the style run as C++ (the rings and the warmth of a lamp, the hard steps of the sun, the clouds, the rim, the cool fill only in the shadow, the painted stone and the damp, the haze, the grade), the numbers that feed them, the looks and the values of the look of 6.10 (the tones of A, the ground and the deepest dark of B, the far distance of A); the maths of the ink lines on a depth buffer that the test makes (no line on a plane or inside a face, the outline on the near side only, an inner edge from 50 degrees), the pass written again in C++ and the blend of the pass against the line, the sky leaning to the hue of the far land with its horizon equal to the far hills, the sky that the water reflects equal to the sky of the picture, and the sun of A held to the model |
 
 ## 12. Order of work and acceptance
 
@@ -957,6 +1026,7 @@ The decisions that hold now. How each came about, and what each replaced, is in 
 - **The first minute.** The sea wall hides the tower from the quay in both moments (measured), so the far goal is a signal mast over it, in sight from the first frame (10.2).
 - **The look.** Hand-painted light with one master and a plain view; no lamp is needed to read the route; one palette; B derived from A and weathered stone in the moon, not ice (6). Chosen on 2026-11-28 and proved on a sample before the map is rebuilt: ink line and flat steps, warm light against cool shadow, and a traveller whose cloak is the same in both moments (6.10).
 - **The lantern stays (2026-11-28).** It is not replaced: its rule is independent of light and the game is built on it. A is lit as a dusk with the streets in shade, the circle is drawn in A and some dark places of A are for the lantern alone, off the main route (3.2, 6.10).
+- **The rain of B (2026-11-28, in principle).** B has a fine steady rain and A none, so that the two moments differ in motion and in sound as well as in colour. A stays the last light with the sun 14 degrees up and is not made a sunless blue hour; it may go cooler by its numbers. The rain is ink, is dry inside the circle of the lantern, is read through the shadow map as shelter and never changes a solid or a rule of the ledger; it stops in the ending (6.11).
 - **Proof.** Nothing is kept that the route solver finds a way round, and the tests need no window and no GPU (11).
 
 ## 14. Open
@@ -969,6 +1039,7 @@ The decisions that hold now. How each came about, and what each replaced, is in 
 - **The storm and the sweep.** The cost of the storm of the ending (a rising sea plane, rain, cloth); the length of the sweep (the target is 25 to 40 s) and the order in which the ring reaches the households; whether a long press to skip is enough (5.3).
 - **The lines of the people.** One short line each in Japanese, and the quay (5.4).
 - **The lantern in the dusk.** The sun of A (14 degrees to start), the lamps of A, whether the ring and the wall of light of the circle are one line or two, and whether dark places in A are worth their cost; decided by the pair of pictures of S3 and S5.
+- **The rain of B.** The slant (the moon is 53 degrees up, so rain along it is 37 degrees from the vertical), the density, whether the heights have it lighter, how far the rings go, the cost of the pass, and whether the clear sky of the ending is worth its cost; decided by the pictures of R1 (6.11).
 - **The held evening.** A is the same dusk throughout; whether its sky should deepen in steps with progress (a signal and never a timer).
 - **The story left untold.** Where the lantern came from, the name of the town, who the traveller is and who lit the first window.
 - **The first frame.** The black piles, the pale stubs and the lit window must stay in the picture for every lens and screen of the test (`tests/test_firstminute.cpp`). The house of the lit window must be placed above the reach of the sea (0 m), in sight of the start; the model has not placed it.
