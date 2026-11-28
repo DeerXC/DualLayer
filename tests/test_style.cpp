@@ -21,6 +21,8 @@
 //      crate, a pole, a ramp): no line on a plane or inside a face, the outline on the near side only, an inner edge
 //      for a turn of 50 degrees and not for 20, the fade, the width, the colour; and the settings, the registers and
 //      the shipped file
+//   9. a very bright light (a lamp or the lantern on a pale ground) is pulled toward the grey of its own brightness by
+//      StyleGrade, so that it is not one flat orange whatever its brightness
 //   6. the look of docs/DESIGN.md 6.10, with the settings that config/default.ini really has: A in three tones (sunny
 //      wall, ground, shadow) with a cool shadow; B with its open ground not pale, its route readable in the moon alone
 //      and its deepest dark not below L* 12; the distance of A lavender and pale (the haze and the far fog), that of B
@@ -104,6 +106,7 @@ StyleParams StyleOf(const dl::LightingSettings& set, int layer)
     s.farTint = float3(c.hazeTint[0], c.hazeTint[1], c.hazeTint[2]);
     s.farAmount = c.hazeTint[3];
     s.farFog = c.more[0];
+    s.highlight = c.more[1];
     s.toonEdge = 0.0f; // a flat face has no change of the cosine over a pixel: its steps are hard
     return s;
 }
@@ -596,7 +599,8 @@ void TestSettings()
     CHECK(d.toon == 1.0f && d.toonEdge == 1.5f); // 6.10: hard steps, an edge of a pixel and a half
     CHECK(d.farFog == 1.0f && d.haze == 0.85f);  // S3: the far fog of the look in full, the haze leaning far
     // S3c: the dusk of A: lamps lit and a darker shade (ambient_a is held at 0.8 or more by TestLook)
-    CHECK(d.lampsA == 0.9f && d.ambientA == 0.85f && d.ambientA >= 0.8f && d.lampsA < d.lampsB);
+    CHECK(d.lampsA == 0.75f && d.ambientA == 0.85f && d.ambientA >= 0.8f && d.lampsA < d.lampsB);
+    CHECK(d.highlight == 1.0f); // the pull of a very bright light to grey is used as the look has it
 
     dl::LightingSettings bad;
     bad.style = 5.0f;
@@ -642,12 +646,12 @@ void TestSettings()
           plain.light[1] == 0.0f);
     CHECK(plain.light[2] == 0.0f && plain.hazeTint[3] == 0.0f && plain.misc[0] == 0.0f && plain.misc[1] == 0.0f &&
           plain.misc[2] == 1.0f);
-    CHECK(plain.misc[3] == 0.0f && plain.more[0] == 0.0f);
+    CHECK(plain.misc[3] == 0.0f && plain.more[0] == 0.0f && plain.more[1] == 0.0f);
     dl::LightingSettings off;
     off.style = 0.0f;
     const dl::StyleConstants master0 = dl::MakeStyle(off, 1, false);
     CHECK(master0.grade2[2] == 1.0f && master0.misc[2] == 1.0f && master0.light[2] == 0.0f && master0.cool[3] == 0.0f);
-    CHECK(master0.misc[3] == 0.0f && master0.more[0] == 0.0f);
+    CHECK(master0.misc[3] == 0.0f && master0.more[0] == 0.0f && master0.more[1] == 0.0f);
     const dl::StyleConstants a = dl::MakeStyle(d, 0, false);
     const dl::StyleConstants b = dl::MakeStyle(d, 1, false);
     CHECK(a.grade2[0] == d.toon && a.grade2[1] == d.rim && a.grade2[2] > 1.0f && a.grade2[3] > 0.0f &&
@@ -658,6 +662,8 @@ void TestSettings()
     CHECK(a.light[3] == static_cast<float>(d.shaftSteps));
     // the distance of A is paler, that of B is as it was
     CHECK(Near(a.more[0], 0.5f * d.farFog, 1.0e-6f) && b.more[0] == 0.0f);
+    // a very bright light is pulled to grey by 0.7 in A and 0.3 in B
+    CHECK(Near(a.more[1], 0.7f * d.highlight, 1.0e-6f) && Near(b.more[1], 0.3f * d.highlight, 1.0e-6f));
     dl::LightingSettings noShadows;
     noShadows.shadows = false;
     CHECK(dl::MakeStyle(noShadows, 0, false).light[2] == 0.0f); // no shadow map, no shafts
@@ -670,9 +676,13 @@ void TestSettings()
     // the edge is in pixels: the master does not scale it
     CHECK(a.misc[3] == d.toonEdge && b.misc[3] == d.toonEdge && h.misc[3] == d.toonEdge);
     CHECK(Near(h.more[0], 0.5f * a.more[0], 1.0e-6f)); // the master scales the far fog
+    CHECK(Near(h.more[1], 0.5f * a.more[1], 1.0e-6f)); // and the pull of a very bright light
     dl::LightingSettings strongFog;
     strongFog.farFog = 4.0f;
     CHECK(dl::MakeStyle(strongFog, 0, false).more[0] == 1.0f); // 0.5 * 4 is 2: never more than all of the light
+    dl::LightingSettings strongPull;
+    strongPull.highlight = 2.0f;
+    CHECK(dl::MakeStyle(strongPull, 0, false).more[1] == 1.0f); // 0.7 * 2 is 1.4: never more than all of the grey
     CHECK(Near(h.grade2[0], 0.5f * d.toon, 1.0e-6f) && Near(h.misc[2], 1.0f + 0.5f * (a.misc[2] - 1.0f), 1.0e-6f));
     dl::LightingSettings nonsense;
     nonsense.style = std::nanf("");
@@ -944,6 +954,80 @@ void TestLook()
     CHECK(Near3(seaHorizonB, skyHorizonB, 1.0e-5f)); // and in B
     // the distance of B has no far fog of its own
     CHECK(StyleFarFog(250.0f, StyleOf(set, 1)) == 0.0f && StyleFarFog(250.0f, StyleOf(set, 0)) > 0.2f);
+}
+
+// ---- 9. a very bright light (6.10, S3d)
+// The soft shoulder keeps the hue of a light that it bends, so a lamp or the lantern on a pale ground, far over the
+// knee, came out as one flat orange whatever its brightness: 246 to 253 of 255 for every input from 1.3 to 3.2, with no
+// blue. StyleGrade now pulls a light that is far over the knee toward the grey of its own brightness (`highlight`),
+// so that it keeps a grade: paler the brighter it is.
+void TestHighlight()
+{
+    StyleParams look = Neutral();
+    look.saturation = 1.12f;
+    look.contrast = 1.14f;
+    look.high = float3(1.06f, 1.0f, 0.90f);
+    look.highAmount = 0.45f;
+    StyleParams off = look;
+    off.highlight = 0.0f;
+    StyleParams on = look;
+    on.highlight = 0.7f;
+    // nothing for a light that is under 0.9 after the contrast (the contrast raises 0.6 to 0.7), and nothing when the
+    // pull is 0 (the plain view)
+    const float3 dim[] = {float3(0.1f, 0.05f, 0.02f), float3(0.5f, 0.3f, 0.1f), float3(0.6f, 0.35f, 0.1f)};
+    bool dimSame = true;
+    for (const float3& c : dim)
+    {
+        dimSame = dimSame && Near3(StyleGrade(c, on, 0.0f, 0.0f), StyleGrade(c, off, 0.0f, 0.0f), 1.0e-6f);
+    }
+    CHECK(dimSame);
+    const float3 bright(2.0f, 1.2f, 0.4f);
+    // a bright light is pulled toward grey: more blue over red; the brightness is kept (it is the grey of the light)
+    const float3 plain = StyleGrade(bright, off, 0.0f, 0.0f);
+    const float3 pulled = StyleGrade(bright, on, 0.0f, 0.0f);
+    const float3 grey(0.2126f, 0.7152f, 0.0722f);
+    CHECK(pulled.z / pulled.x > 1.5f * (plain.z / plain.x));
+    CHECK(Near(dot(pulled, grey), dot(plain, grey), 1.0e-4f));
+    // the amount is a mix: half the pull is half way
+    StyleParams half = look;
+    half.highlight = 0.35f;
+    CHECK(Near3(StyleGrade(bright, half, 0.0f, 0.0f), lerp(plain, pulled, 0.5f), 1.0e-5f));
+    // it grows with the brightness and never goes past the grey of the light
+    bool growing = true;
+    float lastShare = -1.0f;
+    for (float k = 0.4f; k <= 3.0f; k += 0.2f)
+    {
+        const float3 c = bright * k;
+        const float3 p = StyleGrade(c, on, 0.0f, 0.0f);
+        const float3 q = StyleGrade(c, off, 0.0f, 0.0f);
+        const float share =
+            (p.z / dot(p, grey)) / std::max(q.z / dot(q, grey), 1.0e-6f); // how much of the blue it has more
+        growing = growing && share >= lastShare - 1.0e-5f && p.x >= 0.0f && p.y >= 0.0f && p.z >= 0.0f;
+        lastShare = share;
+    }
+    CHECK(growing);
+    // the flat orange: lights of 1.3 and 3.2 on the paving of A that the shoulder made one colour now differ, with blue
+    const float3 paving(0.55f, 0.43f, 0.28f); // A, in linear light
+    const float3 amber(1.0f, 0.80f, 0.55f);
+    auto pool = [&](const StyleParams& s, float intensity)
+    {
+        const float3 in =
+            paving * (float3(0.12f, 0.10f, 0.16f) + float3(0.138f, 0.138f, 0.138f)) + paving * amber * intensity;
+        return SoftShoulder(StyleGrade(in, s, 0.0f, 0.0f), 0.78f);
+    };
+    const float3 lo = pool(on, 1.3f);
+    const float3 hi = pool(on, 3.2f);
+    const float3 flatLo = pool(off, 1.3f);
+    const float3 flatHi = pool(off, 3.2f);
+    std::printf("  pool on the paving of A, lamp 1.3 and 3.2: now (%.2f %.2f %.2f) (%.2f %.2f %.2f), before (%.2f %.2f "
+                "%.2f) (%.2f %.2f %.2f)\n",
+                Show(lo.x), Show(lo.y), Show(lo.z), Show(hi.x), Show(hi.y), Show(hi.z), Show(flatLo.x), Show(flatLo.y),
+                Show(flatLo.z), Show(flatHi.x), Show(flatHi.y), Show(flatHi.z));
+    CHECK(Near(flatHi.y, flatLo.y, 0.12f) &&
+          flatHi.z < flatLo.z + 0.12f);                // before: the light of 1.3 and of 3.2 are one colour
+    CHECK(hi.y > lo.y + 0.12f && hi.z > lo.z + 0.25f); // now they are not: the hot centre is paler
+    CHECK(hi.z / hi.x > 0.5f && lo.z / lo.x < 0.4f);   // pale amber in the middle, orange at the edge
+    CHECK(hi.x <= 1.0f && hi.y <= 1.0f && hi.z <= 1.0f && lo.z > 0.0f); // and nothing is out of range
 }
 
 // ---- 7. the ink lines of docs/DESIGN.md 6.10 (S2)
@@ -1424,6 +1508,7 @@ int main()
     TestGrade();
     TestSettings();
     TestLook();
+    TestHighlight();
     TestLines();
     std::printf("%d checks passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;

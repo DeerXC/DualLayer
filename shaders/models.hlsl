@@ -70,7 +70,7 @@ cbuffer Frame : register(b0)
     float4 styleLight;      // x: the shadow of the clouds, y: the rings of a lamp, z: strength of the light shafts, w: their samples
     float4 styleFar;        // rgb: what the haze is multiplied by far away, a: how far
     float4 styleMisc;       // x: the painted blotches of the stone, y: the damp near the water, z: the contrast, w: the soft edge of a step of the sun, in pixels (0: 1.5)
-    float4 styleMore;       // x: the extra fog of the far distance, yzw: reserved
+    float4 styleMore;       // x: the extra fog of the far distance, y: how far a light over the knee goes to grey, zw: reserved
 };
 
 cbuffer Lamps : register(b2)
@@ -107,6 +107,7 @@ StyleParams Style()
     s.farTint = styleFar.rgb;
     s.farAmount = styleFar.a;
     s.farFog = styleMore.x;
+    s.highlight = styleMore.y;
     s.toonEdge = 0.0; // PSMain sets it from the change of the cosine over a pixel
     return s;
 }

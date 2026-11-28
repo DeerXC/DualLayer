@@ -156,6 +156,7 @@ struct StyleParams
     float3 farTint;   // the colour whose hue the haze leans to far away (StyleHaze); only its hue counts
     float farAmount;  // 0 .. 1: how far
     float farFog;     // 0 .. 1: the extra fog of the far distance (StyleFarFog): the far hills and the sea go pale
+    float highlight;  // 0 .. 1: how far a light that is over the knee goes toward the grey of its own brightness (StyleGrade)
     float toonEdge;   // UNITS: cosine: the soft edge of a step of the sun (ToonRampEdge); 0: hard. The pixel shader sets it from fwidth
 };
 
@@ -346,6 +347,13 @@ float3 StyleGrade(float3 c0, StyleParams s, float ndcX, float ndcY)
     const float after = dot(g, grey);
     g = lerp(float3(after, after, after), g, s.saturation);
     g = float3(max(g.x, 0.0f), max(g.y, 0.0f), max(g.z, 0.0f));
+    // A light that is far over the knee (a lamp or the lantern on a pale ground, the sun on a lit wall) goes toward the grey of its own
+    // brightness, as a bright light does on film: the soft shoulder that follows keeps the hue and so turned every such light into one flat
+    // orange, with no grade left in it (6.10, S3d). From 0.9 to 2.4 of the brightest channel; with a highlight of 0 (the plain view) nothing.
+    const float peak = max(g.x, max(g.y, g.z));
+    const float toGrey = smoothstep(0.9f, 2.4f, peak) * s.highlight;
+    const float own = dot(g, grey);
+    g = lerp(g, float3(own, own, own), toGrey);
     const float corner = smoothstep(0.55f, 1.45f, sqrt(ndcX * ndcX + ndcY * ndcY));
     return g * (1.0f - s.vignette * corner);
 }

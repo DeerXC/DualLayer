@@ -35,7 +35,7 @@ struct LightingSettings
     float shadowNormal = 1.5f; ///< texels: a surface is moved this far along its normal before the shadow is looked up
     // ---- the point lights
     bool pointLights = true;
-    float lampsA = 0.9f;  ///< the street lamps in A: lit at dusk, read against the shade of the low sun
+    float lampsA = 0.75f; ///< the street lamps in A: lit at dusk, read against the shade of the low sun
     float lampsB = 1.0f;  ///< the street lamps in B: the only light but the moon
     float lantern = 1.0f; ///< the lantern of the traveller (and the lit lamps of the mast and the bells)
     // ---- the sun, the sky and the air
@@ -67,12 +67,13 @@ struct LightingSettings
         1.0f; ///< the grade of the picture: the darks and the lights leaning toward the colours of StyleLookOf
     float saturation =
         1.0f; ///< 0 .. 2: how much of the colour push of the look is used (0: none, 1: as set in StyleLookOf)
-    float contrast = 1.0f; ///< 0 .. 2: how much of the contrast of the look is used
-    float vignette = 1.0f; ///< 0 .. 2: how much of the dark corner of the look is used
-    float wash = 0.9f;     ///< the painted blotches of the stone (value and hue; tall stains on a wall)
-    float damp = 0.5f;     ///< the stone near the water darker and cooler (B has twice as much as A)
-    float haze = 0.85f;    ///< the far haze leans toward the hue of StyleLookOf: the distance has its own hue
-    float farFog = 1.0f;   ///< 0 .. 4: how much of the extra fog of the far distance of the look is used (0: none)
+    float contrast = 1.0f;  ///< 0 .. 2: how much of the contrast of the look is used
+    float vignette = 1.0f;  ///< 0 .. 2: how much of the dark corner of the look is used
+    float wash = 0.9f;      ///< the painted blotches of the stone (value and hue; tall stains on a wall)
+    float damp = 0.5f;      ///< the stone near the water darker and cooler (B has twice as much as A)
+    float haze = 0.85f;     ///< the far haze leans toward the hue of StyleLookOf: the distance has its own hue
+    float farFog = 1.0f;    ///< 0 .. 4: how much of the extra fog of the far distance of the look is used (0: none)
+    float highlight = 1.0f; ///< 0 .. 2: how much of the pull of a very bright light to grey is used
 };
 
 /// The colours of the grade and of the cool fill of one moment. All are multipliers (what the light is multiplied by)
@@ -90,6 +91,7 @@ struct StyleLook
     float contrast;    ///< 1 = as it is (above 1: deeper darks and lighter lights)
     float vignette;    ///< 0 .. 1: how much darker the corners are
     float farFog;      ///< 0 .. 1: the extra fog far away, from 100 m to 280 m (at full style): the distance goes pale
+    float highlight;   ///< 0 .. 1: how far a light over the knee goes to the grey of its brightness
 };
 
 /// A: the warm evening: shadows mauve-violet, the lights gold. B: the present, weathered stone in the light of the
@@ -113,7 +115,8 @@ inline StyleLook StyleLookOf(int layer)
                          1.12f,
                          1.14f,
                          0.20f,
-                         0.50f};
+                         0.50f,
+                         0.70f};
     }
     return StyleLook{{0.96f, 0.95f, 1.20f},
                      {1.02f, 0.98f, 1.16f},
@@ -125,7 +128,8 @@ inline StyleLook StyleLookOf(int layer)
                      1.06f,
                      1.06f,
                      0.30f,
-                     0.0f};
+                     0.0f,
+                     0.30f};
 }
 
 /// What the model shader reads for the style (cbuffer Frame, from gradeParams2 on: shaders/models.hlsl). Four floats
@@ -139,7 +143,7 @@ struct StyleConstants
     float light[4];    ///< x: the clouds, y: the rings of a lamp, z: the light shafts, w: their samples
     float hazeTint[4]; ///< rgb: the colour whose hue the haze leans to far away, a: how far
     float misc[4];     ///< x: the painted blotches, y: the damp near the water, z: the contrast, w: the edge (pixels)
-    float more[4];     ///< x: the extra fog of the far distance, yzw: reserved
+    float more[4];     ///< x: the extra fog of the far distance, y: a bright light to grey, zw: reserved
 };
 
 inline float LightingClamp(float v, float lo, float hi, float fallback)
@@ -203,6 +207,7 @@ inline LightingSettings Sanitize(const LightingSettings& in)
     s.damp = LightingClamp(in.damp, 0.0f, 1.0f, d.damp);
     s.haze = LightingClamp(in.haze, 0.0f, 1.0f, d.haze);
     s.farFog = LightingClamp(in.farFog, 0.0f, 4.0f, d.farFog);
+    s.highlight = LightingClamp(in.highlight, 0.0f, 2.0f, d.highlight);
     return s;
 }
 
@@ -251,6 +256,7 @@ inline LightingSettings ReadLightingSettings(const Config& c)
     s.damp = c.GetFloat("lighting", "damp", d.damp);
     s.haze = c.GetFloat("lighting", "haze", d.haze);
     s.farFog = c.GetFloat("lighting", "far_fog", d.farFog);
+    s.highlight = c.GetFloat("lighting", "highlight", d.highlight);
     return Sanitize(s);
 }
 
@@ -291,6 +297,7 @@ inline StyleConstants MakeStyle(const LightingSettings& in, int layer, bool plai
     // the soft edge of a step of the sun, in pixels (the shader reads 0 as 1.5)
     c.misc[3] = k > 0.0f ? s.toonEdge : 0.0f;
     c.more[0] = std::min(look.farFog * s.farFog * k, 1.0f); // a part of the light, never more than all of it
+    c.more[1] = std::min(look.highlight * s.highlight * k, 1.0f);
     return c;
 }
 
