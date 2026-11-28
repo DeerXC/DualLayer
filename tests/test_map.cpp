@@ -330,7 +330,11 @@ void TestFrame()
     }
 }
 
-/// The colour that shows at a point of the screen: the last triangle of the batch that covers it.
+/// The colour that shows at a point of the screen: the last triangle of the batch that covers it. A point on the edge
+/// two triangles share (the middle of a turned square is on its diagonal) is covered by one of them, but which one
+/// depends on the last bit of the arithmetic: a machine that fuses a multiply and an add (g++ on ARM, or with
+/// -march=native) can put it a hair outside both. So a hair beyond the edge counts as inside here (1e-4 of a triangle,
+/// a thousandth of a pixel).
 bool ColourAt(const OverlayBatch& b, float x, float y, dl::OverlayColor& out)
 {
     bool found = false;
@@ -346,7 +350,8 @@ bool ColourAt(const OverlayBatch& b, float x, float y, dl::OverlayColor& out)
         const float a =
             ((v[i + 1].y - v[i + 2].y) * (x - v[i + 2].x) + (v[i + 2].x - v[i + 1].x) * (y - v[i + 2].y)) / d;
         const float c = ((v[i + 2].y - v[i].y) * (x - v[i + 2].x) + (v[i].x - v[i + 2].x) * (y - v[i + 2].y)) / d;
-        if (a >= 0.0f && c >= 0.0f && a + c <= 1.0f)
+        constexpr float kHair = 1.0e-4f;
+        if (a >= -kHair && c >= -kHair && a + c <= 1.0f + kHair)
         {
             out = {v[i].r, v[i].g, v[i].b, v[i].a};
             found = true;

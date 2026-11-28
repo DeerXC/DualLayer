@@ -31,5 +31,9 @@ jobs:
             echo "::warning file=data/town.dlt::data/town.dlt differs from what tools/layout/city_model.py export writes on this runner"
           fi
           cp "$RUNNER_TEMP/town.committed" data/town.dlt
+      - name: Toolchain
+        run: |
+          uname -m
+          g++ --version | head -n 1
       - name: Logic tests
         run: python tools/run_tests.py

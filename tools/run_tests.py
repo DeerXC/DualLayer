@@ -29,7 +29,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "tests"
 TOWN_FILE = ROOT / "data" / "town.dlt"
-FLAGS = ["-std=c++20", "-O2", "-Wall", "-Wextra", "-Wshadow", "-Wconversion", "-I", "src"] + (["-pthread"] if os.name != "nt" else [])
+# WHY -ffp-contract=off: g++ may fuse a multiply and an add into one rounding where the machine has an FMA instruction
+# (ARM, or x86 with -march=native); MSVC does not. The tests were written for the unfused result, so the same flag on
+# every machine keeps a run on a hosted runner the same as one on a development machine.
+FLAGS = ["-std=c++20", "-O2", "-ffp-contract=off", "-Wall", "-Wextra", "-Wshadow", "-Wconversion", "-I", "src"] + (["-pthread"] if os.name != "nt" else [])
 VERDICT = re.compile(r"checks? passed|\d+ passed, \d+ failed|^all .*passed", re.I)
 
 
