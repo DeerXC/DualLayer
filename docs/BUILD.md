@@ -8,13 +8,16 @@ Controls and checks apply to the current build. The lens, the beacons, the three
 2. **Windows SDK 10.0.26100.0** (the project pins this version; install it rather than retargeting).
 3. For the GPU debug layer of the Debug build: Windows **Settings > System > Optional features > Graphics Tools**. Without it
    the game still runs and the log says that the debug layer is not available.
+4. Python 3 (optional for the game; NumPy and Matplotlib for the town data, see Configuration). `tests\run_tests.ps1 -Changed` and
+   `tools\check.ps1 -Quick` ask it which tests a change can reach; without it every test runs.
 
 ## Build and run
 
 1. Open `DualLayer.slnx` (or `DualLayer.vcxproj`), choose `Debug | x64`, press **F5**. The working directory of the debugger
    is the project folder, so `shaders/` and `config/` are found.
 2. `build\x64\<Config>\DualLayer.exe` also runs from Explorer: a post-build step copies `shaders\` and `config\` next to it.
-3. The logic tests alone: `.\tests\run_tests.ps1` in a Developer PowerShell for VS; one test: `.\tests\run_tests.ps1 -Only town`.
+3. The logic tests alone: `.\tests\run_tests.ps1` in a Developer PowerShell for VS; one test: `.\tests\run_tests.ps1 -Only town`;
+   only the tests that the uncommitted changes can reach: `.\tests\run_tests.ps1 -Changed` (see Test and commit routine).
    The longest is `route` (a few minutes with /O2). None of them needs a window or a GPU. On any system with g++ or clang++:
    `python tools/run_tests.py` builds and runs all of them side by side (`--list` shows them, `-j 4` limits the builds, `--strict`
    makes warnings errors, `--export` writes `data/town.dlt` first; one test: `python tools/run_tests.py town`). `town`, `route`, `things`, `map`, `firstminute` and `lighting` read `data/town.dlt`;
@@ -80,12 +83,13 @@ no sense are pulled into a working range.
 | `[map]` | `reveal_radius` (15) | metres round the body that the map shows |
 | `[lighting]` | `shadows` (true), `shadow_size` (2048), `shadow_radius` (60), `shadow_strength` (0.85), `shadow_bias` (3), `shadow_normal` (1.5) | the shadow map of the sun and the moon: texels along a side (512 .. 4096), metres round the camera, how much of the direct light a shadow takes, the depth bias and the normal offset in texels |
 | | `point_lights` (true), `lamps_a` (0.55), `lamps_b` (1), `lantern` (1) | the lamps of the town, in A and in B, and the lantern of the traveller with the lamps that the bells light |
-| | `sun_a` (1), `sun_b` (0.8), `ambient_a` (1), `ambient_b` (0.9), `sun_scatter` (0.25) | the light of the sun and of the moon, the sky light of each, the haze toward the sun |
-| | `style` (1), `toon` (0.6), `cool` (0.75), `rim` (0.28), `lamp_rings` (0.6) | the style of the light (docs/DESIGN.md 6.3): its master (0 is the plain light), the sun in soft bands, the cool fill of the shadows, the rim of an edge, the lamps in rings |
+| | `sun_a` (1), `sun_b` (0.7), `ambient_a` (1), `ambient_b` (1.2), `sun_scatter` (0.25) | the light of the sun and of the moon, the sky light of each, the haze toward the sun |
+| | `style` (1), `toon` (1), `toon_edge` (1.5), `cool` (0.75), `rim` (0.28), `lamp_rings` (0.6) | the style of the light (docs/DESIGN.md 6.3 and 6.10): its master (0 is the plain light), the sun in hard tones and the soft edge of a step in pixels, the cool fill of the shadows, the rim of an edge, the lamps in rings |
 | | `clouds_a` (0.38), `clouds_b` (0.28), `wash` (0.9), `damp` (0.5), `haze` (0.6) | the shadows of drifting clouds in each moment, the painted blotches of the stone, the stone damp near the water, the far haze that leans to a colour |
 | | `shafts` (true), `shafts_a` (0.55), `shafts_b` (0.4), `shaft_steps` (14) | the rays of light in the air: on or off, their strength in each moment, the samples along a ray of sight (4 .. 32) |
 | | `grade` (1), `saturation` (1), `contrast` (1), `vignette` (1) | the grade of the picture: how far the darks and the lights lean to the colours of the look, and how much of its colour, contrast and dark corner is used |
 | | `exposure` (1), `knee` (0.78), `halos` (true), `halo_a` (0.35), `halo_b` (1) | the exposure and the knee of the soft shoulder; the glow round the lit lamps and its strength in each moment |
+| `[lines]` | `amount` (1), `width` (2), `crease_width` (1.2), `silhouette` (6), `crease` (30), `fade_near` (40), `fade_far` (80), `far_alpha` (0.5), `local` (0.35) | the ink lines (docs/DESIGN.md 6.10): the master (0: none), the width of an outline and of an inner edge in pixels at 1080 high, how far a pixel must stand in front of its neighbours to be on an outline, the turn in degrees from which a surface has an inner edge, the metres between which the inner edges fade out, the strength of an outline far away, how much of the picture's own colour is in the line. Read, and not yet drawn (the pass is step S2b) |
 
 The town is data made by the layout model. After a change of `tools/layout/city_model.py`, write it again (Python 3, numpy,
 matplotlib; about a minute):
@@ -114,7 +118,7 @@ It starts from any PowerShell, finds the project and the Visual Studio build too
    scripts `tools\apply_*` / `fix_*` / `docs_*` / `add_*`, files over 50 MB), and whether the hooks are on.
 
 The table at the end says `OK`, `WARN`, `SKIP` or `FAIL` per step; the exit code is 0 unless something failed. Switches:
-`-Fast`, `-SkipBuild`, `-SkipSmoke`.
+`-Quick` (the daily check, see Test and commit routine), `-Fast`, `-SkipBuild`, `-SkipSmoke`.
 
 To check and, only when everything passed, commit and push:
 
@@ -125,6 +129,40 @@ To check and, only when everything passed, commit and push:
 The message must be `type(scope): subject`, at most 72 characters, without a final period or a double quote. `git add -A`,
 `git audit` (at most 90 s), `git commit` (120 s) and `git push` (180 s) run in turn and stop at the first failure; a command
 that does not answer in its time is stopped and reported. `--no-verify` is never used.
+
+## Test and commit routine
+
+One routine for every change, in a Developer PowerShell for VS opened in the repository folder. A new window needs the execution
+policy once: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` (for good: `-Scope CurrentUser -ExecutionPolicy RemoteSigned`).
+
+| Step | Command | Expect |
+|---|---|---|
+| 1. Bring the change in | copy or unpack the files (an update package: `dl-update`, see Helper scripts), then `git status --short` | the changed files and nothing else |
+| 2. Test what the change can reach | `.\tests\run_tests.ps1 -Changed` (one test: `-Only style`) | `all N test(s) passed`; N is the number of tests the change can reach, possibly 0 |
+| 3. Check and commit | `.\tools\check.ps1 -Quick -Commit "type(scope): subject"` | every row `OK` (or `SKIP` with its reason), then `git commit` `OK` |
+| 4. Push | `git push` | the branch moves, and the hosted runner runs every logic test (`tests.yml`) |
+
+`-Quick` is the daily check. A test is reached by a change when a changed file is one of its sources or is included by them (at any
+depth), when its code names a changed file of `data/` or `config/`, or, for the town data, when anything under `tools/layout/`
+changed; `python tools/affected_tests.py --explain` says which tests a change reaches, and why. `-Quick` runs those tests, builds
+Debug and Release incrementally (the files that differ from the last commit are given the time of now first, so that an unzipped file
+with an old time stamp is built too), runs the game only when something in `src/`, `shaders/`, `config/`, `data/` or the project file
+changed, and then does what the full check does: the repository check, the audit and the hooks. It never skips on a doubt: when
+Python or git cannot tell what changed, every test, both builds and the game run.
+
+Use the full check (`.\tools\check.ps1 -Commit "type(scope): subject"`) before a milestone tag, after a change of `tools/layout`, the town
+data or `src/scene` (the route test takes a few minutes with /O2), and after a long break. The game run takes about 35 seconds and
+needs the keyboard and the mouse untouched.
+
+## Helper scripts outside the repository
+
+Two small scripts live in a private folder outside the repository, beside the commit hooks and the audit script, and are on the PATH.
+They are not part of the repository. Open a terminal in the repository; neither needs a path.
+
+| Command | Does |
+|---|---|
+| `dl-update` | puts an update package into the repository: takes the newest `DualLayer_Update_*.zip` of the Downloads folder (or the zip given as an argument; `--list` only shows what is inside), writes its files over the ones of the same name, runs the `_apply.py` of the package once when there is one (an edit made in place: a line of a table, a section of a config file) and shows `git status --short`. It refuses a package that would write outside the repository, and never commits or pushes |
+| `pack` | writes source files as text files `upload_part_NN.txt` in the folder `<repository>_upload` beside the repository, so that they can be attached to a message: every tracked and new file by default; `--changed` (what differs from the last commit), `--since REV`, `--only PATH...`, with `--add PATH` and `--skip GLOB`. It leaves out secrets, binary files and files over 2 MB, never writes inside the repository and removes the older parts of its folder first |
 
 ## Checked by eye
 
@@ -157,7 +195,7 @@ seen".
 | E-22 | The shadows | in A walk along the quay and up the sea stair and turn the camera slowly; Tab; walk and turn again | the shadows of A are long and low (the sun is low), those of B short and steeper (the moon is high); they do not crawl or shimmer when the body walks or the camera turns; their edges are soft; they end softly toward the far town, not with a line; the shadow of the traveller follows the traveller |
 | E-23 | The lamps | in B walk the sea stair and the lower street; E in A sets the lantern down, Tab, walk 6 m away, E calls it back | the lit lamps of the path are warm pools about 14 m across with a soft glow round each, in A all lamps are lit and weaker; the lantern lights the stone round the traveller and flickers; set down it stays with its circle; no lamp blinks on or off as the body walks; a bell rung lights its lamp on the mast and the tower under it |
 | E-24 | The exposure | stand with the sun of A in the picture, then in the light of a lamp of B; edit `[lighting]` (`exposure`, `knee`, `lamps_b`, `shadows = false`) and press F5 | no wall is a flat white patch; the pool of a lamp keeps its hue; the edits take effect at once and the game goes on; note the frame time on the laptop with and without shadows (the shadow pass draws the town a second time) |
-| E-25 | The style | start in B and look along the quay, Tab to A and look at the sea wall, then turn about 130 degrees toward the sun; walk to the lower town in A and in B; press L until the title bar says light plain, and back to full; edit `[lighting]` (`style`, `shafts`, `clouds_a`, `wash`, `grade`) and press F5 | in full the sun falls on the faces in soft bands, the shade side is bluer than the lit side, the traveller has a bright edge on the sun side, slow soft patches of cloud shadow cross the quay (the wall and the street below are under the same cloud) and the stone has soft blotches and, near the water, a darker, cooler foot; the lamps show soft rings with a whiter core; toward the sun rays of light show between the buildings and in the sky; the distance is lavender in A and teal in B; the corners are a little dark; in plain the same view is flat and warm or flat and cold; every landing, edge and interaction reads in both; no flicker or grain in the rays when the camera turns; the edits take effect at once; note the frame time on the laptop and the desktop with `shafts = false` and with `shaft_steps = 8` |
+| E-25 | The style | start in B and look along the quay, Tab to A and look at the sea wall, then turn about 130 degrees toward the sun; walk to the lower town in A and in B; press L until the title bar says light plain, and back to full; edit `[lighting]` (`style`, `shafts`, `clouds_a`, `wash`, `grade`) and press F5 | in full the sun falls on the faces in three hard tones, the shade side is bluer than the lit side, the traveller has a bright edge on the sun side, slow soft patches of cloud shadow cross the quay (the wall and the street below are under the same cloud) and the stone has soft blotches and, near the water, a darker, cooler foot; the lamps show soft rings with a whiter core; toward the sun rays of light show between the buildings and in the sky; the distance is lavender in A and teal in B; the corners are a little dark; in plain the same view is flat and warm or flat and cold; every landing, edge and interaction reads in both; no flicker or grain in the rays when the camera turns; the edits take effect at once; note the frame time on the laptop and the desktop with `shafts = false` and with `shaft_steps = 8` |
 | E-26 | The traveller and the lantern | start in B and look at the traveller from the front (turn the camera), from the side and from behind; walk, sprint (Shift) and stop; jump; press H; Tab to A; E sets the lantern down, look at it, E takes it up | the traveller is a rounded figure with a round hood and peak, a scarf, a bell of a coat, boots and a small pack with a bedroll, 1.72 m high; the feet are on the floor in every step and the body bobs a little; the knee of the leg that swings forward bends; the scarf and the coat vent stream behind at a run; the lantern hangs from the ring in the right hand, sways with the stride and never touches the floor; with H the arm raises it; its glass glows, the flame inside wavers, the glow round it is soft and does not cut into the walls of a street; the light on the stone is amber and flickers and moves with the sway; set down, it hangs from the arm of a small iron post with the glass at the centre of the circle, and is taken up again; the traveller never disappears (the table of objects has room: 512) |
 | E-27 | The map | (after `python tools/layout/city_model.py export`, which writes the plan again) in a new game press M at once; Tab; click DIFFERENCE and MAP; click ZOOM + three times, move with the arrow keys, click CENTER, then ZOOM - until the whole town shows; press T and E several times at different places, in A and in B; walk a few streets, open the map again; solve the first puzzle (the sea gate) and open the map | the whole town is on the paper at once under a soft cloud of fog (violet in A, teal in B), with only a small clear patch round the player; nine rings with a question mark show in the fog, the next one stronger; no building, street or water is inked under the fog; the ink is smooth: no staircase edges, no stripes of squares; Tab swaps the sheet and the colour of the fog; the buttons act; zoom stops at 4 x and at 1 x; the window cannot leave the town; the shape of the next mark is shown on the MARK button; up to ten marks, each in the colour of the sheet it was set on and paler on the other sheet; walking clears the fog behind the traveller and the cleared part stays; no long thin stripes of brown across the town; after the sea gate its ring is gone, its district is lit and the gate shows a pale outline; push the canal crate and open the map: the crate is at its new place (a pale outline); lower the lift in A and look at B: its stairs show; the map opens at once on a laptop (note the frame time while it is open and while moving the window) |
 | E-28 | The fabric of the town | after `python tools/layout/city_model.py export`: from the market plaza walk the garden lane to its cistern and its terrace; from the east stair take the mill lane to its terrace; walk the lower street, the lower east lane and the quays of the locks; look at the town from the west bastion and from the quay; Tab | every house has its door on a street, a lane, a quay or the plaza, and no house stands in the middle of a block; the garden lane climbs from the plaza without a jump to a cistern (a stone drum: a wooden lid in A, the lid fallen in in B) and a terrace with a parapet; the mill lane leaves the east stair and ends on a terrace over the five basins; opening the map on either terrace shows the town round it; olives stand only on open ground, none on a street or at a door; net racks west of the lower street (nets in A, bare rails in B); at the first frame the three lamps of the mast are still in sight |

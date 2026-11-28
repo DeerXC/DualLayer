@@ -3,12 +3,44 @@
 # by itself):
 #   .\tests\run_tests.ps1               every test
 #   .\tests\run_tests.ps1 -Only stage   one test (the name in the table below)
+#   .\tests\run_tests.ps1 -Changed      only the tests that the uncommitted changes can reach (tools/affected_tests.py: what
+#                                       git says changed, and what each test includes); if that cannot be told, every test runs
 # The tests are header-only except where Sources lists a .cpp of the game. /WX (warnings are errors) is on for the tests that
 # have compiled clean on both machines; for the others a warning is printed and tools\check.ps1 reports it as WARN.
 # Exit code: 0 when every test built and passed, otherwise the exit code of the first failure.
-param([string]$Only = "")
+param([string]$Only = "", [switch]$Changed)
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path build\tests | Out-Null
+
+# -Changed: ask tools/affected_tests.py which tests the changes can reach. A doubt never skips a test: when Python or git or the
+# table cannot answer, every test runs. $selected stays $null for "every test"; an empty array means "none is affected".
+$selected = $null
+if ($Changed -and $Only -eq "")
+{
+    $helperOk = $false
+    $answer = @()
+    try
+    {
+        $answer = @(& python (Join-Path $PSScriptRoot "..\tools\affected_tests.py"))
+        $helperOk = ($LASTEXITCODE -eq 0)
+    }
+    catch
+    {
+        $helperOk = $false
+    }
+    if ($helperOk)
+    {
+        foreach ($line in $answer)
+        {
+            if ($line -like "# *") { Write-Host ("   -Changed: " + $line.Substring(2)) }
+        }
+        $selected = @($answer | Where-Object { $_ -and ($_ -notlike "# *") })
+    }
+    else
+    {
+        Write-Host "   -Changed: the helper could not tell (Python, git or the table): every test runs" -ForegroundColor Yellow
+    }
+}
 
 # Name, sources, extra flags. /O2 for the tests that search or simulate a lot (they take seconds without it).
 $tests = @(
@@ -60,6 +92,7 @@ $ran = 0
 foreach ($t in $tests)
 {
     if ($Only -ne "" -and $t.Name -ne $Only) { continue }
+    if ($null -ne $selected -and $selected -notcontains $t.Name) { continue }
     $exe = "build\tests\test_" + $t.Name + ".exe"
     Write-Host ("== test " + $t.Name) -ForegroundColor Cyan
     $code = Build-One $t $exe
@@ -70,7 +103,7 @@ foreach ($t in $tests)
     if ($code -ne 0) { Write-Host ("test " + $t.Name + ": FAILED") -ForegroundColor Red; exit $code }
     $ran++
 }
-if ($Only -eq "")
+if ($Only -eq "" -and $null -eq $selected)
 {
     foreach ($t in $tools)
     {
@@ -79,6 +112,15 @@ if ($Only -eq "")
         if ($code -ne 0) { Write-Host ("tool " + $t.Name + ": the build failed") -ForegroundColor Red; exit $code }
     }
 }
-if ($ran -eq 0) { Write-Host "no test is called '$Only'" -ForegroundColor Red; exit 2 }
+if ($ran -eq 0)
+{
+    if ($null -ne $selected)
+    {
+        Write-Host "all 0 test(s) passed (the changes reach none of them)" -ForegroundColor Green
+        exit 0
+    }
+    Write-Host "no test is called '$Only'" -ForegroundColor Red
+    exit 2
+}
 Write-Host ("all {0} test(s) passed" -f $ran) -ForegroundColor Green
 exit 0

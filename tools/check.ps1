@@ -1,8 +1,12 @@
 # check.ps1 - one command for everything that a machine can check, so that only the look and the feel are left for the eye.
 #   .\tools\check.ps1                                   run it all, change nothing
+#   .\tools\check.ps1 -Quick                            the daily check: only the tests that the changes can reach, incremental builds,
+#                                                       no game run when nothing in src, shaders, config or data changed
 #   .\tools\check.ps1 -Fast                             build incrementally instead of a full rebuild (quicker, see below)
 #   .\tools\check.ps1 -Commit "feat(stage): ..."        ... and, only if everything passed: git add, git audit, git commit
 #   .\tools\check.ps1 -Commit "feat(stage): ..." -Push  ... and git push
+#   -Quick and -Commit go together. Use the full check (no -Quick) before a milestone tag and after a change of tools/layout, the
+#   town data or src/scene; the hosted runner runs every logic test at each push in any case.
 # Run it from any PowerShell in any folder: it finds the project and the Visual Studio build tools by itself.
 # Steps:  1 build tools   2 logic tests (tests\run_tests.ps1)   3 full rebuild of Debug and Release, and a check that the exe
 #         is the one just built   4 the game: it starts on the quay of the harbour, walks, jumps, switches walking / flying,
@@ -13,6 +17,7 @@
 #         run tests the previous version (it happened on 2026-11-21). -Fast skips the rebuild; the time check still runs.
 # Output:  a table at the end; the exit code is 0 only when nothing failed.
 param(
+    [switch]$Quick,
     [switch]$Fast,
     [switch]$SkipBuild,
     [switch]$SkipSmoke,
@@ -25,6 +30,22 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $results = New-Object System.Collections.ArrayList
 $exe = Join-Path $root "build\x64\Debug\DualLayer.exe"
+# -Quick: the files that differ from the last commit (staged, unstaged, new and not ignored). When git cannot say, everything counts as
+# changed: a doubt never skips a step.
+$changedKnown = $false
+$changedFiles = @()
+if ($Quick -and (Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $root ".git")))
+{
+    $diffNames = @(& git diff --name-only HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0)
+    {
+        $newNames = @(& git ls-files --others --exclude-standard 2>$null)
+        $changedFiles = @($diffNames + $newNames | Where-Object { $_ })
+        $changedKnown = $true
+    }
+}
+$runtimeFiles = @($changedFiles | Where-Object { $_ -match '^(src|shaders|config|data)/' -or $_ -eq 'DualLayer.vcxproj' })
+$runtimeChanged = (-not $changedKnown) -or ($runtimeFiles.Count -gt 0)
 
 function Add-Result([string]$name, [string]$status, [string]$detail)
 {
@@ -95,9 +116,11 @@ Write-Host "== 2. logic tests" -ForegroundColor Cyan
 if ($haveCl)
 {
     # WHY *>&1: run_tests.ps1 writes with Write-Host (the information stream); 2>&1 alone would collect none of its lines
-    $testOut = & .\tests\run_tests.ps1 *>&1 | ForEach-Object { "$_" }
+    $testArgs = @{}
+    if ($Quick) { $testArgs["Changed"] = $true } # WHY a hashtable: an array would pass "-Changed" as text, not as the switch
+    $testOut = & .\tests\run_tests.ps1 @testArgs *>&1 | ForEach-Object { "$_" }
     $testExit = $LASTEXITCODE
-    $summary = @($testOut | Where-Object { $_ -match "^== |checks passed|FAIL|error C|warning C|test\(s\) passed" })
+    $summary = @($testOut | Where-Object { $_ -match "^== |checks passed|FAIL|error C|warning C|test\(s\) passed|-Changed" })
     $summary | ForEach-Object { Write-Host "   $_" }
     $testWarnings = @($testOut | Where-Object { $_ -match "warning C\d+" })
     # WHY both: the exit code of a script can be lost on the way; the last line is the script's own word that all passed
@@ -105,6 +128,13 @@ if ($haveCl)
     $failLines = @($testOut | Where-Object { $_ -match "the build failed|: FAILED|missing source|FAIL line" })
     if ($testExit -ne 0 -or -not $allPassed -or $failLines.Count -gt 0) { Add-Result "logic tests" "FAIL" ("run_tests.ps1 exit code {0}, {1} failure line(s); read the lines above" -f $testExit, $failLines.Count) }
     elseif ($testWarnings.Count -gt 0) { Add-Result "logic tests" "WARN" ("all passed, but {0} compiler warning(s): fix them, then /WX can be turned on for that test" -f $testWarnings.Count) }
+    elseif ($Quick)
+    {
+        $count = "0"
+        $line = @($testOut | Where-Object { $_ -match "^all (\d+) test\(s\) passed" }) | Select-Object -First 1
+        if ($line -match "^all (\d+) test") { $count = $Matches[1] }
+        Add-Result "logic tests" "OK" ("-Quick: {0} test(s) that the changes can reach passed, 0 compiler warnings; the others cannot see the changes" -f $count)
+    }
     else { Add-Result "logic tests" "OK" "every test passed, 0 compiler warnings" }
 }
 else
@@ -142,12 +172,29 @@ elseif (-not $haveMsbuild) { Add-Result "build" "SKIP" "no build tools" }
 else
 {
     $target = "Rebuild"
-    if ($Fast) { $target = "Build" }
+    if ($Fast -or $Quick) { $target = "Build" }
+    if ($Quick -and $changedKnown)
+    {
+        # WHY touch: an unzipped file can carry an old time stamp, and an incremental build would keep the old object. The files that
+        # differ from the last commit get the time of now, so that msbuild sees exactly them as changed (git does not look at times).
+        $now = Get-Date
+        foreach ($f in $runtimeFiles)
+        {
+            $p = Join-Path $root $f
+            if (Test-Path $p -PathType Leaf) { (Get-Item $p).LastWriteTime = $now }
+        }
+    }
     Build-Config "Debug" $target
     Build-Config "Release" $target
 }
 # the exe that step 4 runs must be newer than every source file: otherwise it is an old program
-if (Test-Path $exe)
+if ($Quick -and (Test-Path $exe))
+{
+    # the files that changed were touched and built incrementally above; a time comparison with files that were not built (a shader, a
+    # header that no object includes) would only be noise
+    Add-Result "exe is current" "OK" "-Quick: the changed files were touched and built incrementally"
+}
+elseif (Test-Path $exe)
 {
     $exeTime = (Get-Item $exe).LastWriteTime
     $newest = Get-ChildItem -Recurse -File -Path src, shaders -Include *.cpp, *.h, *.hlsl, *.hlsli | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -227,7 +274,13 @@ $standY = -4.65
 Write-Host "== 4. the game (do not touch the keyboard or the mouse)" -ForegroundColor Cyan
 $jumpTried = $false
 $logPath = Join-Path $root "logs\dual.log"
-if ($SkipSmoke) { Add-Result "game" "SKIP" "-SkipSmoke" }
+$smokeReason = "-SkipSmoke"
+if ($Quick -and -not $runtimeChanged)
+{
+    $SkipSmoke = $true
+    $smokeReason = "-Quick: nothing in src, shaders, config or data changed"
+}
+if ($SkipSmoke) { Add-Result "game" "SKIP" $smokeReason }
 elseif (Failed) { Add-Result "game" "SKIP" "an earlier step failed" }
 elseif (-not (Test-Path $exe)) { Add-Result "game" "SKIP" "no Debug build found" }
 else
