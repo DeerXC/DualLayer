@@ -6,6 +6,8 @@
 //            adapter is the discrete one. Choose another with --adapter N or [render] adapter = N.
 // Depth:     (M1) a D32_FLOAT depth buffer the size of the back buffer, cleared to 1.0 (far) every frame. The nearer
 //            surface wins the depth test (comparison LESS). It is made again with the back buffer on every resize.
+//            Since 2026-11-28 (docs/DESIGN.md 6.10, S2b) it is typeless (R32_TYPELESS) with a D32_FLOAT depth view and
+//            can be read in a shader: the ink lines read it (render/Models.cpp, DrawLines).
 //            Reverse-Z was considered and not adopted (docs/CONVENTIONS.md, "Depth"); the clear value and the
 //            comparison are kept in ONE place (BeginFrame, Models::CreateStates).
 // Threading: main thread only (it is also the render thread).

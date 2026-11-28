@@ -153,8 +153,9 @@ struct StyleParams
     float shaftSteps; // how many samples along a ray of sight
     float wash;       // 0 .. 1: the painted blotches of the stone (PaintAlbedo)
     float damp;       // 0 .. 1: how much darker and cooler the stone is near the water (PaintAlbedo)
-    float3 farTint;   // what the haze is multiplied by far away (StyleHaze): the distance leans toward this colour
+    float3 farTint;   // the colour whose hue the haze leans to far away (StyleHaze); only its hue counts
     float farAmount;  // 0 .. 1: how far
+    float farFog;     // 0 .. 1: the extra fog of the far distance (StyleFarFog): the far hills and the sea go pale
     float toonEdge;   // UNITS: cosine: the soft edge of a step of the sun (ToonRampEdge); 0: hard. The pixel shader sets it from fwidth
 };
 
@@ -251,10 +252,28 @@ float3 PaintAlbedo(float3 albedo, float3 p, float3 n, float lowMist, StyleParams
     return albedo * shift * damp * value;
 }
 
-// The haze toward the horizon, leaning toward the colour `farTint` the farther it is: nothing within 40 m, all of it from 260 m.
+// The haze toward the horizon, leaning toward the HUE of `farTint` the farther it is: nothing within 24 m, all of it from 200 m (6.10: the
+// middle distance, the town seen from the air, is already cooler than what is near, and the far hills are lavender and not orange). The
+// brightness of the haze is kept: only its hue moves. (A multiplier cannot do it: an orange horizon would stay orange.)
 float3 StyleHaze(float3 haze, float metres, StyleParams s)
 {
-    return haze * lerp(float3(1.0f, 1.0f, 1.0f), s.farTint, smoothstep(40.0f, 260.0f, metres) * s.farAmount);
+    const float3 grey = float3(0.2126f, 0.7152f, 0.0722f);
+    const float amount = smoothstep(24.0f, 200.0f, metres) * s.farAmount;
+    const float3 leaning = s.farTint * (dot(haze, grey) / max(dot(s.farTint, grey), 1.0e-4f));
+    return lerp(haze, leaning, amount);
+}
+
+// More fog far away than the fog of the model has (6.10, aerial perspective): none within 100 m, all of `farFog` from 280 m. The distance
+// goes paler, as in the pictures that the look follows; the near and the middle are left as they are.
+float StyleFarFog(float metres, StyleParams s)
+{
+    return smoothstep(100.0f, 280.0f, metres) * s.farFog;
+}
+
+// The fog of a point: the fog of the model and the far fog of the style, one over the other (a part of the light is lost in each).
+float StyleFog(float fog, float metres, StyleParams s)
+{
+    return 1.0f - (1.0f - fog) * (1.0f - StyleFarFog(metres, s));
 }
 
 // What a surface looks like in the style: the light that is the sum of the plain one (the sky light, the sun in hard steps, the highlight, the

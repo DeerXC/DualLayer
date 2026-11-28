@@ -26,10 +26,11 @@
 //          sun-less side takes a cool fill, clouds drift their shadows over the town, an edge has a rim, a lamp has rings and a warm
 //          edge, rays of light stand in the air (LightShafts: a march along the ray of sight through the shadow map), and the picture is
 //          graded (split tone, colour, a soft dark corner); the stone is painted with soft blotches and is damp near the water; the far
-//          haze leans to a colour. All of it comes from the seven registers at the end of cbuffer Frame (gradeParams2 and the six after it), set by
+//          haze leans to a colour and the far distance has more fog (StyleFarFog). All of it comes from the eight registers at the end of
+//          cbuffer Frame (gradeParams2 and the seven after it), set by
 //          render/LightingSettings.h (MakeStyle); with all of them 0 the light is the plain one (the debug view "plain").
 // KEEP IN SYNC: struct FrameConstants, struct ObjectConstants and struct LampConstants in src/render/Models.cpp (field for field;
-//          464, 160 and 1040 bytes), MAX_LAMPS with kMaxLamps in src/render/Lights.h, struct BatchVertex in
+//          480, 160 and 1040 bytes), MAX_LAMPS with kMaxLamps in src/render/Lights.h, struct BatchVertex in
 //          src/render/StaticBatch.h (56 bytes) and the batched input layout in Models.cpp.
 
 #include "common.hlsli"
@@ -69,6 +70,7 @@ cbuffer Frame : register(b0)
     float4 styleLight;      // x: the shadow of the clouds, y: the rings of a lamp, z: strength of the light shafts, w: their samples
     float4 styleFar;        // rgb: what the haze is multiplied by far away, a: how far
     float4 styleMisc;       // x: the painted blotches of the stone, y: the damp near the water, z: the contrast, w: the soft edge of a step of the sun, in pixels (0: 1.5)
+    float4 styleMore;       // x: the extra fog of the far distance, yzw: reserved
 };
 
 cbuffer Lamps : register(b2)
@@ -104,6 +106,7 @@ StyleParams Style()
     s.damp = styleMisc.y;
     s.farTint = styleFar.rgb;
     s.farAmount = styleFar.a;
+    s.farFog = styleMore.x;
     s.toonEdge = 0.0; // PSMain sets it from the change of the cosine over a pixel
     return s;
 }
@@ -430,8 +433,11 @@ float4 WaterPS(VSOut input, float3 n, float3 l, float3 v)
         alpha = opacity * saturate(lerp(1.0 - clear, 1.0, fresnel) + crest * 0.5 + streak * 0.5);
     }
     float3 haze;
-    const float fog = SceneFog(p, haze);
-    haze = StyleHaze(haze, length(p - eye), Style());
+    const float fogOfModel = SceneFog(p, haze);
+    const StyleParams waterStyle = Style();
+    const float waterMetres = length(p - eye);
+    haze = StyleHaze(haze, waterMetres, waterStyle);
+    const float fog = StyleFog(fogOfModel, waterMetres, waterStyle);
     const float3 shafts = LightShafts((p - eye) / max(length(p - eye), 1.0e-4), length(p - eye), pixel) * (1.0 - fog);
     return float4(Finish(lerp(colour, haze, fog) + shafts, NdcOf(p)), alpha);
 }
@@ -545,10 +551,11 @@ float4 PSMain(VSOut input) : SV_Target
     }
     // fog: what is far melts into the background; a thing that glows is seen through more of it (a lamp in the mist)
     float3 haze;
-    const float fog = SceneFog(input.worldPosition, haze) * (1.0 - 0.75 * saturate(input.knobs.w));
+    const float fogOfModel = SceneFog(input.worldPosition, haze);
     const float3 offset = input.worldPosition - eye;
     const float metres = length(offset);
     haze = StyleHaze(haze, metres, style);
+    const float fog = StyleFog(fogOfModel, metres, style) * (1.0 - 0.75 * saturate(input.knobs.w));
     // the light shafts: the light of the sun scattered by the air between the eye and this point, added in front of the fog
     const float3 shafts = LightShafts(offset / max(metres, 1.0e-4), metres, input.position.xy) * (1.0 - fog);
     return float4(Finish(lerp(shaded, haze, fog) + shafts, NdcOf(input.worldPosition)), 1.0);

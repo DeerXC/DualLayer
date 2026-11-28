@@ -199,14 +199,19 @@ bool Device::CreateDepthBuffer(int width, int height)
     desc.Height = static_cast<UINT>(height);
     desc.MipLevels = 1;
     desc.ArraySize = 1;
-    desc.Format = DXGI_FORMAT_D32_FLOAT;
+    // WHY typeless and readable: the ink lines (render/Models.cpp, DrawLines) read this depth in a pixel shader;
+    // the depth view below still sees it as D32_FLOAT, so nothing else changes.
+    desc.Format = DXGI_FORMAT_R32_TYPELESS;
     desc.SampleDesc.Count = 1;
     desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
     HRESULT hr = m_device->CreateTexture2D(&desc, nullptr, &m_depthTexture);
     if (SUCCEEDED(hr))
     {
-        hr = m_device->CreateDepthStencilView(m_depthTexture.Get(), nullptr, &m_depthView);
+        D3D11_DEPTH_STENCIL_VIEW_DESC depthView{};
+        depthView.Format = DXGI_FORMAT_D32_FLOAT;
+        depthView.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        hr = m_device->CreateDepthStencilView(m_depthTexture.Get(), &depthView, &m_depthView);
     }
     if (FAILED(hr))
     {

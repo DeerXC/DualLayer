@@ -27,8 +27,8 @@ struct LineSettings
     float silhouette = 6.0f;  ///< 2 .. 40: how far a pixel must stand in front of its neighbours to be on an outline
     float crease = 30.0f;     ///< 10 .. 80: degrees: an inner edge starts here and is full 15 more (a 50 turn draws)
     float fadeNear = 40.0f;   ///< UNITS: metres: the inner edges start to fade here
-    float fadeFar = 80.0f;    ///< UNITS: metres: and are gone here; the outlines thin from here to five times it
-    float farAlpha = 0.5f;    ///< 0 .. 1: the strength of an outline at five times fadeFar
+    float fadeFar = 70.0f;    ///< UNITS: metres: and are gone here; the outlines thin from here to five times it
+    float farAlpha = 0.3f;    ///< 0 .. 1: the strength of an outline at five times fadeFar
     float local = 0.35f;      ///< 0 .. 1: how much of the picture's own colour is in the line (0: the moment's)
 };
 
@@ -70,15 +70,17 @@ inline LineSettings ReadLineSettings(const Config& c)
     return Sanitize(s);
 }
 
-/// What the line pass reads (the shader's constant buffer, four registers of four floats each and a colour).
+/// What the line pass reads (the shader's constant buffer, five registers of four floats). The view ray of a pixel is
+/// (sx * width.z, sy * width.w, 1) for sx and sy in -1 .. 1 (shaders/lines.hlsl).
 struct LineConstants
 {
     float depth[4];  ///< x: near plane, y: far plane (metres), z: PixelSlope, w: jump (relative inverse depth)
     float levels[4]; ///< x: silhouette level, y, z: crease start and full (1 - cos of the turn), w: master amount
     float fade[4];   ///< x: crease fade near, y: crease fade far (metres), z: far alpha, w: local mix
-    float width[4];  ///< x: outline width, y: inner edge width (pixels of the real picture), z, w: reserved
+    float width[4];  ///< x, y: outline and inner edge width (pixels), z, w: tan of half the view across and up
     float ink[4];    ///< x, y, z: the colour of the line (linear), w: reserved
 };
+static_assert(sizeof(LineConstants) == 80, "cbuffer Lines of shaders/lines.hlsl is 5 registers of 16 bytes");
 
 /// The colour of the line of a moment as the design sets it (6.10), sRGB: A a warm brown-black, B an indigo-black.
 inline void LineColorOf(int layer, float srgb[3])
@@ -93,10 +95,11 @@ inline float LineLinear(float s)
     return s <= 0.04045f ? s / 12.92f : std::pow((s + 0.055f) / 1.055f, 2.4f);
 }
 
-/// The registers for a picture of `heightPixels`, drawn with a projection whose element [1][1] is `projection11`, of
-/// the moment `layer` (0 = A, 1 = B). `master` is the style master of [lighting] (0: the plain view, no line).
+/// The registers for a picture of `heightPixels`, drawn with a projection whose elements [0][0] and [1][1] are
+/// `projection00` and `projection11`, of the moment `layer` (0 = A, 1 = B). `master` is the style master of [lighting]
+/// (0: the plain view, no line). A `projection00` of 0 or less is taken as the one of a square picture.
 inline LineConstants MakeLines(const LineSettings& in, int layer, float master, float projection11, float heightPixels,
-                               float nearZ, float farZ)
+                               float nearZ, float farZ, float projection00 = 0.0f)
 {
     const LineSettings s = Sanitize(in);
     const float px = std::max(1.0f, heightPixels / 1080.0f);
@@ -116,6 +119,8 @@ inline LineConstants MakeLines(const LineSettings& in, int layer, float master, 
     c.fade[3] = s.local;
     c.width[0] = s.width * px;
     c.width[1] = s.creaseWidth * px;
+    c.width[2] = 1.0f / (projection00 > 0.0f ? projection00 : projection11);
+    c.width[3] = 1.0f / projection11;
     float rgb[3];
     LineColorOf(layer == 0 ? 0 : 1, rgb);
     c.ink[0] = LineLinear(rgb[0]);

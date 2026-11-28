@@ -4,6 +4,7 @@
 #include "core/Log.h"
 #include "render/GpuDebug.h"
 #include "render/Lights.h"
+#include "render/Projection.h"
 #include "render/ShaderCompiler.h"
 #include "render/ShadowMath.h"
 #include "render/StaticBatch.h"
@@ -33,6 +34,7 @@ namespace
 
 constexpr char kModelsShaderPath[] = "shaders/models.hlsl";
 constexpr char kRippleShaderPath[] = "shaders/ripple.hlsl";
+constexpr char kLinesShaderPath[] = "shaders/lines.hlsl";
 constexpr int kDetailLevels[] = {8, 16, 32, 64};
 constexpr float kShadowHalfDepth =
     160.0f; // UNITS: metres: the shadow box reaches this far toward the light and away from it
@@ -72,7 +74,8 @@ struct FrameConstants
     XMFLOAT4 styleHigh; // rgb: the grade of the lights, a: how much
     XMFLOAT4 styleLight; // x: the shadow of the clouds, y: the rings of a lamp, z: the light shafts, w: their samples
     XMFLOAT4 styleFar;   // rgb: what the haze is multiplied by far away, a: how far
-    XMFLOAT4 styleMisc;  // x: the painted blotches of the stone, y: the damp near the water, zw: reserved
+    XMFLOAT4 styleMisc;  // x: the painted blotches, y: the damp near the water, z: the contrast, w: the edge (pixels)
+    XMFLOAT4 styleMore;  // x: the extra fog of the far distance, yzw: reserved
 };
 
 struct ObjectConstants
@@ -104,7 +107,7 @@ struct LampConstants
     float tint[kMaxLamps][4]; // rgb: colour times strength (linear)
 };
 
-static_assert(sizeof(FrameConstants) == 464, "cbuffer Frame is 29 registers of 16 bytes");
+static_assert(sizeof(FrameConstants) == 480, "cbuffer Frame is 30 registers of 16 bytes");
 static_assert(sizeof(LampConstants) == 1040, "cbuffer Lamps is 65 registers of 16 bytes");
 static_assert(sizeof(ObjectConstants) == 160, "cbuffer Object is 10 registers of 16 bytes");
 static_assert(sizeof(RippleConstants) == 48, "cbuffer Ripple is 3 registers of 16 bytes");
@@ -283,6 +286,7 @@ bool Models::Init(ID3D11Device* device, int segments)
     m_segments = std::clamp(segments, 6, 128);
     m_themes = DefaultThemes();      // LoadThemes may change them from the config afterwards
     m_lighting = LightingSettings{}; // LoadLighting may change them from the config afterwards
+    m_lines = LineSettings{};
     m_ripple.SetSeconds(kDefaultRippleSeconds);
     m_rippleWidth = kDefaultRippleWidth;
     m_rippleDistortion = kDefaultRippleDistortion;
@@ -390,6 +394,8 @@ bool Models::Init(ID3D11Device* device, int segments)
         Shutdown();
         return false;
     }
+    // the ink lines: a pass that cannot be made is not an error either: the log says so and the picture has no lines
+    CreateLineResources();
     // the shadow map: a map that cannot be made is not an error, the shadows are off and the log says so
     if (m_lighting.shadows && !CreateShadowMap(m_lighting.shadowSize))
     {
@@ -427,6 +433,11 @@ void Models::Shutdown()
     m_shadowRaster.Reset();
     m_additiveBlend.Reset();
     m_lampBuffer.Reset();
+    m_screenDepthView.Reset();
+    m_screenDepth.Reset();
+    m_lineBlend.Reset();
+    m_lineBuffer.Reset();
+    m_linePixelShader.Reset();
     m_noDepthState.Reset();
     m_noCullState.Reset();
     m_sampler.Reset();
@@ -678,6 +689,161 @@ bool Models::CreateRippleResources()
     return true;
 }
 
+// The ink lines (6.10): the pixel shader of shaders/lines.hlsl (the vertex shader is the one of the ripple), its
+// constants and the blend that lays the ink over the picture: result = source.rgb + picture * (1 - source.a). Nothing
+// else needs them: when they cannot be made the lines are off and the log says why.
+bool Models::CreateLineResources()
+{
+    m_linePixelShader.Reset();
+    m_lineBuffer.Reset();
+    m_lineBlend.Reset();
+    ComPtr<ID3DBlob> psBlob;
+    if (!CompileShader(kLinesShaderPath, "PSMain", "ps_5_0", psBlob))
+    {
+        DL_LOG_ERROR("Models", "the ink lines are off: %s did not compile", kLinesShaderPath);
+        return false;
+    }
+    HRESULT hr =
+        m_device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &m_linePixelShader);
+    if (SUCCEEDED(hr))
+    {
+        D3D11_BUFFER_DESC cb{};
+        cb.Usage = D3D11_USAGE_DYNAMIC;
+        cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        cb.ByteWidth = sizeof(LineConstants);
+        hr = m_device->CreateBuffer(&cb, nullptr, &m_lineBuffer);
+    }
+    if (SUCCEEDED(hr))
+    {
+        D3D11_BLEND_DESC blend{};
+        blend.RenderTarget[0].BlendEnable = TRUE;
+        blend.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+        blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+        blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+        blend.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        blend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        hr = m_device->CreateBlendState(&blend, &m_lineBlend);
+    }
+    if (FAILED(hr))
+    {
+        DL_LOG_ERROR("Models", "the ink lines are off: their shader objects failed (0x%08X)",
+                     static_cast<unsigned>(hr));
+        m_linePixelShader.Reset();
+        m_lineBuffer.Reset();
+        m_lineBlend.Reset();
+        return false;
+    }
+    SetDebugName(m_linePixelShader.Get(), "Models.Lines.PS");
+    SetDebugName(m_lineBuffer.Get(), "Models.Lines.CB");
+    SetDebugName(m_lineBlend.Get(), "Models.Lines.BlendState");
+    return true;
+}
+
+// The shader view of the depth texture of a picture: the two ripple pictures have theirs; the one of the screen (the
+// depth of Device) is made the first time and kept while that texture lives. nullptr when it cannot be read.
+ID3D11ShaderResourceView* Models::DepthViewOf(ID3D11Resource* depth)
+{
+    for (const LayerTarget& target : m_targets)
+    {
+        if (target.depth.Get() == depth && target.depthShaderView)
+        {
+            return target.depthShaderView.Get();
+        }
+    }
+    if (m_screenDepth.Get() == depth && m_screenDepthView)
+    {
+        return m_screenDepthView.Get();
+    }
+    m_screenDepthView.Reset();
+    m_screenDepth.Reset();
+    ComPtr<ID3D11Texture2D> texture;
+    if (FAILED(depth->QueryInterface(IID_PPV_ARGS(&texture))))
+    {
+        return nullptr;
+    }
+    D3D11_TEXTURE2D_DESC desc{};
+    texture->GetDesc(&desc);
+    if (desc.Format != DXGI_FORMAT_R32_TYPELESS || (desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0)
+    {
+        return nullptr; // a depth buffer of another kind (Device.cpp makes the one of the screen typeless and readable)
+    }
+    D3D11_SHADER_RESOURCE_VIEW_DESC read{};
+    read.Format = DXGI_FORMAT_R32_FLOAT;
+    read.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    read.Texture2D.MostDetailedMip = 0;
+    read.Texture2D.MipLevels = 1;
+    if (FAILED(m_device->CreateShaderResourceView(depth, &read, &m_screenDepthView)))
+    {
+        return nullptr;
+    }
+    m_screenDepth = depth;
+    SetDebugName(m_screenDepthView.Get(), "Models.Lines.ScreenDepth.SRV");
+    return m_screenDepthView.Get();
+}
+
+void Models::DrawLines(ID3D11DeviceContext* context, int layer, const XMMATRIX& projection)
+{
+    const float master = m_debugView == kDebugViewPlain ? 0.0f : m_lighting.style; // the plain view has no line
+    if (!m_linePixelShader || !m_lineBuffer || !m_lineBlend || !(master > 0.0f) || !(m_lines.amount > 0.0f))
+    {
+        return;
+    }
+    ComPtr<ID3D11RenderTargetView> target;
+    ComPtr<ID3D11DepthStencilView> depthView;
+    context->OMGetRenderTargets(1, target.GetAddressOf(), depthView.GetAddressOf());
+    if (!target || !depthView)
+    {
+        return;
+    }
+    ComPtr<ID3D11Resource> depthResource;
+    depthView->GetResource(&depthResource);
+    ID3D11ShaderResourceView* depthRead = DepthViewOf(depthResource.Get());
+    ComPtr<ID3D11Texture2D> depthTexture;
+    if (depthRead == nullptr || FAILED(depthResource.As(&depthTexture)))
+    {
+        if (!m_lineDepthWarned)
+        {
+            m_lineDepthWarned = true;
+            DL_LOG_WARN("Models", "the ink lines are off: the depth buffer cannot be read in a shader");
+        }
+        return;
+    }
+    D3D11_TEXTURE2D_DESC depthDesc{};
+    depthTexture->GetDesc(&depthDesc);
+    const LineConstants constants =
+        MakeLines(m_lines, layer, master, XMVectorGetY(projection.r[1]), static_cast<float>(depthDesc.Height),
+                  kNearPlane, kFarPlane, XMVectorGetX(projection.r[0]));
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (FAILED(context->Map(m_lineBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        return;
+    }
+    std::memcpy(mapped.pData, &constants, sizeof(constants));
+    context->Unmap(m_lineBuffer.Get(), 0);
+    // the depth cannot be read while it is bound for writing: the picture is bound without it for this pass
+    ID3D11RenderTargetView* colour = target.Get();
+    context->OMSetRenderTargets(1, &colour, nullptr);
+    context->OMSetBlendState(m_lineBlend.Get(), nullptr, 0xffffffff);
+    context->OMSetDepthStencilState(m_noDepthState.Get(), 0);
+    context->RSSetState(m_noCullState.Get());
+    context->IASetInputLayout(nullptr); // the vertex shader makes its positions from SV_VertexID
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->VSSetShader(m_rippleVertexShader.Get(), nullptr, 0);
+    context->PSSetShader(m_linePixelShader.Get(), nullptr, 0);
+    ID3D11Buffer* lineConstants = m_lineBuffer.Get();
+    context->PSSetConstantBuffers(0, 1, &lineConstants);
+    context->PSSetShaderResources(1, 1, &depthRead); // t0 is the shadow map of the scene: left alone
+    context->Draw(3, 0);
+    ID3D11ShaderResourceView* none[1] = {}; // the depth must not stay bound for reading: it is written again
+    context->PSSetShaderResources(1, 1, none);
+    context->OMSetRenderTargets(1, &colour, depthView.Get());
+    BindScenePipeline(context); // the shaders, the states and the buffers of the scene again
+    ++m_drawCalls;
+}
+
 // The two pictures are made the first time a ripple needs them, and again when the window size changes. The new ones
 // are made first and put in place only when all of them worked, so a failure keeps the old ones.
 bool Models::EnsureLayerTargets(UINT width, UINT height)
@@ -721,13 +887,26 @@ bool Models::EnsureLayerTargets(UINT width, UINT height)
         }
         if (SUCCEEDED(hr))
         {
-            desc.Format = DXGI_FORMAT_D32_FLOAT; // the same depth format as Device (docs/CONVENTIONS.md)
-            desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+            // the same depth as Device (D32_FLOAT, docs/CONVENTIONS.md), typeless so that the ink lines can read it
+            desc.Format = DXGI_FORMAT_R32_TYPELESS;
+            desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
             hr = m_device->CreateTexture2D(&desc, nullptr, &target.depth);
         }
         if (SUCCEEDED(hr))
         {
-            hr = m_device->CreateDepthStencilView(target.depth.Get(), nullptr, &target.depthView);
+            D3D11_DEPTH_STENCIL_VIEW_DESC depthDesc{};
+            depthDesc.Format = DXGI_FORMAT_D32_FLOAT;
+            depthDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+            hr = m_device->CreateDepthStencilView(target.depth.Get(), &depthDesc, &target.depthView);
+        }
+        if (SUCCEEDED(hr))
+        {
+            D3D11_SHADER_RESOURCE_VIEW_DESC readDesc{};
+            readDesc.Format = DXGI_FORMAT_R32_FLOAT;
+            readDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+            readDesc.Texture2D.MostDetailedMip = 0;
+            readDesc.Texture2D.MipLevels = 1;
+            hr = m_device->CreateShaderResourceView(target.depth.Get(), &readDesc, &target.depthShaderView);
         }
         if (FAILED(hr))
         {
@@ -930,6 +1109,7 @@ void Models::LoadThemes(const Config& config)
 void Models::LoadLighting(const Config& config)
 {
     SetLighting(ReadLightingSettings(config));
+    m_lines = ReadLineSettings(config);
     DL_LOG_INFO("Models", "lighting: shadows %s %d (radius %.0f m), lamps %s, exposure %.2f, knee %.2f",
                 m_lighting.shadows ? "on" : "off", m_lighting.shadowSize, static_cast<double>(m_lighting.shadowRadius),
                 m_lighting.pointLights ? "on" : "off", static_cast<double>(m_lighting.exposure),
@@ -1165,6 +1345,7 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         std::memcpy(&frame.styleLight, style.light, sizeof(style.light));
         std::memcpy(&frame.styleFar, style.hazeTint, sizeof(style.hazeTint));
         std::memcpy(&frame.styleMisc, style.misc, sizeof(style.misc));
+        std::memcpy(&frame.styleMore, style.more, sizeof(style.more));
         return frame;
     };
     const auto writeFrame = [&](const FrameConstants& frame)
@@ -1322,6 +1503,8 @@ void Models::DrawObjects(ID3D11DeviceContext* context, const XMMATRIX& view, con
         }
         DrawObject(context, object, m_drawCalls);
     }
+    // ---- the ink lines (6.10): over everything opaque of this picture, under the water (which is blended over them)
+    DrawLines(context, layer, projection);
     // ---- the water: after everything opaque, blended; the still water of the static batch first, then the water
     // objects far to near (the sea first: it is under everything else)
     const GpuMesh& stillWater = m_waterBatch[static_cast<std::size_t>(layer)];

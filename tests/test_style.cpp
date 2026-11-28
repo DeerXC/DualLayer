@@ -23,7 +23,8 @@
 //      the shipped file
 //   6. the look of docs/DESIGN.md 6.10, with the settings that config/default.ini really has: A in three tones (sunny
 //      wall, ground, shadow) with a cool shadow; B with its open ground not pale, its route readable in the moon alone
-//      and its deepest dark not below L* 12
+//      and its deepest dark not below L* 12; the distance of A lavender and pale (the haze and the far fog), that of B
+//      as it was
 // Returns 1 when a check fails.
 
 #include "check.h"
@@ -43,6 +44,7 @@
 
 #include "../shaders/lighting.hlsli"
 #include "../shaders/lines.hlsli"
+#include "../shaders/lines_blend.hlsli"
 
 #include "hlsl_shim_end.h"
 
@@ -97,6 +99,7 @@ StyleParams StyleOf(const dl::LightingSettings& set, int layer)
     s.damp = c.misc[1];
     s.farTint = float3(c.hazeTint[0], c.hazeTint[1], c.hazeTint[2]);
     s.farAmount = c.hazeTint[3];
+    s.farFog = c.more[0];
     s.toonEdge = 0.0f; // a flat face has no change of the cosine over a pixel: its steps are hard
     return s;
 }
@@ -380,11 +383,44 @@ void TestSurface()
     haze.farTint = float3(0.8f, 0.9f, 1.2f);
     haze.farAmount = 1.0f;
     const float3 base(0.8f, 0.7f, 0.6f);
-    CHECK(Near3(StyleHaze(base, 10.0f, haze), base, 0.0f) && Near3(StyleHaze(base, 40.0f, haze), base, 1.0e-6f));
+    CHECK(Near3(StyleHaze(base, 10.0f, haze), base, 0.0f) && Near3(StyleHaze(base, 24.0f, haze), base, 1.0e-6f));
+    // far away the haze has the hue of farTint and the brightness that it had
+    const float3 grey(0.2126f, 0.7152f, 0.0722f);
     const float3 farAway = StyleHaze(base, 300.0f, haze);
-    CHECK(Near3(farAway, base * haze.farTint, 1.0e-6f));
-    CHECK(StyleHaze(base, 150.0f, haze).z / StyleHaze(base, 150.0f, haze).x > base.z / base.x);
+    CHECK(Near(farAway.x / farAway.z, haze.farTint.x / haze.farTint.z, 1.0e-5f) &&
+          Near(farAway.y / farAway.z, haze.farTint.y / haze.farTint.z, 1.0e-5f));
+    CHECK(Near(dot(farAway, grey), dot(base, grey), 1.0e-5f));
+    // on the way (to 200 m, where it has all leaned) it leans more and more toward blue; the brightness never changes
+    float lastBlue = base.z / base.x;
+    bool leaning = true;
+    bool bright = true;
+    for (float metres = 30.0f; metres <= 180.0f; metres += 30.0f)
+    {
+        const float3 h = StyleHaze(base, metres, haze);
+        leaning = leaning && h.z / h.x > lastBlue;
+        bright = bright && Near(dot(h, grey), dot(base, grey), 1.0e-5f);
+        lastBlue = h.z / h.x;
+    }
+    CHECK(leaning && bright);
     CHECK(Near3(StyleHaze(base, 300.0f, Neutral()), base, 0.0f));
+    // the far fog: none within 100 m, all of it from 280 m, rising in between; the fog of the model is kept
+    StyleParams fog = Neutral();
+    fog.farFog = 0.5f;
+    CHECK(StyleFarFog(0.0f, fog) == 0.0f && StyleFarFog(100.0f, fog) == 0.0f);
+    CHECK(Near(StyleFarFog(280.0f, fog), 0.5f, 1.0e-6f) && Near(StyleFarFog(900.0f, fog), 0.5f, 1.0e-6f));
+    bool fogRising = true;
+    float lastFog = -1.0f;
+    for (int i = 0; i <= 300; ++i)
+    {
+        const float f = StyleFarFog(static_cast<float>(i), fog);
+        fogRising = fogRising && f >= lastFog && f <= 0.5f + 1.0e-6f;
+        lastFog = f;
+    }
+    CHECK(fogRising && StyleFarFog(300.0f, Neutral()) == 0.0f);
+    CHECK(Near(StyleFog(0.3f, 50.0f, fog), 0.3f, 1.0e-6f));                // near: the fog of the model alone
+    CHECK(Near(StyleFog(0.3f, 300.0f, fog), 1.0f - 0.7f * 0.5f, 1.0e-6f)); // far: both, one over the other
+    CHECK(Near(StyleFog(0.0f, 300.0f, fog), 0.5f, 1.0e-6f) && StyleFog(1.0f, 300.0f, fog) == 1.0f);
+    CHECK(Near(StyleFog(0.4f, 900.0f, Neutral()), 0.4f, 1.0e-6f)); // no far fog: the fog of the model
 }
 
 // ---- 4. the grade
@@ -481,6 +517,7 @@ void TestSettings()
     const dl::LightingSettings d;
     CHECK(d.style == 1.0f && d.shafts && d.shaftSteps >= 4 && d.shaftSteps <= 32 && d.toon > 0.0f && d.cool > 0.0f);
     CHECK(d.toon == 1.0f && d.toonEdge == 1.5f); // 6.10: hard steps, an edge of a pixel and a half
+    CHECK(d.farFog == 1.0f && d.haze == 0.85f);  // S3: the far fog of the look in full, the haze leaning far
 
     dl::LightingSettings bad;
     bad.style = 5.0f;
@@ -493,11 +530,12 @@ void TestSettings()
     bad.vignette = 99.0f;
     bad.wash = 4.0f;
     bad.toonEdge = 99.0f;
+    bad.farFog = 9.0f;
     const dl::LightingSettings fixed = dl::Sanitize(bad);
     CHECK(fixed.style == 1.0f && fixed.toon == 0.0f && fixed.rim == d.rim && fixed.cloudsA == 0.9f &&
           fixed.shaftSteps == 32);
     CHECK(fixed.saturation == 0.0f && fixed.contrast == 2.0f && fixed.vignette == 2.0f && fixed.wash == 1.0f);
-    CHECK(fixed.toonEdge == 6.0f);
+    CHECK(fixed.toonEdge == 6.0f && fixed.farFog == 4.0f);
     bad.toonEdge = 0.0f;
     CHECK(dl::Sanitize(bad).toonEdge == 0.25f); // never 0: the shader reads 0 as 'not set'
     bad.toonEdge = std::nanf("");
@@ -508,12 +546,12 @@ void TestSettings()
     dl::Config c;
     c.ParseString("[lighting]\nstyle = 0.5\ntoon = 0.2\nshafts = false\nshaft_steps = 8\nclouds_b = 0.1\nlamp_rings = "
                   "0\nwash = 0.3\n"
-                  "haze = 0.9\ncontrast = 1.5\nrim = abc\ntoon_edge = 2.5\n");
+                  "haze = 0.9\ncontrast = 1.5\nrim = abc\ntoon_edge = 2.5\nfar_fog = 0.4\n");
     const dl::LightingSettings r = dl::ReadLightingSettings(c);
     CHECK(r.style == 0.5f && r.toon == 0.2f && !r.shafts && r.shaftSteps == 8 && r.cloudsB == 0.1f &&
           r.lampRings == 0.0f);
     CHECK(r.wash == 0.3f && r.haze == 0.9f && r.contrast == 1.5f && r.rim == d.rim && r.cloudsA == d.cloudsA);
-    CHECK(r.toonEdge == 2.5f);
+    CHECK(r.toonEdge == 2.5f && r.farFog == 0.4f);
     dl::Config empty;
     const dl::LightingSettings none = dl::ReadLightingSettings(empty);
     CHECK(none.style == d.style && none.toon == d.toon && none.shafts == d.shafts && none.shaftsA == d.shaftsA);
@@ -525,12 +563,12 @@ void TestSettings()
           plain.light[1] == 0.0f);
     CHECK(plain.light[2] == 0.0f && plain.hazeTint[3] == 0.0f && plain.misc[0] == 0.0f && plain.misc[1] == 0.0f &&
           plain.misc[2] == 1.0f);
-    CHECK(plain.misc[3] == 0.0f);
+    CHECK(plain.misc[3] == 0.0f && plain.more[0] == 0.0f);
     dl::LightingSettings off;
     off.style = 0.0f;
     const dl::StyleConstants master0 = dl::MakeStyle(off, 1, false);
     CHECK(master0.grade2[2] == 1.0f && master0.misc[2] == 1.0f && master0.light[2] == 0.0f && master0.cool[3] == 0.0f);
-    CHECK(master0.misc[3] == 0.0f);
+    CHECK(master0.misc[3] == 0.0f && master0.more[0] == 0.0f);
     const dl::StyleConstants a = dl::MakeStyle(d, 0, false);
     const dl::StyleConstants b = dl::MakeStyle(d, 1, false);
     CHECK(a.grade2[0] == d.toon && a.grade2[1] == d.rim && a.grade2[2] > 1.0f && a.grade2[3] > 0.0f &&
@@ -539,6 +577,8 @@ void TestSettings()
     CHECK(b.misc[1] > a.misc[1] && b.grade2[3] > a.grade2[3] &&
           b.cool[2] != a.cool[2]); // B is damper, darker in the corners, another colour
     CHECK(a.light[3] == static_cast<float>(d.shaftSteps));
+    // the distance of A is paler, that of B is as it was
+    CHECK(Near(a.more[0], 0.5f * d.farFog, 1.0e-6f) && b.more[0] == 0.0f);
     dl::LightingSettings noShadows;
     noShadows.shadows = false;
     CHECK(dl::MakeStyle(noShadows, 0, false).light[2] == 0.0f); // no shadow map, no shafts
@@ -550,6 +590,10 @@ void TestSettings()
     const dl::StyleConstants h = dl::MakeStyle(half, 0, false);
     // the edge is in pixels: the master does not scale it
     CHECK(a.misc[3] == d.toonEdge && b.misc[3] == d.toonEdge && h.misc[3] == d.toonEdge);
+    CHECK(Near(h.more[0], 0.5f * a.more[0], 1.0e-6f)); // the master scales the far fog
+    dl::LightingSettings strongFog;
+    strongFog.farFog = 4.0f;
+    CHECK(dl::MakeStyle(strongFog, 0, false).more[0] == 1.0f); // 0.5 * 4 is 2: never more than all of the light
     CHECK(Near(h.grade2[0], 0.5f * d.toon, 1.0e-6f) && Near(h.misc[2], 1.0f + 0.5f * (a.misc[2] - 1.0f), 1.0e-6f));
     dl::LightingSettings nonsense;
     nonsense.style = std::nanf("");
@@ -563,7 +607,9 @@ void TestSettings()
         const dl::StyleLook look = dl::StyleLookOf(layer);
         CHECK(Mean(look.cool) > 0.9f && Mean(look.cool) < 1.1f);
         CHECK(Mean(look.low) > 0.9f && Mean(look.low) < 1.1f && Mean(look.high) > 0.9f && Mean(look.high) < 1.1f);
-        CHECK(Mean(look.hazeTint) > 0.85f && Mean(look.hazeTint) < 1.1f);
+        // a cool hue to lean to (only the hue counts)
+        CHECK(look.hazeTint[2] > look.hazeTint[0] && look.hazeTint[0] > 0.0f);
+        CHECK(look.farFog >= 0.0f && look.farFog <= 1.0f);
         CHECK(look.cool[2] > look.cool[0] && look.low[2] > look.low[0]); // the shadows lean blue in both
         CHECK(look.high[0] != look.high[2] && look.lowAmount > 0.0f && look.highAmount > 0.0f);
         CHECK(look.contrast >= 1.0f && look.contrast <= 1.4f && look.saturation >= 1.0f && look.saturation <= 1.4f);
@@ -621,6 +667,26 @@ float3 Seen(const dl::LightingSettings& set, int layer, const Moment& m, const f
     const float3 c =
         StyleShade(albedo, n, l, n, skyLight, m.lightColor * sunScale, sun, 0.0f, 0.0f, none, none, 1.0f, style);
     return SoftShoulder(StyleGrade(c * set.exposure, style, 0.0f, 0.0f), set.knee);
+}
+
+// What a lit hillside looks like at `metres` in a moment: the fog of the model (density, colour of the horizon in
+// sRGB), the far fog and the haze of the style, then the grade and the shoulder. The surface is given in linear light.
+float3 SeenFar(const dl::LightingSettings& set, int layer, const float3& horizonSrgb, float density, float metres,
+               const float3& surface)
+{
+    const StyleParams style = StyleOf(set, layer);
+    const float3 horizon(Linear(horizonSrgb.x), Linear(horizonSrgb.y), Linear(horizonSrgb.z));
+    const float3 haze = StyleHaze(horizon, metres, style);
+    const float fog = StyleFog(1.0f - std::exp(-metres * density), metres, style);
+    return SoftShoulder(StyleGrade(lerp(surface, haze, fog) * set.exposure, style, 0.0f, 0.0f), set.knee);
+}
+
+// how far a colour is from grey: (largest - smallest) / largest of the three
+float Chroma(const float3& c)
+{
+    const float hi = std::max(c.x, std::max(c.y, c.z));
+    const float lo = std::min(c.x, std::min(c.y, c.z));
+    return hi > 0.0f ? (hi - lo) / hi : 0.0f;
 }
 
 // the config the game runs with: config/default.ini, read the way the game reads it
@@ -699,6 +765,23 @@ void TestLook()
     CHECK(LStar(groundCast) >= 33.0f && LStar(groundB) > LStar(groundCast) + 10.0f);
     // 6.10: the deepest dark of B
     CHECK(LStar(roofCast) >= 14.0f && LStar(roofWall) >= 11.0f);
+    // ---- the distance of A: lavender and pale. The horizon of the model (LIGHT of tools/layout/city_model.py: 0.99,
+    // 0.80, 0.62, fog 0.0020) over a lit hillside; what is seen at 250 m is bluer and paler than the same hillside near
+    const float3 hill(0.55f, 0.38f, 0.22f);
+    const float3 horizonA(0.99f, 0.80f, 0.62f);
+    const float3 hillNear = SeenFar(set, 0, horizonA, 0.0020f, 0.0f, hill);
+    const float3 hillMiddle = SeenFar(set, 0, horizonA, 0.0020f, 130.0f, hill);
+    const float3 hillFar = SeenFar(set, 0, horizonA, 0.0020f, 250.0f, hill);
+    std::printf("  far A: hillside near blue/red %.2f chroma %.2f, at 130 m %.2f %.2f, at 250 m %.2f %.2f (L* %.0f)\n",
+                Show(hillNear.z / hillNear.x), Show(Chroma(hillNear)), Show(hillMiddle.z / hillMiddle.x),
+                Show(Chroma(hillMiddle)), Show(hillFar.z / hillFar.x), Show(Chroma(hillFar)), Show(LStar(hillFar)));
+    CHECK(hillFar.z / hillFar.x > 1.8f * (hillNear.z / hillNear.x));   // bluer
+    CHECK(Chroma(hillFar) < 0.6f * Chroma(hillNear));                  // paler
+    CHECK(hillMiddle.z / hillMiddle.x > hillNear.z / hillNear.x);      // the middle distance has begun
+    CHECK(hillMiddle.z / hillMiddle.x < hillFar.z / hillFar.x);        // and goes on
+    CHECK(LStar(hillFar) > LStar(hillNear) && LStar(hillFar) < 95.0f); // lighter, not white
+    // the distance of B has no far fog of its own
+    CHECK(StyleFarFog(250.0f, StyleOf(set, 1)) == 0.0f && StyleFarFog(250.0f, StyleOf(set, 0)) > 0.2f);
 }
 
 // ---- 7. the ink lines of docs/DESIGN.md 6.10 (S2)
@@ -724,8 +807,8 @@ struct LineScene
     double tanY = std::tan(30.0 * kPi / 180.0);
     double tanX = tanY * kW / kH;
     std::vector<LineBox> boxes;
-    double wallZ = 300.0;   ///< a wall across the whole view at this depth (it stands 50 m high)
-    double rampZ = -1.0;    ///< the ground is a ramp from this depth on, rising at rampDegrees (< 0: flat)
+    double wallZ = 300.0; ///< a wall across the whole view at this depth (it stands 50 m high)
+    double rampZ = -1.0;  ///< the ground is a ramp from this depth on, rising at rampDegrees (< 0: flat)
     double rampDegrees = 0.0;
     std::vector<float> depth;
     std::vector<float3> edge; ///< x: outline, y: inner edge, z: depth of view, as LineEdge returns them
@@ -868,6 +951,47 @@ struct LineScene
 float LuminanceOf(const float3& c)
 {
     return 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z;
+}
+
+// The pass of shaders/lines.hlsl for one pixel, written again in C++: the registers that MakeLines gives, the depth of
+// a scene, the square of pixels round the pixel and the largest coverage in it. KEEP IN SYNC with the pixel shader.
+float PassCoverage(const LineScene& scene, const dl::LineConstants& c, int px, int py)
+{
+    const float widest = std::max(c.width[0], c.width[1]);
+    const int reach = static_cast<int>(std::min(std::max(std::ceil(0.5f * widest + 0.5f) - 1.0f, 1.0f), 4.0f));
+    const auto inverseDepth = [&](int x, int y)
+    {
+        const int cx = std::clamp(x, 0, LineScene::kW - 1);
+        const int cy = std::clamp(y, 0, LineScene::kH - 1);
+        return InverseViewDepth(scene.depth[LineScene::Index(cx, cy)], c.depth[0], c.depth[1]);
+    };
+    float coverage = 0.0f;
+    for (int j = -reach; j <= reach; ++j)
+    {
+        for (int i = -reach; i <= reach; ++i)
+        {
+            const int x = px + i;
+            const int y = py + j;
+            if (x < 1 || y < 1 || x > LineScene::kW - 2 || y > LineScene::kH - 2)
+            {
+                continue; // no line on the outermost row and column
+            }
+            const float sx =
+                ((static_cast<float>(x) + 0.5f) / static_cast<float>(LineScene::kW) * 2.0f - 1.0f) * c.width[2];
+            const float sy =
+                (1.0f - (static_cast<float>(y) + 0.5f) / static_cast<float>(LineScene::kH) * 2.0f) * c.width[3];
+            const float3 e = LineEdge(sx, sy, c.depth[2], inverseDepth(x, y), inverseDepth(x - 1, y),
+                                      inverseDepth(x + 1, y), inverseDepth(x, y - 1), inverseDepth(x, y + 1),
+                                      c.levels[0], c.levels[1], c.levels[2], c.depth[3]);
+            if (e.x > 0.0f || e.y > 0.0f)
+            {
+                const float dist = std::sqrt(static_cast<float>(i * i + j * j));
+                coverage =
+                    std::max(coverage, LineCoverage(e, dist, c.width[0], c.width[1], c.fade[0], c.fade[1], c.fade[2]));
+            }
+        }
+    }
+    return coverage;
 }
 
 void TestLines()
@@ -1026,11 +1150,37 @@ void TestLines()
     CHECK(Near3(LineComposite(sunnyWall, 1.0f, warmLine, 0.35f, 0.0f), sunnyWall, 1.0e-6f)); // amount 0: no line
     const float3 half50 = LineComposite(sunnyWall, 0.5f, warmLine, 0.35f, 1.0f);
     CHECK(Near3(half50, lerp(sunnyWall, ink, 0.5f), 1.0e-6f));
+    // the blend of the pass (source.rgb + picture * (1 - source.a)) is the same line, for any picture, coverage, master
+    const float3 pictures[] = {float3(0.9f, 0.6f, 0.3f), float3(0.05f, 0.08f, 0.2f), float3(0.0f, 0.0f, 0.0f),
+                               float3(1.0f, 1.0f, 1.0f)};
+    const float coverages[] = {0.0f, 0.1f, 0.5f, 1.0f};
+    const float masters[] = {0.0f, 0.6f, 1.0f};
+    bool blendIsLine = true;
+    bool blendBounded = true;
+    for (const float3& picture : pictures)
+    {
+        for (const float cover : coverages)
+        {
+            for (const float master : masters)
+            {
+                const float3 got = LineBlendColor(cover, warmLine, 0.35f, master) +
+                                   picture * (1.0f - LineBlendAlpha(cover, 0.35f, master));
+                const float3 want = LineComposite(picture, cover, warmLine, 0.35f, master);
+                blendIsLine = blendIsLine && Near3(got, want, 1.0e-6f);
+                const float alpha = LineBlendAlpha(cover, 0.35f, master);
+                const float3 drawn = LineBlendColor(cover, warmLine, 0.35f, master);
+                blendBounded = blendBounded && alpha >= 0.0f && alpha <= 1.0f && drawn.x >= 0.0f;
+            }
+        }
+    }
+    CHECK(blendIsLine && blendBounded);
+    // no line: no change
+    CHECK(LineBlendAlpha(0.0f, 0.35f, 1.0f) == 0.0f && LineBlendColor(0.0f, warmLine, 0.35f, 1.0f).x == 0.0f);
 
     // ---- the settings
     const dl::LineSettings d{};
     CHECK(d.amount == 1.0f && d.width == 2.0f && d.creaseWidth == 1.2f && d.silhouette == 6.0f && d.crease == 30.0f);
-    CHECK(d.fadeNear == 40.0f && d.fadeFar == 80.0f && d.farAlpha == 0.5f && d.local == 0.35f);
+    CHECK(d.fadeNear == 40.0f && d.fadeFar == 70.0f && d.farAlpha == 0.3f && d.local == 0.35f);
     dl::LineSettings bad;
     bad.amount = 7.0f;
     bad.width = 0.0f;
@@ -1063,10 +1213,16 @@ void TestLines()
     // the registers
     const dl::LineConstants a1 = dl::MakeLines(d, 0, 1.0f, 1.0f / static_cast<float>(a.tanY), 1080.0f, 0.1f, 600.0f);
     const dl::LineConstants b1 = dl::MakeLines(d, 1, 1.0f, 1.0f / static_cast<float>(a.tanY), 1080.0f, 0.1f, 600.0f);
-    CHECK(a1.ink[0] > a1.ink[2] && b1.ink[2] > b1.ink[0]);                     // A warm brown-black, B indigo-black
-    CHECK(a1.ink[0] < 0.05f && a1.ink[1] < 0.05f && b1.ink[2] < 0.05f);         // and dark, in linear light
+    CHECK(a1.ink[0] > a1.ink[2] && b1.ink[2] > b1.ink[0]);              // A warm brown-black, B indigo-black
+    CHECK(a1.ink[0] < 0.05f && a1.ink[1] < 0.05f && b1.ink[2] < 0.05f); // and dark, in linear light
     CHECK(Near(a1.depth[2], 2.0f * static_cast<float>(a.tanY) / 1080.0f, 1.0e-9f));
     CHECK(a1.depth[0] == 0.1f && a1.depth[1] == 600.0f);
+    // the view ray of a pixel: tan of half the field of view up (from the projection) and across (wider on a wide one)
+    CHECK(Near(a1.width[3], static_cast<float>(a.tanY), 1.0e-6f) && Near(a1.width[2], a1.width[3], 1.0e-6f));
+    const float p11 = 1.0f / static_cast<float>(a.tanY);
+    const dl::LineConstants wide = dl::MakeLines(d, 0, 1.0f, p11, 900.0f, 0.1f, 300.0f, p11 * 900.0f / 1600.0f);
+    CHECK(Near(wide.width[2], static_cast<float>(a.tanY) * 1600.0f / 900.0f, 1.0e-5f) && wide.depth[1] == 300.0f);
+    CHECK(Near(wide.width[3], static_cast<float>(a.tanY), 1.0e-6f)); // up is the same on any screen
     CHECK(Near(a1.levels[1], 1.0f - std::cos(30.0f * 3.14159265f / 180.0f), 1.0e-6f) && a1.levels[2] > a1.levels[1]);
     CHECK(a1.levels[0] == 6.0f && a1.levels[3] == 1.0f && a1.width[0] == 2.0f && Near(a1.width[1], 1.2f, 1.0e-6f));
     // the plain view (style master 0): no line
@@ -1077,6 +1233,23 @@ void TestLines()
     CHECK(Near(tall.width[0], 4.0f, 1.0e-6f) && Near(small.width[0], 2.0f, 1.0e-6f));
     const dl::LineConstants shy = dl::MakeLines(d, 0, 1.0f, 1.0f, 1600.0f, 0.1f, 600.0f);
     CHECK(Near(shy.width[0], 2.0f * 1600.0f / 1080.0f, 1.0e-5f)); // 2560 x 1600 of the laptop
+    // ---- the pass, with the registers of MakeLines, on the scene of the house: the line is on the pixel of the edge
+    // and one pixel to each side of it (a width of 2), nowhere else, and nothing on a face or on the ground
+    const float tanX = static_cast<float>(a.tanX);
+    const dl::LineConstants pass =
+        dl::MakeLines(d, 0, 1.0f, p11, static_cast<float>(LineScene::kH), static_cast<float>(LineScene::kNear),
+                      static_cast<float>(LineScene::kFar), 1.0f / tanX);
+    const int yMid = a.Row(1.5, 18);
+    CHECK(Near(PassCoverage(a, pass, xl, yMid), 1.0f, 1.0e-6f));
+    CHECK(Near(PassCoverage(a, pass, xl - 1, yMid), 0.5f, 1.0e-6f) &&
+          Near(PassCoverage(a, pass, xl + 1, yMid), 0.5f, 1.0e-6f));
+    CHECK(PassCoverage(a, pass, xl - 2, yMid) == 0.0f && PassCoverage(a, pass, xl + 2, yMid) == 0.0f);
+    CHECK(PassCoverage(a, pass, a.Col(0.0, 18), yMid) == 0.0f); // the face of the house
+    CHECK(PassCoverage(a, pass, 40, 300) == 0.0f);              // the ground
+    // a screen of another height and shape gives the same lines, in its own pixels
+    const dl::LineConstants other = dl::MakeLines(d, 0, 1.0f, p11, 1440.0f, 0.1f, 600.0f, 1.0f / tanX);
+    CHECK(Near(other.depth[2], 2.0f / (p11 * 1440.0f), 1.0e-9f));
+    CHECK(Near(other.width[0], 2.0f * 1440.0f / 1080.0f, 1.0e-5f));
 }
 
 } // namespace

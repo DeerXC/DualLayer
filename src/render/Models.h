@@ -25,6 +25,10 @@
 //            light every surface, the sum is bent by a soft shoulder, and the halos (kMatHalo objects) are added over
 //            the lit lamps. All of it is set by LightingSettings ([lighting] in the config); a shadow map that cannot
 //            be made switches the shadows off and the rest goes on.
+// Lines:     over everything opaque of a picture and under its water, DrawLines lays the ink of the look
+//            (docs/DESIGN.md 6.10): one full-screen pass that reads the depth buffer of the picture (shaders/lines.hlsl
+//            and lines.hlsli), set by LineSettings ([lines] in the config). The plain view (key L) has none. A pass
+//            that cannot be made is not an error: the log says so and the picture has no lines.
 // Keys:      app/TownSession.cpp reads the keyboard (app/Input.h; the focus rules live there) and calls
 //            ToggleWireframe / CycleDetail / ToggleLayer.
 // Threading: main thread only.
@@ -34,6 +38,7 @@
 #include "render/LayerRipple.h"
 #include "render/LightingSettings.h"
 #include "render/Lights.h"
+#include "render/LineSettings.h"
 #include "render/MeshData.h"
 #include "render/ShadowMath.h"
 #include "render/StaticBatch.h"
@@ -88,7 +93,8 @@ class Models
     void LoadThemes(const Config& config);
 
     /// Reads [lighting] from the config (render/LightingSettings.h) and applies it: the shadow map is made again when
-    /// its size changed. Call it after Init and again when F5 reloads the config.
+    /// its size changed. [lines] (render/LineSettings.h) is read with it. Call it after Init and again when F5 reloads
+    /// the config.
     void LoadLighting(const Config& config);
     void SetLighting(const LightingSettings& settings);
     const LightingSettings& Lighting() const
@@ -242,6 +248,7 @@ class Models
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shaderView;
         Microsoft::WRL::ComPtr<ID3D11Texture2D> depth;
         Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depthView;
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> depthShaderView; ///< the depth as a texture (the ink lines)
     };
 
     bool CreateMeshes(int segments);
@@ -254,6 +261,14 @@ class Models
     void DrawObject(ID3D11DeviceContext* context, const scene::SceneObject& object, int& drawCounter);
     bool CreateRippleResources();
     bool EnsureLayerTargets(UINT width, UINT height);
+    bool CreateLineResources();
+    /// The ink lines of the look over the picture that is bound (render target and depth buffer), for the moment
+    /// `layer`. The depth buffer must be a typeless depth texture that can be read (Device.cpp and EnsureLayerTargets
+    /// make them so). Nothing is drawn and nothing is changed when the lines are off, in the plain view, or when the
+    /// depth cannot be read; the bound state is put back like BindScenePipeline leaves it.
+    void DrawLines(ID3D11DeviceContext* context, int layer, const DirectX::XMMATRIX& projection);
+    /// The shader view of a depth texture of a picture (nullptr when it cannot be read in a shader).
+    ID3D11ShaderResourceView* DepthViewOf(ID3D11Resource* depth);
     int TriangleTotal() const;
     int VisibleModelCount() const;
 
@@ -283,6 +298,7 @@ class Models
     std::vector<const scene::SceneObject*> m_halos;               // the halos of a frame (reused)
     // ---- light
     LightingSettings m_lighting;
+    LineSettings m_lines;
     std::vector<PointLight> m_fixedLamps;  // the lamps of the town
     std::vector<PointLight> m_movingLamps; // the lantern and the other lamps that change (every frame)
     int m_debugView = 0;
@@ -332,6 +348,13 @@ class Models
     bool m_wireframe = false;
     float m_time = 0.0f; // seconds since the start (always runs): the waves of the water
 
+    // ---- the ink lines
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_linePixelShader;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_lineBuffer;
+    Microsoft::WRL::ComPtr<ID3D11BlendState> m_lineBlend; // result = source.rgb + picture * (1 - source.a)
+    Microsoft::WRL::ComPtr<ID3D11Resource> m_screenDepth; // the depth texture that m_screenDepthView belongs to
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_screenDepthView;
+    bool m_lineDepthWarned = false; // the log says once that the depth cannot be read
     // ---- the ripple
     LayerRipple m_ripple;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_rippleVertexShader;

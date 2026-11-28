@@ -112,6 +112,7 @@
     <ClInclude Include="src\render\Hud.h" />
     <ClInclude Include="src\render\LayerRipple.h" />
     <ClInclude Include="src\render\LightingSettings.h" />
+    <ClInclude Include="src\render\LineSettings.h" />
     <ClInclude Include="src\render\Lights.h" />
     <ClInclude Include="src\render\MapView.h" />
     <ClInclude Include="src\render\MeshData.h" />
@@ -147,6 +148,9 @@
     <!-- shaders are compiled at run time by the game (hot reload comes later): VS must NOT compile them -->
     <None Include="shaders\common.hlsli" />
     <None Include="shaders\lighting.hlsli" />
+    <None Include="shaders\lines.hlsl" />
+    <None Include="shaders\lines.hlsli" />
+    <None Include="shaders\lines_blend.hlsli" />
     <None Include="shaders\models.hlsl" />
     <None Include="shaders\overlay.hlsl" />
     <None Include="shaders\ripple.hlsl" />
